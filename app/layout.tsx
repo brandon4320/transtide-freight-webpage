@@ -57,63 +57,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" suppressHydrationWarning>
-      <head>
-        <link rel="icon" href="/favicon.ico" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-        <meta name="theme-color" content="#1e40af" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              "@context": "https://schema.org",
-              "@type": "Organization",
-              name: "Transtide Freight",
-              url: "https://transtidefreight.com",
-              logo: "https://transtidefreight.com/images/transtide-logo.png",
-              description:
-                "Especialistas en logística internacional. Importaciones desde China y EE.UU. con rapidez, seguridad y acompañamiento real.",
-              address: [
-                {
-                  "@type": "PostalAddress",
-                  addressCountry: "AR",
-                  addressLocality: "Buenos Aires",
-                  streetAddress: "Belgrano 3710, Ing White, Bahía Blanca",
-                },
-                {
-                  "@type": "PostalAddress",
-                  addressCountry: "US",
-                  addressLocality: "Miami",
-                  addressRegion: "FL",
-                  streetAddress: "5605 NW 74th Ave",
-                },
-                {
-                  "@type": "PostalAddress",
-                  addressCountry: "CN",
-                  addressLocality: "Shanghai",
-                  addressRegion: "Pudong New Area",
-                  streetAddress: "Room 902, Jingang Building, No. 55 Aona Road, Waigaoqiao Free Trade Zone",
-                },
-              ],
-              contactPoint: {
-                "@type": "ContactPoint",
-                telephone: "+XX-XXXX-XXXX",
-                contactType: "customer service",
-                email: "contacto@transtidefreight.com",
-              },
-              sameAs: ["https://instagram.com/transtidefreight", "https://linkedin.com/company/transtide-freight"],
-              service: [
-                "Logística Internacional",
-                "Despacho Aduanero",
-                "Sourcing Profesional",
-                "Consolidación de Carga",
-                "Transporte Marítimo",
-                "Transporte Aéreo",
-              ],
-            }),
-          }}
-        />
-      </head>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           <Header />
