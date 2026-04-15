@@ -1,0 +1,2204 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+    --radius: 0.5rem;
+
+    /* Grid System Variables */
+    --grid-gap-xs: 0.5rem; /* 8px */
+    --grid-gap-sm: 0.75rem; /* 12px */
+    --grid-gap-md: 1rem; /* 16px */
+    --grid-gap-lg: 1.5rem; /* 24px */
+    --grid-gap-xl: 2rem; /* 32px */
+    --grid-gap-2xl: 3rem; /* 48px */
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.5% 48%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  /* Optimización para móviles */
+  html {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    scroll-behavior: smooth;
+  }
+
+  /* Mejora de legibilidad en móviles */
+  p,
+  li,
+  span {
+    @apply text-base leading-relaxed;
+  }
+
+  /* Mejora de tamaños de toque para móviles */
+  button,
+  a,
+  [role="button"] {
+    @apply min-h-[44px];
+    touch-action: manipulation;
+  }
+
+  /* Mejora de formularios para móviles */
+  input,
+  select,
+  textarea {
+    @apply text-base;
+    font-size: 16px !important; /* Previene zoom en iOS */
+  }
+}
+
+/* ===== SISTEMA DE GRIDS UNIFICADO ===== */
+
+@layer components {
+  /* Grid Base - Sistema Fundamental */
+  .grid-base {
+    display: grid;
+    width: 100%;
+  }
+
+  /* Grid para Servicios Principales - Patrón 1-2-3 */
+  .grid-services-main {
+    @apply grid-base;
+    grid-template-columns: 1fr;
+    gap: var(--grid-gap-lg);
+  }
+
+  @media (min-width: 768px) {
+    .grid-services-main {
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--grid-gap-xl);
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .grid-services-main {
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--grid-gap-xl);
+    }
+  }
+
+  /* Grid para Servicios Secundarios - Patrón 1-1-2 */
+  .grid-services-secondary {
+    @apply grid-base;
+    grid-template-columns: 1fr;
+    gap: var(--grid-gap-lg);
+  }
+
+  @media (min-width: 1024px) {
+    .grid-services-secondary {
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--grid-gap-xl);
+    }
+  }
+
+  /* Grid para Industrias - Patrón 2-3-6 */
+  .grid-industries {
+    @apply grid-base;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--grid-gap-sm);
+  }
+
+  @media (min-width: 768px) {
+    .grid-industries {
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--grid-gap-md);
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .grid-industries {
+      grid-template-columns: repeat(6, 1fr);
+      gap: var(--grid-gap-lg);
+    }
+  }
+
+  /* Grid para Shipping Lines - Patrón 2-3-6 */
+  .grid-shipping {
+    @apply grid-base;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--grid-gap-sm);
+  }
+
+  @media (min-width: 640px) {
+    .grid-shipping {
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--grid-gap-md);
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .grid-shipping {
+      grid-template-columns: repeat(6, 1fr);
+      gap: var(--grid-gap-lg);
+    }
+  }
+
+  /* Grid para Stats - Patrón 2-4 */
+  .grid-stats {
+    @apply grid-base;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--grid-gap-xs);
+  }
+
+  @media (min-width: 768px) {
+    .grid-stats {
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--grid-gap-md);
+    }
+  }
+
+  /* Grid para Contacto - Patrón 1-2 */
+  .grid-contact {
+    @apply grid-base;
+    grid-template-columns: 1fr;
+    gap: var(--grid-gap-lg);
+  }
+
+  @media (min-width: 1024px) {
+    .grid-contact {
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--grid-gap-2xl);
+    }
+  }
+
+  /* Grid para Footer - Patrón 1-3 */
+  .grid-footer {
+    @apply grid-base;
+    grid-template-columns: 1fr;
+    gap: var(--grid-gap-lg);
+  }
+
+  @media (min-width: 768px) {
+    .grid-footer {
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--grid-gap-xl);
+    }
+  }
+
+  /* Grid para Galería de Imágenes - Patrón 1-2-4 */
+  .grid-gallery {
+    @apply grid-base;
+    grid-template-columns: 1fr;
+    gap: var(--grid-gap-md);
+  }
+
+  @media (min-width: 640px) {
+    .grid-gallery {
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--grid-gap-lg);
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .grid-gallery {
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--grid-gap-lg);
+    }
+  }
+
+  /* Grid para Formularios - Patrón 1-2 */
+  .grid-form {
+    @apply grid-base;
+    grid-template-columns: 1fr;
+    gap: var(--grid-gap-md);
+  }
+
+  @media (min-width: 768px) {
+    .grid-form {
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--grid-gap-lg);
+    }
+  }
+
+  /* Grid para Proceso Steps - Patrón vertical en móvil, horizontal en desktop */
+  .grid-process {
+    @apply grid-base;
+    grid-template-columns: 1fr;
+    gap: var(--grid-gap-md);
+  }
+
+  @media (min-width: 768px) {
+    .grid-process {
+      gap: var(--grid-gap-lg);
+    }
+  }
+
+  /* Grid para Features/Benefits - Patrón 1-2 */
+  .grid-features {
+    @apply grid-base;
+    grid-template-columns: 1fr;
+    gap: var(--grid-gap-lg);
+  }
+
+  @media (min-width: 768px) {
+    .grid-features {
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--grid-gap-2xl);
+    }
+  }
+
+  /* Grid Auto-fit para contenido dinámico */
+  .grid-auto-fit-sm {
+    @apply grid-base;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--grid-gap-md);
+  }
+
+  .grid-auto-fit-md {
+    @apply grid-base;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: var(--grid-gap-lg);
+  }
+
+  .grid-auto-fit-lg {
+    @apply grid-base;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: var(--grid-gap-xl);
+  }
+
+  /* Utilidades de Gap Consistentes */
+  .gap-xs {
+    gap: var(--grid-gap-xs);
+  }
+  .gap-sm {
+    gap: var(--grid-gap-sm);
+  }
+  .gap-md {
+    gap: var(--grid-gap-md);
+  }
+  .gap-lg {
+    gap: var(--grid-gap-lg);
+  }
+  .gap-xl {
+    gap: var(--grid-gap-xl);
+  }
+  .gap-2xl {
+    gap: var(--grid-gap-2xl);
+  }
+
+  /* Grid Items - Comportamientos especiales */
+  .grid-item-span-full {
+    grid-column: 1 / -1;
+  }
+
+  .grid-item-span-2 {
+    grid-column: span 2;
+  }
+
+  .grid-item-span-3 {
+    grid-column: span 3;
+  }
+
+  /* Grid para Hero Content */
+  .grid-hero {
+    @apply grid-base;
+    grid-template-columns: 1fr;
+    gap: var(--grid-gap-lg);
+    align-items: center;
+  }
+
+  @media (min-width: 768px) {
+    .grid-hero {
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--grid-gap-2xl);
+    }
+  }
+
+  /* Grid responsivo para cards pequeñas */
+  .grid-cards-sm {
+    @apply grid-base;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--grid-gap-sm);
+  }
+
+  /* Grid responsivo para cards medianas */
+  .grid-cards-md {
+    @apply grid-base;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: var(--grid-gap-md);
+  }
+
+  /* Grid responsivo para cards grandes */
+  .grid-cards-lg {
+    @apply grid-base;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: var(--grid-gap-lg);
+  }
+}
+
+/* Custom styles for Transtide Freight */
+.hero-pattern {
+  background-color: #1e40af;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cg fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath opacity='.5' d='M96 95h4v1h-4v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4H0v-1h15v-9H0v-1h15v-9H0v-1h15v-9H0v-1h15V0h1v15h9V0h1v15h9V0h1v15h9V0h1v15h9V0h1v15h9V0h1v15h4v1h-4v9h4v1h-4v9h4v1h-4v9h4v1h-4v9h4v1h-4v9h4v1h-4v9h4v1h-4v9zm-1 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-9-10h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm9-10v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-9-10h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+
+/* Service card animations */
+.service-card {
+  transition: all 0.3s ease-in-out;
+}
+
+.service-card:hover {
+  transform: translateY(-8px);
+}
+
+/* Process step animations */
+.process-step {
+  transition: all 0.3s ease-in-out;
+}
+
+.process-step:hover {
+  transform: translateX(8px);
+}
+
+/* Industry card animations */
+.industry-card {
+  transition: all 0.3s ease-in-out;
+}
+
+.industry-card:hover {
+  transform: translateY(-4px);
+}
+
+/* Image gallery styles */
+.image-gallery {
+  @apply grid-gallery;
+}
+
+.image-gallery-item {
+  position: relative;
+  height: 200px;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  transition: transform 0.3s ease-in-out;
+}
+
+.image-gallery-item:hover {
+  transform: scale(1.05);
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 80px; /* Ajuste para el header fijo */
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e40af;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #ea580c;
+}
+
+/* Focus styles for accessibility */
+.focus\:ring-accent:focus {
+  --tw-ring-color: #ea580c;
+}
+
+/* Custom button hover effects */
+.btn-primary {
+  background: linear-gradient(135deg, #1e40af 0%, #1d4ed8 100%);
+  transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, #1d4ed8 0%, #1e3a8a 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(30, 64, 175, 0.3);
+}
+
+.btn-accent {
+  background: linear-gradient(135deg, #ea580c 0%, #dc2626 100%);
+  transition: all 0.3s ease;
+}
+
+.btn-accent:hover {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(234, 88, 12, 0.3);
+}
+
+/* Loading animation */
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #1e40af 0%, #ea580c 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Card shadows */
+.card-shadow {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.card-shadow-lg {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.card-shadow-xl {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Responsive typography */
+@media (max-width: 640px) {
+  .text-responsive-xl {
+    font-size: 1.5rem;
+    line-height: 2rem;
+  }
+
+  h1 {
+    font-size: 2rem !important;
+    line-height: 1.2 !important;
+  }
+
+  h2 {
+    font-size: 1.75rem !important;
+    line-height: 1.3 !important;
+  }
+
+  h3 {
+    font-size: 1.5rem !important;
+    line-height: 1.4 !important;
+  }
+}
+
+@media (min-width: 641px) {
+  .text-responsive-xl {
+    font-size: 2rem;
+    line-height: 2.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .text-responsive-xl {
+    font-size: 2.5rem;
+    line-height: 3rem;
+  }
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+  }
+}
+
+/* ===== OPTIMIZACIONES MÓVILES CON GRID SYSTEM ===== */
+
+/* Configuración base para móviles */
+@media (max-width: 640px) {
+  html {
+    font-size: 16px; /* Previene zoom en iOS */
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+  }
+
+  body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Container y espaciado optimizado */
+  .container {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+    max-width: 100% !important;
+  }
+
+  /* Override grid gaps para móvil */
+  :root {
+    --grid-gap-xs: 0.5rem;
+    --grid-gap-sm: 0.5rem;
+    --grid-gap-md: 0.75rem;
+    --grid-gap-lg: 1rem;
+    --grid-gap-xl: 1.25rem;
+    --grid-gap-2xl: 1.5rem;
+  }
+
+  /* Forzar grids a una columna en móvil cuando sea necesario */
+  .grid-services-main,
+  .grid-services-secondary,
+  .grid-contact,
+  .grid-features,
+  .grid-hero {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Mantener 2 columnas para elementos pequeños */
+  .grid-industries,
+  .grid-shipping,
+  .grid-stats {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Secciones con espaciado vertical optimizado */
+  section {
+    padding-top: 2.5rem !important;
+    padding-bottom: 2.5rem !important;
+  }
+
+  /* Tipografía responsive optimizada */
+  h1 {
+    font-size: 1.875rem !important; /* 30px */
+    line-height: 1.2 !important;
+    margin-bottom: 1rem !important;
+  }
+
+  h2 {
+    font-size: 1.5rem !important; /* 24px */
+    line-height: 1.3 !important;
+    margin-bottom: 0.75rem !important;
+  }
+
+  h3 {
+    font-size: 1.25rem !important; /* 20px */
+    line-height: 1.4 !important;
+    margin-bottom: 0.5rem !important;
+  }
+
+  p,
+  li,
+  span {
+    font-size: 1rem !important; /* 16px */
+    line-height: 1.6 !important;
+  }
+
+  /* Botones táctiles optimizados */
+  button,
+  a[role="button"],
+  .btn,
+  input[type="submit"],
+  input[type="button"] {
+    min-height: 44px !important;
+    min-width: 44px !important;
+    padding: 0.75rem 1rem !important;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: rgba(234, 88, 12, 0.3);
+    border-radius: 0.5rem !important;
+    font-size: 1rem !important;
+  }
+
+  /* Formularios optimizados para móvil */
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="password"],
+  input[type="search"],
+  textarea,
+  select {
+    font-size: 16px !important; /* Previene zoom en iOS */
+    padding: 0.875rem !important;
+    border-radius: 0.5rem !important;
+    width: 100% !important;
+    min-height: 44px !important;
+    border: 2px solid #e5e7eb !important;
+    transition: border-color 0.2s ease !important;
+  }
+
+  input:focus,
+  textarea:focus,
+  select:focus {
+    border-color: #ea580c !important;
+    outline: none !important;
+    box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.1) !important;
+  }
+
+  /* Labels más grandes para mejor legibilidad */
+  label {
+    font-size: 1rem !important;
+    font-weight: 500 !important;
+    margin-bottom: 0.5rem !important;
+    display: block !important;
+  }
+
+  /* Cards optimizadas para móvil */
+  .service-card,
+  .industry-card,
+  .process-step {
+    margin-bottom: 1rem !important;
+    padding: 1.25rem !important;
+    border-radius: 0.75rem !important;
+  }
+
+  /* Desactivar animaciones complejas en móvil para mejor rendimiento */
+  .service-card:hover,
+  .industry-card:hover,
+  .process-step:hover {
+    transform: none !important;
+  }
+
+  .hover\:scale-105:hover,
+  .hover\:scale-110:hover,
+  .hover\:-translate-y-2:hover,
+  .hover\:-translate-y-3:hover,
+  .hover\:-translate-y-4:hover,
+  .hover\:-translate-y-8:hover {
+    transform: none !important;
+  }
+
+  /* Simplificar transiciones para mejor rendimiento */
+  .transition-all,
+  .transition-colors,
+  .transition-transform {
+    transition-duration: 0.2s !important;
+  }
+
+  /* Imágenes responsive */
+  img {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
+  /* Hero section optimizada */
+  .hero-pattern {
+    background-attachment: scroll !important; /* Mejor rendimiento en móvil */
+  }
+
+  /* Scroll suave optimizado */
+  html {
+    scroll-behavior: smooth !important;
+    scroll-padding-top: 80px !important;
+  }
+
+  /* Mejoras de accesibilidad táctil */
+  a,
+  button {
+    position: relative !important;
+  }
+
+  a::after,
+  button::after {
+    content: "";
+    position: absolute;
+    top: -8px;
+    left: -8px;
+    right: -8px;
+    bottom: -8px;
+    z-index: -1;
+  }
+
+  /* Optimización de texto en móvil */
+  .text-responsive-xl {
+    font-size: 1.5rem !important;
+    line-height: 1.3 !important;
+  }
+
+  /* Stats counter optimizado */
+  .stats-counter {
+    padding: 1rem !important;
+  }
+
+  .stats-counter .text-4xl {
+    font-size: 2rem !important;
+  }
+
+  /* Formulario de contacto optimizado */
+  .contact-form {
+    padding: 1.5rem !important;
+    border-radius: 1rem !important;
+  }
+
+  /* Mejoras de contraste para móvil */
+  .text-gray-600 {
+    color: #4b5563 !important;
+  }
+
+  .text-gray-700 {
+    color: #374151 !important;
+  }
+
+  /* Optimización de sombras para móvil */
+  .shadow-lg {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+  }
+
+  .shadow-xl {
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
+  }
+
+  /* Mejoras específicas para el hero */
+  .hero-content {
+    text-align: center !important;
+    padding: 2rem 1rem !important;
+  }
+
+  .hero-buttons {
+    flex-direction: column !important;
+    gap: 0.75rem !important;
+    width: 100% !important;
+  }
+
+  .hero-buttons button,
+  .hero-buttons a {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* Optimización de iconos */
+  .icon-large {
+    width: 2rem !important;
+    height: 2rem !important;
+  }
+
+  .icon-medium {
+    width: 1.5rem !important;
+    height: 1.5rem !important;
+  }
+
+  /* Mejoras de performance */
+  * {
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+  }
+
+  /* Prevenir zoom horizontal */
+  body {
+    overflow-x: hidden !important;
+  }
+
+  /* Optimización de la barra de scroll */
+  ::-webkit-scrollbar {
+    width: 4px !important;
+  }
+
+  /* Mejoras para touch devices */
+  @supports (hover: none) and (pointer: coarse) {
+    .hover\:bg-primary-100:hover {
+      background-color: inherit !important;
+    }
+
+    .hover\:text-accent:hover {
+      color: inherit !important;
+    }
+
+    .hover\:scale-105:hover {
+      transform: none !important;
+    }
+  }
+}
+
+/* Optimizaciones específicas para pantallas muy pequeñas */
+@media (max-width: 375px) {
+  .container {
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+  }
+
+  h1 {
+    font-size: 1.75rem !important;
+  }
+
+  h2 {
+    font-size: 1.375rem !important;
+  }
+
+  /* Forzar una sola columna en pantallas muy pequeñas */
+  .grid-industries,
+  .grid-shipping,
+  .grid-stats {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Optimizaciones para landscape en móvil */
+@media (max-width: 640px) and (orientation: landscape) {
+  section {
+    padding-top: 2rem !important;
+    padding-bottom: 2rem !important;
+  }
+
+  .hero-content {
+    padding: 1.5rem 1rem !important;
+  }
+
+  h1 {
+    font-size: 1.5rem !important;
+  }
+}
+
+/* ===== CORRECCIONES ESPECÍFICAS PARA iOS ===== */
+
+/* Correcciones para Safari/iOS */
+@supports (-webkit-touch-callout: none) {
+  /* Header fixes para iOS */
+  header {
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+    will-change: transform;
+  }
+
+  /* Backdrop filter fallback para iOS */
+  .backdrop-blur-md {
+    -webkit-backdrop-filter: blur(12px) !important;
+    backdrop-filter: blur(12px) !important;
+  }
+
+  /* Menu overlay fixes para iOS */
+  .mobile-nav-overlay {
+    position: fixed !important;
+    top: 64px !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    z-index: 40 !important;
+    background: rgba(255, 255, 255, 0.98) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    backdrop-filter: blur(20px) !important;
+  }
+
+  /* Prevenir bounce scroll en iOS */
+  body.menu-open {
+    position: fixed !important;
+    width: 100% !important;
+    overflow: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* Touch improvements para iOS */
+  button,
+  a {
+    -webkit-tap-highlight-color: rgba(234, 88, 12, 0.3) !important;
+    -webkit-touch-callout: none !important;
+    -webkit-user-select: none !important;
+    user-select: none !important;
+  }
+
+  /* Grid fixes para iOS */
+  .grid-base {
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+  }
+}
+
+/* Correcciones específicas para iPhone */
+@media screen and (max-device-width: 428px) {
+  /* Header height adjustment para iPhone */
+  .header-mobile {
+    min-height: 64px !important;
+  }
+
+  /* Logo sizing para iPhone */
+  .logo-mobile {
+    max-width: 160px !important;
+    height: 32px !important;
+  }
+
+  /* Menu button sizing para iPhone */
+  .menu-button {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    padding: 12px !important;
+  }
+}
+
+/* Correcciones para viewport en iOS */
+@media screen and (max-width: 767px) {
+  /* Asegurar que el header móvil se muestre correctamente */
+  .lg\:hidden {
+    display: flex !important;
+  }
+
+  .lg\:block {
+    display: none !important;
+  }
+
+  /* Menu overlay positioning */
+  .mobile-menu-overlay {
+    position: fixed !important;
+    top: 64px !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    z-index: 9999 !important;
+    background: rgba(255, 255, 255, 0.98) !important;
+  }
+}
+
+/* Correcciones para landscape en iPhone */
+@media screen and (max-height: 500px) and (orientation: landscape) {
+  .header-mobile {
+    height: 56px !important;
+  }
+
+  .mobile-menu-overlay {
+    top: 56px !important;
+  }
+
+  .spacer {
+    height: 56px !important;
+  }
+}
+
+/* ===== OPTIMIZACIONES MÓVILES MEJORADAS ===== */
+
+/* Optimizaciones específicas para ServiceCardWithTimeline en móvil */
+@media (max-width: 767px) {
+  .service-card {
+    margin-bottom: 1.5rem !important;
+    padding: 1rem !important;
+    border-radius: 1rem !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+  }
+
+  .service-card .card-header {
+    padding: 1rem 1rem 0.75rem 1rem !important;
+  }
+
+  .service-card .card-content {
+    padding: 0.75rem 1rem 1rem 1rem !important;
+  }
+
+  /* Optimización específica para la gestión integral */
+  .service-card .bg-white.rounded-xl {
+    padding: 1rem !important;
+    margin-top: 0.75rem !important;
+    border-radius: 0.75rem !important;
+  }
+
+  /* Mejorar el timeline en móvil - ELIMINAR TODAS LAS LÍNEAS DUPLICADAS */
+  .process-timeline {
+    padding: 1rem 0 !important;
+  }
+
+  .process-timeline .space-y-4 > div {
+    padding: 0.75rem !important;
+    margin-bottom: 0.75rem !important;
+  }
+
+  .process-timeline .w-10.h-10 {
+    width: 2rem !important;
+    height: 2rem !important;
+    min-width: 2rem !important;
+  }
+
+  .process-timeline .text-sm {
+    font-size: 0.875rem !important;
+    line-height: 1.4 !important;
+  }
+
+  /* ELIMINAR TODAS LAS LÍNEAS CONECTORAS DUPLICADAS DEL CSS */
+  .process-timeline-mobile .relative:not(:last-child)::after,
+  .process-timeline-mobile .relative::after,
+  .process-timeline-mobile .absolute {
+    display: none !important;
+  }
+
+  /* Hero section móvil mejorado */
+  .hero-content h1 {
+    font-size: 1.75rem !important;
+    line-height: 1.2 !important;
+    margin-bottom: 1rem !important;
+  }
+
+  .hero-content p {
+    font-size: 1rem !important;
+    line-height: 1.5 !important;
+    margin-bottom: 1.5rem !important;
+  }
+
+  .hero-content .flex.flex-col.sm\\:flex-row {
+    gap: 0.75rem !important;
+  }
+
+  .hero-content .flex.flex-col.sm\\:flex-row.items-center {
+    flex-direction: column !important;
+    gap: 1rem !important;
+    margin-top: 1.5rem !important;
+  }
+
+  /* Stats counter móvil */
+  .grid-stats {
+    gap: 0.5rem !important;
+  }
+
+  .stats-counter {
+    padding: 0.75rem !important;
+  }
+
+  .stats-counter .text-4xl {
+    font-size: 1.5rem !important;
+    margin-bottom: 0.25rem !important;
+  }
+
+  .stats-counter .text-sm {
+    font-size: 0.75rem !important;
+  }
+
+  /* About section móvil */
+  .grid-features {
+    gap: 2rem !important;
+  }
+
+  .grid-features h2 {
+    font-size: 1.75rem !important;
+    line-height: 1.3 !important;
+    margin-bottom: 1rem !important;
+  }
+
+  .grid-features p {
+    font-size: 1rem !important;
+    line-height: 1.6 !important;
+    margin-bottom: 1.5rem !important;
+  }
+
+  /* Services section móvil */
+  .grid-services-main {
+    gap: 1.5rem !important;
+  }
+
+  .grid-services-secondary {
+    gap: 1.5rem !important;
+  }
+
+  .service-card .card-title {
+    font-size: 1.125rem !important;
+    line-height: 1.4 !important;
+    margin-bottom: 0.75rem !important;
+  }
+
+  .service-card .card-description {
+    font-size: 0.875rem !important;
+    line-height: 1.5 !important;
+    margin-bottom: 1rem !important;
+  }
+
+  .service-card ul li {
+    font-size: 0.875rem !important;
+    line-height: 1.4 !important;
+    margin-bottom: 0.5rem !important;
+  }
+
+  /* Shipping lines móvil */
+  .grid-shipping {
+    gap: 0.75rem !important;
+  }
+
+  .shipping-line-card {
+    border-radius: 0.75rem !important;
+  }
+
+  .shipping-line-card .h-32 {
+    height: 6rem !important;
+  }
+
+  .shipping-line-card h3 {
+    font-size: 0.875rem !important;
+    padding: 0.5rem !important;
+  }
+
+  /* Process section móvil */
+  .process-step {
+    margin-bottom: 1rem !important;
+    padding: 1rem !important;
+    border-radius: 0.75rem !important;
+  }
+
+  .process-step .card-header {
+    padding-left: 4rem !important;
+    padding-top: 1rem !important;
+    padding-bottom: 0.5rem !important;
+  }
+
+  .process-step .card-content {
+    padding-left: 4rem !important;
+    padding-top: 0 !important;
+    padding-bottom: 1rem !important;
+  }
+
+  .process-step .absolute.left-0 {
+    width: 3rem !important;
+  }
+
+  .process-step .w-10.h-10 {
+    width: 2rem !important;
+    height: 2rem !important;
+  }
+
+  .process-step .text-3xl {
+    font-size: 1.25rem !important;
+  }
+
+  /* Why choose us móvil */
+  /* Why choose us - galería de imágenes optimizada y simétrica */
+  .grid-gallery {
+    gap: 0.75rem !important;
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .grid-gallery .aspect-square {
+    aspect-ratio: 1 / 1 !important;
+    height: auto !important;
+    min-height: 140px !important;
+    max-height: 140px !important;
+    overflow: hidden !important;
+    border-radius: 0.75rem !important;
+    position: relative !important;
+    width: 100% !important;
+  }
+
+  .grid-gallery .aspect-square img {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+    object-position: center !important;
+  }
+
+  /* Asegurar que las imágenes en la galería tengan el tamaño correcto */
+  .grid-gallery .relative {
+    position: relative !important;
+    width: 100% !important;
+    height: 140px !important;
+    overflow: hidden !important;
+    border-radius: 0.75rem !important;
+  }
+
+  .grid-gallery .relative img {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+    object-position: center !important;
+  }
+
+  /* Corrección específica para el grid de 2x2 en "Por Qué Transtide Freight" */
+  .grid.grid-cols-2.gap-3,
+  .grid.grid-cols-2.gap-4 {
+    gap: 0.75rem !important;
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  .grid.grid-cols-2 .aspect-square {
+    height: 140px !important;
+    min-height: 140px !important;
+    max-height: 140px !important;
+    width: 100% !important;
+  }
+
+  /* Asegurar que el contenedor padre use todo el ancho */
+  #why-us .grid.grid-cols-2 {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Optimización específica para el contenedor de la galería */
+  #why-us .order-1.md\\:order-2,
+  #why-us .order-2.md\\:order-1 {
+    width: 100% !important;
+  }
+
+  /* Industries móvil */
+  .grid-industries {
+    gap: 0.75rem !important;
+  }
+
+  .industry-card {
+    padding: 1rem !important;
+    border-radius: 0.75rem !important;
+  }
+
+  .industry-card .text-4xl {
+    font-size: 2rem !important;
+    margin-bottom: 0.5rem !important;
+  }
+
+  .industry-card h3 {
+    font-size: 0.875rem !important;
+    line-height: 1.3 !important;
+  }
+
+  /* Contact section móvil */
+  .grid-contact {
+    gap: 2rem !important;
+  }
+
+  .contact-form {
+    padding: 1rem !important;
+    border-radius: 0.75rem !important;
+  }
+
+  .contact-form .grid-form {
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+  }
+
+  .contact-form input,
+  .contact-form textarea,
+  .contact-form select {
+    height: 3rem !important;
+    font-size: 1rem !important;
+    padding: 0.75rem !important;
+  }
+
+  .contact-form textarea {
+    min-height: 6rem !important;
+  }
+
+  .contact-form button {
+    height: 3rem !important;
+    font-size: 1rem !important;
+  }
+
+  /* Footer móvil */
+  .grid-footer {
+    gap: 2rem !important;
+  }
+
+  .grid-footer h3 {
+    font-size: 1.125rem !important;
+    margin-bottom: 1rem !important;
+  }
+
+  .grid-footer ul li {
+    margin-bottom: 0.5rem !important;
+  }
+
+  .grid-footer a {
+    font-size: 0.875rem !important;
+  }
+
+  /* Mejoras generales de espaciado móvil */
+  section {
+    padding-top: 2rem !important;
+    padding-bottom: 2rem !important;
+  }
+
+  .container {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+
+  /* Mejoras de tipografía móvil */
+  .text-3xl {
+    font-size: 1.5rem !important;
+  }
+
+  .text-4xl {
+    font-size: 1.75rem !important;
+  }
+
+  .text-5xl {
+    font-size: 2rem !important;
+  }
+
+  .text-6xl {
+    font-size: 2.25rem !important;
+  }
+
+  /* Mejoras de botones móvil */
+  .btn,
+  button,
+  .button {
+    padding: 0.75rem 1.5rem !important;
+    font-size: 1rem !important;
+    border-radius: 0.5rem !important;
+    min-height: 3rem !important;
+  }
+
+  /* Mejoras de cards móvil */
+  .card {
+    border-radius: 0.75rem !important;
+    padding: 1rem !important;
+  }
+
+  /* Mejoras de imágenes móvil */
+  .relative.h-40 {
+    height: 8rem !important;
+  }
+
+  .relative.h-48 {
+    height: 10rem !important;
+  }
+
+  /* Mejoras de iconos móvil */
+  .h-8.w-8 {
+    height: 1.5rem !important;
+    width: 1.5rem !important;
+  }
+
+  .h-10.w-10 {
+    height: 2rem !important;
+    width: 2rem !important;
+  }
+
+  .h-12.w-12 {
+    height: 2.5rem !important;
+    width: 2.5rem !important;
+  }
+
+  /* Optimización de sombras para móvil */
+  .shadow-lg {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+  }
+
+  .shadow-xl {
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
+  }
+
+  .shadow-2xl {
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1) !important;
+  }
+
+  /* Mejoras de interacciones táctiles */
+  .hover\\:scale-105:hover,
+  .hover\\:scale-110:hover {
+    transform: none !important;
+  }
+
+  .hover\\:-translate-y-2:hover,
+  .hover\\:-translate-y-4:hover,
+  .hover\\:-translate-y-8:hover {
+    transform: none !important;
+  }
+
+  /* Optimización de transiciones para móvil */
+  * {
+    transition-duration: 0.2s !important;
+  }
+
+  /* Mejoras específicas para elementos con gradientes */
+  .bg-gradient-to-br,
+  .bg-gradient-to-r,
+  .bg-gradient-to-t {
+    background-attachment: scroll !important;
+  }
+
+  /* Mejoras de accesibilidad móvil */
+  .focus\\:ring-2:focus {
+    ring-width: 2px !important;
+  }
+
+  .focus\\:ring-offset-2:focus {
+    ring-offset-width: 2px !important;
+  }
+
+  /* Optimización de texto en móvil */
+  .leading-tight {
+    line-height: 1.3 !important;
+  }
+
+  .leading-relaxed {
+    line-height: 1.6 !important;
+  }
+
+  /* Mejoras de espaciado vertical */
+  .space-y-4 > * + * {
+    margin-top: 1rem !important;
+  }
+
+  .space-y-6 > * + * {
+    margin-top: 1.5rem !important;
+  }
+
+  .space-y-8 > * + * {
+    margin-top: 2rem !important;
+  }
+
+  /* Optimización específica para la sección de beneficios de shipping lines */
+  .shipping-lines .grid.grid-cols-1.md\\:grid-cols-3 {
+    grid-template-columns: 1fr !important;
+    gap: 1.5rem !important;
+  }
+
+  .shipping-lines .flex.items-start {
+    padding: 1rem !important;
+    border-radius: 0.75rem !important;
+  }
+
+  .shipping-lines .h-8.w-8 {
+    height: 1.5rem !important;
+    width: 1.5rem !important;
+  }
+
+  .shipping-lines h4 {
+    font-size: 1rem !important;
+    margin-bottom: 0.5rem !important;
+  }
+
+  .shipping-lines p {
+    font-size: 0.875rem !important;
+    line-height: 1.4 !important;
+  }
+}
+
+/* ===== CORRECCIONES ESPECÍFICAS PARA MÓVIL ===== */
+@media (max-width: 767px) {
+  /* Corrección para las tarjetas de beneficios - eliminar espacios excesivos */
+  .flex.items-start.p-3,
+  .flex.items-start.p-4 {
+    padding: 0.75rem !important;
+    margin-bottom: 0.75rem !important;
+  }
+
+  .flex.items-start.p-3.md\\:p-4 {
+    padding: 0.75rem !important;
+  }
+
+  /* Corrección específica para la sección "Por Qué Transtide Freight" */
+  #why-us .flex.items-start {
+    padding: 0.75rem !important;
+    margin-bottom: 0.75rem !important;
+    border-radius: 0.75rem !important;
+  }
+
+  #why-us .ml-3,
+  #why-us .ml-4 {
+    margin-left: 0.75rem !important;
+  }
+
+  #why-us .mt-1 {
+    margin-top: 0 !important;
+  }
+
+  #why-us h3 {
+    font-size: 1rem !important;
+    margin-bottom: 0.25rem !important;
+    line-height: 1.3 !important;
+  }
+
+  #why-us p {
+    font-size: 0.875rem !important;
+    line-height: 1.4 !important;
+    margin-bottom: 0 !important;
+  }
+
+  /* Corrección para la galería de imágenes - asegurar que las imágenes se muestren */
+  /* Corrección específica para el grid de 2x2 en "Por Qué Transtide Freight" */
+  .grid.grid-cols-2.gap-3,
+  .grid.grid-cols-2.gap-4 {
+    gap: 0.5rem !important;
+  }
+
+  .grid.grid-cols-2 .aspect-square {
+    height: 120px !important;
+    min-height: 120px !important;
+  }
+
+  /* Eliminar espacios innecesarios en las tarjetas */
+  .space-y-3 > * + * {
+    margin-top: 0.75rem !important;
+  }
+
+  .space-y-4 > * + * {
+    margin-top: 1rem !important;
+  }
+
+  .space-y-6 > * + * {
+    margin-top: 1.5rem !important;
+  }
+
+  /* Optimización específica para CheckCircle icons */
+  .flex-shrink-0 {
+    flex-shrink: 0 !important;
+  }
+
+  .flex-shrink-0.mt-1 {
+    margin-top: 0.125rem !important;
+  }
+
+  /* Corrección para contenedores de imagen con gradientes */
+  .absolute.inset-0.bg-gradient-to-t {
+    position: absolute !important;
+    inset: 0 !important;
+  }
+
+  /* Asegurar que las imágenes de fondo se muestren correctamente */
+  .relative.group img,
+  .relative img {
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+    object-position: center !important;
+  }
+}
+
+/* Correcciones específicas para pantallas muy pequeñas */
+@media (max-width: 375px) {
+  /* Imágenes en pantallas muy pequeñas - mantener simetría */
+  .grid-gallery .aspect-square,
+  .grid.grid-cols-2 .aspect-square {
+    height: 120px !important;
+    min-height: 120px !important;
+    max-height: 120px !important;
+    width: 100% !important;
+  }
+
+  .grid.grid-cols-2 {
+    gap: 0.5rem !important;
+    width: 100% !important;
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  .grid-gallery .aspect-square,
+  .grid.grid-cols-2 .aspect-square {
+    height: 100px !important;
+    min-height: 100px !important;
+  }
+
+  #why-us .flex.items-start {
+    padding: 0.5rem !important;
+  }
+
+  #why-us h3 {
+    font-size: 0.875rem !important;
+  }
+
+  #why-us p {
+    font-size: 0.8125rem !important;
+  }
+}
+
+/* Optimizaciones para landscape en móvil */
+@media (max-width: 767px) and (orientation: landscape) {
+  section {
+    padding-top: 1.5rem !important;
+    padding-bottom: 1.5rem !important;
+  }
+
+  .hero-content {
+    padding: 1rem !important;
+  }
+
+  .hero-content h1 {
+    font-size: 1.5rem !important;
+  }
+
+  .hero-content p {
+    font-size: 0.875rem !important;
+  }
+}
+
+/* Correcciones específicas para iOS Safari */
+@supports (-webkit-touch-callout: none) {
+  @media (max-width: 767px) {
+    /* Prevenir zoom en inputs */
+    input[type="text"],
+    input[type="email"],
+    input[type="tel"],
+    input[type="password"],
+    input[type="search"],
+    textarea,
+    select {
+      font-size: 16px !important;
+      transform: translateZ(0);
+    }
+
+    /* Mejorar el backdrop blur en iOS */
+    .backdrop-blur-md {
+      -webkit-backdrop-filter: blur(12px) !important;
+      backdrop-filter: blur(12px) !important;
+    }
+
+    /* Prevenir bounce scroll */
+    body {
+      -webkit-overflow-scrolling: touch !important;
+      overflow-scrolling: touch !important;
+    }
+
+    /* Mejorar las transiciones en iOS */
+    .service-card,
+    .industry-card,
+    .process-step {
+      -webkit-transform: translateZ(0);
+      transform: translateZ(0);
+      will-change: transform;
+    }
+  }
+}
+
+/* Optimizaciones de performance para móvil */
+@media (max-width: 767px) {
+  /* Simplificar animaciones complejas */
+  .animate-pulse {
+    animation: none !important;
+  }
+
+  /* Optimizar imágenes para móvil */
+  img {
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: optimize-contrast;
+  }
+
+  /* Mejorar el scroll */
+  html {
+    -webkit-overflow-scrolling: touch;
+    overflow-scrolling: touch;
+  }
+
+  /* Optimizar el rendering */
+  .service-card,
+  .industry-card,
+  .process-step,
+  .contact-form {
+    contain: layout style paint;
+  }
+}
+
+/* ===== OPTIMIZACIONES ESPECÍFICAS PARA IMÁGENES EN MÓVIL ===== */
+@media (max-width: 767px) {
+  /* Hero section - imagen de fondo optimizada */
+  .hero-section .absolute.inset-0 img {
+    object-position: center center !important;
+    object-fit: cover !important;
+  }
+
+  /* About section - imagen optimizada */
+  .grid-features .relative.group img {
+    object-position: center center !important;
+    object-fit: cover !important;
+    height: 200px !important;
+  }
+
+  /* Service cards - imágenes optimizadas */
+  .service-card .relative.h-40 {
+    height: 160px !important;
+  }
+
+  .service-card .relative.h-48 {
+    height: 180px !important;
+  }
+
+  .service-card img {
+    object-position: center center !important;
+    object-fit: cover !important;
+  }
+
+  /* Why choose us - galería de imágenes optimizada */
+  .grid-gallery .aspect-square {
+    aspect-ratio: 1 / 1 !important;
+    height: auto !important;
+    min-height: 120px !important;
+  }
+
+  .grid-gallery img {
+    object-position: center center !important;
+    object-fit: cover !important;
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  /* Shipping lines - imágenes optimizadas */
+  .shipping-line-card .relative.h-24 {
+    height: 100px !important;
+  }
+
+  .shipping-line-card .relative.h-32 {
+    height: 120px !important;
+  }
+
+  .shipping-line-card .relative.h-40 {
+    height: 140px !important;
+  }
+
+  .shipping-line-card img {
+    object-position: center center !important;
+    object-fit: cover !important;
+  }
+
+  /* Asegurar que todas las imágenes mantengan proporción */
+  img {
+    max-width: 100% !important;
+    height: auto !important;
+    object-fit: cover !important;
+    object-position: center !important;
+  }
+
+  /* Contenedores de imagen con altura fija */
+  .relative[style*="height"] img,
+  .h-40 img,
+  .h-48 img,
+  .h-32 img,
+  .h-24 img {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+    object-position: center !important;
+  }
+}
+
+/* ===== OPTIMIZACIONES PARA GESTIÓN INTEGRAL EN MÓVIL ===== */
+@media (max-width: 767px) {
+  /* ServiceCardWithTimeline optimizado */
+  .service-card-with-timeline {
+    margin-bottom: 2rem !important;
+  }
+
+  .service-card-with-timeline .card-header {
+    padding: 1.5rem 1rem 1rem 1rem !important;
+  }
+
+  .service-card-with-timeline .card-content {
+    padding: 0 1rem 1.5rem 1rem !important;
+  }
+
+  .service-card-with-timeline .bg-white.rounded-lg {
+    padding: 1rem !important;
+    border-radius: 0.75rem !important;
+    margin-top: 1rem !important;
+  }
+
+  /* ProcessTimeline móvil optimizado - SIN LÍNEAS DUPLICADAS */
+  .process-timeline-mobile {
+    padding: 1rem 0 !important;
+  }
+
+  .process-timeline-mobile .space-y-3 {
+    gap: 1rem !important;
+  }
+
+  .process-timeline-mobile .flex.items-start {
+    align-items: flex-start !important;
+    gap: 0.75rem !important;
+  }
+
+  .process-timeline-mobile .w-8.h-8 {
+    width: 2rem !important;
+    height: 2rem !important;
+    min-width: 2rem !important;
+    flex-shrink: 0 !important;
+    margin-top: 0.125rem !important;
+  }
+
+  .process-timeline-mobile .flex-1 {
+    flex: 1 !important;
+    min-width: 0 !important;
+  }
+
+  .process-timeline-mobile .text-sm {
+    font-size: 0.875rem !important;
+    line-height: 1.4 !important;
+    font-weight: 500 !important;
+    color: #1e40af !important;
+  }
+
+  /* ELIMINAR TODAS LAS LÍNEAS CONECTORAS DUPLICADAS */
+  .process-timeline-mobile .relative:not(:last-child)::after,
+  .process-timeline-mobile .relative::after,
+  .process-timeline-mobile .absolute,
+  .process-timeline-mobile .relative:not(:last-child)::before {
+    display: none !important;
+    content: none !important;
+  }
+
+  /* Indicador de flujo móvil mejorado */
+  .process-timeline-mobile .inline-flex.items-center {
+    padding: 0.5rem 1rem !important;
+    font-size: 0.75rem !important;
+    border-radius: 1rem !important;
+    background: rgba(30, 64, 175, 0.05) !important;
+    border: 1px solid #ea580c !important;
+  }
+
+  .process-timeline-mobile .w-1\.5.h-1\.5 {
+    width: 0.375rem !important;
+    height: 0.375rem !important;
+    margin-right: 0.5rem !important;
+  }
+
+  /* Mejoras específicas para el título y descripción */
+  .service-card-with-timeline .card-title {
+    font-size: 1.25rem !important;
+    line-height: 1.3 !important;
+    margin-bottom: 0.75rem !important;
+    font-weight: 700 !important;
+  }
+
+  .service-card-with-timeline .card-description {
+    font-size: 0.875rem !important;
+    line-height: 1.5 !important;
+    margin-bottom: 0 !important;
+  }
+
+  /* Icono del header optimizado */
+  .service-card-with-timeline .p-2.sm\\:p-3 {
+    padding: 0.5rem !important;
+    border-radius: 0.5rem !important;
+  }
+
+  .service-card-with-timeline .h-10.w-10 {
+    height: 1.5rem !important;
+    width: 1.5rem !important;
+  }
+
+  /* Espaciado entre elementos */
+  .service-card-with-timeline .space-y-3 > * + * {
+    margin-top: 0.75rem !important;
+  }
+
+  .service-card-with-timeline .space-y-4 > * + * {
+    margin-top: 1rem !important;
+  }
+
+  /* Gradiente de fondo optimizado */
+  .service-card-with-timeline.bg-gradient-to-br {
+    background: linear-gradient(135deg, #ffffff 0%, rgba(30, 64, 175, 0.02) 100%) !important;
+  }
+
+  /* Sombra optimizada para móvil */
+  .service-card-with-timeline.shadow-lg {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+  }
+
+  /* Border accent optimizado */
+  .service-card-with-timeline.border-l-4 {
+    border-left-width: 3px !important;
+  }
+}
+
+/* ===== OPTIMIZACIONES ADICIONALES PARA PANTALLAS MUY PEQUEÑAS ===== */
+@media (max-width: 375px) {
+  /* Imágenes en pantallas muy pequeñas */
+  .service-card .relative.h-40 {
+    height: 140px !important;
+  }
+
+  .service-card .relative.h-48 {
+    height: 160px !important;
+  }
+
+  .shipping-line-card .relative.h-24 {
+    height: 80px !important;
+  }
+
+  .shipping-line-card .relative.h-32 {
+    height: 100px !important;
+  }
+
+  .shipping-line-card .relative.h-40 {
+    height: 120px !important;
+  }
+
+  .grid-gallery .aspect-square {
+    min-height: 100px !important;
+  }
+
+  /* Gestión integral en pantallas muy pequeñas */
+  .service-card-with-timeline .card-header {
+    padding: 1rem 0.75rem 0.75rem 0.75rem !important;
+  }
+
+  .service-card-with-timeline .card-content {
+    padding: 0 0.75rem 1rem 0.75rem !important;
+  }
+
+  .service-card-with-timeline .bg-white.rounded-lg {
+    padding: 0.75rem !important;
+  }
+
+  .process-timeline-mobile .w-8.h-8 {
+    width: 1.75rem !important;
+    height: 1.75rem !important;
+    min-width: 1.75rem !important;
+  }
+
+  .process-timeline-mobile .text-sm {
+    font-size: 0.8125rem !important;
+  }
+}
+
+/* ===== OPTIMIZACIONES PARA LANDSCAPE EN MÓVIL ===== */
+@media (max-width: 767px) and (orientation: landscape) {
+  /* Reducir altura de imágenes en landscape */
+  .service-card .relative.h-40 {
+    height: 120px !important;
+  }
+
+  .service-card .relative.h-48 {
+    height: 140px !important;
+  }
+
+  .shipping-line-card .relative.h-24 {
+    height: 80px !important;
+  }
+
+  .shipping-line-card .relative.h-32 {
+    height: 100px !important;
+  }
+
+  .shipping-line-card .relative.h-40 {
+    height: 120px !important;
+  }
+
+  /* Gestión integral en landscape */
+  .service-card-with-timeline {
+    margin-bottom: 1.5rem !important;
+  }
+
+  .process-timeline-mobile {
+    padding: 0.75rem 0 !important;
+  }
+}
+
+/* ===== CORRECCIONES ESPECÍFICAS PARA MÓVIL ===== */
+@media (max-width: 767px) {
+  /* Alineación del contenido a la izquierda en móvil */
+  .container {
+    text-align: left !important;
+  }
+
+  /* Hero section - imagen completa en móvil */
+  .hero-section {
+    min-height: 100vh !important;
+    position: relative !important;
+  }
+
+  .hero-section .absolute.inset-0 {
+    height: 100% !important;
+    min-height: 100vh !important;
+  }
+
+  .hero-section .absolute.inset-0 img {
+    height: 100% !important;
+    min-height: 100vh !important;
+    object-fit: cover !important;
+    object-position: center center !important;
+  }
+
+  /* Contenido del hero centrado pero texto alineado */
+  .hero-content {
+    text-align: center !important;
+    padding: 2rem 1rem !important;
+    min-height: 100vh !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    align-items: center !important;
+  }
+
+  /* Asegurar que el texto esté alineado correctamente */
+  .hero-content h1,
+  .hero-content p {
+    text-align: center !important;
+  }
+
+  /* Botones del hero alineados */
+  .hero-content .flex.flex-col.sm\\:flex-row {
+    width: 100% !important;
+    align-items: center !important;
+  }
+
+  /* Información adicional del hero centrada */
+  .hero-content .flex.flex-col.sm\\:flex-row.items-center {
+    justify-content: center !important;
+    text-align: center !important;
+  }
+}
+
+/* Correcciones específicas para pantallas muy pequeñas */
+@media (max-width: 375px) {
+  .hero-section {
+    min-height: 100vh !important;
+  }
+
+  .hero-content {
+    padding: 1.5rem 0.75rem !important;
+  }
+
+  .hero-content h1 {
+    font-size: 1.5rem !important;
+    line-height: 1.2 !important;
+  }
+
+  .hero-content p {
+    font-size: 0.875rem !important;
+    line-height: 1.4 !important;
+  }
+}
+
+/* Correcciones para landscape en móvil */
+@media (max-width: 767px) and (orientation: landscape) {
+  .hero-section {
+    min-height: 100vh !important;
+  }
+
+  .hero-content {
+    min-height: 100vh !important;
+    padding: 1rem !important;
+  }
+
+  .hero-content h1 {
+    font-size: 1.25rem !important;
+  }
+
+  .hero-content p {
+    font-size: 0.875rem !important;
+  }
+}
+
+/* Correcciones específicas para iOS */
+@supports (-webkit-touch-callout: none) {
+  @media (max-width: 767px) {
+    .hero-section {
+      min-height: 100vh !important;
+      min-height: -webkit-fill-available !important;
+    }
+
+    .hero-content {
+      min-height: 100vh !important;
+      min-height: -webkit-fill-available !important;
+    }
+  }
+}
+
+/* Add these styles to the end of the file to support the collapsible functionality */
+
+/* Collapsible service items for mobile */
+
+/*
+      @media (max-width: 639px) {
+        .service-card .card-content {
+          transition: max-height 0.5s ease;
+          overflow: hidden;
+        }
+
+        .service-card .collapsed {
+          max-height: 2.5rem;
+        }
+
+        .service-card .expanded {
+          max-height: 500px;
+        }
+
+        .service-card .toggle-button {
+          min-height: 32px;
+          min-width: 32px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .service-card .card-content:not(.expanded)::after {
+          content: "";
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          height: 20px;
+          background: linear-gradient(to top, rgba(255, 255, 255, 1), rgba(255, 255, 255, 0));
+          pointer-events: none;
+        }
+      }
+      */
+
+@media (hover: none) and (pointer: coarse) {
+  .service-card.group:hover .sm\:opacity-0 {
+    opacity: 1 !important; /* Mantener visible si ya está expandido por click */
+  }
+  .service-card.group:hover .sm\:max-h-0 {
+    /* No aplicar max-h en hover si es touch */
+  }
+  .service-card.group:hover .sm\:group-hover\:opacity-100 {
+    /* No aplicar opacidad en hover si es touch */
+  }
+  .service-card.group:hover .sm\:group-hover\:max-h-\[500px\] {
+    /* No aplicar max-h en hover si es touch */
+  }
+  .service-card.group:hover .sm\:group-hover\:translate-y-0 {
+    /* No aplicar translate en hover si es touch */
+  }
+  .service-card .sm\:group-hover\:translate-x-0 {
+    /* No aplicar translate en hover si es touch */
+  }
+  .service-card .group-hover\:scale-110 {
+    transform: none !important;
+  }
+  .service-card .group-hover\:text-accent {
+    /* No cambiar color en hover si es touch */
+  }
+  .service-card .group-hover\:bg-primary-100 {
+    /* No cambiar bg en hover si es touch */
+  }
+  .service-card .group-hover\:scale-x-100 {
+    transform: scaleX(0) !important; /* Ocultar indicador de hover */
+  }
+}
