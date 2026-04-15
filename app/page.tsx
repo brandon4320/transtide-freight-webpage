@@ -9,6 +9,7 @@ import ProcessStep from "@/components/process-step"
 import IndustryCard from "@/components/industry-card"
 import ContactForm from "@/components/contact-form"
 import ShippingLines from "@/components/shipping-lines"
+import Cotizador from "@/components/cotizador"
 
 export const metadata = {
   title: "Transtide Freight - Logística Internacional | Importaciones China y EE.UU.",
@@ -503,6 +504,9 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Cotizador */}
+      <Cotizador />
 
       {/* Why Choose Us */}
       <section className="w-full py-12 md:py-16 lg:py-20 bg-white" id="why-us">
