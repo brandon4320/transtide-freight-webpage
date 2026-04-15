@@ -1,14 +1,58 @@
 "use client"
 
 import Link from "next/link"
-import { ArrowRight, Check, Globe, Package, Ship, Truck, ShieldCheck, Clock3, Boxes, Phone, Mail, MapPin } from "lucide-react"
+import { ArrowRight, Check, Globe, Package, Ship, Truck, ShieldCheck, Clock3, Boxes, Phone, Mail, MapPin, DollarSign, Users, Building2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+
+const metrics = [
+  {
+    icon: <DollarSign className="h-6 w-6" />,
+    value: "70%",
+    label: "De nuestros clientes reducen costos logísticos",
+  },
+  {
+    icon: <Users className="h-6 w-6" />,
+    value: "50+",
+    label: "Clientes satisfechos",
+  },
+  {
+    icon: <Building2 className="h-6 w-6" />,
+    value: "3",
+    label: "Oficinas globales",
+  },
+  {
+    icon: <Phone className="h-6 w-6" />,
+    value: "24/7",
+    label: "Soporte disponible",
+  },
+]
 
 const trustItems = [
   "Oficinas en Argentina, Miami y China",
   "Coordinación integral de importaciones",
   "Seguimiento de punta a punta",
   "Atención personalizada por operación",
+]
+
+const offices = [
+  {
+    title: "Oficina Argentina",
+    lines: ["Belgrano 3710", "Ing White, Bahía Blanca", "Buenos Aires, Argentina"],
+    phone: "+54 9 11 4439-4020",
+    phoneHref: "tel:+5491144394020",
+  },
+  {
+    title: "Oficina Estados Unidos",
+    lines: ["5605 NW 74th Ave", "Miami, FL 33166", "Estados Unidos"],
+    phone: "+1 754 236-5652",
+    phoneHref: "tel:+17542365652",
+  },
+  {
+    title: "Oficina China",
+    lines: ["Room 902, Jingang Building", "No. 55 Aona Road, Waigaoqiao Free Trade Zone", "Pudong New Area, Shanghai", "China"],
+    phone: null,
+    phoneHref: null,
+  },
 ]
 
 const services = [
@@ -131,18 +175,34 @@ export default function Homepage() {
                 Coordinamos sourcing, embarque, despacho y entrega final con un único punto de contacto y una mirada integral de la operación.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <Button asChild size="lg" className="bg-accent hover:bg-accent-700 text-white px-6">
+                <Button asChild size="lg" className="bg-accent px-6 text-white hover:bg-accent-700">
                   <Link href="#contact">
                     Cotizar operación <ArrowRight className="ml-2 h-4 w-4" />
                   </Link>
                 </Button>
-                <Button asChild variant="outline" size="lg" className="border-slate-300 text-slate-900 hover:bg-slate-50 px-6">
+                <Button asChild variant="outline" size="lg" className="border-slate-300 px-6 text-slate-900 hover:bg-slate-50">
                   <Link href="#process">Ver cómo trabajamos</Link>
                 </Button>
               </div>
             </div>
 
             <HeroVisual />
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-[#2448C8] text-white">
+        <div className="container px-4 md:px-6 py-10 md:py-12">
+          <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-4">
+            {metrics.map((metric) => (
+              <div key={metric.label} className="text-center">
+                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-white/10 text-white">
+                  {metric.icon}
+                </div>
+                <div className="text-5xl font-semibold tracking-tight">{metric.value}</div>
+                <p className="mx-auto mt-3 max-w-[220px] text-lg leading-7 text-white/90">{metric.label}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -242,7 +302,46 @@ export default function Homepage() {
         </div>
       </section>
 
-      <section id="about" className="border-y border-slate-200 bg-slate-50">
+      <section id="offices" className="border-y border-slate-200 bg-white">
+        <div className="container px-4 md:px-6 py-16 md:py-20">
+          <div className="max-w-2xl">
+            <p className="text-sm font-medium uppercase tracking-[0.18em] text-slate-500">Presencia operativa</p>
+            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">
+              Oficinas reales, atención directa y presencia internacional.
+            </h2>
+          </div>
+
+          <div className="mt-10 space-y-6">
+            {offices.map((office) => (
+              <div key={office.title} className="rounded-[28px] border border-slate-200 bg-slate-50 p-8 shadow-sm">
+                <div className="grid gap-6 md:grid-cols-[48px_1fr] md:items-start">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full text-accent">
+                    <MapPin className="h-8 w-8" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-semibold text-[#2448C8] md:text-3xl">{office.title}</h3>
+                    <div className="mt-5 space-y-2 text-2xl leading-9 text-slate-600 md:text-[2rem] md:leading-[2.65rem]">
+                      {office.lines.map((line) => (
+                        <p key={line}>{line}</p>
+                      ))}
+                    </div>
+                    {office.phone && office.phoneHref && (
+                      <div className="mt-6 flex items-center gap-3 text-[#2448C8]">
+                        <Phone className="h-7 w-7 text-accent" />
+                        <a href={office.phoneHref} className="text-2xl font-semibold md:text-[2rem] hover:opacity-80">
+                          {office.phone}
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="about" className="bg-slate-50">
         <div className="container px-4 md:px-6 py-16 md:py-20">
           <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
             <div>
@@ -343,6 +442,24 @@ export default function Homepage() {
           </div>
         </div>
       </section>
+
+      <footer className="border-t border-slate-200 bg-white">
+        <div className="container px-4 py-8 md:px-6 md:py-10">
+          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-lg font-semibold text-slate-950">Transtide Freight</p>
+              <p className="mt-1 text-sm text-slate-600">Importaciones internacionales con control real en cada etapa.</p>
+            </div>
+            <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-600">
+              <Link href="#services" className="hover:text-slate-950">Servicios</Link>
+              <Link href="#process" className="hover:text-slate-950">Cómo trabajamos</Link>
+              <Link href="#operations" className="hover:text-slate-950">Operaciones</Link>
+              <Link href="#offices" className="hover:text-slate-950">Oficinas</Link>
+              <Link href="#contact" className="hover:text-slate-950">Contacto</Link>
+            </div>
+          </div>
+        </div>
+      </footer>
 
       <style jsx>{`
         .hero-orb {
