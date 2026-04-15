@@ -1,41 +1,25 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
 import Image from "next/image"
 import { Menu, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
+const navItems = [
+  { name: "Servicios", href: "#services" },
+  { name: "Cómo trabajamos", href: "#process" },
+  { name: "Operaciones", href: "#operations" },
+  { name: "Nosotros", href: "#about" },
+  { name: "Contacto", href: "#contact" },
+]
+
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
-  const [activeSection, setActiveSection] = useState("inicio")
 
   useEffect(() => {
     const handleScroll = () => {
-      const isScrolled = window.scrollY > 50
-      setScrolled(isScrolled)
-
-      // Detectar sección activa basada en scroll
-      const sections = ["inicio", "services", "process", "why-us", "industries"]
-      const scrollPosition = window.scrollY + window.innerHeight / 3 // Ajustado para mayor precisión
-
-      for (let i = sections.length - 1; i >= 0; i--) {
-        const section = sections[i]
-        let element
-
-        if (section === "inicio") {
-          if (scrollPosition < 400) {
-            setActiveSection("inicio")
-            return
-          }
-        } else {
-          element = document.getElementById(section)
-          if (element && scrollPosition >= element.offsetTop) {
-            setActiveSection(section)
-            return
-          }
-        }
-      }
+      setScrolled(window.scrollY > 20)
     }
 
     window.addEventListener("scroll", handleScroll, { passive: true })
@@ -44,205 +28,91 @@ export default function Header() {
   }, [])
 
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setIsMenuOpen(false)
-    }
-
-    window.addEventListener("keydown", handleEscape)
-    return () => window.removeEventListener("keydown", handleEscape)
-  }, [])
-
-  // Prevenir scroll del body cuando el menú está abierto
-  useEffect(() => {
     if (isMenuOpen) {
       document.body.style.overflow = "hidden"
-      document.body.style.position = "fixed"
-      document.body.style.width = "100%"
-      document.body.style.top = `-${window.scrollY}px`
     } else {
-      const scrollY = document.body.style.top
       document.body.style.overflow = ""
-      document.body.style.position = ""
-      document.body.style.width = ""
-      document.body.style.top = ""
-      if (scrollY) {
-        window.scrollTo(0, Number.parseInt(scrollY || "0") * -1)
-      }
     }
 
     return () => {
       document.body.style.overflow = ""
-      document.body.style.position = ""
-      document.body.style.width = ""
-      document.body.style.top = ""
     }
   }, [isMenuOpen])
 
-  const navItems = [
-    { name: "Inicio", href: "#inicio", id: "inicio" },
-    { name: "Servicios", href: "#services", id: "services" },
-    { name: "Proceso", href: "#process", id: "process" },
-    { name: "Por Qué Elegirnos", href: "#why-us", id: "why-us" },
-    { name: "Industrias", href: "#industries", id: "industries" },
-  ]
-
-  const handleNavClick = (href: string, id: string) => {
-    setIsMenuOpen(false)
-    setActiveSection(id)
-
-    setTimeout(() => {
-      if (id === "inicio") {
-        window.scrollTo({ top: 0, behavior: "smooth" })
-      } else {
-        const element = document.getElementById(id)
-        if (element) {
-          const headerElement = document.querySelector("header")
-          const headerHeight = headerElement ? headerElement.offsetHeight : 100 // fallback a 100px
-          const offsetTop = element.offsetTop - headerHeight - 20 // 20px de margen adicional
-          window.scrollTo({ top: offsetTop, behavior: "smooth" })
-        }
-      }
-    }, 100)
-  }
-
-  const toggleMenu = () => {
-    setIsMenuOpen(!isMenuOpen)
-  }
+  const handleCloseMenu = () => setIsMenuOpen(false)
 
   return (
     <>
       <header
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-          scrolled ? "bg-white/95 backdrop-blur-md shadow-md border-b border-gray-200" : "bg-white/10 backdrop-blur-md"
+        className={`fixed inset-x-0 top-0 z-50 border-b transition-all duration-200 ${
+          scrolled ? "border-slate-200 bg-white/95 hackdrop-blur" : "border-transparent bg-white/92"
         }`}
-        style={{
-          WebkitBackdropFilter: "blur(12px)",
-          backdropFilter: "blur(12px)",
-        }}
       >
-        <div className="container mx-auto px-4 lg:px-6">
-          {/* Desktop Header - Solo visible en pantallas grandes */}
-          <div className="hidden lg:block">
-            <div className="flex justify-center py-1 border-b border-white/20">
-              <button onClick={() => handleNavClick("#inicio", "inicio")} className="flex items-center">
-                <div className="relative w-[990px] h-36">
-                  <Image
-                    src="/images/transtide-logo.png"
-                    alt="Transtide Freight"
-                    fill
-                    className="object-contain"
-                    priority
-                  />
-                </div>
-              </button>
-            </div>
+        <div className="container mx-auto px-4 md:px-6">
+          <div className="flex h-[76px] items-center justify-between">
+            <a href="#inicio" className="flex items-center" aria-label="Ir al inicio">
+              <div className="relative h-10 w-40 sm:h-11 sm:w-44">
+                <Image
+                  src="/images/transtide-logo.png"
+                  alt="Transtide Freight"
+                  fill
+                  className="object-contain object-left"
+                  priority
+                  sizes="176px"
+                />
+              </div>
+            </a>
 
-            <div className="flex items-center justify-center py-1">
-              <nav className="flex items-center space-x-8">
+            <div className="hidden items-center gap-2 lg:flex">
+              <nav className="flex items-center gap-1">
                 {navItems.map((item) => (
-                  <button
-                    key={item.name}
-                    onClick={() => handleNavClick(item.href, item.id)}
-                    className={`relative text-lg font-medium transition-all duration-300 hover:scale-105 px-3 py-2 rounded-lg ${
-                      activeSection === item.id
-                        ? "text-accent bg-accent/20"
-                        : scrolled
-                          ? "text-primary-800 hover:text-accent hover:bg-accent/10"
-                          : "text-white hover:text-accent hover:bg-white/10 drop-shadow-lg"
-                    }`}
-                  >
+                  <a key={item.href} href={item.href} className="rounded-full px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-950">
                     {item.name}
-                    {activeSection === item.id && (
-                      <span className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-6 h-0.5 bg-accent rounded-full" />
-                    )}
-                  </button>
+                  </a>
                 ))}
-
-                <Button
-                  onClick={() => handleNavClick("#contact", "contact")}
-                  className={`ml-6 bg-accent hover:bg-accent-700 text-white font-semibold px-8 py-3 rounded-full transition-all duration-300 hover:scale-105 hover:shadow-xl transform ${
-                    scrolled ? "shadow-lg" : "shadow-2xl"
-                  }`}
-                >
-                  Contáctanos
-                </Button>
               </nav>
-            </div>
-          </div>
 
-          {/* Mobile Header - Completamente nuevo */}
-          <div className="lg:hidden">
-            <div className="flex items-center justify-between h-20 w-full">
-              {/* Logo */}
-              <button onClick={() => handleNavClick("#inicio", "inicio")} className="flex items-center flex-shrink-0">
-                <div className="relative w-32 sm:w-40 h-14 sm:h-16">
-                  <Image
-                    src="/images/transtide-logo.png"
-                    alt="Transtide Freight"
-                    fill
-                    className="object-contain"
-                    priority
-                    sizes="(max-width: 640px) 128px, 160px"
-                  />
-                </div>
-              </button>
-
-              {/* Hamburger Button */}
-              <button
-                onClick={toggleMenu}
-                className={`relative z-[60] p-3 rounded-xl transition-all duration-300 min-h-[44px] min-w-[44px] flex items-center justify-center flex-shrink-0 ${
-                  scrolled
-                    ? "text-primary-800 hover:bg-primary-100 bg-white/80"
-                    : "text-white hover:bg-white/20 bg-black/20"
-                } shadow-lg`}
-                aria-label={isMenuOpen ? "Cerrar menú" : "Abrir menú"}
-                aria-expanded={isMenuOpen}
-                type="button"
-              >
-                {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-              </button>
+              <Button asChild className="ml-3 rounded-full bg-accent px-5 text-white hover:bg-accent-700">
+                <a href="#contact">Cotizar operación</a>
+              </Button>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setIsMenuOpen((prev) => !prev)}
+              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-900 lg:hidden"
+              aria-label={isMenuOpen ? "Cerrar menú" : "Abrir menú"}
+              aria-expanded={isMenuOpen}
+            >
+              {isMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
           </div>
         </div>
       </header>
 
-      {/* Mobile Navigation Overlay - Completamente nuevo */}
       {isMenuOpen && (
-        <div className="lg:hidden fixed inset-0 z-[55] bg-white/98 backdrop-blur-xl">
-          <div className="pt-24 pb-8 px-4 h-full overflow-y-auto">
-            <nav className="space-y-2">
-              {navItems.map((item, index) => (
-                <button
-                  key={item.name}
-                  onClick={() => handleNavClick(item.href, item.id)}
-                  className={`block w-full text-left py-4 px-4 text-lg font-medium transition-all duration-300 rounded-xl min-h-[44px] ${
-                    activeSection === item.id
-                      ? "text-accent bg-accent/10 border-l-4 border-accent shadow-sm"
-                      : "text-gray-800 hover:text-accent hover:bg-accent/5 active:bg-accent/10"
-                  }`}
-                  style={{
-                    animationDelay: `${index * 50}ms`,
-                  }}
-                >
-                  {item.name}
-                </button>
-              ))}
-
-              <div className="pt-6">
-                <Button
-                  onClick={() => handleNavClick("#contact", "contact")}
-                  className="w-full bg-accent hover:bg-accent-700 text-white font-semibold py-4 text-lg rounded-xl transition-all duration-300 shadow-lg min-h-[44px]"
-                >
-                  Contáctanos
+        <div className="fixed inset-0 z-40 bg-black/20 lg:hidden" onClick={handleCloseMenu}>
+          <div className="absolute inset-x-0 top-[76px] border-b border-slate-200 bg-white" onClick={(e) => e.stopPropagation()}>
+            <div className="container px-4 py-4">
+              <nav className="space-y-2">
+                <a href="#inicio" onClick={handleCloseMenu} className="block rounded-2xl px-4 py-3 text-base font-medium text-slate-900 hover:bg-slate-50">
+                  Inicio
+                </a>
+                {navItems.map((item) => (
+                  <a key={item.href} href={item.href} onClick={handleCloseMenu} className="block rounded-2xl px-4 py-3 text-base font-medium text-slate-700 hover:bg-slate-50">
+                    {item.name}
+                  </a>
+                ))}
+                <Button asChild className="mt-3 w-full bg-accent text-white hover:bg-accent-700">
+                  <a href="#contact" onClick={handleCloseMenu}>Cotizar operación</a>
                 </Button>
-              </div>
-            </nav>
+              </nav>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Spacer */}
-      <div className="h-20 lg:h-[160px]" />
+      <div className="h-[76px]" />
     </>
   )
 }
