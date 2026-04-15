@@ -62,8 +62,6 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <meta name="theme-color" content="#1e40af" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-      </head>
-      <body className={inter.className}>
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -115,6 +113,8 @@ export default function RootLayout({
             }),
           }}
         />
+      </head>
+      <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           <Header />
           {children}
