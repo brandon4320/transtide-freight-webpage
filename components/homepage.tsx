@@ -6,22 +6,22 @@ import { Button } from "@/components/ui/button"
 
 const metrics = [
   {
-    icon: <DollarSign className="h-6 w-6" />,
+    icon: <DollarSign className="h-5 w-5" />,
     value: "70%",
     label: "De nuestros clientes reducen costos logísticos",
   },
   {
-    icon: <Users className="h-6 w-6" />,
+    icon: <Users className="h-5 w-5" />,
     value: "50+",
     label: "Clientes satisfechos",
   },
   {
-    icon: <Building2 className="h-6 w-6" />,
+    icon: <Building2 className="h-5 w-5" />,
     value: "3",
     label: "Oficinas globales",
   },
   {
-    icon: <Phone className="h-6 w-6" />,
+    icon: <Phone className="h-5 w-5" />,
     value: "24/7",
     label: "Soporte disponible",
   },
@@ -191,16 +191,16 @@ export default function Homepage() {
         </div>
       </section>
 
-      <section className="bg-[#2448C8] text-white">
-        <div className="container px-4 md:px-6 py-10 md:py-12">
-          <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-4">
+      <section className="border-b border-slate-200 bg-white">
+        <div className="container px-4 md:px-6 py-8 md:py-10">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {metrics.map((metric) => (
-              <div key={metric.label} className="text-center">
-                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-white/10 text-white">
+              <div key={metric.label} className="rounded-3xl border border-slate-200 bg-slate-50 p-6 shadow-sm">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-[#2448C8] shadow-sm">
                   {metric.icon}
                 </div>
-                <div className="text-5xl font-semibold tracking-tight">{metric.value}</div>
-                <p className="mx-auto mt-3 max-w-[220px] text-lg leading-7 text-white/90">{metric.label}</p>
+                <div className="mt-5 text-4xl font-semibold tracking-tight text-slate-950">{metric.value}</div>
+                <p className="mt-3 max-w-[220px] text-base leading-7 text-slate-600">{metric.label}</p>
               </div>
             ))}
           </div>
@@ -302,33 +302,33 @@ export default function Homepage() {
         </div>
       </section>
 
-      <section id="offices" className="border-y border-slate-200 bg-white">
+      <section id="offices" className="border-y border-slate-200 bg-slate-50">
         <div className="container px-4 md:px-6 py-16 md:py-20">
           <div className="max-w-2xl">
             <p className="text-sm font-medium uppercase tracking-[0.18em] text-slate-500">Presencia operativa</p>
             <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">
-              Oficinas reales, atención directa y presencia internacional.
+              Oficinas reales, teléfonos directos y presencia internacional.
             </h2>
           </div>
 
-          <div className="mt-10 space-y-6">
+          <div className="mt-10 grid gap-5 lg:grid-cols-3">
             {offices.map((office) => (
-              <div key={office.title} className="rounded-[28px] border border-slate-200 bg-slate-50 p-8 shadow-sm">
-                <div className="grid gap-6 md:grid-cols-[48px_1fr] md:items-start">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full text-accent">
-                    <MapPin className="h-8 w-8" />
+              <div key={office.title} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="flex items-start gap-4">
+                  <div className="mt-1 flex h-10 w-10 items-center justify-center rounded-full bg-accent/10 text-accent">
+                    <MapPin className="h-5 w-5" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-semibold text-[#2448C8] md:text-3xl">{office.title}</h3>
-                    <div className="mt-5 space-y-2 text-2xl leading-9 text-slate-600 md:text-[2rem] md:leading-[2.65rem]">
+                    <h3 className="text-2xl font-semibold text-[#2448C8]">{office.title}</h3>
+                    <div className="mt-4 space-y-1 text-base leading-7 text-slate-600">
                       {office.lines.map((line) => (
                         <p key={line}>{line}</p>
                       ))}
                     </div>
                     {office.phone && office.phoneHref && (
-                      <div className="mt-6 flex items-center gap-3 text-[#2448C8]">
-                        <Phone className="h-7 w-7 text-accent" />
-                        <a href={office.phoneHref} className="text-2xl font-semibold md:text-[2rem] hover:opacity-80">
+                      <div className="mt-5 flex items-center gap-3 text-[#2448C8]">
+                        <Phone className="h-5 w-5 text-accent" />
+                        <a href={office.phoneHref} className="text-lg font-semibold hover:opacity-80">
                           {office.phone}
                         </a>
                       </div>
@@ -341,7 +341,7 @@ export default function Homepage() {
         </div>
       </section>
 
-      <section id="about" className="bg-slate-50">
+      <section id="about" className="bg-white">
         <div className="container px-4 md:px-6 py-16 md:py-20">
           <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
             <div>
@@ -352,7 +352,7 @@ export default function Homepage() {
             </div>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {industries.map((industry) => (
-                <div key={industry} className="rounded-2xl border border-slate-200 bg-white px-5 py-5 text-slate-800 shadow-sm">
+                <div key={industry} className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-5 text-slate-800 shadow-sm">
                   {industry}
                 </div>
               ))}
@@ -361,7 +361,7 @@ export default function Homepage() {
         </div>
       </section>
 
-      <section id="contact" className="bg-white">
+      <section id="contact" className="border-t border-slate-200 bg-white">
         <div className="container px-4 md:px-6 py-16 md:py-20">
           <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr]">
             <div>
