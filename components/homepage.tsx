@@ -265,20 +265,33 @@ export default function Homepage() {
         </section>
 
         <Reveal>
-          <section className="border-y border-black/[0.06] bg-transparent py-8">
-            <div className="container mx-auto px-6 md:px-10">
-              <div className="grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-2 xl:grid-cols-4">
-                {metrics.map((m) => (
-                  <MetricStat
-                    key={m.label}
-                    value={m.value}
-                    suffix={m.suffix}
-                    display={m.display}
-                    label={m.label}
-                    compact={m.compact}
-                    narrow={m.narrow}
-                  />
-                ))}
+          <section className="border-y border-black/5 bg-white py-12">
+            <div className="mx-auto max-w-7xl px-6">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-10 lg:grid-cols-4">
+                <div className="flex items-center justify-center gap-4 lg:justify-start">
+                  <span className="text-6xl font-extrabold leading-none tracking-tighter text-[#ea580c] md:text-7xl">70%</span>
+                  <span className="max-w-[140px] text-xs font-bold uppercase leading-tight tracking-wider text-slate-700">
+                    De reducción en<br />costos logísticos
+                  </span>
+                </div>
+                <div className="flex items-center justify-center gap-4 lg:justify-start">
+                  <span className="text-6xl font-extrabold leading-none tracking-tighter text-[#ea580c] md:text-7xl">50+</span>
+                  <span className="max-w-[140px] text-xs font-bold uppercase leading-tight tracking-wider text-slate-700">
+                    Importadores<br />activos
+                  </span>
+                </div>
+                <div className="flex items-center justify-center gap-4 lg:justify-start">
+                  <span className="text-6xl font-extrabold leading-none tracking-tighter text-[#ea580c] md:text-7xl">3</span>
+                  <span className="max-w-[140px] text-xs font-bold uppercase leading-tight tracking-wider text-slate-700">
+                    Oficinas<br />globales
+                  </span>
+                </div>
+                <div className="flex items-center justify-center gap-4 lg:justify-start">
+                  <span className="text-6xl font-extrabold leading-none tracking-tighter text-[#ea580c] md:text-7xl">24/7</span>
+                  <span className="max-w-[140px] text-xs font-bold uppercase leading-tight tracking-wider text-slate-700">
+                    Disponibilidad<br />operativa
+                  </span>
+                </div>
               </div>
             </div>
           </section>
