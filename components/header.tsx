@@ -51,7 +51,7 @@ export default function Header() {
         <div className="container mx-auto px-4 md:px-6">
           <div className="flex h-[76px] items-center justify-between">
             <a href="#inicio" className="flex items-center" aria-label="Ir al inicio">
-              <div className="relative h-10 w-40 sm:h-11 sm:w-44">
+              <div className="relative h-7 w-48 sm:h-8 sm:w-56">
                 <Image
                   src="/images/transtide-logo.png"
                   alt="Transtide Freight"
