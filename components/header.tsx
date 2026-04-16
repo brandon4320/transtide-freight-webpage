@@ -56,7 +56,7 @@ export default function Header() {
               <a href="#inicio" className="flex items-center" aria-label="Ir al inicio">
                 <div className="relative h-6 w-[258px] sm:h-7 sm:w-[282px]">
                   <Image
-                    src="/images/transtide-logo-white.png"
+                    src="/images/transtide-logo-navy.png"
                     alt="Transtide Freight"
                     fill
                     className="object-contain object-left"
