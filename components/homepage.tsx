@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button"
 const metrics = [
   { value: 70, suffix: "%", label: "De nuestros clientes reducen costos logísticos" },
   { value: 50, suffix: "+", label: "Clientes satisfechos" },
-  { value: 3, suffix: "", label: "Oficinas globales", compact: true },
+  { value: 3, suffix: "", label: "Oficinas globales", compact: true, narrow: true },
   { value: null, suffix: "", label: "Soporte disponible", display: "24/7", compact: true },
 ]
 
@@ -116,15 +116,17 @@ function MetricStat({
   display,
   label,
   compact = false,
+  narrow = false,
 }: {
   value: number | null
   suffix: string
   display?: string
   label: string
   compact?: boolean
+  narrow?: boolean
 }) {
   return (
-    <div className="metric-stat grid min-h-[92px] grid-cols-[120px_1fr] items-center gap-4 md:grid-cols-[138px_1fr] md:gap-5">
+    <div className={`metric-stat grid min-h-[92px] items-center ${narrow ? "grid-cols-[86px_1fr] gap-3 md:grid-cols-[96px_1fr] md:gap-4" : "grid-cols-[120px_1fr] gap-4 md:grid-cols-[138px_1fr] md:gap-5"}`}>
       <div className={`metric-number-wrap flex items-baseline justify-start text-[#ea580c] ${compact ? "md:scale-[0.94]" : ""}`}>
         <div className="text-[3.4rem] font-black leading-none tracking-[-0.05em] md:text-[4rem]">
           {display ? (
@@ -274,6 +276,7 @@ export default function Homepage() {
                     display={m.display}
                     label={m.label}
                     compact={m.compact}
+                    narrow={m.narrow}
                   />
                 ))}
               </div>
