@@ -224,31 +224,31 @@ export default function Homepage() {
       <main className="relative z-[1] min-h-screen overflow-x-clip bg-transparent text-[#0b1120]">
         <section id="inicio" className="relative border-b border-black/[0.05]">
           <div className="container relative z-[1] mx-auto px-6 md:px-10" style={{ paddingTop: "clamp(2rem, 4vh, 3rem)", paddingBottom: "clamp(2rem, 4vh, 3rem)" }}>
-            <div className="grid gap-16 lg:grid-cols-[1fr_1fr] lg:items-center" style={{ minHeight: "calc(100vh - 76px)" }}>
+            <div className="grid gap-8 lg:gap-16 lg:grid-cols-[1fr_1fr] lg:items-center" style={{ minHeight: "calc(100vh - 76px)" }}>
               <div className="flex items-start gap-6">
-                <div className="flex flex-col items-start gap-5">
+                <div className="flex flex-col items-start gap-4 lg:gap-5">
                   <div className="rounded-full border border-[#fed7aa] bg-[rgba(254,215,170,0.1)] px-[14px] py-[6px] text-[11px] font-semibold uppercase tracking-[0.08em] text-[#ea580c]">
                     Coordinación logística internacional
                   </div>
 
-                  <h1 className="text-[clamp(2.8rem,5.5vw,4rem)] font-black leading-[1.08] tracking-[-0.04em] text-[#040914]">
+                  <h1 className="text-[clamp(2.2rem,7vw,4rem)] font-black leading-[1.08] tracking-[-0.04em] text-[#040914]">
                     Importá con claridad. Sin sorpresas, sin intermediarios innecesarios.
                   </h1>
 
-                  <p className="max-w-[420px] text-[1.05rem] leading-relaxed text-[#4b5563]">
+                  <p className="max-w-[420px] text-[0.95rem] leading-relaxed text-[#4b5563] lg:text-[1.05rem]">
                     Gestionamos toda la cadena — desde el proveedor hasta la entrega en destino. Un solo interlocutor, visibilidad total.
                   </p>
 
-                  <div className="mt-1 flex flex-wrap items-center gap-4">
+                  <div className="mt-1 flex flex-wrap items-center gap-3 lg:gap-4">
                     <a
                       href="#contact"
-                      className="group relative inline-flex h-[50px] items-center gap-2 overflow-hidden rounded-lg bg-[#ea580c] px-6 py-0 text-sm font-semibold text-white shadow-[0_4px_12px_rgba(234,88,12,0.25)] transition-all duration-200 hover:translate-y-[-2px] hover:shadow-[0_6px_16px_rgba(234,88,12,0.35)]"
+                      className="relative inline-flex h-[46px] items-center gap-2 overflow-hidden rounded-lg bg-[#ea580c] px-5 text-sm font-semibold text-white shadow-[0_4px_12px_rgba(234,88,12,0.25)] transition-all duration-200 hover:translate-y-[-2px] hover:shadow-[0_6px_16px_rgba(234,88,12,0.35)] lg:h-[50px] lg:px-6"
                     >
                       <span className="inline-flex items-center">Cotizar operación</span>
                       <ArrowRight className="h-4 w-4" />
                       <span className="btn-shine" />
                     </a>
-                    <a href="#process" className="inline-flex h-[50px] items-center text-sm font-semibold text-[#4b5563] transition-colors hover:text-[#040914]">
+                    <a href="#process" className="inline-flex h-[46px] items-center text-sm font-semibold text-[#4b5563] transition-colors hover:text-[#040914] lg:h-[50px]">
                       Ver cómo trabajamos
                     </a>
                   </div>
@@ -256,7 +256,7 @@ export default function Homepage() {
               </div>
 
               <div className="flex items-center justify-center">
-                <div className="w-full max-w-[560px]">
+                <div className="w-full max-w-[420px] lg:max-w-[560px]" style={{ overflow: "visible" }}>
                   <GlobeHero />
                 </div>
               </div>
@@ -277,7 +277,7 @@ export default function Homepage() {
                 <div className="flex items-center justify-center gap-4 lg:justify-start">
                   <span className="text-6xl font-extrabold leading-none tracking-tighter text-[#ea580c] md:text-7xl">50+</span>
                   <span className="max-w-[140px] text-xs font-bold uppercase leading-tight tracking-wider text-slate-700">
-                    Importadores<br />activos
+                    Importadores<br />satisfechos
                   </span>
                 </div>
                 <div className="flex items-center justify-center gap-4 lg:justify-start">

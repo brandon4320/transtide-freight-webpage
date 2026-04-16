@@ -251,8 +251,8 @@ export default function GlobeHero() {
 
   return (
     <>
-    <div className="relative w-full aspect-square flex items-center justify-center">
-      <div className="relative w-[90%] h-[90%]" style={{ animation: "globeFadeIn 0.8s cubic-bezier(.2,0,.2,1) both" }}>
+    <div className="relative w-full aspect-square flex items-center justify-center" style={{ overflow: "visible" }}>
+      <div className="relative w-[90%] h-[90%]" style={{ animation: "globeFadeIn 0.8s cubic-bezier(.2,0,.2,1) both", overflow: "visible" }}>
         <canvas
           ref={canvasRef}
           className="relative z-10 w-full h-full cursor-grab active:cursor-grabbing rounded-full shadow-[0_30px_60px_rgba(0,0,0,0.06)]"
@@ -260,7 +260,8 @@ export default function GlobeHero() {
         <svg
           ref={svgRef}
           viewBox="0 0 620 620"
-          className="absolute inset-0 z-[12] pointer-events-none overflow-visible w-full h-full"
+          className="absolute inset-0 z-[12] pointer-events-none w-full h-full"
+          style={{ overflow: "visible" }}
         />
         {ALL_CITIES.map((city) => (
           <div
