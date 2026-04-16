@@ -185,36 +185,50 @@ export default function Homepage() {
 
       <main className="relative z-[1] min-h-screen overflow-x-hidden bg-transparent text-[#0b1120]">
         <section id="inicio" className="relative border-b border-black/[0.05]">
-          <div className="container relative z-[1] mx-auto px-6 py-16 md:px-10 md:py-24 lg:py-28">
-            <div className="grid gap-12 lg:grid-cols-[1fr_1.1fr] lg:items-center" style={{ minHeight: "calc(100vh - 80px - 8rem)" }}>
-              <div className="flex items-start gap-6">
-                <div className="flex flex-col items-start gap-6">
-                  <div className="rounded-full border border-[#fed7aa] bg-[rgba(254,215,170,0.1)] px-[14px] py-[6px] text-[11px] font-semibold uppercase tracking-[0.08em] text-[#ea580c]">
-                    Importaciones Internacionales
-                  </div>
-                  <h1 className="text-5xl font-bold leading-[1.05] tracking-[-0.03em] text-[#040914] md:text-6xl">
-                    Coordiná tu<br />importación con más<br />control, no con más<br />vueltas.
-                  </h1>
-                  <p className="max-w-[480px] text-base leading-relaxed text-[#4b5563]">
-                    Transtide coordina sourcing, embarque, despacho y entrega final con una mirada integral de la operación y un punto de contacto real.
-                  </p>
-                  <div className="mt-2 flex flex-wrap items-center gap-6">
-                    <a
-                      href="#contact"
-                      className="group relative inline-flex items-center gap-2 overflow-hidden rounded-lg bg-[#ea580c] px-7 py-[14px] text-sm font-semibold text-white shadow-[0_4px_12px_rgba(234,88,12,0.25)] transition-all duration-200 hover:translate-y-[-2px] hover:shadow-[0_6px_16px_rgba(234,88,12,0.35)]"
-                    >
-                      Cotizar operación
-                      <ArrowRight className="h-4 w-4" />
-                      <span className="absolute inset-0 -translate-x-full skew-x-12 bg-white/20 transition-transform duration-500 group-hover:translate-x-full" />
-                    </a>
-                    <a href="#process" className="text-sm font-semibold text-[#4b5563] transition-colors hover:text-[#040914]">
-                      Ver cómo trabajamos
-                    </a>
-                  </div>
+          {/* 5 — más aire: padding generoso arriba y abajo */}
+          <div className="container relative z-[1] mx-auto px-6 md:px-10" style={{ paddingTop: "clamp(5rem, 10vh, 8rem)", paddingBottom: "clamp(5rem, 10vh, 8rem)" }}>
+            {/* 4 — alineación vertical perfecta entre texto y globo */}
+            <div className="grid gap-16 lg:grid-cols-[1fr_1fr] lg:items-center" style={{ minHeight: "calc(100vh - 96px)" }}>
+
+              {/* Columna izquierda */}
+              <div className="flex flex-col items-start gap-5">
+                <div className="rounded-full border border-[#fed7aa] bg-[rgba(254,215,170,0.1)] px-[14px] py-[6px] text-[11px] font-semibold uppercase tracking-[0.08em] text-[#ea580c]">
+                  Importaciones Internacionales
+                </div>
+
+                {/* 3 — tipografía más pesada, mayor tamaño, mejor interlineado */}
+                <h1 className="text-[clamp(2.8rem,5.5vw,4rem)] font-black leading-[1.08] tracking-[-0.04em] text-[#040914]">
+                  Coordiná tu importación con más control, no con más vueltas.
+                </h1>
+
+                {/* 6 — subtítulo más corto y directo */}
+                <p className="max-w-[420px] text-[1.05rem] leading-relaxed text-[#4b5563]">
+                  Sourcing, embarque, despacho y entrega. Un solo punto de contacto, visión completa de la operación.
+                </p>
+
+                {/* 7 — botones más juntos y alineados */}
+                <div className="mt-1 flex items-center gap-4">
+                  <a
+                    href="#contact"
+                    className="group relative inline-flex items-center gap-2 overflow-hidden rounded-lg bg-[#ea580c] px-6 py-[13px] text-sm font-semibold text-white shadow-[0_4px_12px_rgba(234,88,12,0.25)] transition-all duration-200 hover:translate-y-[-2px] hover:shadow-[0_6px_16px_rgba(234,88,12,0.35)]"
+                  >
+                    Cotizar operación
+                    <ArrowRight className="h-4 w-4" />
+                    <span className="absolute inset-0 -translate-x-full skew-x-12 bg-white/20 transition-transform duration-500 group-hover:translate-x-full" />
+                  </a>
+                  <a href="#process" className="text-sm font-semibold text-[#4b5563] transition-colors hover:text-[#040914]">
+                    Ver cómo trabajamos
+                  </a>
                 </div>
               </div>
 
-              <GlobeHero />
+              {/* 1 — globo sin fondo, flota sobre la página */}
+              <div className="flex items-center justify-center">
+                <div className="w-full max-w-[560px]">
+                  <GlobeHero />
+                </div>
+              </div>
+
             </div>
           </div>
         </section>

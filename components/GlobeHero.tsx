@@ -251,9 +251,7 @@ export default function GlobeHero() {
 
   return (
     <>
-    <div className="relative w-full aspect-square bg-[#f4f5f6] rounded-[32px] overflow-visible border border-black/5 shadow-inner flex items-center justify-center">
-      <div className="absolute top-6 right-6 w-16 h-16 bg-black/5 rounded-2xl pointer-events-none hidden md:block" />
-      <div className="absolute bottom-6 right-6 w-16 h-16 bg-black/5 rounded-2xl pointer-events-none hidden md:block" />
+    <div className="relative w-full aspect-square flex items-center justify-center">
       <div className="relative w-[90%] h-[90%]" style={{ animation: "globeFadeIn 0.8s cubic-bezier(.2,0,.2,1) both" }}>
         <canvas
           ref={canvasRef}
