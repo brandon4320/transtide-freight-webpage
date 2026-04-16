@@ -101,9 +101,6 @@ const trustItems = [
    GLOBE
 ================================================================ */
 
-// Buenos Aires lon in radians = -58.4 * π/180 ≈ -1.019
-// We negate because cobe phi convention: phi=0 → 0°lon, positive phi → westward
-// To center BA we need phi ≈ 1.02 (putting -58° lon in front)
 const INIT_PHI   = 1.02
 const INIT_THETA = 0.25
 
@@ -122,21 +119,14 @@ function GlobeSection() {
   const frame     = useRef(0)
   const globeObj  = useRef<ReturnType<typeof createGlobe> | null>(null)
 
-  // Project lat/lon → SVG canvas coords (0..SIZE)
-  // COBE's convention: phi rotates around Y (longitude), theta tilts (latitude)
-  // phi=0 means lon=0° (Greenwich) is facing front
-  // To get lon L facing front: phi = -L * π/180
   const project = useCallback((lat: number, lon: number, size = 620) => {
     const latR = (lat  * Math.PI) / 180
     const lonR = (lon  * Math.PI) / 180
-    // Point on unit sphere
     const x3 =  Math.cos(latR) * Math.sin(lonR)
     const y3 =  Math.sin(latR)
     const z3 =  Math.cos(latR) * Math.cos(lonR)
-    // Rotate by phi (yaw around Y)
     const xr =  x3 * Math.cos(phi.current) - z3 * Math.sin(phi.current)
     const zr =  x3 * Math.sin(phi.current) + z3 * Math.cos(phi.current)
-    // Rotate by theta (pitch around X)
     const yr =  y3 * Math.cos(theta.current) + zr * Math.sin(theta.current)
     const zr2 = -y3 * Math.sin(theta.current) + zr * Math.cos(theta.current)
     const depth = (zr2 + 1) / 2
@@ -145,7 +135,6 @@ function GlobeSection() {
     return { x: cx, y: cy, depth }
   }, [])
 
-  // Quadratic bezier path with perpendicular lift
   const arcPath = (x1: number, y1: number, x2: number, y2: number, alt: number) => {
     const mx = (x1 + x2) / 2, my = (y1 + y2) / 2
     const dx = x2 - x1, dy = y2 - y1
@@ -155,10 +144,9 @@ function GlobeSection() {
     return `M${x1.toFixed(1)},${y1.toFixed(1)} Q${(mx + nx * lift).toFixed(1)},${(my + ny * lift).toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}`
   }
 
-  // Approximate arc length for stroke-dasharray
   const approxLen = (x1: number, y1: number, x2: number, y2: number) => {
     const dx = x2 - x1, dy = y2 - y1
-    return Math.sqrt(dx * dx + dy * dy) * 1.3 // bezier is ~30% longer than chord
+    return Math.sqrt(dx * dx + dy * dy) * 1.3
   }
 
   useEffect(() => {
@@ -167,34 +155,28 @@ function GlobeSection() {
     const wrapEl = wrapRef.current
     if (!canvas || !svgEl || !wrapEl) return
 
-    // Each arc: 300 frames total, staggered
     const F_TOTAL  = 300
-    const F_DRAW   = 100  // frames to draw in
-    const F_HOLD   = 80   // frames to hold
-    const F_FADE   = 120  // frames to fade out
+    const F_DRAW   = 100
+    const F_HOLD   = 80
+    const F_FADE   = 120
     const STAGGER  = Math.floor(F_TOTAL / DESTINATIONS.length)
 
-    // Arc DOM — using stroke-dashoffset for animated draw
     const arcs = DESTINATIONS.map((dest, i) => {
       const g    = document.createElementNS("http://www.w3.org/2000/svg", "g")
-      // Glow (thicker, blurred)
       const glow = document.createElementNS("http://www.w3.org/2000/svg", "path")
       glow.setAttribute("stroke", "#ea580c")
       glow.setAttribute("stroke-width", "8")
       glow.setAttribute("fill", "none")
       glow.setAttribute("filter", "url(#arcGlow)")
       glow.setAttribute("stroke-linecap", "round")
-      // Main line
       const line = document.createElementNS("http://www.w3.org/2000/svg", "path")
       line.setAttribute("stroke", "#ea580c")
       line.setAttribute("stroke-width", "2")
       line.setAttribute("fill", "none")
       line.setAttribute("stroke-linecap", "round")
-      // Animated dot at tip
       const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle")
       dot.setAttribute("r", "5")
       dot.setAttribute("fill", "#ea580c")
-      // Pulse ring
       const ring = document.createElementNS("http://www.w3.org/2000/svg", "circle")
       ring.setAttribute("r", "5")
       ring.setAttribute("fill", "none")
@@ -206,7 +188,6 @@ function GlobeSection() {
       return { g, glow, line, dot, ring, dest, i }
     })
 
-    // Label DOM
     const labels = ALL_CITIES.map((city, idx) => {
       const el = document.createElement("div")
       Object.assign(el.style, {
@@ -237,7 +218,6 @@ function GlobeSection() {
       const dt = Date.now() - t0.current
 
       if (!isDrag.current) {
-        // Gentle sway, keeping BA centered
         phi.current   = INIT_PHI   + Math.sin(dt / 8000) * 0.18
         theta.current = INIT_THETA + Math.sin(dt / 6000) * 0.10
       } else {
@@ -247,10 +227,8 @@ function GlobeSection() {
         velY.current  *= 0.88
       }
 
-      // Update COBE
       globeObj.current?.update({ phi: phi.current, theta: theta.current })
 
-      // Labels
       ALL_CITIES.forEach((city, idx) => {
         const pos = project(city.lat, city.lon)
         const el  = labels[idx]
@@ -265,13 +243,11 @@ function GlobeSection() {
         el.style.opacity   = idx === 0 ? "1" : String(Math.min(1, (pos.depth - 0.08) / 0.4))
       })
 
-      // Animated arcs with stroke-dashoffset draw effect
       const hub = project(HUB.lat, HUB.lon)
       arcs.forEach(({ g, glow, line, dot, ring, dest, i }) => {
         const phase = (frame.current + i * STAGGER) % F_TOTAL
         const dp = project(dest.lat, dest.lon)
 
-        // Hide if both endpoints behind globe
         if (hub.depth < 0.05 && dp.depth < 0.05) {
           g.setAttribute("display", "none"); return
         }
@@ -280,7 +256,6 @@ function GlobeSection() {
         const d = arcPath(hub.x, hub.y, dp.x, dp.y, dest.arcAlt)
         const totalLen = approxLen(hub.x, hub.y, dp.x, dp.y)
 
-        // Progress 0→1 during draw phase, then hold at 1, then fade
         let drawProg = 0
         let opacity  = 0
         if (phase < F_DRAW) {
@@ -299,8 +274,6 @@ function GlobeSection() {
         const depthFade = hub.depth < 0.1 || dp.depth < 0.1 ? 0.35 : 1
         const finalOp   = opacity * depthFade
 
-        // stroke-dasharray trick: dash = totalLen, gap = totalLen
-        // dashoffset goes from totalLen (invisible) to 0 (fully drawn)
         const dashLen = totalLen
         const offset  = dashLen * (1 - drawProg)
 
@@ -314,8 +287,6 @@ function GlobeSection() {
         line.setAttribute("stroke-dashoffset", `${offset}`)
         line.setAttribute("stroke-opacity", String(finalOp * 0.9))
 
-        // Moving dot: interpolate along bezier using t = drawProg
-        // Quadratic bezier: P = (1-t)²P0 + 2t(1-t)P1 + t²P2
         const mx = (hub.x + dp.x) / 2
         const my = (hub.y + dp.y) / 2
         const dx_ = dp.x - hub.x, dy_ = dp.y - hub.y
@@ -332,7 +303,6 @@ function GlobeSection() {
         dot.setAttribute("opacity", String(finalOp))
         dot.setAttribute("r", "4")
 
-        // Pulse ring grows and fades at destination when fully drawn
         if (drawProg > 0.95 && dp.depth > 0.08) {
           const pulseProg = (phase - F_DRAW) / F_HOLD
           const pr = 4 + pulseProg * 14
@@ -349,7 +319,6 @@ function GlobeSection() {
     }
     animId = requestAnimationFrame(tick)
 
-    // COBE v2
     const DPR = Math.min(devicePixelRatio, 2)
     globeObj.current = createGlobe(canvas, {
       devicePixelRatio: DPR,
@@ -435,9 +404,6 @@ function GlobeSection() {
   )
 }
 
-/* ================================================================
-   ANIMATED COUNTER
-================================================================ */
 function AnimatedCounter({ target, suffix }: { target: number; suffix: string }) {
   const ref      = useRef<HTMLSpanElement>(null)
   const observed = useRef(false)
@@ -463,9 +429,6 @@ function AnimatedCounter({ target, suffix }: { target: number; suffix: string })
   return <><span ref={ref}>0</span>{suffix}</>
 }
 
-/* ================================================================
-   REVEAL WRAPPER
-================================================================ */
 function Reveal({ children, delay = 0, className = "" }: { children: React.ReactNode; delay?: number; className?: string }) {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -487,9 +450,6 @@ function Reveal({ children, delay = 0, className = "" }: { children: React.React
   )
 }
 
-/* ================================================================
-   BACK TO TOP
-================================================================ */
 function BackToTop() {
   const ref = useRef<HTMLButtonElement>(null)
   useEffect(() => {
@@ -518,18 +478,38 @@ function BackToTop() {
   )
 }
 
-/* ================================================================
-   PAGE
-================================================================ */
 export default function Homepage() {
   return (
     <main className="min-h-screen bg-[#fbfbfa] text-[#0b1120] overflow-x-hidden">
+      <section id="inicio" className="relative overflow-hidden border-b border-black/[0.05]">
+        <div className="pointer-events-none absolute inset-0 z-0">
+          <div className="absolute left-[2%] top-[26px] h-[60px] w-[60px] rounded-[10px] bg-[#1d2d5f]/[0.05]" />
+          <div className="absolute left-[4.8%] top-[24px] h-[84px] w-[84px] rounded-[10px] bg-[#1d2d5f]/[0.06]" />
+          <div className="absolute left-[5%] top-[68px] h-[108px] w-[108px] rounded-[10px] bg-[#1d2d5f]/[0.045]" />
+          <div className="absolute left-[10%] top-[158px] h-[52px] w-[52px] rounded-[8px] bg-[#1d2d5f]/[0.04]" />
 
-      {/* ── HERO ── */}
-      <section id="inicio" className="border-b border-black/[0.05]">
-        <div className="container mx-auto px-6 md:px-10 py-16 md:py-24 lg:py-28">
+          <div className="absolute left-[28%] top-[20px] h-[58px] w-[58px] rounded-[10px] bg-[#1d2d5f]/[0.045]" />
+          <div className="absolute left-[30%] top-[64px] h-[84px] w-[84px] rounded-[10px] bg-[#1d2d5f]/[0.035]" />
+          <div className="absolute left-[32%] top-[116px] h-[42px] w-[42px] rounded-[8px] bg-[#1d2d5f]/[0.03]" />
+
+          <div className="absolute right-[28%] top-[18px] h-[60px] w-[60px] rounded-[10px] bg-[#1d2d5f]/[0.04]" />
+          <div className="absolute right-[24.5%] top-[32px] h-[68px] w-[68px] rounded-[10px] bg-[#1d2d5f]/[0.035]" />
+          <div className="absolute right-[22.5%] top-[42px] h-[68px] w-[68px] rounded-[10px] bg-[#1d2d5f]/[0.03]" />
+
+          <div className="absolute right-[11.5%] top-[34px] h-[84px] w-[84px] rounded-[10px] bg-[#1d2d5f]/[0.04]" />
+          <div className="absolute right-[8.6%] top-[82px] h-[60px] w-[60px] rounded-[8px] bg-[#1d2d5f]/[0.032]" />
+
+          <div className="absolute left-[10%] bottom-[142px] h-[42px] w-[42px] rounded-[8px] bg-[#1d2d5f]/[0.035]" />
+          <div className="absolute left-[22%] bottom-[92px] h-[58px] w-[58px] rounded-[8px] bg-[#1d2d5f]/[0.03]" />
+          <div className="absolute left-[25.2%] bottom-[68px] h-[50px] w-[50px] rounded-[8px] bg-[#1d2d5f]/[0.04]" />
+          <div className="absolute right-[44%] bottom-[110px] h-[48px] w-[48px] rounded-[8px] bg-[#1d2d5f]/[0.035]" />
+          <div className="absolute right-[14%] bottom-[142px] h-[60px] w-[60px] rounded-[8px] bg-[#1d2d5f]/[0.035]" />
+          <div className="absolute right-[9%] bottom-[92px] h-[68px] w-[68px] rounded-[8px] bg-[#1d2d5f]/[0.03]" />
+          <div className="absolute right-[6.2%] bottom-[108px] h-[52px] w-[52px] rounded-[8px] bg-[#1d2d5f]/[0.04]" />
+        </div>
+
+        <div className="container relative z-[1] mx-auto px-6 md:px-10 py-16 md:py-24 lg:py-28">
           <div className="grid gap-12 lg:grid-cols-[1fr_1.1fr] lg:items-center" style={{ minHeight: "calc(100vh - 80px - 8rem)" }}>
-            {/* Text */}
             <div className="flex flex-col gap-6 items-start">
               <div className="text-[11px] font-semibold text-[#ea580c] uppercase tracking-[0.08em] px-[14px] py-[6px] rounded-full border border-[#fed7aa] bg-[rgba(254,215,170,0.1)]">
                 Importaciones Internacionales
@@ -555,13 +535,11 @@ export default function Homepage() {
               </div>
             </div>
 
-            {/* Globe */}
             <GlobeSection />
           </div>
         </div>
       </section>
 
-      {/* ── STATS ── */}
       <Reveal>
         <section className="border-y border-black/[0.06] bg-white py-10">
           <div className="container mx-auto px-6 md:px-10">
@@ -581,7 +559,6 @@ export default function Homepage() {
         </section>
       </Reveal>
 
-      {/* ── TRUST ── */}
       <section className="border-b border-black/[0.04] bg-[#f8fafc] py-5">
         <div className="container mx-auto px-6 md:px-10">
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
@@ -595,7 +572,6 @@ export default function Homepage() {
         </div>
       </section>
 
-      {/* ── QUÉ RESOLVEMOS ── */}
       <section id="services" className="py-28">
         <div className="container mx-auto px-6 md:px-10">
           <Reveal>
@@ -620,7 +596,6 @@ export default function Homepage() {
         </div>
       </section>
 
-      {/* ── CÓMO FUNCIONA ── */}
       <section id="process" className="pb-28">
         <div className="container mx-auto px-6 md:px-10">
           <Reveal>
@@ -664,7 +639,6 @@ export default function Homepage() {
         </div>
       </section>
 
-      {/* ── POR QUÉ TRANSTIDE ── */}
       <section id="operations" className="py-28 bg-white border-t border-black/[0.04]">
         <div className="container mx-auto px-6 md:px-10">
           <div className="grid lg:grid-cols-2 gap-20 items-start">
@@ -720,7 +694,6 @@ export default function Homepage() {
         </div>
       </section>
 
-      {/* ── OFICINAS ── */}
       <section id="offices" className="py-20 pb-28 bg-white border-t border-black/[0.04]">
         <div className="container mx-auto px-6 md:px-10">
           <Reveal>
@@ -753,7 +726,6 @@ export default function Homepage() {
         </div>
       </section>
 
-      {/* ── CONTACTO ── */}
       <section id="contact" className="border-t border-black/[0.05] bg-[#fbfbfa] py-28">
         <div className="container mx-auto px-6 md:px-10">
           <div className="grid lg:grid-cols-[0.85fr_1.15fr] gap-12 lg:items-start">
@@ -814,7 +786,6 @@ export default function Homepage() {
         </div>
       </section>
 
-      {/* ── FOOTER ── */}
       <footer className="border-t border-slate-200 bg-white">
         <div className="container mx-auto px-6 md:px-10 py-10">
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
