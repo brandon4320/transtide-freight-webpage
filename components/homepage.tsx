@@ -22,10 +22,10 @@ import {
 import { Button } from "@/components/ui/button"
 
 const metrics = [
-  { icon: <DollarSign className="h-5 w-5" />, value: 70, suffix: "%", label: "De nuestros clientes reducen costos logísticos" },
-  { icon: <Users className="h-5 w-5" />, value: 50, suffix: "+", label: "Clientes satisfechos" },
-  { icon: <Building2 className="h-5 w-5" />, value: 3, suffix: "", label: "Oficinas globales" },
-  { icon: <Phone className="h-5 w-5" />, value: null, suffix: "", label: "Soporte disponible", display: "24/7" },
+  { value: 70,   suffix: "%", label: "De nuestros clientes reducen costos logísticos" },
+  { value: 50,   suffix: "+", label: "Clientes satisfechos" },
+  { value: 3,    suffix: "",  label: "Oficinas globales" },
+  { value: null, suffix: "",  label: "Soporte disponible", display: "24/7" },
 ]
 
 const services = [
@@ -234,15 +234,15 @@ export default function Homepage() {
         </section>
 
         <Reveal>
-          <section className="border-y border-black/[0.06] bg-transparent py-10">
+          <section className="border-y border-black/[0.06] bg-transparent py-8">
             <div className="container mx-auto px-6 md:px-10">
-              <div className="grid grid-cols-2 gap-8 xl:grid-cols-4">
+              <div className="grid grid-cols-2 gap-x-8 gap-y-6 xl:grid-cols-4">
                 {metrics.map((m) => (
-                  <div key={m.label} className="flex items-center gap-4">
-                    <div className="text-[48px] font-bold leading-none tracking-[-0.04em] text-[#ea580c]">
+                  <div key={m.label} className="flex items-center gap-3">
+                    <div className="shrink-0 text-[2.6rem] font-black leading-none tracking-[-0.04em] text-[#ea580c] md:text-[3rem]">
                       {m.display ? m.display : <AnimatedCounter target={m.value!} suffix={m.suffix} />}
                     </div>
-                    <div className="text-[11px] font-bold uppercase tracking-[0.05em] leading-[1.4] text-[#1e293b]">
+                    <div className="text-[11px] font-bold uppercase leading-[1.35] tracking-[0.06em] text-[#1e293b]">
                       {m.label}
                     </div>
                   </div>
