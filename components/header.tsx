@@ -46,14 +46,14 @@ export default function Header() {
           >
             <div className="flex h-[58px] items-center justify-between px-4 md:px-5 lg:px-6">
               <a href="#inicio" className="flex items-center" aria-label="Ir al inicio">
-                <div className="relative h-7 w-[215px] sm:h-8 sm:w-[245px] lg:w-[270px]">
+                <div className="relative h-[28px] w-[170px] sm:h-[32px] sm:w-[194px] lg:w-[215px]">
                   <Image
                     src="/images/transtide-logo-full.png"
                     alt="Transtide Freight"
                     fill
                     className="object-contain object-left"
                     priority
-                    sizes="(min-width: 1024px) 270px, (min-width: 640px) 245px, 215px"
+                    sizes="(min-width: 1024px) 215px, (min-width: 640px) 194px, 170px"
                   />
                 </div>
               </a>
