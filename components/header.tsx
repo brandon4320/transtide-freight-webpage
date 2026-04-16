@@ -36,42 +36,42 @@ export default function Header() {
   return (
     <>
       <header className="fixed inset-x-0 top-0 z-50">
-        <div className="container mx-auto px-4 pt-2.5 md:px-6 md:pt-3">
+        <div className="container mx-auto px-4 pt-2 md:px-6 md:pt-2.5">
           <div
-            className={`rounded-[28px] border border-[rgba(24,38,84,0.10)] bg-[rgba(29,45,95,0.22)] transition-all duration-300 ${
+            className={`rounded-[30px] border border-[rgba(24,38,84,0.10)] bg-[rgba(29,45,95,0.20)] transition-all duration-300 ${
               scrolled
-                ? "shadow-[0_18px_40px_rgba(15,23,42,0.12)] backdrop-blur-xl"
-                : "shadow-[0_12px_28px_rgba(15,23,42,0.08)] backdrop-blur-lg"
+                ? "shadow-[0_16px_34px_rgba(15,23,42,0.10)] backdrop-blur-xl"
+                : "shadow-[0_10px_24px_rgba(15,23,42,0.07)] backdrop-blur-lg"
             }`}
           >
-            <div className="flex h-[64px] items-center justify-between px-5 md:px-6 lg:px-7">
+            <div className="flex h-[58px] items-center justify-between px-4 md:px-5 lg:px-6">
               <a href="#inicio" className="flex items-center" aria-label="Ir al inicio">
-                <div className="relative h-8 w-[250px] sm:h-9 sm:w-[280px] lg:w-[305px]">
+                <div className="relative h-7 w-[215px] sm:h-8 sm:w-[245px] lg:w-[270px]">
                   <Image
                     src="/images/transtide-logo-full.png"
                     alt="Transtide Freight"
                     fill
                     className="object-contain object-left"
                     priority
-                    sizes="(min-width: 1024px) 305px, (min-width: 640px) 280px, 250px"
+                    sizes="(min-width: 1024px) 270px, (min-width: 640px) 245px, 215px"
                   />
                 </div>
               </a>
 
-              <div className="hidden items-center gap-3 lg:flex">
-                <nav className="flex items-center gap-1 xl:gap-2">
+              <div className="hidden items-center gap-2 lg:flex">
+                <nav className="flex items-center gap-0.5 xl:gap-1">
                   {navItems.map((item) => (
                     <a
                       key={item.href}
                       href={item.href}
-                      className="rounded-full px-3.5 py-2 text-[15px] font-medium text-[#0f1a3d] transition-colors hover:bg-white/18 hover:text-[#08112f]"
+                      className="rounded-full px-3 py-1.5 text-[14px] font-medium text-[#0f1a3d] transition-colors hover:bg-white/16 hover:text-[#08112f]"
                     >
                       {item.name}
                     </a>
                   ))}
                 </nav>
 
-                <Button asChild className="ml-2 h-auto rounded-full bg-accent px-6 py-2.5 text-base font-medium text-white shadow-[0_8px_22px_rgba(249,115,22,0.22)] hover:bg-accent-700">
+                <Button asChild className="ml-2 h-auto rounded-full bg-accent px-5 py-2 text-[15px] font-medium text-white shadow-[0_8px_18px_rgba(249,115,22,0.18)] hover:bg-accent-700">
                   <a href="#contact">Cotizar operación</a>
                 </Button>
               </div>
@@ -79,7 +79,7 @@ export default function Header() {
               <button
                 type="button"
                 onClick={() => setIsMenuOpen((prev) => !prev)}
-                className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded-2xl border border-[rgba(24,38,84,0.10)] bg-white/20 text-[#0f1a3d] backdrop-blur lg:hidden"
+                className="inline-flex min-h-[38px] min-w-[38px] items-center justify-center rounded-2xl border border-[rgba(24,38,84,0.10)] bg-white/18 text-[#0f1a3d] backdrop-blur lg:hidden"
                 aria-label={isMenuOpen ? "Cerrar menú" : "Abrir menú"}
                 aria-expanded={isMenuOpen}
               >
@@ -92,7 +92,7 @@ export default function Header() {
 
       {isMenuOpen && (
         <div className="fixed inset-0 z-40 bg-black/20 lg:hidden" onClick={handleCloseMenu}>
-          <div className="container px-4 pt-[84px] md:px-6" onClick={(e) => e.stopPropagation()}>
+          <div className="container px-4 pt-[76px] md:px-6" onClick={(e) => e.stopPropagation()}>
             <div className="rounded-[26px] border border-[rgba(24,38,84,0.10)] bg-[rgba(29,45,95,0.34)] p-4 shadow-[0_18px_40px_rgba(15,23,42,0.14)] backdrop-blur-xl">
               <nav className="space-y-2">
                 <a href="#inicio" onClick={handleCloseMenu} className="block rounded-2xl px-4 py-3 text-base font-medium text-[#0f1a3d] hover:bg-white/12">
@@ -117,7 +117,7 @@ export default function Header() {
         </div>
       )}
 
-      <div className="h-[80px] md:h-[86px]" />
+      <div className="h-[72px] md:h-[76px]" />
     </>
   )
 }
