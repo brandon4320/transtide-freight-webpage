@@ -185,10 +185,10 @@ export default function Homepage() {
 
       <main className="relative z-[1] min-h-screen overflow-x-hidden bg-transparent text-[#0b1120]">
         <section id="inicio" className="relative border-b border-black/[0.05]">
-          {/* 5 — más aire: padding generoso arriba y abajo */}
-          <div className="container relative z-[1] mx-auto px-6 md:px-10" style={{ paddingTop: "clamp(5rem, 10vh, 8rem)", paddingBottom: "clamp(5rem, 10vh, 8rem)" }}>
+          {/* 5 — espaciado simétrico arriba y abajo */}
+          <div className="container relative z-[1] mx-auto px-6 md:px-10" style={{ paddingTop: "clamp(2rem, 4vh, 3rem)", paddingBottom: "clamp(2rem, 4vh, 3rem)" }}>
             {/* 4 — alineación vertical perfecta entre texto y globo */}
-            <div className="grid gap-16 lg:grid-cols-[1fr_1fr] lg:items-center" style={{ minHeight: "calc(100vh - 96px)" }}>
+            <div className="grid gap-16 lg:grid-cols-[1fr_1fr] lg:items-center" style={{ minHeight: "calc(100vh - 76px)" }}>
 
               {/* Columna izquierda */}
               <div className="flex flex-col items-start gap-5">
