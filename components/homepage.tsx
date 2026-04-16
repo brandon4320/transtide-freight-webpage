@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react"
 import Image from "next/image"
 import GlobeHero from "@/components/GlobeHero"
 import HowItWorksStepper from "@/components/HowItWorksStepper"
+import LocationsSection from "@/components/LocationsSection"
 import {
   Check,
   Globe,
@@ -32,116 +33,12 @@ const services = [
   { icon: <Truck className="h-6 w-6" />, title: "Despacho y entrega", description: "Manejamos la documentación y el despacho para que la mercadería llegue sin trabas." },
 ]
 
-const processSteps = [
-  { title: "Definimos la operación", desc: "Nos contás qué querés importar, origen, volumen y tiempos esperados." },
-  { title: "Evaluamos proveedor y logística", desc: "Ordenamos costo, riesgo comercial y mejor alternativa de embarque." },
-  { title: "Coordinamos embarque y documentación", desc: "Seguimos la carga y cerramos la documentación para liberar sin fricción." },
-  { title: "Entregamos cerrado", desc: "La operación llega completa: liberada, documentada y en destino." },
-]
-
 const differentiators = [
   { icon: <ShieldCheck className="h-5 w-5" />, title: "Presencia en origen", text: "Más control sobre proveedor, producción y carga antes de embarcar." },
   { icon: <Boxes className="h-5 w-5" />, title: "Control total del costo", text: "No trabajamos una sola parte de la operación, miramos el proceso entero." },
   { icon: <Clock3 className="h-5 w-5" />, title: "Decisiones rápidas, sin burocracia", text: "Menos vueltas, más claridad para decidir rápido y mover la operación." },
   { icon: <Package className="h-5 w-5" />, title: "Un contacto real en cada etapa", text: "Un punto de contacto real durante cada etapa de la importación." },
 ]
-
-const operationTypes = ["Carga consolidada", "Importación de maquinaria", "Carga aérea urgente", "Operación puerta a puerta"]
-
-const offices = [
-  {
-    title: "Oficina Argentina",
-    lines: ["Belgrano 3710", "Ing White, Bahía Blanca", "Buenos Aires, Argentina"],
-    phone: "+54 9 11 4439-4020",
-    phoneHref: "tel:+5491144394020",
-  },
-  {
-    title: "Oficina Estados Unidos",
-    lines: ["5605 NW 74th Ave", "Miami, FL 33166", "Estados Unidos"],
-    phone: "+1 754 236-5652",
-    phoneHref: "tel:+17542365652",
-  },
-  {
-    title: "Oficina China",
-    lines: ["Room 902, Jingang Building", "No. 55 Aona Road, Waigaoqiao Free Trade Zone", "Pudong New Area, Shanghai", "China"],
-    phone: null,
-    phoneHref: null,
-  },
-]
-
-const trustItems = [
-  "Oficinas en Argentina, Miami y China",
-  "Coordinación integral de importaciones",
-  "Seguimiento de punta a punta",
-  "Atención personalizada por operación",
-]
-
-function AnimatedCounter({ target, suffix }: { target: number; suffix: string }) {
-  const ref = useRef<HTMLSpanElement>(null)
-  const observed = useRef(false)
-
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const obs = new IntersectionObserver(([e]) => {
-      if (!e.isIntersecting || observed.current) return
-      observed.current = true
-      let ts: number | null = null
-      const step = (now: number) => {
-        if (!ts) ts = now
-        const p = Math.min((now - ts) / 2000, 1)
-        const ease = 1 - Math.pow(1 - p, 4)
-        el.textContent = Math.floor(ease * target).toString()
-        if (p < 1) requestAnimationFrame(step)
-        else el.textContent = target.toString()
-      }
-      requestAnimationFrame(step)
-      obs.disconnect()
-    }, { threshold: 0.1 })
-    obs.observe(el)
-    return () => obs.disconnect()
-  }, [target])
-
-  return (
-    <span className="metric-value inline-flex items-baseline gap-0.5 leading-none">
-      <span ref={ref} className="metric-number inline-block text-inherit leading-none">0</span>
-      {suffix ? <span className="metric-suffix inline-block text-inherit leading-none">{suffix}</span> : null}
-    </span>
-  )
-}
-
-function MetricStat({
-  value,
-  suffix,
-  display,
-  label,
-  compact = false,
-  narrow = false,
-}: {
-  value: number | null
-  suffix: string
-  display?: string
-  label: string
-  compact?: boolean
-  narrow?: boolean
-}) {
-  return (
-    <div className="metric-stat flex min-h-[92px] items-center gap-0">
-      <div className={`metric-number-wrap flex w-[110px] shrink-0 items-baseline justify-start text-[#ea580c] md:w-[130px] ${compact ? "md:scale-[0.94]" : ""}`}>
-        <div className="text-[3.4rem] font-black leading-none tracking-[-0.05em] md:text-[4rem]">
-          {display ? (
-            <span className="metric-display inline-block text-inherit leading-none">{display}</span>
-          ) : (
-            <AnimatedCounter target={value!} suffix={suffix} />
-          )}
-        </div>
-      </div>
-      <div className="metric-label max-w-[165px] text-[11px] font-bold uppercase leading-[1.35] tracking-[0.06em] text-[#1e293b]">
-        {label}
-      </div>
-    </div>
-  )
-}
 
 function Reveal({ children, delay = 0, className = "" }: { children: React.ReactNode; delay?: number; className?: string }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -236,7 +133,7 @@ export default function Homepage() {
                   </h1>
 
                   <p className="max-w-[420px] text-[0.95rem] leading-relaxed text-[#4b5563] lg:text-[1.05rem]">
-                    Gestionamos toda la cadena — desde el proveedor hasta la entrega en destino. Un solo interlocutor, visibilidad total.
+                    Gestionamos toda la cadena, desde el proveedor hasta la entrega en destino. Un solo interlocutor, visibilidad total.
                   </p>
 
                   <div className="mt-1 flex flex-wrap items-center gap-3 lg:gap-4">
@@ -389,93 +286,7 @@ export default function Homepage() {
           </div>
         </section>
 
-        <section id="offices" className="border-t border-black/[0.04] bg-transparent py-16 lg:py-20 lg:pb-28">
-          <div className="container mx-auto px-6 md:px-10">
-            <Reveal>
-              <h2 className="mb-4 text-center text-4xl font-bold tracking-[-0.02em] text-[#040914]">Presencia operativa</h2>
-              <p className="mx-auto mb-16 max-w-[520px] text-center text-base leading-relaxed text-[#4b5563]">
-                Tres oficinas. Tres husos horarios. Un solo equipo detrás de tu operación.
-              </p>
-            </Reveal>
-
-            <Reveal delay={100}>
-              <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-[#0d1b35] to-[#0b1120]">
-                <div className="grid divide-y divide-white/[0.06] lg:grid-cols-3 lg:divide-x lg:divide-y-0">
-                  {[
-                    {
-                      flag: "🇦🇷",
-                      country: "Argentina",
-                      city: "Bahía Blanca",
-                      address: "Belgrano 3710, Ing. White",
-                      phone: "+54 9 11 4439-4020",
-                      phoneHref: "tel:+5491144394020",
-                      tz: "GMT-3",
-                    },
-                    {
-                      flag: "🇺🇸",
-                      country: "Estados Unidos",
-                      city: "Miami, FL",
-                      address: "5605 NW 74th Ave, 33166",
-                      phone: "+1 754 236-5652",
-                      phoneHref: "tel:+17542365652",
-                      tz: "GMT-5",
-                    },
-                    {
-                      flag: "🇨🇳",
-                      country: "China",
-                      city: "Shanghai",
-                      address: "Waigaoqiao Free Trade Zone, Pudong",
-                      phone: null,
-                      phoneHref: null,
-                      tz: "GMT+8",
-                    },
-                  ].map((o) => (
-                    <div key={o.country} className="flex flex-col gap-6 p-10 lg:p-12">
-                      {/* Flag + timezone */}
-                      <div className="flex items-center justify-between">
-                        <span className="text-4xl leading-none">{o.flag}</span>
-                        <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#64748b]">
-                          {o.tz}
-                        </span>
-                      </div>
-
-                      {/* Country + city */}
-                      <div>
-                        <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-[#64748b]">{o.country}</p>
-                        <h4 className="text-[22px] font-bold text-white">{o.city}</h4>
-                      </div>
-
-                      {/* Divider */}
-                      <div className="h-px w-full bg-white/[0.06]" />
-
-                      {/* Address */}
-                      <div className="flex items-start gap-3">
-                        <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[#ea580c]" />
-                        <p className="text-[14px] leading-relaxed text-[#94a3b8]">{o.address}</p>
-                      </div>
-
-                      {/* Phone */}
-                      {o.phone ? (
-                        <a
-                          href={o.phoneHref!}
-                          className="flex items-center gap-3 text-[14px] font-semibold text-white transition-colors hover:text-[#ea580c]"
-                        >
-                          <Phone className="h-4 w-4 shrink-0 text-[#ea580c]" />
-                          {o.phone}
-                        </a>
-                      ) : (
-                        <p className="flex items-center gap-3 text-[14px] text-[#475569]">
-                          <Phone className="h-4 w-4 shrink-0" />
-                          Contacto vía casa central
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </Reveal>
-          </div>
-        </section>
+        <LocationsSection />
 
         <section id="contact" className="border-t border-black/[0.05] bg-transparent py-16 lg:py-28">
           <div className="container mx-auto px-6 md:px-10">
@@ -591,28 +402,9 @@ export default function Homepage() {
           .bg-squares .sq-16 { right: 14%; bottom: 142px; width: 60px; height: 60px; animation-delay: -18s; }
           .bg-squares .sq-17 { right: 9%; bottom: 92px; width: 68px; height: 68px; animation-delay: -1s; }
 
-          .metric-value,
-          .metric-number,
-          .metric-suffix,
-          .metric-display {
-            font: inherit !important;
-            line-height: 1 !important;
-            letter-spacing: inherit !important;
-            color: inherit !important;
-          }
-
-          .metric-number-wrap {
-            line-height: 1;
-          }
-
           @keyframes floatSq {
             from { transform: translateY(0px) rotate(0deg); }
             to { transform: translateY(-40px) rotate(10deg); }
-          }
-          @keyframes floatShip {
-            0% { transform: translateY(0px) rotate(0deg); }
-            50% { transform: translateY(-15px) rotate(1deg); }
-            100% { transform: translateY(0px) rotate(0deg); }
           }
           @keyframes btnShine {
             0%   { left: -100%; opacity: 0; }
