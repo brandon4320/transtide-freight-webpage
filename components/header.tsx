@@ -71,7 +71,7 @@ export default function Header() {
                   ))}
                 </nav>
 
-                <Button asChild className="ml-2 h-auto rounded-full bg-accent px-5 py-2 text-[15px] font-medium text-white shadow-[0_8px_18px_rgba(249,115,22,0.18)] hover:bg-accent-700">
+                <Button asChild className="ml-2 rounded-full bg-accent px-5 py-0 h-[36px] text-[14px] font-medium text-white shadow-[0_8px_18px_rgba(249,115,22,0.18)] hover:bg-accent-700 flex items-center">
                   <a href="#contact">Cotizar operación</a>
                 </Button>
               </div>
