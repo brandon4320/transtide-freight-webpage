@@ -18,22 +18,14 @@ export default function Header() {
   const [scrolled, setScrolled] = useState(false)
 
   useEffect(() => {
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 20)
-    }
-
+    const handleScroll = () => setScrolled(window.scrollY > 20)
     window.addEventListener("scroll", handleScroll, { passive: true })
     handleScroll()
     return () => window.removeEventListener("scroll", handleScroll)
   }, [])
 
   useEffect(() => {
-    if (isMenuOpen) {
-      document.body.style.overflow = "hidden"
-    } else {
-      document.body.style.overflow = ""
-    }
-
+    document.body.style.overflow = isMenuOpen ? "hidden" : ""
     return () => {
       document.body.style.overflow = ""
     }
@@ -54,14 +46,14 @@ export default function Header() {
           >
             <div className="flex h-[72px] items-center justify-between px-5 md:px-6 lg:px-7">
               <a href="#inicio" className="flex items-center" aria-label="Ir al inicio">
-                <div className="relative h-6 w-[258px] sm:h-7 sm:w-[282px]">
+                <div className="relative h-7 w-[210px] sm:h-8 sm:w-[235px] lg:w-[255px]">
                   <Image
                     src="/images/transtide-logo-navy.png"
                     alt="Transtide Freight"
                     fill
                     className="object-contain object-left"
                     priority
-                    sizes="282px"
+                    sizes="(min-width: 1024px) 255px, (min-width: 640px) 235px, 210px"
                   />
                 </div>
               </a>
