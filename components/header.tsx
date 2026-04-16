@@ -44,24 +44,24 @@ export default function Header() {
   return (
     <>
       <header className="fixed inset-x-0 top-0 z-50">
-        <div className="container mx-auto px-4 pt-4 md:px-6 md:pt-5">
+        <div className="container mx-auto px-4 pt-3 md:px-6 md:pt-4">
           <div
-            className={`rounded-[34px] border border-white/18 bg-[rgba(139,123,156,0.72)] transition-all duration-300 ${
+            className={`rounded-[30px] border border-[rgba(24,38,84,0.10)] bg-[rgba(29,45,95,0.22)] transition-all duration-300 ${
               scrolled
-                ? "shadow-[0_22px_60px_rgba(15,23,42,0.22)] backdrop-blur-xl"
-                : "shadow-[0_16px_42px_rgba(15,23,42,0.14)] backdrop-blur-lg"
+                ? "shadow-[0_18px_40px_rgba(15,23,42,0.12)] backdrop-blur-xl"
+                : "shadow-[0_12px_28px_rgba(15,23,42,0.08)] backdrop-blur-lg"
             }`}
           >
-            <div className="flex h-[82px] items-center justify-between px-5 md:px-7 lg:px-8">
+            <div className="flex h-[72px] items-center justify-between px-5 md:px-6 lg:px-7">
               <a href="#inicio" className="flex items-center" aria-label="Ir al inicio">
-                <div className="relative h-7 w-[280px] sm:h-8 sm:w-[300px]">
+                <div className="relative h-6 w-[258px] sm:h-7 sm:w-[282px]">
                   <Image
                     src="/images/transtide-logo-white.png"
                     alt="Transtide Freight"
                     fill
                     className="object-contain object-left"
                     priority
-                    sizes="300px"
+                    sizes="282px"
                   />
                 </div>
               </a>
@@ -72,14 +72,14 @@ export default function Header() {
                     <a
                       key={item.href}
                       href={item.href}
-                      className="rounded-full px-4 py-2.5 text-base font-medium text-white/92 transition-colors hover:bg-white/8 hover:text-white"
+                      className="rounded-full px-3.5 py-2 text-[15px] font-medium text-[#0f1a3d] transition-colors hover:bg-white/18 hover:text-[#08112f]"
                     >
                       {item.name}
                     </a>
                   ))}
                 </nav>
 
-                <Button asChild className="ml-3 h-auto rounded-full bg-accent px-7 py-4 text-lg font-medium text-white shadow-[0_10px_28px_rgba(249,115,22,0.30)] hover:bg-accent-700">
+                <Button asChild className="ml-2 h-auto rounded-full bg-accent px-6 py-3 text-base font-medium text-white shadow-[0_8px_22px_rgba(249,115,22,0.22)] hover:bg-accent-700">
                   <a href="#contact">Cotizar operación</a>
                 </Button>
               </div>
@@ -87,7 +87,7 @@ export default function Header() {
               <button
                 type="button"
                 onClick={() => setIsMenuOpen((prev) => !prev)}
-                className="inline-flex min-h-[46px] min-w-[46px] items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-white backdrop-blur lg:hidden"
+                className="inline-flex min-h-[42px] min-w-[42px] items-center justify-center rounded-2xl border border-[rgba(24,38,84,0.10)] bg-white/20 text-[#0f1a3d] backdrop-blur lg:hidden"
                 aria-label={isMenuOpen ? "Cerrar menú" : "Abrir menú"}
                 aria-expanded={isMenuOpen}
               >
@@ -99,11 +99,11 @@ export default function Header() {
       </header>
 
       {isMenuOpen && (
-        <div className="fixed inset-0 z-40 bg-black/30 lg:hidden" onClick={handleCloseMenu}>
-          <div className="container px-4 pt-[104px] md:px-6" onClick={(e) => e.stopPropagation()}>
-            <div className="rounded-[28px] border border-white/18 bg-[rgba(139,123,156,0.92)] p-4 shadow-[0_22px_60px_rgba(15,23,42,0.24)] backdrop-blur-xl">
+        <div className="fixed inset-0 z-40 bg-black/20 lg:hidden" onClick={handleCloseMenu}>
+          <div className="container px-4 pt-[94px] md:px-6" onClick={(e) => e.stopPropagation()}>
+            <div className="rounded-[26px] border border-[rgba(24,38,84,0.10)] bg-[rgba(29,45,95,0.34)] p-4 shadow-[0_18px_40px_rgba(15,23,42,0.14)] backdrop-blur-xl">
               <nav className="space-y-2">
-                <a href="#inicio" onClick={handleCloseMenu} className="block rounded-2xl px-4 py-3 text-base font-medium text-white hover:bg-white/8">
+                <a href="#inicio" onClick={handleCloseMenu} className="block rounded-2xl px-4 py-3 text-base font-medium text-[#0f1a3d] hover:bg-white/12">
                   Inicio
                 </a>
                 {navItems.map((item) => (
@@ -111,12 +111,12 @@ export default function Header() {
                     key={item.href}
                     href={item.href}
                     onClick={handleCloseMenu}
-                    className="block rounded-2xl px-4 py-3 text-base font-medium text-white/90 hover:bg-white/8 hover:text-white"
+                    className="block rounded-2xl px-4 py-3 text-base font-medium text-[#0f1a3d] hover:bg-white/12"
                   >
                     {item.name}
                   </a>
                 ))}
-                <Button asChild className="mt-3 w-full rounded-full bg-accent py-6 text-lg text-white shadow-[0_10px_28px_rgba(249,115,22,0.30)] hover:bg-accent-700">
+                <Button asChild className="mt-3 w-full rounded-full bg-accent py-5 text-base text-white shadow-[0_8px_22px_rgba(249,115,22,0.22)] hover:bg-accent-700">
                   <a href="#contact" onClick={handleCloseMenu}>Cotizar operación</a>
                 </Button>
               </nav>
@@ -125,7 +125,7 @@ export default function Header() {
         </div>
       )}
 
-      <div className="h-[102px] md:h-[110px]" />
+      <div className="h-[90px] md:h-[96px]" />
     </>
   )
 }
