@@ -232,7 +232,7 @@ export default function Homepage() {
               <div className="grid grid-cols-2 gap-x-8 gap-y-6 xl:grid-cols-4">
                 {metrics.map((m) => (
                   <div key={m.label} className="flex items-center gap-3">
-                    <div className="shrink-0 text-[2.6rem] font-black leading-none tracking-[-0.04em] text-[#ea580c] md:text-[3rem]">
+                    <div className="shrink-0 text-[3.5rem] font-black leading-none tracking-[-0.04em] text-[#ea580c] md:text-[4.5rem]">
                       {m.display ? m.display : <AnimatedCounter target={m.value!} suffix={m.suffix} />}
                     </div>
                     <div className="text-[11px] font-bold uppercase leading-[1.35] tracking-[0.06em] text-[#1e293b]">
@@ -244,19 +244,6 @@ export default function Homepage() {
             </div>
           </section>
         </Reveal>
-
-        <section className="border-b border-black/[0.04] bg-transparent py-5">
-          <div className="container mx-auto px-6 md:px-10">
-            <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-              {trustItems.map((item) => (
-                <div key={item} className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white/75 px-4 py-4 backdrop-blur-[2px]">
-                  <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#ea580c]" />
-                  <p className="text-sm text-slate-700">{item}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
 
         <section id="services" className="bg-transparent py-28">
           <div className="container mx-auto px-6 md:px-10">
