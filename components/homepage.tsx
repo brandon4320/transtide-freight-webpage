@@ -126,7 +126,7 @@ function MetricStat({
   narrow?: boolean
 }) {
   return (
-    <div className={`metric-stat grid min-h-[92px] items-center ${narrow ? "grid-cols-[86px_1fr] gap-3 md:grid-cols-[96px_1fr] md:gap-4" : "grid-cols-[120px_1fr] gap-4 md:grid-cols-[138px_1fr] md:gap-5"}`}>
+    <div className="metric-stat flex min-h-[92px] items-center gap-3 md:gap-4">
       <div className={`metric-number-wrap flex items-baseline justify-start text-[#ea580c] ${compact ? "md:scale-[0.94]" : ""}`}>
         <div className="text-[3.4rem] font-black leading-none tracking-[-0.05em] md:text-[4rem]">
           {display ? (
