@@ -345,16 +345,25 @@ export default function Homepage() {
               </Reveal>
 
               <Reveal delay={100}>
-                <div className="cursor-default rounded-3xl border border-white/[0.05] bg-gradient-to-br from-[#0f172a]/95 to-[#0b1120]/95 p-12 text-white shadow-[0_24px_48px_-12px_rgba(11,17,32,0.4)] backdrop-blur-[3px] transition-transform duration-300 hover:translate-y-[-8px]">
-                  <p className="mb-6 text-xs font-semibold uppercase tracking-[0.1em] text-[#64748b]">Operaciones que manejamos</p>
-                  <h3 className="mb-4 text-[28px] font-bold leading-[1.2]">Operamos con cualquier tipo de carga y destino.</h3>
-                  <p className="mb-8 text-[15px] leading-relaxed text-[#94a3b8]">
+                <div className="cursor-default rounded-3xl border border-white/[0.05] bg-gradient-to-br from-[#0f172a]/95 to-[#0b1120]/95 p-10 text-white shadow-[0_24px_48px_-12px_rgba(11,17,32,0.4)] backdrop-blur-[3px] transition-transform duration-300 hover:translate-y-[-8px]">
+                  <p className="mb-5 text-xs font-semibold uppercase tracking-[0.1em] text-[#64748b]">Modalidades de embarque</p>
+                  <h3 className="mb-3 text-[22px] font-bold leading-[1.2]">Operamos con cualquier tipo de carga y destino.</h3>
+                  <p className="mb-7 text-[13px] leading-relaxed text-[#94a3b8]">
                     De punta a punta. Sin fragmentar la operación entre múltiples proveedores.
                   </p>
-                  <div className="mb-10 grid grid-cols-2 gap-4">
-                    {operationTypes.map((op) => (
-                      <div key={op} className="rounded-xl border border-white/10 bg-white/[0.02] p-4 text-[13px] font-semibold text-[#e2e8f0]">
-                        {op}
+                  <div className="mb-8 flex flex-col gap-3">
+                    {[
+                      { icon: "🚢", title: "Marítimo FCL", desc: "Contenedor completo. Ideal para volúmenes altos con costo por unidad optimizado." },
+                      { icon: "📦", title: "Marítimo LCL", desc: "Carga consolidada. Para embarques menores sin pagar un contenedor entero." },
+                      { icon: "✈️", title: "Aéreo", desc: "Tiempos reducidos para mercadería urgente o de alto valor." },
+                      { icon: "📬", title: "Courier / Express", desc: "Envíos rápidos puerta a puerta para muestras y volúmenes pequeños." },
+                    ].map((item) => (
+                      <div key={item.title} className="flex items-start gap-4 rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 py-3">
+                        <span className="mt-0.5 text-xl leading-none">{item.icon}</span>
+                        <div>
+                          <p className="text-[13px] font-semibold text-white">{item.title}</p>
+                          <p className="text-[12px] leading-relaxed text-[#94a3b8]">{item.desc}</p>
+                        </div>
                       </div>
                     ))}
                   </div>
