@@ -380,31 +380,87 @@ export default function Homepage() {
           <div className="container mx-auto px-6 md:px-10">
             <Reveal>
               <h2 className="mb-4 text-center text-4xl font-bold tracking-[-0.02em] text-[#040914]">Presencia operativa</h2>
-              <p className="mx-auto mb-16 max-w-[600px] text-center text-base leading-relaxed text-[#4b5563]">
-                Oficinas reales, teléfonos directos y presencia internacional para operar con más respaldo.
+              <p className="mx-auto mb-16 max-w-[520px] text-center text-base leading-relaxed text-[#4b5563]">
+                Tres oficinas. Tres husos horarios. Un solo equipo detrás de tu operación.
               </p>
             </Reveal>
-            <div className="grid gap-8 lg:grid-cols-3">
-              {offices.map((o, i) => (
-                <Reveal key={o.title} delay={i * 100}>
-                  <div className="cursor-default rounded-3xl border border-black/[0.04] bg-white/78 p-12 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.05)] backdrop-blur-[3px] transition-all duration-300 hover:translate-y-[-8px] hover:border-[rgba(234,88,12,0.15)] hover:shadow-[0_20px_48px_-12px_rgba(0,0,0,0.08)]">
-                    <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-xl bg-[rgba(234,88,12,0.08)] text-[#ea580c]">
-                      <MapPin className="h-6 w-6" />
+
+            <Reveal delay={100}>
+              <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-[#0d1b35] to-[#0b1120]">
+                <div className="grid divide-y divide-white/[0.06] lg:grid-cols-3 lg:divide-x lg:divide-y-0">
+                  {[
+                    {
+                      flag: "🇦🇷",
+                      country: "Argentina",
+                      city: "Bahía Blanca",
+                      address: "Belgrano 3710, Ing. White",
+                      phone: "+54 9 11 4439-4020",
+                      phoneHref: "tel:+5491144394020",
+                      tz: "GMT-3",
+                    },
+                    {
+                      flag: "🇺🇸",
+                      country: "Estados Unidos",
+                      city: "Miami, FL",
+                      address: "5605 NW 74th Ave, 33166",
+                      phone: "+1 754 236-5652",
+                      phoneHref: "tel:+17542365652",
+                      tz: "GMT-5",
+                    },
+                    {
+                      flag: "🇨🇳",
+                      country: "China",
+                      city: "Shanghai",
+                      address: "Waigaoqiao Free Trade Zone, Pudong",
+                      phone: null,
+                      phoneHref: null,
+                      tz: "GMT+8",
+                    },
+                  ].map((o) => (
+                    <div key={o.country} className="flex flex-col gap-6 p-10 lg:p-12">
+                      {/* Flag + timezone */}
+                      <div className="flex items-center justify-between">
+                        <span className="text-4xl leading-none">{o.flag}</span>
+                        <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#64748b]">
+                          {o.tz}
+                        </span>
+                      </div>
+
+                      {/* Country + city */}
+                      <div>
+                        <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-[#64748b]">{o.country}</p>
+                        <h4 className="text-[22px] font-bold text-white">{o.city}</h4>
+                      </div>
+
+                      {/* Divider */}
+                      <div className="h-px w-full bg-white/[0.06]" />
+
+                      {/* Address */}
+                      <div className="flex items-start gap-3">
+                        <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[#ea580c]" />
+                        <p className="text-[14px] leading-relaxed text-[#94a3b8]">{o.address}</p>
+                      </div>
+
+                      {/* Phone */}
+                      {o.phone ? (
+                        <a
+                          href={o.phoneHref!}
+                          className="flex items-center gap-3 text-[14px] font-semibold text-white transition-colors hover:text-[#ea580c]"
+                        >
+                          <Phone className="h-4 w-4 shrink-0 text-[#ea580c]" />
+                          {o.phone}
+                        </a>
+                      ) : (
+                        <p className="flex items-center gap-3 text-[14px] text-[#475569]">
+                          <Phone className="h-4 w-4 shrink-0" />
+                          Contacto vía casa central
+                        </p>
+                      )}
                     </div>
-                    <h4 className="mb-4 text-xl font-bold text-[#040914]">{o.title}</h4>
-                    <p className="mb-6 text-[15px] leading-relaxed text-[#4b5563]">
-                      {o.lines.map((l, j) => <span key={j}>{l}<br /></span>)}
-                    </p>
-                    {o.phone && o.phoneHref && (
-                      <a href={o.phoneHref} className="inline-flex items-center gap-2 text-[15px] font-bold text-[#ea580c] transition-opacity hover:opacity-80">
-                        <Phone className="h-4 w-4" />
-                        {o.phone}
-                      </a>
-                    )}
-                  </div>
-                </Reveal>
-              ))}
-            </div>
+                  ))}
+                </div>
+              </div>
+            </Reveal>
           </div>
         </section>
 
