@@ -63,10 +63,10 @@ export default function HowItWorksStepper() {
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             {STEPS.map((step, index) => {
-              // Cada step ocupa 25% del scroll. Aparece en su fracción y
-              // está completamente visible al final de esa fracción.
+              // Cada step empieza en su fracción y termina al 70% de esa fracción,
+              // así el step 4 llega a opacity=1 en progress=0.925 — bien antes del 1.0
               const start = index * STEP_FRACTION;
-              const end   = (index + 1) * STEP_FRACTION;
+              const end   = start + STEP_FRACTION * 0.7;
 
               // eslint-disable-next-line react-hooks/rules-of-hooks
               const opacity = useTransform(scrollYProgress, [start, end], [0.05, 1]);
