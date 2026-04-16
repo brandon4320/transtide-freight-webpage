@@ -22,8 +22,8 @@ import { Button } from "@/components/ui/button"
 const metrics = [
   { value: 70, suffix: "%", label: "De nuestros clientes reducen costos logísticos" },
   { value: 50, suffix: "+", label: "Clientes satisfechos" },
-  { value: 3, suffix: "", label: "Oficinas globales" },
-  { value: null, suffix: "", label: "Soporte disponible", display: "24/7" },
+  { value: 3, suffix: "", label: "Oficinas globales", compact: true },
+  { value: null, suffix: "", label: "Soporte disponible", display: "24/7", compact: true },
 ]
 
 const services = [
@@ -107,6 +107,37 @@ function AnimatedCounter({ target, suffix }: { target: number; suffix: string })
       <span ref={ref} className="metric-number inline-block text-inherit leading-none">0</span>
       {suffix ? <span className="metric-suffix inline-block text-inherit leading-none">{suffix}</span> : null}
     </span>
+  )
+}
+
+function MetricStat({
+  value,
+  suffix,
+  display,
+  label,
+  compact = false,
+}: {
+  value: number | null
+  suffix: string
+  display?: string
+  label: string
+  compact?: boolean
+}) {
+  return (
+    <div className="metric-stat grid min-h-[92px] grid-cols-[120px_1fr] items-center gap-4 md:grid-cols-[138px_1fr] md:gap-5">
+      <div className={`metric-number-wrap flex items-baseline justify-start text-[#ea580c] ${compact ? "md:scale-[0.94]" : ""}`}>
+        <div className="text-[3.4rem] font-black leading-none tracking-[-0.05em] md:text-[4rem]">
+          {display ? (
+            <span className="metric-display inline-block text-inherit leading-none">{display}</span>
+          ) : (
+            <AnimatedCounter target={value!} suffix={suffix} />
+          )}
+        </div>
+      </div>
+      <div className="metric-label max-w-[165px] text-[11px] font-bold uppercase leading-[1.35] tracking-[0.06em] text-[#1e293b]">
+        {label}
+      </div>
+    </div>
   )
 }
 
@@ -234,22 +265,16 @@ export default function Homepage() {
         <Reveal>
           <section className="border-y border-black/[0.06] bg-transparent py-8">
             <div className="container mx-auto px-6 md:px-10">
-              <div className="grid grid-cols-2 gap-x-8 gap-y-6 xl:grid-cols-4">
+              <div className="grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-2 xl:grid-cols-4">
                 {metrics.map((m) => (
-                  <div key={m.label} className="metric-item flex min-h-[92px] items-center gap-3 md:gap-4">
-                    <div className="metric-number-wrap flex min-w-[110px] shrink-0 items-baseline justify-start text-[#ea580c] md:min-w-[138px]">
-                      {m.display ? (
-                        <span className="metric-display text-[3.5rem] font-black leading-none tracking-[-0.05em] md:text-[4.5rem]">{m.display}</span>
-                      ) : (
-                        <div className="text-[3.5rem] font-black leading-none tracking-[-0.05em] md:text-[4.5rem]">
-                          <AnimatedCounter target={m.value!} suffix={m.suffix} />
-                        </div>
-                      )}
-                    </div>
-                    <div className="metric-label max-w-[170px] text-[11px] font-bold uppercase leading-[1.35] tracking-[0.06em] text-[#1e293b]">
-                      {m.label}
-                    </div>
-                  </div>
+                  <MetricStat
+                    key={m.label}
+                    value={m.value}
+                    suffix={m.suffix}
+                    display={m.display}
+                    label={m.label}
+                    compact={m.compact}
+                  />
                 ))}
               </div>
             </div>
