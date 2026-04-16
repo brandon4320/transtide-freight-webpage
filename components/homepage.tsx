@@ -13,19 +13,16 @@ import {
   Boxes,
   Phone,
   MapPin,
-  DollarSign,
-  Users,
-  Building2,
   Package,
   ArrowRight,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 const metrics = [
-  { value: 70,   suffix: "%", label: "De nuestros clientes reducen costos logísticos" },
-  { value: 50,   suffix: "+", label: "Clientes satisfechos" },
-  { value: 3,    suffix: "",  label: "Oficinas globales" },
-  { value: null, suffix: "",  label: "Soporte disponible", display: "24/7" },
+  { value: 70, suffix: "%", label: "De nuestros clientes reducen costos logísticos" },
+  { value: 50, suffix: "+", label: "Clientes satisfechos" },
+  { value: 3, suffix: "", label: "Oficinas globales" },
+  { value: null, suffix: "", label: "Soporte disponible", display: "24/7" },
 ]
 
 const services = [
@@ -81,6 +78,7 @@ const trustItems = [
 function AnimatedCounter({ target, suffix }: { target: number; suffix: string }) {
   const ref = useRef<HTMLSpanElement>(null)
   const observed = useRef(false)
+
   useEffect(() => {
     const el = ref.current
     if (!el) return
@@ -102,7 +100,13 @@ function AnimatedCounter({ target, suffix }: { target: number; suffix: string })
     obs.observe(el)
     return () => obs.disconnect()
   }, [target])
-  return <><span ref={ref}>0</span>{suffix}</>
+
+  return (
+    <span className="metric-value inline-flex items-baseline gap-0.5 leading-none">
+      <span ref={ref} className="metric-number inline-block text-inherit leading-none">0</span>
+      {suffix ? <span className="metric-suffix inline-block text-inherit leading-none">{suffix}</span> : null}
+    </span>
+  )
 }
 
 function Reveal({ children, delay = 0, className = "" }: { children: React.ReactNode; delay?: number; className?: string }) {
@@ -231,11 +235,17 @@ export default function Homepage() {
             <div className="container mx-auto px-6 md:px-10">
               <div className="grid grid-cols-2 gap-x-8 gap-y-6 xl:grid-cols-4">
                 {metrics.map((m) => (
-                  <div key={m.label} className="flex items-center gap-3">
-                    <div className="shrink-0 text-[3.5rem] font-black leading-none tracking-[-0.04em] text-[#ea580c] md:text-[4.5rem]">
-                      {m.display ? m.display : <AnimatedCounter target={m.value!} suffix={m.suffix} />}
+                  <div key={m.label} className="metric-item flex min-h-[92px] items-center gap-3 md:gap-4">
+                    <div className="metric-number-wrap flex min-w-[110px] shrink-0 items-baseline justify-start text-[#ea580c] md:min-w-[138px]">
+                      {m.display ? (
+                        <span className="metric-display text-[3.5rem] font-black leading-none tracking-[-0.05em] md:text-[4.5rem]">{m.display}</span>
+                      ) : (
+                        <div className="text-[3.5rem] font-black leading-none tracking-[-0.05em] md:text-[4.5rem]">
+                          <AnimatedCounter target={m.value!} suffix={m.suffix} />
+                        </div>
+                      )}
                     </div>
-                    <div className="text-[11px] font-bold uppercase leading-[1.35] tracking-[0.06em] text-[#1e293b]">
+                    <div className="metric-label max-w-[170px] text-[11px] font-bold uppercase leading-[1.35] tracking-[0.06em] text-[#1e293b]">
                       {m.label}
                     </div>
                   </div>
@@ -510,6 +520,20 @@ export default function Homepage() {
           .bg-squares .sq-15 { left: 25.2%; bottom: 68px; width: 50px; height: 50px; animation-delay: -3s; }
           .bg-squares .sq-16 { right: 14%; bottom: 142px; width: 60px; height: 60px; animation-delay: -18s; }
           .bg-squares .sq-17 { right: 9%; bottom: 92px; width: 68px; height: 68px; animation-delay: -1s; }
+
+          .metric-value,
+          .metric-number,
+          .metric-suffix,
+          .metric-display {
+            font: inherit !important;
+            line-height: 1 !important;
+            letter-spacing: inherit !important;
+            color: inherit !important;
+          }
+
+          .metric-number-wrap {
+            line-height: 1;
+          }
 
           @keyframes floatSq {
             from { transform: translateY(0px) rotate(0deg); }
