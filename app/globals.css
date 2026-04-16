@@ -833,7 +833,7 @@ html {
 
   /* Prevenir zoom horizontal */
   body {
-    overflow-x: hidden !important;
+    overflow-x: clip !important;
   }
 
   /* Optimización de la barra de scroll */

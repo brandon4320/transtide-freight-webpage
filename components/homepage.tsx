@@ -219,7 +219,7 @@ export default function Homepage() {
         <span className="sq sq-17" />
       </div>
 
-      <main className="relative z-[1] min-h-screen overflow-x-hidden bg-transparent text-[#0b1120]">
+      <main className="relative z-[1] min-h-screen overflow-x-clip bg-transparent text-[#0b1120]">
         <section id="inicio" className="relative border-b border-black/[0.05]">
           <div className="container relative z-[1] mx-auto px-6 md:px-10" style={{ paddingTop: "clamp(2rem, 4vh, 3rem)", paddingBottom: "clamp(2rem, 4vh, 3rem)" }}>
             <div className="grid gap-16 lg:grid-cols-[1fr_1fr] lg:items-center" style={{ minHeight: "calc(100vh - 76px)" }}>
