@@ -183,7 +183,7 @@ export default function Homepage() {
         <span className="sq sq-17" />
       </div>
 
-      <main className="relative z-[1] min-h-screen overflow-x-hidden bg-[#fbfbfa] text-[#0b1120]">
+      <main className="relative z-[1] min-h-screen overflow-x-hidden bg-transparent text-[#0b1120]">
         <section id="inicio" className="relative border-b border-black/[0.05]">
           <div className="container relative z-[1] mx-auto px-6 py-16 md:px-10 md:py-24 lg:py-28">
             <div className="grid gap-12 lg:grid-cols-[1fr_1.1fr] lg:items-center" style={{ minHeight: "calc(100vh - 80px - 8rem)" }}>
@@ -220,7 +220,7 @@ export default function Homepage() {
         </section>
 
         <Reveal>
-          <section className="border-y border-black/[0.06] bg-white py-10">
+          <section className="border-y border-black/[0.06] bg-transparent py-10">
             <div className="container mx-auto px-6 md:px-10">
               <div className="grid grid-cols-2 gap-8 xl:grid-cols-4">
                 {metrics.map((m) => (
@@ -238,11 +238,11 @@ export default function Homepage() {
           </section>
         </Reveal>
 
-        <section className="border-b border-black/[0.04] bg-[#f8fafc] py-5">
+        <section className="border-b border-black/[0.04] bg-transparent py-5">
           <div className="container mx-auto px-6 md:px-10">
             <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
               {trustItems.map((item) => (
-                <div key={item} className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-4">
+                <div key={item} className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white/75 px-4 py-4 backdrop-blur-[2px]">
                   <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#ea580c]" />
                   <p className="text-sm text-slate-700">{item}</p>
                 </div>
@@ -251,7 +251,7 @@ export default function Homepage() {
           </div>
         </section>
 
-        <section id="services" className="py-28">
+        <section id="services" className="bg-transparent py-28">
           <div className="container mx-auto px-6 md:px-10">
             <Reveal>
               <h2 className="mb-4 text-center text-4xl font-bold tracking-[-0.02em] text-[#040914]">Qué resolvemos</h2>
@@ -262,7 +262,7 @@ export default function Homepage() {
             <div className="grid gap-8 lg:grid-cols-3">
               {services.map((s, i) => (
                 <Reveal key={s.title} delay={i * 100}>
-                  <div className="cursor-default rounded-3xl border border-black/[0.04] bg-white p-12 text-center shadow-[0_12px_32px_-12px_rgba(0,0,0,0.05)] transition-all duration-300 hover:translate-y-[-8px] hover:border-[rgba(234,88,12,0.15)] hover:shadow-[0_20px_48px_-12px_rgba(0,0,0,0.08)]">
+                  <div className="cursor-default rounded-3xl border border-black/[0.04] bg-white/78 p-12 text-center shadow-[0_12px_32px_-12px_rgba(0,0,0,0.05)] backdrop-blur-[3px] transition-all duration-300 hover:translate-y-[-8px] hover:border-[rgba(234,88,12,0.15)] hover:shadow-[0_20px_48px_-12px_rgba(0,0,0,0.08)]">
                     <div className="mb-6 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-[rgba(234,88,12,0.08)] text-[#ea580c]">
                       {s.icon}
                     </div>
@@ -275,7 +275,7 @@ export default function Homepage() {
           </div>
         </section>
 
-        <section id="process" className="pb-28">
+        <section id="process" className="bg-transparent pb-28">
           <div className="container mx-auto px-6 md:px-10">
             <Reveal>
               <h2 className="mb-4 text-center text-4xl font-bold tracking-[-0.02em] text-[#040914]">Cómo funciona</h2>
@@ -301,7 +301,7 @@ export default function Homepage() {
                   <Reveal key={step.title} delay={i * 100}>
                     <div className="relative flex gap-6">
                       {i < processSteps.length - 1 && <div className="absolute bottom-[-32px] left-[17px] top-10 z-0 w-[2px] bg-[#fed7aa]" />}
-                      <div className="relative z-[1] flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[#ea580c] text-base font-bold text-white shadow-[0_0_0_6px_#fbfbfa]">
+                      <div className="relative z-[1] flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[#ea580c] text-base font-bold text-white shadow-[0_0_0_6px_transparent]">
                         {i + 1}
                       </div>
                       <div className="mt-1">
@@ -316,7 +316,7 @@ export default function Homepage() {
           </div>
         </section>
 
-        <section id="operations" className="border-t border-black/[0.04] bg-white py-28">
+        <section id="operations" className="border-t border-black/[0.04] bg-transparent py-28">
           <div className="container mx-auto px-6 md:px-10">
             <div className="grid items-start gap-20 lg:grid-cols-2">
               <Reveal>
@@ -349,7 +349,7 @@ export default function Homepage() {
               </Reveal>
 
               <Reveal delay={100}>
-                <div className="cursor-default rounded-3xl border border-white/[0.05] bg-gradient-to-br from-[#0f172a] to-[#0b1120] p-12 text-white shadow-[0_24px_48px_-12px_rgba(11,17,32,0.4)] transition-transform duration-300 hover:translate-y-[-8px]">
+                <div className="cursor-default rounded-3xl border border-white/[0.05] bg-gradient-to-br from-[#0f172a]/95 to-[#0b1120]/95 p-12 text-white shadow-[0_24px_48px_-12px_rgba(11,17,32,0.4)] backdrop-blur-[3px] transition-transform duration-300 hover:translate-y-[-8px]">
                   <p className="mb-6 text-xs font-semibold uppercase tracking-[0.1em] text-[#64748b]">Operaciones que manejamos</p>
                   <h3 className="mb-4 text-[28px] font-bold leading-[1.2]">Coordinación integral para distintos tipos de carga.</h3>
                   <p className="mb-8 text-[15px] leading-relaxed text-[#94a3b8]">
@@ -371,7 +371,7 @@ export default function Homepage() {
           </div>
         </section>
 
-        <section id="offices" className="border-t border-black/[0.04] bg-white py-20 pb-28">
+        <section id="offices" className="border-t border-black/[0.04] bg-transparent py-20 pb-28">
           <div className="container mx-auto px-6 md:px-10">
             <Reveal>
               <h2 className="mb-4 text-center text-4xl font-bold tracking-[-0.02em] text-[#040914]">Presencia operativa</h2>
@@ -382,7 +382,7 @@ export default function Homepage() {
             <div className="grid gap-8 lg:grid-cols-3">
               {offices.map((o, i) => (
                 <Reveal key={o.title} delay={i * 100}>
-                  <div className="cursor-default rounded-3xl border border-black/[0.04] bg-white p-12 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.05)] transition-all duration-300 hover:translate-y-[-8px] hover:border-[rgba(234,88,12,0.15)] hover:shadow-[0_20px_48px_-12px_rgba(0,0,0,0.08)]">
+                  <div className="cursor-default rounded-3xl border border-black/[0.04] bg-white/78 p-12 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.05)] backdrop-blur-[3px] transition-all duration-300 hover:translate-y-[-8px] hover:border-[rgba(234,88,12,0.15)] hover:shadow-[0_20px_48px_-12px_rgba(0,0,0,0.08)]">
                     <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-xl bg-[rgba(234,88,12,0.08)] text-[#ea580c]">
                       <MapPin className="h-6 w-6" />
                     </div>
@@ -403,7 +403,7 @@ export default function Homepage() {
           </div>
         </section>
 
-        <section id="contact" className="border-t border-black/[0.05] bg-[#fbfbfa] py-28">
+        <section id="contact" className="border-t border-black/[0.05] bg-transparent py-28">
           <div className="container mx-auto px-6 md:px-10">
             <div className="grid gap-12 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
               <Reveal>
@@ -417,42 +417,42 @@ export default function Homepage() {
                     <Button asChild className="rounded-lg bg-[#ea580c] px-6 font-semibold text-white hover:bg-[#d04b06]">
                       <a href="https://wa.me/5491144394020" target="_blank" rel="noreferrer">Escribir por WhatsApp</a>
                     </Button>
-                    <Button asChild variant="outline" className="border-slate-300 px-6 text-slate-900 hover:bg-slate-50">
+                    <Button asChild variant="outline" className="border-slate-300 px-6 text-slate-900 hover:bg-slate-50/70">
                       <a href="#offices">Ver oficinas</a>
                     </Button>
                   </div>
                 </div>
               </Reveal>
               <Reveal delay={100}>
-                <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+                <div className="rounded-3xl border border-slate-200 bg-white/82 p-8 shadow-sm backdrop-blur-[3px]">
                   <form className="space-y-5">
                     <div className="grid gap-5 sm:grid-cols-2">
                       <div>
                         <label htmlFor="name" className="mb-2 block text-sm font-medium text-slate-700">Nombre</label>
-                        <input id="name" type="text" className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-[#ea580c]" placeholder="Tu nombre" />
+                        <input id="name" type="text" className="w-full rounded-2xl border border-slate-300 bg-white/80 px-4 py-3 text-slate-900 outline-none transition focus:border-[#ea580c]" placeholder="Tu nombre" />
                       </div>
                       <div>
                         <label htmlFor="company" className="mb-2 block text-sm font-medium text-slate-700">Empresa</label>
-                        <input id="company" type="text" className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-[#ea580c]" placeholder="Tu empresa" />
+                        <input id="company" type="text" className="w-full rounded-2xl border border-slate-300 bg-white/80 px-4 py-3 text-slate-900 outline-none transition focus:border-[#ea580c]" placeholder="Tu empresa" />
                       </div>
                     </div>
                     <div className="grid gap-5 sm:grid-cols-2">
                       <div>
                         <label htmlFor="email" className="mb-2 block text-sm font-medium text-slate-700">Email</label>
-                        <input id="email" type="email" className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-[#ea580c]" placeholder="tu@email.com" />
+                        <input id="email" type="email" className="w-full rounded-2xl border border-slate-300 bg-white/80 px-4 py-3 text-slate-900 outline-none transition focus:border-[#ea580c]" placeholder="tu@email.com" />
                       </div>
                       <div>
                         <label htmlFor="phone" className="mb-2 block text-sm font-medium text-slate-700">Teléfono</label>
-                        <input id="phone" type="tel" className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-[#ea580c]" placeholder="Tu teléfono" />
+                        <input id="phone" type="tel" className="w-full rounded-2xl border border-slate-300 bg-white/80 px-4 py-3 text-slate-900 outline-none transition focus:border-[#ea580c]" placeholder="Tu teléfono" />
                       </div>
                     </div>
                     <div>
                       <label htmlFor="message" className="mb-2 block text-sm font-medium text-slate-700">¿Qué querés importar?</label>
-                      <textarea id="message" rows={5} className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-[#ea580c]" placeholder="Contanos el producto, origen, cantidad o cualquier dato que ya tengas." />
+                      <textarea id="message" rows={5} className="w-full rounded-2xl border border-slate-300 bg-white/80 px-4 py-3 text-slate-900 outline-none transition focus:border-[#ea580c]" placeholder="Contanos el producto, origen, cantidad o cualquier dato que ya tengas." />
                     </div>
                     <div className="flex flex-col gap-3 sm:flex-row">
                       <Button type="submit" className="bg-[#ea580c] px-6 text-white hover:bg-[#d04b06]">Enviar consulta</Button>
-                      <Button asChild type="button" variant="outline" className="border-slate-300 px-6 text-slate-900 hover:bg-white">
+                      <Button asChild type="button" variant="outline" className="border-slate-300 px-6 text-slate-900 hover:bg-white/70">
                         <a href="https://wa.me/5491144394020" target="_blank" rel="noreferrer">Escribir por WhatsApp</a>
                       </Button>
                     </div>
@@ -463,7 +463,7 @@ export default function Homepage() {
           </div>
         </section>
 
-        <footer className="border-t border-slate-200 bg-white">
+        <footer className="border-t border-slate-200 bg-transparent">
           <div className="container mx-auto px-6 py-10 md:px-10">
             <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
               <div>
