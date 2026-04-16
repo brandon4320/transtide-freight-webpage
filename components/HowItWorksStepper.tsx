@@ -29,16 +29,26 @@ const STEPS = [
 export default function HowItWorksStepper() {
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // ── Fix 2: offset ["start start", "end start"] → cuenta mientras la sección
+  // ocupa pantalla, no hasta que su bottom sale por abajo del viewport.
   const { scrollYProgress } = useScroll({
     target: containerRef,
-    offset: ["start start", "end end"],
+    offset: ["start start", "end start"],
   });
 
+  // Barra de progreso
   const scaleX = useTransform(scrollYProgress, [0, 1], [0, 1]);
 
   return (
-    <section ref={containerRef} className="relative h-[400vh] bg-transparent">
-      <div className="sticky top-0 h-screen flex flex-col items-center justify-center overflow-hidden px-6 md:px-12">
+    // ── Fix 1: 500vh para dar más recorrido de scroll
+    <section ref={containerRef} className="relative h-[500vh] bg-transparent">
+
+      {/* ── Fix 3: top exacto del header (76px) para que la sección quede
+           perfectamente debajo del navbar y ocupe toda la altura disponible */}
+      <div
+        className="sticky flex flex-col items-center justify-center overflow-hidden px-6 md:px-12"
+        style={{ top: 76, height: "calc(100vh - 76px)" }}
+      >
         <div className="max-w-7xl w-full">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-extrabold text-[#040914] mb-4">
@@ -53,12 +63,21 @@ export default function HowItWorksStepper() {
             {STEPS.map((step, index) => {
               const stepFraction = 1 / STEPS.length;
               const startReveal = index * stepFraction;
-              const fullReveal = startReveal + 0.15;
+              // ── Fix 4: rango ampliado de 0.15 a 0.2 → transición más visible
+              const fullReveal = startReveal + 0.2;
 
               // eslint-disable-next-line react-hooks/rules-of-hooks
-              const opacity = useTransform(scrollYProgress, [startReveal, fullReveal], [0.1, 1]);
+              const opacity = useTransform(
+                scrollYProgress,
+                [startReveal, fullReveal],
+                [0.08, 1]
+              );
               // eslint-disable-next-line react-hooks/rules-of-hooks
-              const y = useTransform(scrollYProgress, [startReveal, fullReveal], [40, 0]);
+              const y = useTransform(
+                scrollYProgress,
+                [startReveal, fullReveal],
+                [50, 0]
+              );
 
               return (
                 <motion.div
@@ -66,7 +85,7 @@ export default function HowItWorksStepper() {
                   style={{ opacity, y }}
                   className="bg-white p-8 rounded-2xl border border-black/5 shadow-sm flex flex-col"
                 >
-                  <div className="w-10 h-10 rounded-full border-2 border-[#ea580c] flex items-center justify-center text-[#ea580c] font-bold mb-6">
+                  <div className="w-10 h-10 rounded-full border-2 border-[#ea580c] flex items-center justify-center text-[#ea580c] font-bold mb-6 flex-shrink-0">
                     {step.num}
                   </div>
                   <h3 className="text-xl font-bold mb-4 text-[#040914]">{step.title}</h3>
@@ -76,6 +95,7 @@ export default function HowItWorksStepper() {
             })}
           </div>
 
+          {/* Barra de progreso */}
           <div className="relative mt-20">
             <div className="absolute top-1/2 left-0 w-full h-[3px] bg-slate-100 -translate-y-1/2 rounded-full overflow-hidden">
               <motion.div
