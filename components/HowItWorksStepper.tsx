@@ -26,42 +26,32 @@ const STEPS = [
   },
 ];
 
-// Cada paso ocupa 1/4 del scroll total.
-// El paso N empieza a aparecer en (N-1)/4 y termina en N/4.
-// Así el step 4 termina exactamente en scrollYProgress = 1,
-// que ocurre justo cuando el bottom del contenedor (600vh)
-// llega al top del viewport → el usuario puede seguir scrolleando.
-const STEP_FRACTION = 1 / STEPS.length;
+const STEP_FRACTION = 1 / STEPS.length; // 0.25 por paso
 
 export default function HowItWorksStepper() {
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // offset ["start start", "end start"]:
-  //   • empieza a contar cuando el TOP del contenedor toca el TOP del viewport
-  //   • termina de contar cuando el BOTTOM del contenedor toca el TOP del viewport
-  // Con 600vh de altura eso nos da 500vh de recorrido "útil" (600 - 100 viewport).
-  // Durante esos 500vh el sticky se queda fijo y scrollYProgress va de 0 → 1.
-  // El step 4 termina en progress = 1  →  justo cuando la sección empieza a salir.
+  // Con height=300vh y offset ["start start","end end"]:
+  // scrollYProgress va de 0→1 durante exactamente 300vh de scroll.
+  // El sticky ocupa 100vh → quedan 200vh de "scroll útil" donde el
+  // contenido está fijo. Step 4 completa en progress=1, justo cuando
+  // el bottom del contenedor llega al bottom del viewport → el usuario
+  // recién ahí puede seguir bajando.
   const { scrollYProgress } = useScroll({
     target: containerRef,
-    offset: ["start start", "end start"],
+    offset: ["start start", "end end"],
   });
 
-  // Barra naranja crece de 0 → 100% durante todo el recorrido
   const scaleX = useTransform(scrollYProgress, [0, 1], [0, 1]);
 
   return (
-    // 600vh: 100vh de viewport + 500vh de scroll activo
-    <section ref={containerRef} className="relative bg-transparent" style={{ height: "600vh" }}>
-
-      {/* Sticky: queda pegado top=76px (header) y ocupa el resto de la pantalla */}
+    <section ref={containerRef} className="relative bg-transparent" style={{ height: "300vh" }}>
       <div
         className="sticky flex flex-col items-center justify-center overflow-hidden px-6 md:px-12"
         style={{ top: 76, height: "calc(100vh - 76px)" }}
       >
         <div className="max-w-7xl w-full">
 
-          {/* Título */}
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-extrabold text-[#040914] mb-4">
               Cómo funciona
@@ -71,16 +61,17 @@ export default function HowItWorksStepper() {
             </p>
           </div>
 
-          {/* Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             {STEPS.map((step, index) => {
+              // Cada step ocupa 25% del scroll. Aparece en su fracción y
+              // está completamente visible al final de esa fracción.
               const start = index * STEP_FRACTION;
-              const end   = start + STEP_FRACTION * 0.8; // usa 80% de la fracción para la transición
+              const end   = (index + 1) * STEP_FRACTION;
 
               // eslint-disable-next-line react-hooks/rules-of-hooks
-              const opacity = useTransform(scrollYProgress, [start, end], [0.08, 1]);
+              const opacity = useTransform(scrollYProgress, [start, end], [0.05, 1]);
               // eslint-disable-next-line react-hooks/rules-of-hooks
-              const y       = useTransform(scrollYProgress, [start, end], [48, 0]);
+              const y       = useTransform(scrollYProgress, [start, end], [50, 0]);
 
               return (
                 <motion.div
@@ -98,7 +89,6 @@ export default function HowItWorksStepper() {
             })}
           </div>
 
-          {/* Barra de progreso */}
           <div className="relative mt-20">
             <div className="absolute top-1/2 left-0 w-full h-[3px] bg-slate-100 -translate-y-1/2 rounded-full overflow-hidden">
               <motion.div
