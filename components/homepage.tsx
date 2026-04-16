@@ -297,7 +297,7 @@ export default function Homepage() {
           </section>
         </Reveal>
 
-        <section id="services" className="bg-transparent py-28">
+        <section id="services" className="bg-transparent py-16 lg:py-28">
           <div className="container mx-auto px-6 md:px-10">
             <Reveal>
               <h2 className="mb-4 text-center text-4xl font-bold tracking-[-0.02em] text-[#040914]">Qué hacemos por vos</h2>
@@ -325,9 +325,9 @@ export default function Homepage() {
           <HowItWorksStepper />
         </section>
 
-        <section id="operations" className="border-t border-black/[0.04] bg-transparent py-28">
+        <section id="operations" className="border-t border-black/[0.04] bg-transparent py-16 lg:py-28">
           <div className="container mx-auto px-6 md:px-10">
-            <div className="grid items-start gap-20 lg:grid-cols-2">
+            <div className="grid items-start gap-10 lg:gap-20 lg:grid-cols-2">
               <Reveal>
                 <div>
                   <div className="mb-6 inline-block rounded-full border border-[#fed7aa] bg-[rgba(254,215,170,0.1)] px-[14px] py-[6px] text-[11px] font-semibold uppercase tracking-[0.08em] text-[#ea580c]">
@@ -358,7 +358,7 @@ export default function Homepage() {
               </Reveal>
 
               <Reveal delay={100}>
-                <div className="cursor-default rounded-3xl border border-white/[0.05] bg-gradient-to-br from-[#0f172a]/95 to-[#0b1120]/95 p-10 text-white shadow-[0_24px_48px_-12px_rgba(11,17,32,0.4)] backdrop-blur-[3px] transition-transform duration-300 hover:translate-y-[-8px]">
+                <div className="cursor-default rounded-3xl border border-white/[0.05] bg-gradient-to-br from-[#0f172a]/95 to-[#0b1120]/95 p-10 text-white shadow-[0_24px_48px_-12px_rgba(11,17,32,0.4)] backdrop-blur-[3px] transition-transform duration-300 lg:hover:translate-y-[-8px]">
                   <p className="mb-5 text-xs font-semibold uppercase tracking-[0.1em] text-[#64748b]">Modalidades de embarque</p>
                   <h3 className="mb-3 text-[22px] font-bold leading-[1.2]">Operamos con cualquier tipo de carga y destino.</h3>
                   <p className="mb-7 text-[13px] leading-relaxed text-[#94a3b8]">
@@ -389,7 +389,7 @@ export default function Homepage() {
           </div>
         </section>
 
-        <section id="offices" className="border-t border-black/[0.04] bg-transparent py-20 pb-28">
+        <section id="offices" className="border-t border-black/[0.04] bg-transparent py-16 lg:py-20 lg:pb-28">
           <div className="container mx-auto px-6 md:px-10">
             <Reveal>
               <h2 className="mb-4 text-center text-4xl font-bold tracking-[-0.02em] text-[#040914]">Presencia operativa</h2>
@@ -477,7 +477,7 @@ export default function Homepage() {
           </div>
         </section>
 
-        <section id="contact" className="border-t border-black/[0.05] bg-transparent py-28">
+        <section id="contact" className="border-t border-black/[0.05] bg-transparent py-16 lg:py-28">
           <div className="container mx-auto px-6 md:px-10">
             <div className="grid gap-12 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
               <Reveal>
