@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react"
 import Image from "next/image"
 import GlobeHero from "@/components/GlobeHero"
+import HowItWorksStepper from "@/components/HowItWorksStepper"
 import {
   Check,
   Globe,
@@ -279,45 +280,8 @@ export default function Homepage() {
           </div>
         </section>
 
-        <section id="process" className="bg-transparent pb-28">
-          <div className="container mx-auto px-6 md:px-10">
-            <Reveal>
-              <h2 className="mb-4 text-center text-4xl font-bold tracking-[-0.02em] text-[#040914]">Cómo funciona</h2>
-              <p className="mx-auto mb-16 max-w-[600px] text-center text-base leading-relaxed text-[#4b5563]">
-                La operación se ordena mejor cuando cada etapa está clara desde el inicio.
-              </p>
-            </Reveal>
-            <div className="grid items-center gap-20 lg:grid-cols-[1.1fr_0.9fr]">
-              <Reveal>
-                <div className="text-center">
-                  <Image
-                    src="/images/ship.png"
-                    alt="Cargo Ship"
-                    width={480}
-                    height={480}
-                    className="mx-auto w-full max-w-[480px]"
-                    style={{ animation: "floatShip 5s ease-in-out infinite", mixBlendMode: "darken" }}
-                  />
-                </div>
-              </Reveal>
-              <div className="relative flex flex-col gap-8">
-                {processSteps.map((step, i) => (
-                  <Reveal key={step.title} delay={i * 100}>
-                    <div className="relative flex gap-6">
-                      {i < processSteps.length - 1 && <div className="absolute bottom-[-32px] left-[17px] top-10 z-0 w-[2px] bg-[#fed7aa]" />}
-                      <div className="relative z-[1] flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[#ea580c] text-base font-bold text-white shadow-[0_0_0_6px_transparent]">
-                        {i + 1}
-                      </div>
-                      <div className="mt-1">
-                        <h4 className="mb-2 text-[18px] font-bold text-[#040914]">{step.title}</h4>
-                        <p className="text-[15px] leading-relaxed text-[#4b5563]">{step.desc}</p>
-                      </div>
-                    </div>
-                  </Reveal>
-                ))}
-              </div>
-            </div>
-          </div>
+        <section id="process">
+          <HowItWorksStepper />
         </section>
 
         <section id="operations" className="border-t border-black/[0.04] bg-transparent py-28">
