@@ -20,16 +20,16 @@ import {
 import { Button } from "@/components/ui/button"
 
 const metrics = [
-  { value: 70, suffix: "%", label: "De nuestros clientes reducen costos logísticos" },
-  { value: 50, suffix: "+", label: "Clientes satisfechos" },
+  { value: 70, suffix: "%", label: "de reducción en costos logísticos" },
+  { value: 50, suffix: "+", label: "importadores activos" },
   { value: 3, suffix: "", label: "Oficinas globales", compact: true, narrow: true },
-  { value: null, suffix: "", label: "Soporte disponible", display: "24/7", compact: true },
+  { value: null, suffix: "", label: "disponibilidad operativa", display: "24/7", compact: true },
 ]
 
 const services = [
-  { icon: <Globe className="h-6 w-6" />, title: "Comprar en origen", description: "Buscamos, validamos y coordinamos con proveedores para reducir riesgo comercial desde el inicio." },
-  { icon: <Ship className="h-6 w-6" />, title: "Mover la carga", description: "Definimos la mejor alternativa logística, consolidamos, embarcamos y hacemos seguimiento del tránsito." },
-  { icon: <Truck className="h-6 w-6" />, title: "Liberar y entregar", description: "Gestionamos documentación, despacho y entrega final para que la operación llegue cerrada." },
+  { icon: <Globe className="h-6 w-6" />, title: "Gestión en origen", description: "Validamos proveedores y coordinamos en origen para reducir el riesgo antes de embarcar." },
+  { icon: <Ship className="h-6 w-6" />, title: "Transporte y embarque", description: "Elegimos la mejor ruta, consolidamos y hacemos seguimiento hasta destino." },
+  { icon: <Truck className="h-6 w-6" />, title: "Despacho y entrega", description: "Manejamos la documentación y el despacho para que la mercadería llegue sin trabas." },
 ]
 
 const processSteps = [
@@ -41,9 +41,9 @@ const processSteps = [
 
 const differentiators = [
   { icon: <ShieldCheck className="h-5 w-5" />, title: "Presencia en origen", text: "Más control sobre proveedor, producción y carga antes de embarcar." },
-  { icon: <Boxes className="h-5 w-5" />, title: "Visión completa del costo", text: "No trabajamos una sola parte de la operación, miramos el proceso entero." },
-  { icon: <Clock3 className="h-5 w-5" />, title: "Respuesta ágil", text: "Menos vueltas, más claridad para decidir rápido y mover la operación." },
-  { icon: <Package className="h-5 w-5" />, title: "Seguimiento cercano", text: "Un punto de contacto real durante cada etapa de la importación." },
+  { icon: <Boxes className="h-5 w-5" />, title: "Control total del costo", text: "No trabajamos una sola parte de la operación, miramos el proceso entero." },
+  { icon: <Clock3 className="h-5 w-5" />, title: "Decisiones rápidas, sin burocracia", text: "Menos vueltas, más claridad para decidir rápido y mover la operación." },
+  { icon: <Package className="h-5 w-5" />, title: "Un contacto real en cada etapa", text: "Un punto de contacto real durante cada etapa de la importación." },
 ]
 
 const operationTypes = ["Carga consolidada", "Importación de maquinaria", "Carga aérea urgente", "Operación puerta a puerta"]
@@ -228,15 +228,15 @@ export default function Homepage() {
               <div className="flex items-start gap-6">
                 <div className="flex flex-col items-start gap-5">
                   <div className="rounded-full border border-[#fed7aa] bg-[rgba(254,215,170,0.1)] px-[14px] py-[6px] text-[11px] font-semibold uppercase tracking-[0.08em] text-[#ea580c]">
-                    Importaciones Internacionales
+                    Coordinación logística internacional
                   </div>
 
                   <h1 className="text-[clamp(2.8rem,5.5vw,4rem)] font-black leading-[1.08] tracking-[-0.04em] text-[#040914]">
-                    Coordiná tu importación con más control, no con más vueltas.
+                    Importá con claridad. Sin sorpresas, sin intermediarios innecesarios.
                   </h1>
 
                   <p className="max-w-[420px] text-[1.05rem] leading-relaxed text-[#4b5563]">
-                    Sourcing, embarque, despacho y entrega. Un solo punto de contacto, visión completa de la operación.
+                    Gestionamos toda la cadena — desde el proveedor hasta la entrega en destino. Un solo interlocutor, visibilidad total.
                   </p>
 
                   <div className="mt-1 flex flex-wrap items-center gap-4">
@@ -287,9 +287,9 @@ export default function Homepage() {
         <section id="services" className="bg-transparent py-28">
           <div className="container mx-auto px-6 md:px-10">
             <Reveal>
-              <h2 className="mb-4 text-center text-4xl font-bold tracking-[-0.02em] text-[#040914]">Qué resolvemos</h2>
+              <h2 className="mb-4 text-center text-4xl font-bold tracking-[-0.02em] text-[#040914]">Qué hacemos por vos</h2>
               <p className="mx-auto mb-16 max-w-[600px] text-center text-base leading-relaxed text-[#4b5563]">
-                La logística internacional no debería depender de improvisación. Ordenamos la operación para que tengas más visibilidad y menos fricción.
+                Cubrimos cada etapa de la importación para que llegues al final sin desvíos ni fricciones.
               </p>
             </Reveal>
             <div className="grid gap-8 lg:grid-cols-3">
@@ -318,13 +318,13 @@ export default function Homepage() {
               <Reveal>
                 <div>
                   <div className="mb-6 inline-block rounded-full border border-[#fed7aa] bg-[rgba(254,215,170,0.1)] px-[14px] py-[6px] text-[11px] font-semibold uppercase tracking-[0.08em] text-[#ea580c]">
-                    Para operaciones reales
+                    Por qué elegirnos
                   </div>
                   <h2 className="mb-6 text-4xl font-bold leading-[1.1] tracking-[-0.02em] text-[#040914]">
-                    Menos incertidumbre en cada importación.
+                    Sabés qué pasa con tu carga en todo momento.
                   </h2>
                   <p className="mb-10 text-base leading-relaxed text-[#4b5563]">
-                    Transtide acompaña la operación completa con criterio operativo, seguimiento cercano y presencia internacional.
+                    Coordinamos cada etapa con criterio operativo y un solo punto de contacto real.
                   </p>
                   <div className="flex flex-col gap-8">
                     {differentiators.map((d) => (
@@ -347,9 +347,9 @@ export default function Homepage() {
               <Reveal delay={100}>
                 <div className="cursor-default rounded-3xl border border-white/[0.05] bg-gradient-to-br from-[#0f172a]/95 to-[#0b1120]/95 p-12 text-white shadow-[0_24px_48px_-12px_rgba(11,17,32,0.4)] backdrop-blur-[3px] transition-transform duration-300 hover:translate-y-[-8px]">
                   <p className="mb-6 text-xs font-semibold uppercase tracking-[0.1em] text-[#64748b]">Operaciones que manejamos</p>
-                  <h3 className="mb-4 text-[28px] font-bold leading-[1.2]">Coordinación integral para distintos tipos de carga.</h3>
+                  <h3 className="mb-4 text-[28px] font-bold leading-[1.2]">Operamos con cualquier tipo de carga y destino.</h3>
                   <p className="mb-8 text-[15px] leading-relaxed text-[#94a3b8]">
-                    No trabajamos una sola parte del proceso. Miramos la operación completa para que la carga llegue cerrada.
+                    De punta a punta. Sin fragmentar la operación entre múltiples proveedores.
                   </p>
                   <div className="mb-10 grid grid-cols-2 gap-4">
                     {operationTypes.map((op) => (
@@ -405,9 +405,9 @@ export default function Homepage() {
               <Reveal>
                 <div className="max-w-xl">
                   <p className="mb-4 text-sm font-semibold uppercase tracking-[0.18em] text-[#ea580c]">Contacto</p>
-                  <h2 className="mb-4 text-4xl font-bold leading-[1.1] tracking-[-0.02em] text-[#040914]">Hablemos de tu próxima importación.</h2>
+                  <h2 className="mb-4 text-4xl font-bold leading-[1.1] tracking-[-0.02em] text-[#040914]">¿Tenés una importación en mente? Hablemos.</h2>
                   <p className="mb-6 text-base leading-relaxed text-[#4b5563]">
-                    Si ya tenés un producto definido o todavía estás evaluando cómo encararlo, te ayudamos a ordenar la operación desde el inicio.
+                    Ya sea que tengas todo definido o estés en la etapa de evaluación, arrancamos desde donde estés.
                   </p>
                   <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                     <Button asChild className="rounded-lg bg-[#ea580c] px-6 font-semibold text-white hover:bg-[#d04b06]">
@@ -464,7 +464,7 @@ export default function Homepage() {
             <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-lg font-semibold text-[#040914]">Transtide Freight</p>
-                <p className="mt-1 text-sm text-slate-600">Importaciones internacionales con control real en cada etapa.</p>
+                <p className="mt-1 text-sm text-slate-600">Tu operación de importación, de principio a fin.</p>
               </div>
               <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-600">
                 {[["#services", "Servicios"], ["#process", "Cómo trabajamos"], ["#operations", "Operaciones"], ["#offices", "Oficinas"], ["#contact", "Contacto"]].map(([h, l]) => (
