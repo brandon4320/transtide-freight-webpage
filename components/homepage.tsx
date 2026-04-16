@@ -100,12 +100,19 @@ const trustItems = [
 /* ================================================================
    GLOBE
 ================================================================ */
+
+// Buenos Aires lon in radians = -58.4 * π/180 ≈ -1.019
+// We negate because cobe phi convention: phi=0 → 0°lon, positive phi → westward
+// To center BA we need phi ≈ 1.02 (putting -58° lon in front)
+const INIT_PHI   = 1.02
+const INIT_THETA = 0.25
+
 function GlobeSection() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const svgRef    = useRef<SVGSVGElement>(null)
   const wrapRef   = useRef<HTMLDivElement>(null)
-  const phi       = useRef(3.5)
-  const theta     = useRef(0.28)
+  const phi       = useRef(INIT_PHI)
+  const theta     = useRef(INIT_THETA)
   const isDrag    = useRef(false)
   const prevX     = useRef(0)
   const prevY     = useRef(0)
@@ -115,31 +122,43 @@ function GlobeSection() {
   const frame     = useRef(0)
   const globeObj  = useRef<ReturnType<typeof createGlobe> | null>(null)
 
+  // Project lat/lon → SVG canvas coords (0..SIZE)
+  // COBE's convention: phi rotates around Y (longitude), theta tilts (latitude)
+  // phi=0 means lon=0° (Greenwich) is facing front
+  // To get lon L facing front: phi = -L * π/180
   const project = useCallback((lat: number, lon: number, size = 620) => {
-    const latR = (lat * Math.PI) / 180
-    const lonR = (lon * Math.PI) / 180
+    const latR = (lat  * Math.PI) / 180
+    const lonR = (lon  * Math.PI) / 180
+    // Point on unit sphere
     const x3 =  Math.cos(latR) * Math.sin(lonR)
     const y3 =  Math.sin(latR)
     const z3 =  Math.cos(latR) * Math.cos(lonR)
-    const xr =  x3 * Math.cos(-phi.current) + z3 * Math.sin(-phi.current)
-    const zr = -x3 * Math.sin(-phi.current) + z3 * Math.cos(-phi.current)
-    const yr =  y3 * Math.cos(theta.current) - zr * Math.sin(theta.current)
-    const zr2 = y3 * Math.sin(theta.current) + zr * Math.cos(theta.current)
+    // Rotate by phi (yaw around Y)
+    const xr =  x3 * Math.cos(phi.current) - z3 * Math.sin(phi.current)
+    const zr =  x3 * Math.sin(phi.current) + z3 * Math.cos(phi.current)
+    // Rotate by theta (pitch around X)
+    const yr =  y3 * Math.cos(theta.current) + zr * Math.sin(theta.current)
+    const zr2 = -y3 * Math.sin(theta.current) + zr * Math.cos(theta.current)
     const depth = (zr2 + 1) / 2
-    return {
-      x: size / 2 + xr * (size / 2) * 0.92,
-      y: size / 2 - yr * (size / 2) * 0.92,
-      depth,
-    }
+    const cx = size / 2 + xr * (size / 2) * 0.90
+    const cy = size / 2 - yr * (size / 2) * 0.90
+    return { x: cx, y: cy, depth }
   }, [])
 
+  // Quadratic bezier path with perpendicular lift
   const arcPath = (x1: number, y1: number, x2: number, y2: number, alt: number) => {
     const mx = (x1 + x2) / 2, my = (y1 + y2) / 2
     const dx = x2 - x1, dy = y2 - y1
-    const len = Math.sqrt(dx * dx + dy * dy)
+    const len = Math.sqrt(dx * dx + dy * dy) || 1
     const nx = -dy / len, ny = dx / len
-    const lift = len * alt * 1.5
-    return `M${x1},${y1} Q${mx + nx * lift},${my + ny * lift} ${x2},${y2}`
+    const lift = len * alt * 1.2
+    return `M${x1.toFixed(1)},${y1.toFixed(1)} Q${(mx + nx * lift).toFixed(1)},${(my + ny * lift).toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}`
+  }
+
+  // Approximate arc length for stroke-dasharray
+  const approxLen = (x1: number, y1: number, x2: number, y2: number) => {
+    const dx = x2 - x1, dy = y2 - y1
+    return Math.sqrt(dx * dx + dy * dy) * 1.3 // bezier is ~30% longer than chord
   }
 
   useEffect(() => {
@@ -148,31 +167,64 @@ function GlobeSection() {
     const wrapEl = wrapRef.current
     if (!canvas || !svgEl || !wrapEl) return
 
-    // Arc DOM
-    const F_CYCLE = 240, F_DRAW = 80, F_HOLD = 80, F_FADE = 80
-    const STAGGER = Math.floor(F_CYCLE / DESTINATIONS.length)
+    // Each arc: 300 frames total, staggered
+    const F_TOTAL  = 300
+    const F_DRAW   = 100  // frames to draw in
+    const F_HOLD   = 80   // frames to hold
+    const F_FADE   = 120  // frames to fade out
+    const STAGGER  = Math.floor(F_TOTAL / DESTINATIONS.length)
+
+    // Arc DOM — using stroke-dashoffset for animated draw
     const arcs = DESTINATIONS.map((dest, i) => {
       const g    = document.createElementNS("http://www.w3.org/2000/svg", "g")
+      // Glow (thicker, blurred)
       const glow = document.createElementNS("http://www.w3.org/2000/svg", "path")
+      glow.setAttribute("stroke", "#ea580c")
+      glow.setAttribute("stroke-width", "8")
+      glow.setAttribute("fill", "none")
+      glow.setAttribute("filter", "url(#arcGlow)")
+      glow.setAttribute("stroke-linecap", "round")
+      // Main line
       const line = document.createElementNS("http://www.w3.org/2000/svg", "path")
-      const dot  = document.createElementNS("http://www.w3.org/2000/svg", "circle")
-      glow.setAttribute("stroke", "#ea580c"); glow.setAttribute("stroke-width", "6"); glow.setAttribute("fill", "none"); glow.setAttribute("filter", "url(#arcGlow)")
-      line.setAttribute("stroke", "#ea580c"); line.setAttribute("stroke-width", "1.5"); line.setAttribute("fill", "none")
-      dot.setAttribute("r", "4"); dot.setAttribute("fill", "#ea580c")
-      g.append(glow, line, dot); svgEl.appendChild(g)
-      return { g, glow, line, dot, dest, i }
+      line.setAttribute("stroke", "#ea580c")
+      line.setAttribute("stroke-width", "2")
+      line.setAttribute("fill", "none")
+      line.setAttribute("stroke-linecap", "round")
+      // Animated dot at tip
+      const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle")
+      dot.setAttribute("r", "5")
+      dot.setAttribute("fill", "#ea580c")
+      // Pulse ring
+      const ring = document.createElementNS("http://www.w3.org/2000/svg", "circle")
+      ring.setAttribute("r", "5")
+      ring.setAttribute("fill", "none")
+      ring.setAttribute("stroke", "#ea580c")
+      ring.setAttribute("stroke-width", "1.5")
+
+      g.append(glow, line, ring, dot)
+      svgEl.appendChild(g)
+      return { g, glow, line, dot, ring, dest, i }
     })
 
     // Label DOM
-    const labels = ALL_CITIES.map((city, i) => {
+    const labels = ALL_CITIES.map((city, idx) => {
       const el = document.createElement("div")
       Object.assign(el.style, {
-        position: "absolute", pointerEvents: "none",
-        fontSize: i === 0 ? "12px" : "10px", fontWeight: i === 0 ? "700" : "600",
-        color: "#1e293b", letterSpacing: "0.04em", textTransform: "uppercase",
-        opacity: "0", transition: "opacity 0.25s", whiteSpace: "nowrap",
-        textShadow: "-2px -2px 0 #f8fafc,2px -2px 0 #f8fafc,-2px 2px 0 #f8fafc,2px 2px 0 #f8fafc",
+        position: "absolute",
+        pointerEvents: "none",
+        fontSize: idx === 0 ? "11px" : "9px",
+        fontWeight: idx === 0 ? "700" : "600",
+        color: idx === 0 ? "#040914" : "#374151",
+        letterSpacing: "0.06em",
+        textTransform: "uppercase",
+        opacity: "0",
+        transition: "opacity 0.3s",
+        whiteSpace: "nowrap",
+        textShadow: "0 0 8px #f4f5f6, 0 0 4px #f4f5f6, 0 0 12px #f4f5f6",
         zIndex: "20",
+        background: "rgba(244,245,246,0.7)",
+        borderRadius: "3px",
+        padding: "1px 4px",
       })
       el.textContent = city.name
       wrapEl.appendChild(el)
@@ -183,87 +235,154 @@ function GlobeSection() {
     const tick = () => {
       frame.current += 1
       const dt = Date.now() - t0.current
+
       if (!isDrag.current) {
-        phi.current   += Math.sin(dt / 3500) * 0.003
-        theta.current  = 0.28 + Math.sin(dt / 5500) * 0.16
+        // Gentle sway, keeping BA centered
+        phi.current   = INIT_PHI   + Math.sin(dt / 8000) * 0.18
+        theta.current = INIT_THETA + Math.sin(dt / 6000) * 0.10
       } else {
         phi.current   += velX.current
-        theta.current  = Math.max(-0.55, Math.min(0.55, theta.current + velY.current))
-        velX.current  *= 0.90; velY.current *= 0.90
+        theta.current  = Math.max(-0.5, Math.min(0.5, theta.current + velY.current))
+        velX.current  *= 0.88
+        velY.current  *= 0.88
       }
+
+      // Update COBE
+      globeObj.current?.update({ phi: phi.current, theta: theta.current })
 
       // Labels
-      ALL_CITIES.forEach((city, i) => {
+      ALL_CITIES.forEach((city, idx) => {
         const pos = project(city.lat, city.lon)
-        const el  = labels[i]
-        if (pos.depth < 0.06) { el.style.opacity = "0"; return }
+        const el  = labels[idx]
+        if (pos.depth < 0.08) { el.style.opacity = "0"; return }
         let tx = "10px", ty = "-50%"
-        if (city.align === "left")   tx = "calc(-100% - 10px)"
-        if (city.align === "bottom") { tx = "-50%"; ty = "10px" }
+        if (city.align === "left")   tx = "calc(-100% - 8px)"
+        if (city.align === "bottom") { tx = "-50%"; ty = "8px" }
         if (city.align === "top")    { tx = "-50%"; ty = "calc(-100% - 8px)" }
-        el.style.left = ((pos.x / 620) * 100).toFixed(2) + "%"
-        el.style.top  = ((pos.y / 620) * 100).toFixed(2) + "%"
+        el.style.left      = ((pos.x / 620) * 100).toFixed(2) + "%"
+        el.style.top       = ((pos.y / 620) * 100).toFixed(2) + "%"
         el.style.transform = `translate(${tx},${ty})`
-        el.style.opacity   = i === 0 ? "1" : String(Math.min(1, 0.4 + pos.depth * 0.65))
+        el.style.opacity   = idx === 0 ? "1" : String(Math.min(1, (pos.depth - 0.08) / 0.4))
       })
 
-      // Arcs
+      // Animated arcs with stroke-dashoffset draw effect
       const hub = project(HUB.lat, HUB.lon)
-      arcs.forEach(({ g, glow, line, dot, dest, i }) => {
-        const pos2 = (frame.current + i * STAGGER) % F_CYCLE
-        let op = 0
-        if (pos2 < F_DRAW)                        op = pos2 / F_DRAW
-        else if (pos2 < F_DRAW + F_HOLD)          op = 1
-        else if (pos2 < F_DRAW + F_HOLD + F_FADE) op = 1 - (pos2 - F_DRAW - F_HOLD) / F_FADE
-        if (op < 0.04) { g.style.display = "none"; return }
+      arcs.forEach(({ g, glow, line, dot, ring, dest, i }) => {
+        const phase = (frame.current + i * STAGGER) % F_TOTAL
         const dp = project(dest.lat, dest.lon)
-        if (hub.depth < 0.04 && dp.depth < 0.04) { g.style.display = "none"; return }
-        const dm = (hub.depth < 0.04 || dp.depth < 0.04) ? 0.3 : 1
-        const fo = op * dm
-        g.style.display = ""
-        glow.setAttribute("stroke-opacity", String(fo * 0.15))
-        line.setAttribute("stroke-opacity", String(fo * 0.8))
-        if (dp.depth < 0.04) { dot.setAttribute("display", "none") }
-        else { dot.setAttribute("display", ""); dot.setAttribute("cx", String(dp.x)); dot.setAttribute("cy", String(dp.y)); dot.setAttribute("opacity", String(fo)) }
-        const d = arcPath(hub.x, hub.y, dp.x, dp.y, dest.arcAlt)
-        glow.setAttribute("d", d); line.setAttribute("d", d)
-      })
 
-      // Push updated phi/theta to cobe v2
-      if (globeObj.current) {
-        globeObj.current.update({ phi: phi.current, theta: theta.current })
-      }
+        // Hide if both endpoints behind globe
+        if (hub.depth < 0.05 && dp.depth < 0.05) {
+          g.setAttribute("display", "none"); return
+        }
+        g.setAttribute("display", "")
+
+        const d = arcPath(hub.x, hub.y, dp.x, dp.y, dest.arcAlt)
+        const totalLen = approxLen(hub.x, hub.y, dp.x, dp.y)
+
+        // Progress 0→1 during draw phase, then hold at 1, then fade
+        let drawProg = 0
+        let opacity  = 0
+        if (phase < F_DRAW) {
+          drawProg = phase / F_DRAW
+          opacity  = Math.min(1, drawProg * 3)
+        } else if (phase < F_DRAW + F_HOLD) {
+          drawProg = 1
+          opacity  = 1
+        } else if (phase < F_DRAW + F_HOLD + F_FADE) {
+          drawProg = 1
+          opacity  = 1 - (phase - F_DRAW - F_HOLD) / F_FADE
+        }
+
+        if (opacity < 0.01) { g.setAttribute("display", "none"); return }
+
+        const depthFade = hub.depth < 0.1 || dp.depth < 0.1 ? 0.35 : 1
+        const finalOp   = opacity * depthFade
+
+        // stroke-dasharray trick: dash = totalLen, gap = totalLen
+        // dashoffset goes from totalLen (invisible) to 0 (fully drawn)
+        const dashLen = totalLen
+        const offset  = dashLen * (1 - drawProg)
+
+        glow.setAttribute("d", d)
+        glow.setAttribute("stroke-dasharray", `${dashLen}`)
+        glow.setAttribute("stroke-dashoffset", `${offset}`)
+        glow.setAttribute("stroke-opacity", String(finalOp * 0.20))
+
+        line.setAttribute("d", d)
+        line.setAttribute("stroke-dasharray", `${dashLen}`)
+        line.setAttribute("stroke-dashoffset", `${offset}`)
+        line.setAttribute("stroke-opacity", String(finalOp * 0.9))
+
+        // Moving dot: interpolate along bezier using t = drawProg
+        // Quadratic bezier: P = (1-t)²P0 + 2t(1-t)P1 + t²P2
+        const mx = (hub.x + dp.x) / 2
+        const my = (hub.y + dp.y) / 2
+        const dx_ = dp.x - hub.x, dy_ = dp.y - hub.y
+        const len_ = Math.sqrt(dx_ * dx_ + dy_ * dy_) || 1
+        const nx_ = -dy_ / len_, ny_ = dx_ / len_
+        const lift = len_ * dest.arcAlt * 1.2
+        const cpx = mx + nx_ * lift, cpy = my + ny_ * lift
+        const t = drawProg
+        const bx = (1-t)*(1-t)*hub.x + 2*(1-t)*t*cpx + t*t*dp.x
+        const by = (1-t)*(1-t)*hub.y + 2*(1-t)*t*cpy + t*t*dp.y
+
+        dot.setAttribute("cx", bx.toFixed(1))
+        dot.setAttribute("cy", by.toFixed(1))
+        dot.setAttribute("opacity", String(finalOp))
+        dot.setAttribute("r", "4")
+
+        // Pulse ring grows and fades at destination when fully drawn
+        if (drawProg > 0.95 && dp.depth > 0.08) {
+          const pulseProg = (phase - F_DRAW) / F_HOLD
+          const pr = 4 + pulseProg * 14
+          ring.setAttribute("cx", dp.x.toFixed(1))
+          ring.setAttribute("cy", dp.y.toFixed(1))
+          ring.setAttribute("r",  pr.toFixed(1))
+          ring.setAttribute("opacity", String(finalOp * (1 - pulseProg) * 0.6))
+        } else {
+          ring.setAttribute("opacity", "0")
+        }
+      })
 
       animId = requestAnimationFrame(tick)
     }
     animId = requestAnimationFrame(tick)
 
-    // COBE v2 — no onRender, use globe.update() manually
+    // COBE v2
     const DPR = Math.min(devicePixelRatio, 2)
     globeObj.current = createGlobe(canvas, {
       devicePixelRatio: DPR,
-      width: canvas.offsetWidth * DPR || 600 * DPR,
+      width:  canvas.offsetWidth  * DPR || 600 * DPR,
       height: canvas.offsetHeight * DPR || 600 * DPR,
-      phi: phi.current, theta: theta.current,
-      dark: 0, diffuse: 2.5, mapSamples: 25000, mapBrightness: 2,
-      baseColor: [0.98, 0.98, 0.98], markerColor: [0.92, 0.35, 0.05], glowColor: [0.9, 0.9, 0.92],
-      markers: ALL_CITIES.map(c => ({ location: [c.lat, c.lon], size: c === HUB ? 0.06 : 0.04 })),
+      phi:    INIT_PHI,
+      theta:  INIT_THETA,
+      dark:          0,
+      diffuse:       2.2,
+      mapSamples:    20000,
+      mapBrightness: 2.5,
+      baseColor:    [0.97, 0.97, 0.97],
+      markerColor:  [0.92, 0.35, 0.05],
+      glowColor:    [0.88, 0.88, 0.90],
+      markers: ALL_CITIES.map(c => ({
+        location: [c.lat, c.lon],
+        size: c === HUB ? 0.07 : 0.04,
+      })),
     })
 
     const onStart = (x: number, y: number) => { isDrag.current = true; prevX.current = x; prevY.current = y; velX.current = 0; velY.current = 0 }
     const onMove  = (x: number, y: number) => {
       if (!isDrag.current) return
-      velX.current = (x - prevX.current) * 0.005; velY.current = (y - prevY.current) * 0.005
-      phi.current   += velX.current; theta.current = Math.max(-0.55, Math.min(0.55, theta.current + velY.current))
-      prevX.current = x; prevY.current = y
+      velX.current  = (x - prevX.current) * 0.005
+      velY.current  = (y - prevY.current) * 0.005
+      phi.current   += velX.current
+      theta.current  = Math.max(-0.5, Math.min(0.5, theta.current + velY.current))
+      prevX.current  = x; prevY.current = y
     }
-    const onEnd = () => { isDrag.current = false }
+    const onEnd    = () => { isDrag.current = false }
     const onResize = () => {
       if (globeObj.current) {
-        globeObj.current.update({
-          width: canvas.offsetWidth * DPR,
-          height: canvas.offsetHeight * DPR,
-        })
+        globeObj.current.update({ width: canvas.offsetWidth * DPR, height: canvas.offsetHeight * DPR })
       }
     }
 
