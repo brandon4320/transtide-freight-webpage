@@ -126,8 +126,8 @@ function MetricStat({
   narrow?: boolean
 }) {
   return (
-    <div className="metric-stat flex min-h-[92px] items-center gap-3 md:gap-4">
-      <div className={`metric-number-wrap flex items-baseline justify-start text-[#ea580c] ${compact ? "md:scale-[0.94]" : ""}`}>
+    <div className="metric-stat flex min-h-[92px] items-center gap-0">
+      <div className={`metric-number-wrap flex w-[110px] shrink-0 items-baseline justify-start text-[#ea580c] md:w-[130px] ${compact ? "md:scale-[0.94]" : ""}`}>
         <div className="text-[3.4rem] font-black leading-none tracking-[-0.05em] md:text-[4rem]">
           {display ? (
             <span className="metric-display inline-block text-inherit leading-none">{display}</span>
