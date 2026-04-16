@@ -46,9 +46,9 @@ export default function Header() {
           >
             <div className="flex h-[72px] items-center justify-between px-5 md:px-6 lg:px-7">
               <a href="#inicio" className="flex items-center" aria-label="Ir al inicio">
-                <div className="relative h-7 w-[210px] sm:h-8 sm:w-[235px] lg:w-[255px]">
+                <div className="relative h-7 w-[170px] sm:h-8 sm:w-[194px]">
                   <Image
-                    src="/images/transtide-logo-navy.png"
+                    src="/images/transtide-logo-white.png"
                     alt="Transtide Freight"
                     fill
                     className="object-contain object-left"
