@@ -250,10 +250,11 @@ export default function GlobeHero() {
   }, []);
 
   return (
+    <>
     <div className="relative w-full aspect-square bg-[#f4f5f6] rounded-[32px] overflow-visible border border-black/5 shadow-inner flex items-center justify-center">
       <div className="absolute top-6 right-6 w-16 h-16 bg-black/5 rounded-2xl pointer-events-none hidden md:block" />
       <div className="absolute bottom-6 right-6 w-16 h-16 bg-black/5 rounded-2xl pointer-events-none hidden md:block" />
-      <div className="relative w-[90%] h-[90%] opacity-0 animate-in fade-in zoom-in-95 duration-1000 fill-mode-forwards">
+      <div className="relative w-[90%] h-[90%]" style={{ animation: "globeFadeIn 0.8s cubic-bezier(.2,0,.2,1) both" }}>
         <canvas
           ref={canvasRef}
           className="relative z-10 w-full h-full cursor-grab active:cursor-grabbing rounded-full shadow-[0_30px_60px_rgba(0,0,0,0.06)]"
@@ -281,5 +282,12 @@ export default function GlobeHero() {
         ))}
       </div>
     </div>
+    <style dangerouslySetInnerHTML={{ __html: `
+      @keyframes globeFadeIn {
+        from { opacity: 0; transform: scale(0.94); }
+        to   { opacity: 1; transform: scale(1); }
+      }
+    `}} />
+    </>
   );
 }
