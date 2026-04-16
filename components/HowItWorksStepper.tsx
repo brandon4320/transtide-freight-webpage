@@ -1,7 +1,6 @@
 "use client";
 
-import { useRef } from "react";
-import { motion, useScroll, useTransform } from "framer-motion";
+import { useRef, useEffect, useState } from "react";
 
 const STEPS = [
   {
@@ -26,33 +25,48 @@ const STEPS = [
   },
 ];
 
-const STEP_FRACTION = 1 / STEPS.length; // 0.25 por paso
-
 export default function HowItWorksStepper() {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [progress, setProgress] = useState(0); // 0 to 1
 
-  // Con height=300vh y offset ["start start","end end"]:
-  // scrollYProgress va de 0→1 durante exactamente 300vh de scroll.
-  // El sticky ocupa 100vh → quedan 200vh de "scroll útil" donde el
-  // contenido está fijo. Step 4 completa en progress=1, justo cuando
-  // el bottom del contenedor llega al bottom del viewport → el usuario
-  // recién ahí puede seguir bajando.
-  const { scrollYProgress } = useScroll({
-    target: containerRef,
-    offset: ["start start", "end end"],
-  });
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
 
-  const scaleX = useTransform(scrollYProgress, [0, 1], [0, 1]);
+    const onScroll = () => {
+      const rect = container.getBoundingClientRect();
+      const totalScroll = container.offsetHeight - window.innerHeight;
+      const scrolled = -rect.top;
+      const p = Math.min(1, Math.max(0, scrolled / totalScroll));
+      setProgress(p);
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Which step is active: 0-3 based on progress
+  // Step N is active when progress is in [N/4, (N+1)/4)
+  // Step 4 (index 3) becomes active at 0.75 and stays active until 1.0
+  const activeIndex = Math.min(3, Math.floor(progress * 4));
+
+  // Bar width percentage
+  const barWidth = progress * 100;
 
   return (
-    <section ref={containerRef} className="relative bg-transparent" style={{ height: "300vh" }}>
+    <section
+      ref={containerRef}
+      className="relative bg-transparent"
+      style={{ height: "300vh" }}
+    >
       <div
-        className="sticky flex flex-col items-center justify-center overflow-hidden px-6 md:px-12"
+        className="sticky flex flex-col items-center justify-center px-6 md:px-12"
         style={{ top: 76, height: "calc(100vh - 76px)" }}
       >
         <div className="max-w-7xl w-full">
 
-          <div className="text-center mb-16">
+          <div className="text-center mb-14">
             <h2 className="text-4xl md:text-5xl font-extrabold text-[#040914] mb-4">
               Cómo funciona
             </h2>
@@ -61,46 +75,69 @@ export default function HowItWorksStepper() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          {/* Cards — siempre 100% visibles, solo cambia el estilo del activo */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
             {STEPS.map((step, index) => {
-              // Cada step empieza en su fracción y termina al 70% de esa fracción,
-              // así el step 4 llega a opacity=1 en progress=0.925 — bien antes del 1.0
-              const start = index * STEP_FRACTION;
-              const end   = start + STEP_FRACTION * 0.7;
-
-              // eslint-disable-next-line react-hooks/rules-of-hooks
-              const opacity = useTransform(scrollYProgress, [start, end], [0.05, 1]);
-              // eslint-disable-next-line react-hooks/rules-of-hooks
-              const y       = useTransform(scrollYProgress, [start, end], [50, 0]);
+              const isActive = index === activeIndex;
+              const isPast   = index < activeIndex;
 
               return (
-                <motion.div
+                <div
                   key={step.num}
-                  style={{ opacity, y }}
-                  className="bg-white p-8 rounded-2xl border border-black/5 shadow-sm flex flex-col"
+                  className="rounded-2xl flex flex-col p-8 transition-all duration-500"
+                  style={{
+                    background: isActive ? "#fff" : "#f9fafb",
+                    border: isActive
+                      ? "2px solid #ea580c"
+                      : "2px solid #e5e7eb",
+                    boxShadow: isActive
+                      ? "0 8px_32px rgba(234,88,12,0.12)"
+                      : "none",
+                    opacity: isPast ? 0.5 : 1,
+                  }}
                 >
-                  <div className="w-10 h-10 rounded-full border-2 border-[#ea580c] flex items-center justify-center text-[#ea580c] font-bold mb-6 flex-shrink-0">
+                  <div
+                    className="w-10 h-10 rounded-full flex items-center justify-center font-bold mb-6 flex-shrink-0 transition-all duration-500"
+                    style={{
+                      border: isActive || isPast ? "2px solid #ea580c" : "2px solid #d1d5db",
+                      color: isActive || isPast ? "#ea580c" : "#9ca3af",
+                    }}
+                  >
                     {step.num}
                   </div>
-                  <h3 className="text-xl font-bold mb-4 text-[#040914]">{step.title}</h3>
-                  <p className="text-slate-500 leading-relaxed text-sm flex-grow">{step.desc}</p>
-                </motion.div>
+                  <h3
+                    className="text-xl font-bold mb-3 transition-colors duration-500"
+                    style={{ color: isActive ? "#040914" : "#6b7280" }}
+                  >
+                    {step.title}
+                  </h3>
+                  <p
+                    className="leading-relaxed text-sm flex-grow transition-colors duration-500"
+                    style={{ color: isActive ? "#6b7280" : "#9ca3af" }}
+                  >
+                    {step.desc}
+                  </p>
+                </div>
               );
             })}
           </div>
 
-          <div className="relative mt-20">
+          {/* Barra de progreso */}
+          <div className="relative mt-16">
             <div className="absolute top-1/2 left-0 w-full h-[3px] bg-slate-100 -translate-y-1/2 rounded-full overflow-hidden">
-              <motion.div
-                style={{ scaleX, transformOrigin: "left" }}
-                className="absolute top-0 left-0 w-full h-full bg-[#ea580c]"
+              <div
+                className="absolute top-0 left-0 h-full bg-[#ea580c] rounded-full transition-none"
+                style={{ width: `${barWidth}%` }}
               />
             </div>
             <div className="relative flex justify-between z-10 w-full">
-              {STEPS.map((step) => (
+              {STEPS.map((step, index) => (
                 <div
                   key={step.num}
-                  className="bg-[#ea580c] text-white text-xs w-7 h-7 flex items-center justify-center rounded-sm font-bold shadow-md"
+                  className="text-white text-xs w-7 h-7 flex items-center justify-center rounded-sm font-bold shadow-md transition-all duration-300"
+                  style={{
+                    background: index <= activeIndex ? "#ea580c" : "#d1d5db",
+                  }}
                 >
                   {step.num}
                 </div>
