@@ -46,14 +46,14 @@ export default function Header() {
           >
             <div className="flex h-[58px] items-center justify-between px-4 md:px-5 lg:px-6">
               <a href="#inicio" className="flex items-center" aria-label="Ir al inicio">
-                <div className="relative h-[28px] w-[170px] sm:h-[32px] sm:w-[194px] lg:w-[215px]">
+                <div className="relative h-7 w-[215px] sm:h-8 sm:w-[245px] lg:w-[270px]">
                   <Image
                     src="/images/transtide-logo-full.png"
                     alt="Transtide Freight"
                     fill
                     className="object-contain object-left"
                     priority
-                    sizes="(min-width: 1024px) 215px, (min-width: 640px) 194px, 170px"
+                    sizes="(min-width: 1024px) 270px, (min-width: 640px) 245px, 215px"
                   />
                 </div>
               </a>
@@ -64,18 +64,15 @@ export default function Header() {
                     <a
                       key={item.href}
                       href={item.href}
-                      className="rounded-full px-3 py-1.5 text-[14px] font-medium text-[#0f1a3d] transition-colors hover:bg-white/16 hover:text-[#08112f]"
+                      className="inline-flex h-[36px] items-center rounded-full px-3 py-0 text-[14px] font-medium text-[#0f1a3d] transition-colors hover:bg-white/16 hover:text-[#08112f]"
                     >
                       {item.name}
                     </a>
                   ))}
                 </nav>
 
-                <Button asChild className="ml-2 relative overflow-hidden rounded-full bg-accent px-5 py-0 h-[36px] text-[14px] font-medium text-white shadow-[0_8px_18px_rgba(249,115,22,0.18)] hover:bg-accent-700 flex items-center">
-                  <a href="#contact">
-                    Cotizar operación
-                    <span className="btn-shine-header" />
-                  </a>
+                <Button asChild className="ml-2 inline-flex h-[36px] items-center rounded-full bg-accent px-5 py-0 text-[15px] font-medium text-white shadow-[0_8px_18px_rgba(249,115,22,0.18)] hover:bg-accent-700">
+                  <a href="#contact">Cotizar operación</a>
                 </Button>
               </div>
 
