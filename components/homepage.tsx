@@ -210,11 +210,11 @@ export default function Homepage() {
                 <div className="mt-1 flex items-center gap-4">
                   <a
                     href="#contact"
-                    className="group relative inline-flex items-center gap-2 overflow-hidden rounded-lg bg-[#ea580c] px-6 py-[13px] text-sm font-semibold text-white shadow-[0_4px_12px_rgba(234,88,12,0.25)] transition-all duration-200 hover:translate-y-[-2px] hover:shadow-[0_6px_16px_rgba(234,88,12,0.35)]"
+                    className="relative inline-flex items-center gap-2 overflow-hidden rounded-lg bg-[#ea580c] px-6 py-[13px] text-sm font-semibold text-white shadow-[0_4px_12px_rgba(234,88,12,0.25)] transition-all duration-200 hover:translate-y-[-2px] hover:shadow-[0_6px_16px_rgba(234,88,12,0.35)]"
                   >
                     Cotizar operación
                     <ArrowRight className="h-4 w-4" />
-                    <span className="absolute inset-0 -translate-x-full skew-x-12 bg-white/20 transition-transform duration-500 group-hover:translate-x-full" />
+                    <span className="btn-shine" />
                   </a>
                   <a href="#process" className="text-sm font-semibold text-[#4b5563] transition-colors hover:text-[#040914]">
                     Ver cómo trabajamos
@@ -539,6 +539,33 @@ export default function Homepage() {
             0% { transform: translateY(0px) rotate(0deg); }
             50% { transform: translateY(-15px) rotate(1deg); }
             100% { transform: translateY(0px) rotate(0deg); }
+          }
+          @keyframes btnShine {
+            0%   { left: -100%; opacity: 0; }
+            10%  { opacity: 1; }
+            50%  { left: 120%; opacity: 1; }
+            51%  { opacity: 0; }
+            100% { left: 120%; opacity: 0; }
+          }
+          .btn-shine {
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 50%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+            transform: skewX(-20deg);
+            animation: btnShine 3.5s ease-in-out infinite;
+          }
+          .btn-shine-header {
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 50%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+            transform: skewX(-20deg);
+            animation: btnShine 3.5s ease-in-out 1.75s infinite;
           }
         `}} />
       </main>
