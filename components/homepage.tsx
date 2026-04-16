@@ -185,50 +185,43 @@ export default function Homepage() {
 
       <main className="relative z-[1] min-h-screen overflow-x-hidden bg-transparent text-[#0b1120]">
         <section id="inicio" className="relative border-b border-black/[0.05]">
-          {/* 5 — espaciado simétrico arriba y abajo */}
           <div className="container relative z-[1] mx-auto px-6 md:px-10" style={{ paddingTop: "clamp(2rem, 4vh, 3rem)", paddingBottom: "clamp(2rem, 4vh, 3rem)" }}>
-            {/* 4 — alineación vertical perfecta entre texto y globo */}
             <div className="grid gap-16 lg:grid-cols-[1fr_1fr] lg:items-center" style={{ minHeight: "calc(100vh - 76px)" }}>
+              <div className="flex items-start gap-6">
+                <div className="flex flex-col items-start gap-5">
+                  <div className="rounded-full border border-[#fed7aa] bg-[rgba(254,215,170,0.1)] px-[14px] py-[6px] text-[11px] font-semibold uppercase tracking-[0.08em] text-[#ea580c]">
+                    Importaciones Internacionales
+                  </div>
 
-              {/* Columna izquierda */}
-              <div className="flex flex-col items-start gap-5">
-                <div className="rounded-full border border-[#fed7aa] bg-[rgba(254,215,170,0.1)] px-[14px] py-[6px] text-[11px] font-semibold uppercase tracking-[0.08em] text-[#ea580c]">
-                  Importaciones Internacionales
-                </div>
+                  <h1 className="text-[clamp(2.8rem,5.5vw,4rem)] font-black leading-[1.08] tracking-[-0.04em] text-[#040914]">
+                    Coordiná tu importación con más control, no con más vueltas.
+                  </h1>
 
-                {/* 3 — tipografía más pesada, mayor tamaño, mejor interlineado */}
-                <h1 className="text-[clamp(2.8rem,5.5vw,4rem)] font-black leading-[1.08] tracking-[-0.04em] text-[#040914]">
-                  Coordiná tu importación con más control, no con más vueltas.
-                </h1>
+                  <p className="max-w-[420px] text-[1.05rem] leading-relaxed text-[#4b5563]">
+                    Sourcing, embarque, despacho y entrega. Un solo punto de contacto, visión completa de la operación.
+                  </p>
 
-                {/* 6 — subtítulo más corto y directo */}
-                <p className="max-w-[420px] text-[1.05rem] leading-relaxed text-[#4b5563]">
-                  Sourcing, embarque, despacho y entrega. Un solo punto de contacto, visión completa de la operación.
-                </p>
-
-                {/* 7 — botones más juntos y alineados */}
-                <div className="mt-1 flex items-center gap-4">
-                  <a
-                    href="#contact"
-                    className="relative inline-flex items-center gap-2 overflow-hidden rounded-lg bg-[#ea580c] px-6 py-[13px] text-sm font-semibold text-white shadow-[0_4px_12px_rgba(234,88,12,0.25)] transition-all duration-200 hover:translate-y-[-2px] hover:shadow-[0_6px_16px_rgba(234,88,12,0.35)]"
-                  >
-                    Cotizar operación
-                    <ArrowRight className="h-4 w-4" />
-                    <span className="btn-shine" />
-                  </a>
-                  <a href="#process" className="text-sm font-semibold text-[#4b5563] transition-colors hover:text-[#040914]">
-                    Ver cómo trabajamos
-                  </a>
+                  <div className="mt-1 flex flex-wrap items-center gap-4">
+                    <a
+                      href="#contact"
+                      className="group relative inline-flex h-[50px] items-center gap-2 overflow-hidden rounded-lg bg-[#ea580c] px-6 py-0 text-sm font-semibold text-white shadow-[0_4px_12px_rgba(234,88,12,0.25)] transition-all duration-200 hover:translate-y-[-2px] hover:shadow-[0_6px_16px_rgba(234,88,12,0.35)]"
+                    >
+                      <span className="inline-flex items-center">Cotizar operación</span>
+                      <ArrowRight className="h-4 w-4" />
+                      <span className="btn-shine" />
+                    </a>
+                    <a href="#process" className="inline-flex h-[50px] items-center text-sm font-semibold text-[#4b5563] transition-colors hover:text-[#040914]">
+                      Ver cómo trabajamos
+                    </a>
+                  </div>
                 </div>
               </div>
 
-              {/* 1 — globo sin fondo, flota sobre la página */}
               <div className="flex items-center justify-center">
                 <div className="w-full max-w-[560px]">
                   <GlobeHero />
                 </div>
               </div>
-
             </div>
           </div>
         </section>
@@ -556,16 +549,6 @@ export default function Homepage() {
             background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
             transform: skewX(-20deg);
             animation: btnShine 3.5s ease-in-out infinite;
-          }
-          .btn-shine-header {
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 50%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
-            transform: skewX(-20deg);
-            animation: btnShine 3.5s ease-in-out 1.75s infinite;
           }
         `}} />
       </main>
