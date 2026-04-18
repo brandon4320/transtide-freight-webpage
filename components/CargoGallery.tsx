@@ -19,41 +19,20 @@ const INTERVAL = 4500;
 
 export default function CargoGallery() {
   const [current, setCurrent] = useState(0);
-  const [animating, setAnimating] = useState(false);
-  const prevRef = useRef<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const goTo = useCallback((idx: number) => {
-    setCurrent(prev => {
-      if (idx === prev) return prev;
-      prevRef.current = prev;
-      setAnimating(true);
-      setTimeout(() => { prevRef.current = null; setAnimating(false); }, 600);
-      return idx;
-    });
+    setCurrent(prev => idx === prev ? prev : idx);
   }, []);
 
   const next = useCallback(() => {
-    setCurrent(prev => {
-      const idx = (prev + 1) % IMAGES.length;
-      prevRef.current = prev;
-      setAnimating(true);
-      setTimeout(() => { prevRef.current = null; setAnimating(false); }, 600);
-      return idx;
-    });
+    setCurrent(prev => (prev + 1) % IMAGES.length);
   }, []);
 
   const back = useCallback(() => {
-    setCurrent(prev => {
-      const idx = (prev - 1 + IMAGES.length) % IMAGES.length;
-      prevRef.current = prev;
-      setAnimating(true);
-      setTimeout(() => { prevRef.current = null; setAnimating(false); }, 600);
-      return idx;
-    });
+    setCurrent(prev => (prev - 1 + IMAGES.length) % IMAGES.length);
   }, []);
 
-  // Auto-advance — restarts timer every time current changes
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(next, INTERVAL);
@@ -61,28 +40,28 @@ export default function CargoGallery() {
   }, [current, next]);
 
   return (
-    <section className="border-t border-black/[0.04] bg-transparent py-16 lg:py-24">
-      <div className="container mx-auto px-6 md:px-10">
+    <section className="border-t border-black/[0.04] bg-transparent py-10 lg:py-24">
+      <div className="container mx-auto px-4 md:px-10">
 
         {/* Header */}
-        <div className="mb-10 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="mb-6 lg:mb-10 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-[#ea580c]">
+            <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#ea580c]">
               Operaciones reales
             </p>
-            <h2 className="text-3xl font-black leading-[1.1] tracking-[-0.02em] text-[#040914] lg:text-4xl">
+            <h2 className="text-2xl font-black leading-[1.1] tracking-[-0.02em] text-[#040914] lg:text-4xl">
               Operaciones que ya coordinamos.
             </h2>
           </div>
-          <p className="max-w-[380px] text-[15px] leading-relaxed text-[#4b5563]">
+          <p className="hidden lg:block max-w-[380px] text-[15px] leading-relaxed text-[#4b5563]">
             Maquinaria, contenedores, carga general. Cada operación coordinada de punta a punta.
           </p>
         </div>
 
         {/* Main carousel */}
         <div
-          className="relative overflow-hidden rounded-3xl bg-slate-100"
-          style={{ height: "clamp(240px, 42vw, 500px)" }}
+          className="relative overflow-hidden rounded-2xl lg:rounded-3xl bg-slate-100"
+          style={{ height: "clamp(240px, 55vw, 500px)" }}
         >
           {IMAGES.map((img, i) => (
             <div
@@ -102,11 +81,15 @@ export default function CargoGallery() {
                 style={{ objectPosition: img.objectPosition ?? "center center" }}
                 loading={i === 0 ? "eager" : "lazy"}
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
-              <p className="absolute bottom-5 left-6 text-[12px] font-bold uppercase tracking-[0.08em] text-white/90">
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+
+              {/* Label — only on desktop */}
+              <p className="absolute bottom-8 left-4 right-16 hidden lg:block text-[12px] font-bold uppercase tracking-[0.08em] text-white/90">
                 {img.label}
               </p>
-              <p className="absolute bottom-5 right-6 text-[12px] font-semibold text-white/50">
+
+              {/* Counter */}
+              <p className="absolute bottom-8 right-4 lg:bottom-5 text-[11px] font-semibold text-white/60">
                 {i + 1} / {IMAGES.length}
               </p>
             </div>
@@ -114,16 +97,29 @@ export default function CargoGallery() {
 
           {/* Prev / Next */}
           <button onClick={back} aria-label="Anterior"
-            className="absolute left-4 top-1/2 z-10 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-sm transition hover:bg-white/35">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            className="absolute left-3 top-1/2 z-10 -translate-y-1/2 flex h-8 w-8 lg:h-9 lg:w-9 items-center justify-center rounded-full bg-black/25 text-white backdrop-blur-sm">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
           </button>
           <button onClick={next} aria-label="Siguiente"
-            className="absolute right-4 top-1/2 z-10 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-sm transition hover:bg-white/35">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            className="absolute right-3 top-1/2 z-10 -translate-y-1/2 flex h-8 w-8 lg:h-9 lg:w-9 items-center justify-center rounded-full bg-black/25 text-white backdrop-blur-sm">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
           </button>
 
-          {/* Dots */}
-          <div className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5">
+          {/* Dots — mobile only, centered at bottom */}
+          <div className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 lg:hidden">
+            {IMAGES.map((_, i) => (
+              <button key={i} onClick={() => goTo(i)} aria-label={`Imagen ${i + 1}`}
+                className="h-1.5 rounded-full transition-all duration-300"
+                style={{
+                  width: i === current ? "18px" : "5px",
+                  background: i === current ? "#ea580c" : "rgba(255,255,255,0.5)",
+                }}
+              />
+            ))}
+          </div>
+
+          {/* Dots — desktop, above label */}
+          <div className="absolute bottom-4 left-6 z-10 hidden lg:flex items-center gap-1.5">
             {IMAGES.map((_, i) => (
               <button key={i} onClick={() => goTo(i)} aria-label={`Imagen ${i + 1}`}
                 className="h-1.5 rounded-full transition-all duration-300"
@@ -145,7 +141,12 @@ export default function CargoGallery() {
           </div>
         </div>
 
-        {/* Thumbnails — desktop */}
+        {/* Label below carousel — mobile only */}
+        <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#94a3b8] lg:hidden">
+          {IMAGES[current].label}
+        </p>
+
+        {/* Thumbnails — desktop only */}
         <div className="mt-3 hidden gap-2 lg:flex">
           {IMAGES.map((img, i) => (
             <button key={i} onClick={() => goTo(i)}
@@ -164,7 +165,7 @@ export default function CargoGallery() {
           ))}
         </div>
 
-        <p className="mt-6 text-center text-[13px] text-[#94a3b8]">
+        <p className="mt-4 text-center text-[13px] text-[#94a3b8]">
           ¿Querés que coordinemos tu próxima operación?{" "}
           <a href="#contact" className="font-semibold text-[#ea580c] hover:underline">Contactanos.</a>
         </p>
