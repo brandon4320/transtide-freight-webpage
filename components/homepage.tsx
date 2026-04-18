@@ -123,12 +123,11 @@ export default function Homepage() {
         <section id="inicio" className="relative border-b border-black/[0.05]">
           <div className="relative z-[1] mx-auto w-full max-w-7xl px-6 md:px-10 lg:px-16" style={{ paddingTop: "clamp(2rem, 4vh, 3rem)", paddingBottom: "clamp(2rem, 4vh, 3rem)" }}>
             <div className="grid gap-8 lg:gap-4 lg:grid-cols-[0.8fr_1.2fr] lg:items-center" style={{ minHeight: "calc(100vh - 76px)" }}>
-              <div className="flex items-start gap-6">
-                <div className="flex flex-col items-start gap-4 lg:gap-5">
+              <div className="flex w-full flex-col gap-4 lg:gap-5">
                   <h1
                     className="font-black text-[#040914]"
                     style={{
-                      fontSize: "3.4rem",
+                      fontSize: "clamp(2.4rem, 4vw, 3.6rem)",
                       lineHeight: 1.08,
                       letterSpacing: "-0.03em",
                     }}
@@ -155,7 +154,6 @@ export default function Homepage() {
                       Ver cómo trabajamos
                     </a>
                   </div>
-                </div>
               </div>
 
               <div className="flex items-center justify-center">
