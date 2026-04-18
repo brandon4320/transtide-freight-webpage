@@ -34,16 +34,16 @@ export default function Homepage() {
         {/* ── HERO ─────────────────────────────────────────────────────── */}
         <section id="inicio" className="relative border-b border-black/[0.05]">
           <div
-            className="relative z-[1] mx-auto w-full max-w-7xl px-6 md:px-10 lg:px-16"
+            className="relative z-[1] mx-auto w-full max-w-7xl px-6 md:px-10 lg:px-10"
             style={{ paddingTop: "clamp(2rem, 4vh, 3rem)", paddingBottom: "clamp(2rem, 4vh, 3rem)" }}
           >
             <div
-              className="grid gap-8 lg:grid-cols-[1fr_1fr] lg:items-center"
+              className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-center"
               style={{ minHeight: "calc(100vh - 76px)" }}
             >
               {/* Text column */}
               <div className="flex w-full flex-col gap-4 lg:gap-5">
-                <h1 className="text-4xl font-black leading-[1.1] tracking-tighter text-[#040914] sm:text-6xl lg:text-7xl">
+                <h1 className="text-[2rem] font-black leading-[1.1] tracking-tighter text-[#040914] sm:text-5xl lg:text-5xl xl:text-6xl">
                   <span className="block text-[#ea580c]">Importá con claridad.</span>
                   <span className="block">Sin sorpresas,</span>
                   <span className="block">sin intermediarios innecesarios.</span>
