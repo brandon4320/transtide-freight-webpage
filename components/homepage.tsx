@@ -125,10 +125,17 @@ export default function Homepage() {
             <div className="grid gap-8 lg:gap-4 lg:grid-cols-[0.8fr_1.2fr] lg:items-center" style={{ minHeight: "calc(100vh - 76px)" }}>
               <div className="flex items-start gap-6">
                 <div className="flex flex-col items-start gap-4 lg:gap-5">
-                  <h1 className="text-[2.4rem] font-black leading-[1.1] tracking-[-0.03em] text-[#040914] lg:text-[3.2rem] xl:text-[3.6rem]">
-                    <span className="block">Importá con claridad.</span>
-                    <span className="block">Sin sorpresas,</span>
-                    <span className="block">sin intermediarios innecesarios.</span>
+                  <h1
+                    className="font-black text-[#040914]"
+                    style={{
+                      fontSize: "3.4rem",
+                      lineHeight: 1.08,
+                      letterSpacing: "-0.03em",
+                    }}
+                  >
+                    <span style={{ display: "block" }}>Importá con claridad.</span>
+                    <span style={{ display: "block" }}>Sin sorpresas,</span>
+                    <span style={{ display: "block" }}>sin intermediarios innecesarios.</span>
                   </h1>
 
                   <p className="max-w-[420px] text-[0.95rem] leading-relaxed text-[#4b5563] lg:text-[1.05rem]">
