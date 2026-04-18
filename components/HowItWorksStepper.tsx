@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useEffect, useState } from "react"
+import { useRef, useEffect, useState, useCallback } from "react"
 import { motion, useScroll, useTransform } from "framer-motion"
 
 const STEPS = [
@@ -10,15 +10,13 @@ const STEPS = [
   { num: 4, title: "Entregamos cerrado",                    desc: "La operación llega completa: liberada, documentada y en destino." },
 ]
 
-/* ── Mobile: static layout, no JS scroll tracking ──────────────────────── */
+/* ── Mobile: layout estático ─────────────────────────────────────────────── */
 function StepperMobile() {
   return (
     <section className="bg-transparent px-5 py-16">
       <div className="mb-12 text-center">
         <h2 className="mb-3 text-3xl font-extrabold text-[#040914]">Cómo funciona</h2>
-        <p className="text-base text-slate-500">
-          La operación se ordena mejor cuando cada etapa está clara desde el inicio.
-        </p>
+        <p className="text-base text-slate-500">La operación se ordena mejor cuando cada etapa está clara desde el inicio.</p>
       </div>
       <div className="flex flex-col gap-4">
         {STEPS.map((s) => (
@@ -31,7 +29,6 @@ function StepperMobile() {
           </div>
         ))}
       </div>
-      {/* Static full bar on mobile */}
       <div className="relative mt-10">
         <div className="absolute top-1/2 left-0 h-[3px] w-full -translate-y-1/2 rounded-full bg-[#ea580c]" />
         <div className="relative flex justify-between">
@@ -46,28 +43,37 @@ function StepperMobile() {
   )
 }
 
-/* ── Desktop: sticky + Framer Motion scroll-linked ──────────────────────── */
+/* ── Desktop: sticky + Framer Motion para la barra, useState para las cards ─ */
 function StepperDesktop() {
   const containerRef = useRef<HTMLDivElement>(null)
+  // activeIndex: cuál card está "encendida" — solo 4 valores posibles (0-3)
+  // Esto se actualiza MAX 4 veces durante todo el scroll de la sección
+  const [activeIndex, setActiveIndex] = useState(0)
 
-  // Con 300vh y offset ["start start","end end"]:
-  // progress 0 = sección entra al viewport (top de sección = top del viewport)
-  // progress 1 = bottom de sección = bottom del viewport
-  // El sticky ocupa 100vh, quedan 200vh de scroll "activo" = 2/3 del total
-  // Los primeros ~0.33 de progreso son antes de que el sticky empiece a scrollear
-  // Ajustamos los rangos para que los 4 steps se distribuyan en [0, 0.92]
-  const RANGE_START = 0.0   // step 1 arranca desde el inicio
-  const RANGE_END   = 0.92  // step 4 completa antes del final
-  const RANGE_TOTAL = RANGE_END - RANGE_START
-  const FRAC = RANGE_TOTAL / STEPS.length // ~0.23 por step
+  useEffect(() => {
+    const onScroll = () => {
+      const el = containerRef.current
+      if (!el) return
+      const rect = el.getBoundingClientRect()
+      // totalScroll = distancia que recorre la sección mientras el sticky está activo
+      const totalScroll = el.offsetHeight - window.innerHeight
+      const scrolled = Math.max(0, -rect.top)
+      const progress = Math.min(1, scrolled / totalScroll)
+      // Cada step ocupa exactamente 1/4 del progreso
+      const idx = Math.min(3, Math.floor(progress * 4))
+      setActiveIndex(idx)
+    }
+    window.addEventListener("scroll", onScroll, { passive: true })
+    onScroll()
+    return () => window.removeEventListener("scroll", onScroll)
+  }, [])
 
+  // La barra naranja usa Framer Motion para animación suave sin re-renders extra
   const { scrollYProgress } = useScroll({
     target: containerRef,
     offset: ["start start", "end end"],
   })
-
-  // Bar width driven directly by scroll progress
-  const scaleX = useTransform(scrollYProgress, [RANGE_START, RANGE_END], [0, 1])
+  const scaleX = useTransform(scrollYProgress, [0, 1], [0, 1])
 
   return (
     <section
@@ -80,52 +86,54 @@ function StepperDesktop() {
         style={{ top: 76, height: "calc(100vh - 76px)" }}
       >
         <div className="w-full max-w-7xl">
+
           <div className="mb-14 text-center">
             <h2 className="mb-4 text-5xl font-extrabold text-[#040914]">Cómo funciona</h2>
-            <p className="text-lg text-slate-500">
-              La operación se ordena mejor cuando cada etapa está clara desde el inicio.
-            </p>
+            <p className="text-lg text-slate-500">La operación se ordena mejor cuando cada etapa está clara desde el inicio.</p>
           </div>
 
           <div className="grid grid-cols-4 gap-5">
             {STEPS.map((step, index) => {
-              const start = RANGE_START + index * FRAC
-              const end   = start + FRAC * 0.75
-
-              // useTransform writes directly to CSS — zero React re-renders on scroll
-              // eslint-disable-next-line react-hooks/rules-of-hooks
-              const cardOpacity = useTransform(scrollYProgress, [start, end], [0.08, 1])
-              // eslint-disable-next-line react-hooks/rules-of-hooks
-              const cardY       = useTransform(scrollYProgress, [start, end], [48, 0])
-              // eslint-disable-next-line react-hooks/rules-of-hooks
-              const borderOp    = useTransform(scrollYProgress,
-                [start, Math.min(start + 0.12, end), Math.max(end - 0.04, start + 0.12), end],
-                [0, 1, 1, index === 3 ? 1 : 0.25]
-              )
-
+              const isActive = index === activeIndex
+              const isPast   = index < activeIndex
               return (
-                <div key={step.num} className="relative">
-                  {/* Border overlay animates independently via motion — no re-render */}
-                  <motion.div
-                    style={{ opacity: borderOp }}
-                    className="pointer-events-none absolute inset-0 rounded-2xl border-2 border-[#ea580c]"
-                  />
-                  <motion.div
-                    style={{ opacity: cardOpacity, y: cardY }}
-                    className="flex h-full flex-col rounded-2xl border-2 border-transparent bg-white p-8 shadow-sm"
+                <div
+                  key={step.num}
+                  className="relative flex flex-col rounded-2xl p-8 transition-all duration-500"
+                  style={{
+                    background:  isActive ? "#fff" : "#f9fafb",
+                    border:      isActive ? "2px solid #ea580c" : "2px solid #e5e7eb",
+                    boxShadow:   isActive ? "0 8px 32px rgba(234,88,12,0.12)" : "none",
+                    opacity:     isPast ? 0.45 : isActive ? 1 : 0.25,
+                  }}
+                >
+                  <div
+                    className="mb-6 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full font-bold transition-all duration-500"
+                    style={{
+                      border: isActive || isPast ? "2px solid #ea580c" : "2px solid #d1d5db",
+                      color:  isActive || isPast ? "#ea580c"           : "#9ca3af",
+                    }}
                   >
-                    <div className="mb-6 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border-2 border-[#ea580c] font-bold text-[#ea580c]">
-                      {step.num}
-                    </div>
-                    <h3 className="mb-3 text-xl font-bold text-[#040914]">{step.title}</h3>
-                    <p className="flex-grow text-sm leading-relaxed text-slate-500">{step.desc}</p>
-                  </motion.div>
+                    {step.num}
+                  </div>
+                  <h3
+                    className="mb-3 text-xl font-bold transition-colors duration-500"
+                    style={{ color: isActive ? "#040914" : "#6b7280" }}
+                  >
+                    {step.title}
+                  </h3>
+                  <p
+                    className="flex-grow text-sm leading-relaxed transition-colors duration-500"
+                    style={{ color: isActive ? "#4b5563" : "#9ca3af" }}
+                  >
+                    {step.desc}
+                  </p>
                 </div>
               )
             })}
           </div>
 
-          {/* Progress bar — direct CSS transform, zero re-renders */}
+          {/* Barra de progreso con Framer Motion — sin re-renders por scroll */}
           <div className="relative mt-16">
             <div className="absolute top-1/2 left-0 h-[3px] w-full -translate-y-1/2 overflow-hidden rounded-full bg-slate-100">
               <motion.div
@@ -134,32 +142,25 @@ function StepperDesktop() {
               />
             </div>
             <div className="relative flex justify-between">
-              {STEPS.map((step, index) => {
-                // eslint-disable-next-line react-hooks/rules-of-hooks
-                const dotBg = useTransform(
-                  scrollYProgress,
-                  [RANGE_START + index * FRAC, RANGE_START + index * FRAC + 0.01],
-                  ["#d1d5db", "#ea580c"]
-                )
-                return (
-                  <motion.div
-                    key={step.num}
-                    style={{ background: dotBg }}
-                    className="flex h-7 w-7 items-center justify-center rounded-sm text-xs font-bold text-white shadow-md"
-                  >
-                    {step.num}
-                  </motion.div>
-                )
-              })}
+              {STEPS.map((step, index) => (
+                <div
+                  key={step.num}
+                  className="flex h-7 w-7 items-center justify-center rounded-sm text-xs font-bold text-white shadow-md transition-colors duration-300"
+                  style={{ background: index <= activeIndex ? "#ea580c" : "#d1d5db" }}
+                >
+                  {step.num}
+                </div>
+              ))}
             </div>
           </div>
+
         </div>
       </div>
     </section>
   )
 }
 
-/* ── Public export: renders correct version based on breakpoint ─────────── */
+/* ── Export ──────────────────────────────────────────────────────────────── */
 export default function HowItWorksStepper() {
   const [isMobile, setIsMobile] = useState(false)
 
