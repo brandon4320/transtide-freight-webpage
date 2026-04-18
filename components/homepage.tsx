@@ -208,6 +208,8 @@ export default function Homepage() {
           </div>
         </section>
 
+        <CargoGallery />
+
         <section id="process">
           <HowItWorksStepper />
         </section>
@@ -275,8 +277,6 @@ export default function Homepage() {
             </div>
           </div>
         </section>
-
-        <CargoGallery />
 
         <LocationsSection />
 
@@ -384,7 +384,7 @@ export default function Homepage() {
               <div>
                 <p className="mb-5 text-[11px] font-bold uppercase tracking-[0.1em] text-[#64748b]">Navegación</p>
                 <ul className="flex flex-col gap-3">
-                  {[["#inicio","Inicio"],["#services","Servicios"],["#process","Cómo trabajamos"],["#operations","Operaciones"],["#offices","Oficinas"],["#contact","Contacto"]].map(([h,l]) => (
+                  {[["#inicio","Inicio"],["#services","Servicios"],["#operations","Operaciones"],["#process","Cómo trabajamos"],["#offices","Oficinas"],["#contact","Contacto"]].map(([h,l]) => (
                     <li key={h}>
                       <a href={h} className="text-sm text-[#94a3b8] transition-colors hover:text-white">{l}</a>
                     </li>
