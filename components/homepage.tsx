@@ -126,7 +126,7 @@ export default function Homepage() {
               <div className="flex items-start gap-6">
                 <div className="flex flex-col items-start gap-4 lg:gap-5">
                   <h1 className="text-[clamp(1.9rem,3.8vw,3.2rem)] font-black leading-[1.1] tracking-[-0.03em] text-[#040914]">
-                    Importá con claridad. Sin sorpresas, sin intermediarios innecesarios.
+                    Importá con claridad.<br />Sin sorpresas,<br />sin intermediarios innecesarios.
                   </h1>
 
                   <p className="max-w-[420px] text-[0.95rem] leading-relaxed text-[#4b5563] lg:text-[1.05rem]">
