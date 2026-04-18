@@ -43,7 +43,7 @@ export default function Homepage() {
             >
               {/* Text column */}
               <div className="flex w-full flex-col gap-4 lg:gap-5">
-                <h1 className="text-5xl font-black leading-[1.05] tracking-tight text-[#040914] sm:text-6xl lg:text-[4rem]">
+                <h1 className="text-4xl font-black leading-[1.1] tracking-tighter text-[#040914] sm:text-6xl lg:text-7xl">
                   <span className="block">Importá con claridad.</span>
                   <span className="block">Sin sorpresas,</span>
                   <span className="block">sin intermediarios innecesarios.</span>
