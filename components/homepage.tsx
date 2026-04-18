@@ -124,10 +124,6 @@ export default function Homepage() {
             <div className="grid gap-8 lg:gap-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center" style={{ minHeight: "calc(100vh - 76px)" }}>
               <div className="flex items-start gap-6">
                 <div className="flex flex-col items-start gap-4 lg:gap-5">
-                  <div className="rounded-full border border-[#fed7aa] bg-[rgba(254,215,170,0.1)] px-[14px] py-[6px] text-[11px] font-semibold uppercase tracking-[0.08em] text-[#ea580c]">
-                    Coordinación logística internacional
-                  </div>
-
                   <h1 className="text-[clamp(1.9rem,3.8vw,3.2rem)] font-black leading-[1.1] tracking-[-0.03em] text-[#040914]">
                     Importá con claridad. Sin sorpresas, sin intermediarios innecesarios.
                   </h1>
