@@ -43,13 +43,10 @@ export default function Homepage() {
             >
               {/* Text column */}
               <div className="flex w-full flex-col gap-4 lg:gap-5">
-                <h1
-                  className="font-black text-[#040914]"
-                  style={{ fontSize: "clamp(2.4rem, 3.5vw, 3.4rem)", lineHeight: 1.08, letterSpacing: "-0.03em" }}
-                >
-                  <span style={{ display: "block" }}>Importá con claridad.</span>
-                  <span style={{ display: "block" }}>Sin sorpresas,</span>
-                  <span style={{ display: "block" }}>sin intermediarios innecesarios.</span>
+                <h1 className="text-5xl font-black leading-[1.05] tracking-tight text-[#040914] sm:text-6xl lg:text-[4rem]">
+                  <span className="block">Importá con claridad.</span>
+                  <span className="block">Sin sorpresas,</span>
+                  <span className="block">sin intermediarios innecesarios.</span>
                 </h1>
 
                 <p className="max-w-[420px] text-[0.95rem] leading-relaxed text-[#4b5563] lg:text-[1.05rem]">
