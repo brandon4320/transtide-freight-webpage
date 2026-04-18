@@ -160,11 +160,10 @@ export default function Homepage() {
         <Reveal>
           <section className="border-y border-black/5 bg-white py-10">
             <div className="mx-auto max-w-7xl px-6 md:px-10">
-              <div className="grid grid-cols-2 gap-6 lg:grid-cols-4">
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
                 {[
                   { value: "70%",  label: "De reducción en costos logísticos" },
                   { value: "50+",  label: "Importadores satisfechos" },
-                  { value: "3",    label: "Oficinas globales" },
                   { value: "24/7", label: "Disponibilidad operativa" },
                 ].map(({ value, label }) => (
                   <div key={value} className="flex items-center gap-3">
