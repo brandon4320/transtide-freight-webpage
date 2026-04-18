@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-// ─── Para agregar más imágenes: solo añadí un objeto al array IMAGES ────────
 const IMAGES = [
   { src: "/images/gallery/op1.png",  label: "Excavadora Doosan — importación de maquinaria pesada" },
-  { src: "/images/gallery/op2.jpg",  label: "Minicargadoras XCMG — contenedor FCL desde China" },
+  { src: "/images/gallery/op2.jpg",  label: "Minicargadoras XCMG — contenedor FCL desde China", objectPosition: "center bottom" },
   { src: "/images/gallery/op3.jpg",  label: "Insumos industriales varios — despacho y distribución" },
   { src: "/images/gallery/op4.jpg",  label: "Maquinaria para carpintería — recepción en destino" },
   { src: "/images/gallery/op5.png",  label: "Bomba de hidrolavado — entrega coordinada en planta" },
@@ -19,26 +18,47 @@ const IMAGES = [
 const INTERVAL = 4500;
 
 export default function CargoGallery() {
-  const [current, setCurrent]   = useState(0);
-  const [prev, setPrev]         = useState<number | null>(null);
+  const [current, setCurrent] = useState(0);
   const [animating, setAnimating] = useState(false);
+  const prevRef = useRef<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const goTo = (idx: number) => {
-    if (animating || idx === current) return;
-    setPrev(current);
-    setCurrent(idx);
-    setAnimating(true);
-    setTimeout(() => { setPrev(null); setAnimating(false); }, 600);
-  };
+  const goTo = useCallback((idx: number) => {
+    setCurrent(prev => {
+      if (idx === prev) return prev;
+      prevRef.current = prev;
+      setAnimating(true);
+      setTimeout(() => { prevRef.current = null; setAnimating(false); }, 600);
+      return idx;
+    });
+  }, []);
 
-  const next = () => goTo((current + 1) % IMAGES.length);
-  const back = () => goTo((current - 1 + IMAGES.length) % IMAGES.length);
+  const next = useCallback(() => {
+    setCurrent(prev => {
+      const idx = (prev + 1) % IMAGES.length;
+      prevRef.current = prev;
+      setAnimating(true);
+      setTimeout(() => { prevRef.current = null; setAnimating(false); }, 600);
+      return idx;
+    });
+  }, []);
 
+  const back = useCallback(() => {
+    setCurrent(prev => {
+      const idx = (prev - 1 + IMAGES.length) % IMAGES.length;
+      prevRef.current = prev;
+      setAnimating(true);
+      setTimeout(() => { prevRef.current = null; setAnimating(false); }, 600);
+      return idx;
+    });
+  }, []);
+
+  // Auto-advance — restarts timer every time current changes
   useEffect(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(next, INTERVAL);
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-  }, [current]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [current, next]);
 
   return (
     <section className="border-t border-black/[0.04] bg-transparent py-16 lg:py-24">
@@ -60,14 +80,17 @@ export default function CargoGallery() {
         </div>
 
         {/* Main carousel */}
-        <div className="relative overflow-hidden rounded-3xl bg-slate-100" style={{ height: "clamp(240px, 42vw, 500px)" }}>
+        <div
+          className="relative overflow-hidden rounded-3xl bg-slate-100"
+          style={{ height: "clamp(240px, 42vw, 500px)" }}
+        >
           {IMAGES.map((img, i) => (
             <div
               key={i}
               className="absolute inset-0"
               style={{
                 opacity: i === current ? 1 : 0,
-                zIndex: i === current ? 2 : i === prev ? 1 : 0,
+                zIndex: i === current ? 2 : 0,
                 transition: "opacity 0.6s ease",
                 pointerEvents: i === current ? "auto" : "none",
               }}
@@ -76,14 +99,14 @@ export default function CargoGallery() {
                 src={img.src}
                 alt={img.label}
                 className="h-full w-full object-cover"
+                style={{ objectPosition: img.objectPosition ?? "center center" }}
                 loading={i === 0 ? "eager" : "lazy"}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
               <p className="absolute bottom-5 left-6 text-[12px] font-bold uppercase tracking-[0.08em] text-white/90">
                 {img.label}
               </p>
-              {/* Counter */}
-              <p className="absolute bottom-5 right-6 text-[12px] font-semibold text-white/60">
+              <p className="absolute bottom-5 right-6 text-[12px] font-semibold text-white/50">
                 {i + 1} / {IMAGES.length}
               </p>
             </div>
@@ -104,15 +127,21 @@ export default function CargoGallery() {
             {IMAGES.map((_, i) => (
               <button key={i} onClick={() => goTo(i)} aria-label={`Imagen ${i + 1}`}
                 className="h-1.5 rounded-full transition-all duration-300"
-                style={{ width: i === current ? "20px" : "6px", background: i === current ? "#ea580c" : "rgba(255,255,255,0.45)" }}
+                style={{
+                  width: i === current ? "20px" : "6px",
+                  background: i === current ? "#ea580c" : "rgba(255,255,255,0.45)",
+                }}
               />
             ))}
           </div>
 
           {/* Progress bar */}
           <div className="absolute bottom-0 left-0 right-0 z-10 h-[3px] bg-white/10">
-            <div key={current} className="h-full bg-[#ea580c]"
-              style={{ animation: `galleryProgress ${INTERVAL}ms linear forwards` }} />
+            <div
+              key={current}
+              className="h-full bg-[#ea580c]"
+              style={{ animation: `galleryProgress ${INTERVAL}ms linear forwards` }}
+            />
           </div>
         </div>
 
@@ -121,9 +150,16 @@ export default function CargoGallery() {
           {IMAGES.map((img, i) => (
             <button key={i} onClick={() => goTo(i)}
               className="relative flex-1 overflow-hidden rounded-xl transition-all duration-300"
-              style={{ height: "68px", opacity: i === current ? 1 : 0.4,
-                outline: i === current ? "2px solid #ea580c" : "2px solid transparent", outlineOffset: "2px" }}>
-              <img src={img.src} alt={img.label} className="h-full w-full object-cover" loading="lazy" />
+              style={{
+                height: "68px",
+                opacity: i === current ? 1 : 0.4,
+                outline: i === current ? "2px solid #ea580c" : "2px solid transparent",
+                outlineOffset: "2px",
+              }}>
+              <img src={img.src} alt={img.label}
+                className="h-full w-full object-cover"
+                style={{ objectPosition: img.objectPosition ?? "center center" }}
+                loading="lazy" />
             </button>
           ))}
         </div>
