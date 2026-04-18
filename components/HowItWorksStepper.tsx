@@ -50,17 +50,24 @@ function StepperMobile() {
 function StepperDesktop() {
   const containerRef = useRef<HTMLDivElement>(null)
 
-  // useScroll reads scrollYProgress WITHOUT triggering React re-renders on every px
+  // Con 300vh y offset ["start start","end end"]:
+  // progress 0 = sección entra al viewport (top de sección = top del viewport)
+  // progress 1 = bottom de sección = bottom del viewport
+  // El sticky ocupa 100vh, quedan 200vh de scroll "activo" = 2/3 del total
+  // Los primeros ~0.33 de progreso son antes de que el sticky empiece a scrollear
+  // Ajustamos los rangos para que los 4 steps se distribuyan en [0, 0.92]
+  const RANGE_START = 0.0   // step 1 arranca desde el inicio
+  const RANGE_END   = 0.92  // step 4 completa antes del final
+  const RANGE_TOTAL = RANGE_END - RANGE_START
+  const FRAC = RANGE_TOTAL / STEPS.length // ~0.23 por step
+
   const { scrollYProgress } = useScroll({
     target: containerRef,
     offset: ["start start", "end end"],
   })
 
-  // Bar width: direct CSS transform via motion.div — no useState, no fiber updates
-  const scaleX = useTransform(scrollYProgress, [0, 1], [0, 1])
-
-  // Active step index derived from progress ranges
-  const FRAC = 1 / STEPS.length // 0.25 per step
+  // Bar width driven directly by scroll progress
+  const scaleX = useTransform(scrollYProgress, [RANGE_START, RANGE_END], [0, 1])
 
   return (
     <section
@@ -82,8 +89,8 @@ function StepperDesktop() {
 
           <div className="grid grid-cols-4 gap-5">
             {STEPS.map((step, index) => {
-              const start = index * FRAC
-              const end   = start + FRAC * 0.7
+              const start = RANGE_START + index * FRAC
+              const end   = start + FRAC * 0.75
 
               // useTransform writes directly to CSS — zero React re-renders on scroll
               // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -131,7 +138,7 @@ function StepperDesktop() {
                 // eslint-disable-next-line react-hooks/rules-of-hooks
                 const dotBg = useTransform(
                   scrollYProgress,
-                  [index * FRAC, index * FRAC + 0.01],
+                  [RANGE_START + index * FRAC, RANGE_START + index * FRAC + 0.01],
                   ["#d1d5db", "#ea580c"]
                 )
                 return (
