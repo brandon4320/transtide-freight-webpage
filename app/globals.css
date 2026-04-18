@@ -2163,6 +2163,12 @@ html {
   z-index: -1;
   overflow: hidden;
   pointer-events: none;
+  display: none; /* hidden on mobile */
+}
+@media (min-width: 1024px) {
+  .bg-squares {
+    display: block;
+  }
 }
 .bg-squares .sq {
   position: absolute;
