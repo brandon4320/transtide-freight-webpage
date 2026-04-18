@@ -4,16 +4,16 @@ import { useEffect, useRef, useState } from "react";
 
 // ─── Para agregar más imágenes: solo añadí un objeto al array IMAGES ────────
 const IMAGES = [
-  { src: "/images/gallery/op1.png",  label: "Maquinaria pesada — despacho nocturno" },
-  { src: "/images/gallery/op2.jpg",  label: "Minis skid steer — contenedor FCL" },
-  { src: "/images/gallery/op3.jpg",  label: "Descarga en depósito — Bahía Blanca" },
-  { src: "/images/gallery/op4.jpg",  label: "Recepción de carga — operación interior" },
-  { src: "/images/gallery/op5.png",  label: "Izaje de contenedor — entrega en destino" },
-  { src: "/images/gallery/op6.png",  label: "Telehandler UASC — descarga en planta" },
-  { src: "/images/gallery/op7.png",  label: "Maquinaria XCMG — flat rack desde China" },
-  { src: "/images/gallery/op8.png",  label: "Grúa hidráulica — transporte especial" },
-  { src: "/images/gallery/op9.png",  label: "Carga general — plataforma doble" },
-  { src: "/images/gallery/op10.png", label: "Maquinaria industrial — desconsolidación" },
+  { src: "/images/gallery/op1.png",  label: "Excavadora Doosan — importación de maquinaria pesada" },
+  { src: "/images/gallery/op2.jpg",  label: "Minicargadoras XCMG — contenedor FCL desde China" },
+  { src: "/images/gallery/op3.jpg",  label: "Insumos industriales varios — despacho y distribución" },
+  { src: "/images/gallery/op4.jpg",  label: "Maquinaria para carpintería — recepción en destino" },
+  { src: "/images/gallery/op5.png",  label: "Bomba de hidrolavado — entrega coordinada en planta" },
+  { src: "/images/gallery/op6.png",  label: "Equipamiento de gimnasio — importación comercial" },
+  { src: "/images/gallery/op7.png",  label: "Retroexcavadora y pala cargadora — flat rack desde origen" },
+  { src: "/images/gallery/op8.png",  label: "Grúa de 80 toneladas — transporte especial sobredimensionado" },
+  { src: "/images/gallery/op9.png",  label: "Módulos habitacionales — logística de carga voluminosa" },
+  { src: "/images/gallery/op10.png", label: "Maquinaria metalúrgica — desconsolidación y entrega final" },
 ];
 
 const INTERVAL = 4500;
