@@ -2202,3 +2202,75 @@ html {
     transform: scaleX(0) !important; /* Ocultar indicador de hover */
   }
 }
+
+/* ── Background squares ─────────────────────────────────────────────────── */
+.bg-squares {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+.bg-squares .sq {
+  position: absolute;
+  border-radius: 12px;
+  background: rgba(29, 45, 95, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), 0 8px 24px rgba(15, 23, 42, 0.04);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  animation: floatSq 20s infinite alternate ease-in-out;
+}
+.bg-squares .sq-1  { left: 2%;    top: 26px;    width: 60px;  height: 60px;  animation-delay: -2s;  }
+.bg-squares .sq-2  { left: 4.8%;  top: 24px;    width: 84px;  height: 84px;  animation-delay: -6s;  }
+.bg-squares .sq-3  { left: 5%;    top: 68px;    width: 108px; height: 108px; animation-delay: -10s; }
+.bg-squares .sq-4  { left: 10%;   top: 158px;   width: 52px;  height: 52px;  animation-delay: -14s; }
+.bg-squares .sq-5  { left: 28%;   top: 20px;    width: 58px;  height: 58px;  animation-delay: -4s;  }
+.bg-squares .sq-6  { left: 30%;   top: 64px;    width: 84px;  height: 84px;  animation-delay: -9s;  }
+.bg-squares .sq-7  { left: 32%;   top: 116px;   width: 42px;  height: 42px;  animation-delay: -12s; }
+.bg-squares .sq-8  { right: 28%;  top: 18px;    width: 60px;  height: 60px;  animation-delay: -7s;  }
+.bg-squares .sq-9  { right: 24.5%;top: 32px;    width: 68px;  height: 68px;  animation-delay: -11s; }
+.bg-squares .sq-10 { right: 22.5%;top: 42px;    width: 68px;  height: 68px;  animation-delay: -15s; }
+.bg-squares .sq-11 { right: 11.5%;top: 34px;    width: 84px;  height: 84px;  animation-delay: -5s;  }
+.bg-squares .sq-12 { right: 8.6%; top: 82px;    width: 60px;  height: 60px;  animation-delay: -13s; }
+.bg-squares .sq-13 { left: 10%;   bottom: 142px;width: 42px;  height: 42px;  animation-delay: -8s;  }
+.bg-squares .sq-14 { left: 22%;   bottom: 92px; width: 58px;  height: 58px;  animation-delay: -16s; }
+.bg-squares .sq-15 { left: 25.2%; bottom: 68px; width: 50px;  height: 50px;  animation-delay: -3s;  }
+.bg-squares .sq-16 { right: 14%;  bottom: 142px;width: 60px;  height: 60px;  animation-delay: -18s; }
+.bg-squares .sq-17 { right: 9%;   bottom: 92px; width: 68px;  height: 68px;  animation-delay: -1s;  }
+
+@keyframes floatSq {
+  from { transform: translateY(0px) rotate(0deg); }
+  to   { transform: translateY(-40px) rotate(10deg); }
+}
+
+/* ── Button shine animation ─────────────────────────────────────────────── */
+@keyframes btnShine {
+  0%   { left: -100%; opacity: 0; }
+  10%  { opacity: 1; }
+  50%  { left: 120%; opacity: 1; }
+  51%  { opacity: 0; }
+  100% { left: 120%; opacity: 0; }
+}
+.btn-shine {
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+  transform: skewX(-20deg);
+  animation: btnShine 3.5s ease-in-out infinite;
+}
+
+/* ── Globe fade-in ──────────────────────────────────────────────────────── */
+@keyframes globeFadeIn {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* ── Gallery progress bar ───────────────────────────────────────────────── */
+@keyframes galleryProgress {
+  from { width: 0% }
+  to   { width: 100% }
+}
