@@ -29,7 +29,7 @@ export default function Homepage() {
       </div>
 
       {/* PASO 3 — overflow-x-clip retained (not hidden) */}
-      <main className="relative z-[1] min-h-screen overflow-x-clip bg-transparent text-[#0b1120]">
+      <main className="relative z-[1] min-h-screen overflow-x-visible lg:overflow-x-clip bg-transparent text-[#0b1120]">
 
         {/* ── HERO ─────────────────────────────────────────────────────── */}
         <section id="inicio" className="relative border-b border-black/[0.05]" style={{ overflow: "visible" }}>
@@ -69,7 +69,7 @@ export default function Homepage() {
 
               {/* Globe column */}
               <div className="flex items-center justify-center" style={{ overflow: "visible" }}>
-                <div className="w-[220px] h-[220px] sm:w-[300px] sm:h-[300px] lg:w-full lg:h-auto lg:max-w-[560px]" style={{ overflow: "visible" }}>
+                <div className="w-[300px] h-[300px] sm:w-[360px] sm:h-[360px] lg:w-full lg:h-auto lg:max-w-[560px]" style={{ overflow: "visible" }}>
                   <GlobeHero />
                 </div>
               </div>
