@@ -232,7 +232,7 @@ export default function Homepage() {
                   {
                     country: "China",
                     city: "Shanghai",
-                    address: "Waigaoqiao Free Trade Zone, Pudong",
+                    address: "Room 205, West Zone, 2nd Floor, No. 707 Zhangyang Road, China (Shanghai) Pilot Free Trade Zone",
                     phone: null,
                     phoneHref: null,
                     role: "Oficina Asia",
