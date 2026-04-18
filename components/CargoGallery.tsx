@@ -108,10 +108,12 @@ export default function CargoGallery() {
           {/* Dots — mobile only, centered at bottom */}
           <div className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 lg:hidden">
             {IMAGES.map((_, i) => (
-              <button key={i} onClick={() => goTo(i)} aria-label={`Imagen ${i + 1}`}
-                className="h-1.5 rounded-full transition-all duration-300"
+              <div key={i} onClick={() => goTo(i)} role="button" aria-label={`Imagen ${i + 1}`}
+                className="rounded-full transition-all duration-300 cursor-pointer"
                 style={{
                   width: i === current ? "18px" : "5px",
+                  height: "6px",
+                  minHeight: "unset",
                   background: i === current ? "#ea580c" : "rgba(255,255,255,0.5)",
                 }}
               />
@@ -121,10 +123,12 @@ export default function CargoGallery() {
           {/* Dots — desktop, above label */}
           <div className="absolute bottom-4 left-6 z-10 hidden lg:flex items-center gap-1.5">
             {IMAGES.map((_, i) => (
-              <button key={i} onClick={() => goTo(i)} aria-label={`Imagen ${i + 1}`}
-                className="h-1.5 rounded-full transition-all duration-300"
+              <div key={i} onClick={() => goTo(i)} role="button" aria-label={`Imagen ${i + 1}`}
+                className="rounded-full transition-all duration-300 cursor-pointer"
                 style={{
                   width: i === current ? "20px" : "6px",
+                  height: "6px",
+                  minHeight: "unset",
                   background: i === current ? "#ea580c" : "rgba(255,255,255,0.45)",
                 }}
               />
