@@ -35,10 +35,10 @@ export default function Homepage() {
         <section id="inicio" className="relative border-b border-black/[0.05]" style={{ overflow: "visible" }}>
           <div
             className="relative z-[1] mx-auto w-full max-w-7xl px-6 md:px-10 lg:px-10"
-            style={{ paddingTop: "clamp(2rem, 4vh, 3rem)", paddingBottom: "clamp(2rem, 4vh, 3rem)" }}
+            style={{ paddingTop: "clamp(1rem, 3vh, 3rem)", paddingBottom: "clamp(1rem, 3vh, 3rem)" }}
           >
             <div
-              className="grid gap-4 lg:gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-center lg:min-h-[calc(100vh-76px)]"
+              className="grid gap-2 lg:gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-center lg:min-h-[calc(100vh-76px)]"
             >
               {/* Text column */}
               <div className="flex w-full flex-col gap-4 lg:gap-5">
@@ -69,7 +69,7 @@ export default function Homepage() {
 
               {/* Globe column */}
               <div className="flex items-center justify-center" style={{ overflow: "visible" }}>
-                <div className="w-full max-w-[280px] sm:max-w-[340px] lg:max-w-[560px]" style={{ overflow: "visible" }}>
+                <div className="w-[220px] h-[220px] sm:w-[300px] sm:h-[300px] lg:w-full lg:h-auto lg:max-w-[560px]" style={{ overflow: "visible" }}>
                   <GlobeHero />
                 </div>
               </div>

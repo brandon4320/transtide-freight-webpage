@@ -251,7 +251,7 @@ export default function GlobeHero() {
 
   return (
     <>
-    <div className="relative w-full aspect-square flex items-center justify-center" style={{ overflow: "visible" }}>
+    <div className="relative w-full h-full aspect-square flex items-center justify-center" style={{ overflow: "visible" }}>
       <div className="relative w-[90%] h-[90%]" style={{ animation: "globeFadeIn 0.8s cubic-bezier(.2,0,.2,1) both", overflow: "visible" }}>
         <canvas
           ref={canvasRef}
