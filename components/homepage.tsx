@@ -5,6 +5,7 @@ import Image from "next/image"
 import GlobeHero from "@/components/GlobeHero"
 import HowItWorksStepper from "@/components/HowItWorksStepper"
 import LocationsSection from "@/components/LocationsSection"
+import CargoGallery from "@/components/CargoGallery"
 import {
   Check,
   Globe,
@@ -274,6 +275,8 @@ export default function Homepage() {
             </div>
           </div>
         </section>
+
+        <CargoGallery />
 
         <LocationsSection />
 
