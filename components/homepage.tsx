@@ -122,12 +122,12 @@ export default function Homepage() {
       <main className="relative z-[1] min-h-screen overflow-x-clip bg-transparent text-[#0b1120]">
         <section id="inicio" className="relative border-b border-black/[0.05]">
           <div className="relative z-[1] mx-auto w-full max-w-7xl px-6 md:px-10 lg:px-16" style={{ paddingTop: "clamp(2rem, 4vh, 3rem)", paddingBottom: "clamp(2rem, 4vh, 3rem)" }}>
-            <div className="grid gap-8 lg:gap-4 lg:grid-cols-[0.8fr_1.2fr] lg:items-center" style={{ minHeight: "calc(100vh - 76px)" }}>
+            <div className="grid gap-8 lg:gap-4 lg:grid-cols-[1fr_1fr] lg:items-center" style={{ minHeight: "calc(100vh - 76px)" }}>
               <div className="flex w-full flex-col gap-4 lg:gap-5">
                   <h1
                     className="font-black text-[#040914]"
                     style={{
-                      fontSize: "clamp(2.4rem, 4vw, 3.6rem)",
+                      fontSize: "clamp(2.4rem, 3.5vw, 3.4rem)",
                       lineHeight: 1.08,
                       letterSpacing: "-0.03em",
                     }}
