@@ -348,18 +348,96 @@ export default function Homepage() {
           </div>
         </section>
 
-        <footer className="border-t border-slate-200 bg-transparent">
-          <div className="container mx-auto px-6 py-10 md:px-10">
-            <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+        <footer className="bg-gradient-to-br from-[#0d1b35] to-[#0b1120] text-white">
+          {/* Top strip — CTA */}
+          <div className="border-b border-white/[0.07]">
+            <div className="container mx-auto flex flex-col items-start justify-between gap-6 px-6 py-10 md:flex-row md:items-center md:px-10">
               <div>
-                <p className="text-lg font-semibold text-[#040914]">Transtide Freight</p>
-                <p className="mt-1 text-sm text-slate-600">Tu operación de importación, de principio a fin.</p>
+                <p className="text-xl font-bold text-white">¿Tenés una importación en mente?</p>
+                <p className="mt-1 text-sm text-[#94a3b8]">Hablemos antes de que empiece la operación.</p>
               </div>
-              <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-600">
-                {[["#services", "Servicios"], ["#process", "Cómo trabajamos"], ["#operations", "Operaciones"], ["#offices", "Oficinas"], ["#contact", "Contacto"]].map(([h, l]) => (
-                  <a key={h} href={h} className="transition-colors hover:text-slate-950">{l}</a>
-                ))}
+              <a
+                href="#contact"
+                className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-[#ea580c] px-6 py-3 text-sm font-semibold text-white shadow-[0_4px_16px_rgba(234,88,12,0.3)] transition-colors hover:bg-[#d04b06]"
+              >
+                Cotizar operación
+                <ArrowRight className="h-4 w-4" />
+              </a>
+            </div>
+          </div>
+
+          {/* Main footer body */}
+          <div className="container mx-auto px-6 py-14 md:px-10">
+            <div className="grid gap-12 md:grid-cols-2 lg:grid-cols-4">
+
+              {/* Col 1 — Brand */}
+              <div className="lg:col-span-1">
+                <p className="mb-3 text-xl font-black tracking-tight text-white">TRANSTIDE<span className="text-[#ea580c]">.</span></p>
+                <p className="mb-6 max-w-[220px] text-sm leading-relaxed text-[#94a3b8]">
+                  Tu operación de importación, de principio a fin.
+                </p>
+                <div className="flex flex-col gap-2">
+                  <a href="https://wa.me/5491144394020" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm text-[#94a3b8] transition-colors hover:text-white">
+                    <Phone className="h-4 w-4 text-[#ea580c]" />
+                    +54 9 11 4439-4020
+                  </a>
+                  <a href="https://wa.me/5491144394020" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm text-[#94a3b8] transition-colors hover:text-white">
+                    <svg className="h-4 w-4 text-[#ea580c]" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.126 1.533 5.856L.057 23.386l5.683-1.448A11.934 11.934 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.805 9.805 0 01-5.032-1.388l-.36-.214-3.733.952.983-3.627-.235-.373A9.793 9.793 0 012.182 12C2.182 6.57 6.57 2.182 12 2.182S21.818 6.57 21.818 12 17.43 21.818 12 21.818z"/></svg>
+                    WhatsApp directo
+                  </a>
+                </div>
               </div>
+
+              {/* Col 2 — Navegación */}
+              <div>
+                <p className="mb-5 text-[11px] font-bold uppercase tracking-[0.1em] text-[#64748b]">Navegación</p>
+                <ul className="flex flex-col gap-3">
+                  {[["#inicio","Inicio"],["#services","Servicios"],["#process","Cómo trabajamos"],["#operations","Operaciones"],["#offices","Oficinas"],["#contact","Contacto"]].map(([h,l]) => (
+                    <li key={h}>
+                      <a href={h} className="text-sm text-[#94a3b8] transition-colors hover:text-white">{l}</a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Col 3 — Servicios */}
+              <div>
+                <p className="mb-5 text-[11px] font-bold uppercase tracking-[0.1em] text-[#64748b]">Modalidades</p>
+                <ul className="flex flex-col gap-3">
+                  {["Marítimo FCL","Marítimo LCL","Carga aérea","Courier / Express","Operación puerta a puerta"].map(s => (
+                    <li key={s} className="text-sm text-[#94a3b8]">{s}</li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Col 4 — Oficinas */}
+              <div>
+                <p className="mb-5 text-[11px] font-bold uppercase tracking-[0.1em] text-[#64748b]">Oficinas</p>
+                <ul className="flex flex-col gap-5">
+                  {[
+                    { flag: "🇦🇷", city: "Bahía Blanca", detail: "Argentina" },
+                    { flag: "🇺🇸", city: "Miami, FL", detail: "Estados Unidos" },
+                    { flag: "🇨🇳", city: "Shanghai", detail: "China" },
+                  ].map(o => (
+                    <li key={o.city} className="flex items-center gap-3">
+                      <span className="text-xl leading-none">{o.flag}</span>
+                      <div>
+                        <p className="text-sm font-semibold text-white">{o.city}</p>
+                        <p className="text-[12px] text-[#64748b]">{o.detail}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+            </div>
+          </div>
+
+          {/* Bottom bar */}
+          <div className="border-t border-white/[0.06]">
+            <div className="container mx-auto flex flex-col items-center justify-between gap-3 px-6 py-5 md:flex-row md:px-10">
+              <p className="text-[12px] text-[#475569]">© {new Date().getFullYear()} Transtide Freight. Todos los derechos reservados.</p>
+              <p className="text-[12px] text-[#475569]">Importaciones internacionales · Argentina · EE.UU. · China</p>
             </div>
           </div>
         </footer>
