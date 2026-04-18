@@ -121,14 +121,14 @@ export default function Homepage() {
       <main className="relative z-[1] min-h-screen overflow-x-clip bg-transparent text-[#0b1120]">
         <section id="inicio" className="relative border-b border-black/[0.05]">
           <div className="container relative z-[1] mx-auto px-6 md:px-10" style={{ paddingTop: "clamp(2rem, 4vh, 3rem)", paddingBottom: "clamp(2rem, 4vh, 3rem)" }}>
-            <div className="grid gap-8 lg:gap-16 lg:grid-cols-[1fr_1fr] lg:items-center" style={{ minHeight: "calc(100vh - 76px)" }}>
+            <div className="grid gap-8 lg:gap-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center" style={{ minHeight: "calc(100vh - 76px)" }}>
               <div className="flex items-start gap-6">
                 <div className="flex flex-col items-start gap-4 lg:gap-5">
                   <div className="rounded-full border border-[#fed7aa] bg-[rgba(254,215,170,0.1)] px-[14px] py-[6px] text-[11px] font-semibold uppercase tracking-[0.08em] text-[#ea580c]">
                     Coordinación logística internacional
                   </div>
 
-                  <h1 className="text-[clamp(2.2rem,7vw,4rem)] font-black leading-[1.08] tracking-[-0.04em] text-[#040914]">
+                  <h1 className="text-[clamp(1.9rem,3.8vw,3.2rem)] font-black leading-[1.1] tracking-[-0.03em] text-[#040914]">
                     Importá con claridad. Sin sorpresas, sin intermediarios innecesarios.
                   </h1>
 

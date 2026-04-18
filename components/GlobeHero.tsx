@@ -255,7 +255,7 @@ export default function GlobeHero() {
       <div className="relative w-[90%] h-[90%]" style={{ animation: "globeFadeIn 0.8s cubic-bezier(.2,0,.2,1) both", overflow: "visible" }}>
         <canvas
           ref={canvasRef}
-          className="relative z-10 w-full h-full cursor-grab active:cursor-grabbing rounded-full shadow-[0_30px_60px_rgba(0,0,0,0.06)]"
+          className="relative z-10 w-full h-full cursor-grab active:cursor-grabbing rounded-full"
         />
         <svg
           ref={svgRef}
