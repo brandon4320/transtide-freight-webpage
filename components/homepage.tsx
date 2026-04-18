@@ -39,11 +39,11 @@ export default function Homepage() {
           >
             <div
               className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-center"
-              style={{ minHeight: "auto" }}
+              style={{ minHeight: "calc(100vh - 76px)" }}
             >
               {/* Text column */}
               <div className="flex w-full flex-col gap-4 lg:gap-5">
-                <h1 className="text-[1.8rem] font-black leading-[1.1] tracking-tighter text-[#040914] sm:text-5xl lg:text-5xl xl:text-6xl">
+                <h1 className="text-[2rem] font-black leading-[1.1] tracking-tighter text-[#040914] sm:text-5xl lg:text-5xl xl:text-6xl">
                   <span className="block text-[#ea580c]">Importá con claridad.</span>
                   <span className="block">Sin sorpresas,</span>
                   <span className="block">sin intermediarios innecesarios.</span>
@@ -70,7 +70,7 @@ export default function Homepage() {
 
               {/* Globe column */}
               <div className="flex items-center justify-center">
-                <div className="w-full max-w-[300px] sm:max-w-[380px] lg:max-w-[560px]" style={{ overflow: "visible" }}>
+                <div className="w-full max-w-[420px] lg:max-w-[560px]" style={{ overflow: "visible" }}>
                   <GlobeHero />
                 </div>
               </div>
@@ -82,14 +82,14 @@ export default function Homepage() {
         <Reveal>
           <section className="border-y border-black/5 bg-white py-10">
             <div className="mx-auto max-w-7xl px-6 md:px-10">
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
                 {[
                   { value: "70%",  label: "De reducción en costos logísticos" },
                   { value: "50+",  label: "Importadores satisfechos" },
                   { value: "24/7", label: "Disponibilidad operativa" },
                 ].map(({ value, label }) => (
                   <div key={value} className="flex items-center gap-3">
-                    <span className="shrink-0 font-black leading-none text-[#ea580c] text-[2rem] sm:text-[2.5rem] lg:text-[4rem]">
+                    <span className="shrink-0 font-black leading-none text-[#ea580c]" style={{ fontSize: "clamp(2.5rem, 5vw, 4rem)" }}>
                       {value}
                     </span>
                     <span className="text-[11px] font-bold uppercase leading-[1.4] tracking-[0.06em] text-slate-700">
@@ -241,7 +241,7 @@ export default function Homepage() {
                 ].map((o, i) => (
                   <div
                     key={o.country}
-                    className="group cursor-default rounded-3xl border border-black/[0.06] bg-white p-6 lg:p-8 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.06)] transition-all duration-300 hover:border-[#ea580c]/20 hover:shadow-[0_12px_40px_-8px_rgba(234,88,12,0.10)] hover:translate-y-[-4px]"
+                    className="group cursor-default rounded-3xl border border-black/[0.06] bg-white p-8 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.06)] transition-all duration-300 hover:border-[#ea580c]/20 hover:shadow-[0_12px_40px_-8px_rgba(234,88,12,0.10)] hover:translate-y-[-4px]"
                   >
                     {/* Top row */}
                     <div className="mb-6 flex items-center justify-between">
@@ -290,7 +290,7 @@ export default function Homepage() {
         {/* ── CONTACT ──────────────────────────────────────────────────── */}
         <section id="contact" className="border-t border-black/[0.05] bg-transparent py-16 lg:py-28">
           <div className="container mx-auto px-6 md:px-10">
-            <div className="grid gap-8 lg:gap-12 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
+            <div className="grid gap-12 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
               <Reveal>
                 <div className="max-w-xl">
                   <p className="mb-4 text-sm font-semibold uppercase tracking-[0.18em] text-[#ea580c]">Contacto</p>
@@ -357,7 +357,7 @@ export default function Homepage() {
           </div>
 
           <div className="container mx-auto px-6 py-14 md:px-10">
-            <div className="grid grid-cols-2 gap-8 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-12 md:grid-cols-2 lg:grid-cols-4">
               <div className="lg:col-span-1">
                 <p className="mb-3 text-xl font-black tracking-tight text-white">TRANSTIDE<span className="text-[#ea580c]">.</span></p>
                 <p className="mb-6 max-w-[220px] text-sm leading-relaxed text-[#94a3b8]">Tu operación de importación, de principio a fin.</p>
