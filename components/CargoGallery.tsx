@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 const IMAGES = [
   { src: "/images/gallery/op1.png",  label: "Excavadora Doosan — importación de maquinaria pesada" },
-  { src: "/images/gallery/op2.jpg",  label: "Minicargadoras XCMG — contenedor FCL desde China", objectPosition: "center bottom" },
+  { src: "/images/gallery/op2.jpg",  label: "Minicargadoras XCMG — contenedor FCL desde China", objectPosition: "center 60%" },
   { src: "/images/gallery/op3.jpg",  label: "Insumos industriales varios — despacho y distribución" },
   { src: "/images/gallery/op4.jpg",  label: "Maquinaria para carpintería — recepción en destino" },
   { src: "/images/gallery/op5.png",  label: "Bomba de hidrolavado — entrega coordinada en planta" },
