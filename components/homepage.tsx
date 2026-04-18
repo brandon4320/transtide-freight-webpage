@@ -196,10 +196,10 @@ export default function Homepage() {
                 Cubrimos cada etapa de la importación para que llegues al final sin desvíos ni fricciones.
               </p>
             </Reveal>
-            <div className="grid gap-8 lg:grid-cols-3">
+            <div className="grid items-stretch gap-8 lg:grid-cols-3">
               {services.map((s, i) => (
-                <Reveal key={s.title} delay={i * 100}>
-                  <div className="cursor-default rounded-3xl border border-black/[0.04] bg-white/78 p-12 text-center shadow-[0_12px_32px_-12px_rgba(0,0,0,0.05)] backdrop-blur-[3px] transition-all duration-300 hover:translate-y-[-8px] hover:border-[rgba(234,88,12,0.15)] hover:shadow-[0_20px_48px_-12px_rgba(0,0,0,0.08)]">
+                <Reveal key={s.title} delay={i * 100} className="h-full">
+                  <div className="flex h-full cursor-default flex-col rounded-3xl border border-black/[0.04] bg-white/78 p-12 text-center shadow-[0_12px_32px_-12px_rgba(0,0,0,0.05)] backdrop-blur-[3px] transition-all duration-300 hover:translate-y-[-8px] hover:border-[rgba(234,88,12,0.15)] hover:shadow-[0_20px_48px_-12px_rgba(0,0,0,0.08)]">
                     <div className="mb-6 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-[rgba(234,88,12,0.08)] text-[#ea580c]">
                       {s.icon}
                     </div>
