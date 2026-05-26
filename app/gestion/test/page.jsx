@@ -586,121 +586,190 @@ function CategoryEditor({ cat, rows: initRows, onChange, onClose }) {
 
 // ─── Expanded provider row ───────────────────────────────────────────────
 function ExpandedDetail({ p, clientes, onUpdProveedor, onUpdCobrar, onToggleCobrado, onRemove }) {
-  const LBL = { fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }
+  const LBL  = { fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }
+  const SEC  = { fontSize: '0.65rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }
+  const HINT = { fontSize: '0.65rem', color: '#94a3b8', fontStyle: 'italic', marginTop: 3 }
+  const CALC = { fontSize: '0.7rem', color: '#059669', fontWeight: 600, marginTop: 3, fontVariantNumeric: 'tabular-nums' }
+
+  const vepPesos = n(p.tributosUSD) * n(p.tributosTC)
+  const hasVepBoth = n(p.tributosUSD) > 0 && n(p.tributosTC) > 0
+
   return (
     <div style={{ paddingTop: '0.6rem' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1.05fr 1fr 1fr', gap: '0.85rem', alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr', gap: '0.85rem', alignItems: 'start' }}>
 
-        {/* ── Datos del proveedor ── */}
-        <div style={{ background: '#fff', border: '1px solid #e8ecf1', borderRadius: 8, padding: '0.85rem 1rem' }}>
-          <p style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Datos del proveedor</p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <div style={{ gridColumn: '1 / -1' }}>
-              <p style={LBL}>Nombre</p>
-              <input value={p.nombre || ''} onChange={e => onUpdProveedor('nombre', e.target.value)} style={INP} placeholder="Nombre" />
-            </div>
-            <div>
-              <p style={LBL}>Tipo</p>
-              <div style={{ display: 'flex', gap: 4 }}>
-                {['Cliente', 'Propio'].map(t => {
-                  const sel = (p.tipo || 'Cliente') === t
-                  return (
-                    <button key={t} onClick={() => onUpdProveedor('tipo', t)} style={{ flex: 1, padding: '0.35rem', borderRadius: 6, border: `1px solid ${sel ? '#cbd5e1' : 'transparent'}`, background: sel ? '#fff' : '#f8fafc', fontSize: '0.72rem', fontWeight: 600, color: sel ? '#374151' : '#94a3b8', cursor: 'pointer', boxShadow: sel ? '0 1px 2px rgba(0,0,0,0.06)' : 'none' }}>{t}</button>
-                  )
-                })}
-              </div>
-            </div>
-            {(p.tipo || 'Cliente') === 'Cliente' && (
+        {/* ════════ LEFT: input fields, semantically grouped ════════ */}
+        <div style={{ background: '#fff', border: '1px solid #e8ecf1', borderRadius: 8, padding: '1rem 1.1rem' }}>
+
+          {/* ── Identidad ── */}
+          <div style={{ marginBottom: 18 }}>
+            <p style={SEC}><span style={{ width: 4, height: 4, borderRadius: '50%', background: '#94a3b8' }} /> Identidad</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.3fr 1.7fr', gap: 10 }}>
               <div>
-                <p style={LBL}>Cliente</p>
-                <select value={p.clienteId || ''} onChange={e => onUpdProveedor('clienteId', e.target.value)} style={{ ...INP, cursor: 'pointer' }}>
-                  <option value="">— Seleccionar —</option>
-                  {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                </select>
-              </div>
-            )}
-            <div>
-              <p style={LBL}>m³ (CBM)</p>
-              <input type="number" step="any" value={p.m3 || ''} onChange={e => onUpdProveedor('m3', e.target.value)} style={{ ...INP, textAlign: 'right' }} placeholder="" />
-            </div>
-            <div>
-              <p style={LBL}>FOB USD</p>
-              <input type="number" step="any" value={p.fobUSD || ''} onChange={e => onUpdProveedor('fobUSD', e.target.value)} style={{ ...INP, textAlign: 'right' }} placeholder="" />
-            </div>
-            <div>
-              <p style={LBL}>Gs. Origen USD</p>
-              <input type="number" step="any" value={p.gastosOrigenUSD || ''} onChange={e => onUpdProveedor('gastosOrigenUSD', e.target.value)} style={{ ...INP, textAlign: 'right' }} placeholder="" />
-            </div>
-            <div>
-              <p style={LBL}>VEP USD</p>
-              <input type="number" step="any" value={p.tributosUSD || ''} onChange={e => onUpdProveedor('tributosUSD', e.target.value)} style={{ ...INP, textAlign: 'right' }} placeholder="" />
-            </div>
-            <div>
-              <p style={LBL}>VEP T.C.</p>
-              <input type="number" step="any" value={p.tributosTC || ''} onChange={e => onUpdProveedor('tributosTC', e.target.value)} style={{ ...INP, textAlign: 'right' }} placeholder="" />
-            </div>
-          </div>
-          <button onClick={onRemove} style={{ marginTop: 12, background: 'none', border: 'none', color: '#dc2626', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}>Eliminar proveedor</button>
-        </div>
-
-        {/* ── Desglose del costo ── */}
-        <div style={{ background: '#fff', border: '1px solid #e8ecf1', borderRadius: 8, padding: '0.85rem 1rem' }}>
-          <p style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Desglose del costo</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 7, fontSize: '0.78rem' }}>
-            <Row label="Prorrateo (por m³)" val={fmtP(p.prorPesos)} muted />
-            <Row label="VEP Aduana" val={fmtP(p.vepPesos)} muted />
-            <div style={{ height: 1, background: '#f1f5f9', margin: '4px 0' }} />
-            <Row label="Costo final (pesos)" val={fmtP(p.costoFinal)} bold />
-            <Row label={`÷ TC ${p.tcUsed || '—'}`} val={fmtU(p.gastosUSD)} muted />
-            {p.origenUSD > 0 && <Row label="+ Gastos de origen" val={fmtU(p.origenUSD)} muted />}
-            {p.cb.honorarios && <Row label="+ Honorarios (4%)" val={fmtU(p.honorarios)} muted />}
-            {n(p.cb.despAdic) > 0 && <Row label="+ Desp. adicional" val={fmtU(n(p.cb.despAdic))} muted />}
-            <div style={{ height: 1, background: '#f1f5f9', margin: '4px 0' }} />
-            <Row label="TOTAL a cobrar" val={fmtU(p.totalUSD)} accent />
-          </div>
-        </div>
-
-        {/* ── Ajustes de cobro ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ background: '#fff', border: '1px solid #e8ecf1', borderRadius: 8, padding: '0.85rem 1rem' }}>
-            <p style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Ajustes de cobro</p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <div>
-                <p style={LBL}>T.C. conversión</p>
-                <input type="number" step="any" value={p.cb.tc || ''} onChange={e => onUpdCobrar('tc', e.target.value)} placeholder={p.tributosTC ? `${p.tributosTC} (auto)` : '—'} style={{ ...INP, textAlign: 'right' }} />
+                <p style={LBL}>Nombre</p>
+                <input value={p.nombre || ''} onChange={e => onUpdProveedor('nombre', e.target.value)} style={INP} placeholder="Ej: Gimnasio Marce" />
               </div>
               <div>
-                <p style={LBL}>Desp. adicional (USD)</p>
-                <input type="number" step="any" value={p.cb.despAdic || ''} onChange={e => onUpdCobrar('despAdic', e.target.value)} placeholder="" style={{ ...INP, textAlign: 'right' }} />
-              </div>
-              <div style={{ gridColumn: '1 / -1' }}>
-                <p style={LBL}>Honorarios 4%</p>
-                <div style={{ display: 'flex', gap: 4 }}>
-                  {['Sí', 'No'].map(opt => {
-                    const sel = (opt === 'Sí') === !!p.cb.honorarios
+                <p style={LBL}>Tipo</p>
+                <div style={{ display: 'flex', gap: 0, background: '#f1f5f9', padding: 3, borderRadius: 6 }}>
+                  {['Cliente', 'Propio'].map(t => {
+                    const sel = (p.tipo || 'Cliente') === t
                     return (
-                      <button key={opt} onClick={() => onUpdCobrar('honorarios', opt === 'Sí')} style={{ flex: 1, padding: '0.35rem', borderRadius: 6, border: `1px solid ${sel ? '#cbd5e1' : 'transparent'}`, background: sel ? '#fff' : '#f8fafc', fontSize: '0.72rem', fontWeight: 600, color: sel ? '#374151' : '#94a3b8', cursor: 'pointer', boxShadow: sel ? '0 1px 2px rgba(0,0,0,0.06)' : 'none' }}>{opt}</button>
+                      <button key={t} onClick={() => onUpdProveedor('tipo', t)}
+                        style={{ flex: 1, padding: '0.35rem 0', borderRadius: 4, border: 'none', background: sel ? '#fff' : 'transparent', fontSize: '0.72rem', fontWeight: 600, color: sel ? '#1e293b' : '#94a3b8', cursor: 'pointer', boxShadow: sel ? '0 1px 2px rgba(0,0,0,0.08)' : 'none', transition: 'all 0.15s' }}>{t}</button>
                     )
                   })}
+                </div>
+              </div>
+              <div>
+                <p style={LBL}>{(p.tipo || 'Cliente') === 'Cliente' ? 'Cliente final' : 'Categoría'}</p>
+                {(p.tipo || 'Cliente') === 'Cliente' ? (
+                  <select value={p.clienteId || ''} onChange={e => onUpdProveedor('clienteId', e.target.value)} style={{ ...INP, cursor: 'pointer' }}>
+                    <option value="">— Sin asignar —</option>
+                    {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                  </select>
+                ) : (
+                  <div style={{ ...INP, background: '#f8fafc', color: '#94a3b8', fontStyle: 'italic' }}>Mercadería propia</div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* ── Carga ── */}
+          <div style={{ marginBottom: 18 }}>
+            <p style={SEC}><span style={{ width: 4, height: 4, borderRadius: '50%', background: '#0284c7' }} /> Carga en el contenedor</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+              <div>
+                <p style={LBL}>m³ (CBM) <Help title="Volumen en metros cúbicos. Define el % de prorrateo de los costos compartidos." /></p>
+                <input type="number" step="any" value={p.m3 || ''} onChange={e => onUpdProveedor('m3', e.target.value)} style={{ ...INP, textAlign: 'right' }} placeholder="0.00" />
+                {n(p.m3) > 0 && <p style={CALC}>= {pct(p.ratio)} del contenedor</p>}
+              </div>
+              <div>
+                <p style={LBL}>FOB USD <Help title="Valor declarado del producto al embarcar (Free On Board)." /></p>
+                <input type="number" step="any" value={p.fobUSD || ''} onChange={e => onUpdProveedor('fobUSD', e.target.value)} style={{ ...INP, textAlign: 'right' }} placeholder="0" />
+              </div>
+              <div>
+                <p style={LBL}>Gs. Origen USD <span style={{ color: '#cbd5e1', fontWeight: 400, fontStyle: 'italic', textTransform: 'none', letterSpacing: 0 }}>opcional</span></p>
+                <input type="number" step="any" value={p.gastosOrigenUSD || ''} onChange={e => onUpdProveedor('gastosOrigenUSD', e.target.value)} style={{ ...INP, textAlign: 'right' }} placeholder="0" />
+              </div>
+            </div>
+          </div>
+
+          {/* ── VEP Aduana ── */}
+          <div style={{ marginBottom: 14 }}>
+            <p style={SEC}><span style={{ width: 4, height: 4, borderRadius: '50%', background: '#dc2626' }} /> VEP Aduana <Help title="Tributos aduaneros pagados por este proveedor. USD × T.C. = pesos asignados." /></p>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+              <div style={{ flex: 1 }}>
+                <p style={LBL}>USD</p>
+                <input type="number" step="any" value={p.tributosUSD || ''} onChange={e => onUpdProveedor('tributosUSD', e.target.value)} style={{ ...INP, textAlign: 'right' }} placeholder="0" />
+              </div>
+              <div style={{ paddingBottom: 8, color: '#cbd5e1', fontWeight: 700, fontSize: '0.9rem' }}>×</div>
+              <div style={{ flex: 1 }}>
+                <p style={LBL}>T.C.</p>
+                <input type="number" step="any" value={p.tributosTC || ''} onChange={e => onUpdProveedor('tributosTC', e.target.value)} style={{ ...INP, textAlign: 'right' }} placeholder="—" />
+              </div>
+              <div style={{ paddingBottom: 8, color: '#cbd5e1', fontWeight: 700, fontSize: '0.9rem' }}>=</div>
+              <div style={{ flex: 1.2 }}>
+                <p style={LBL}>Pesos</p>
+                <div style={{ ...INP, background: hasVepBoth ? '#f0fdf4' : '#f8fafc', color: hasVepBoth ? '#059669' : '#cbd5e1', fontWeight: 700, textAlign: 'right', borderColor: hasVepBoth ? '#bbf7d0' : '#e2e8f0' }}>
+                  {hasVepBoth ? fmtP(vepPesos) : '—'}
                 </div>
               </div>
             </div>
           </div>
 
-          <div style={{ background: '#fff', border: '1px solid #e8ecf1', borderRadius: 8, padding: '0.85rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-            <div>
-              <p style={LBL}>Estado de cobro</p>
-              {p.cb.cobrado && p.cb.fechaCobro && <p style={{ fontSize: '0.7rem', color: '#16a34a', marginTop: 3 }}>Cobrado el {p.cb.fechaCobro}</p>}
-              {!p.cb.cobrado && <p style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: 3 }}>Sin cobrar</p>}
+          <button onClick={onRemove} style={{ marginTop: 4, background: 'none', border: 'none', color: '#cbd5e1', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer', padding: '0.3rem 0', transition: 'color 0.15s' }}
+            onMouseEnter={e => e.currentTarget.style.color = '#dc2626'}
+            onMouseLeave={e => e.currentTarget.style.color = '#cbd5e1'}>
+            Eliminar este proveedor
+          </button>
+        </div>
+
+        {/* ════════ RIGHT: cobro + total ════════ */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+          {/* Total preview top */}
+          <div style={{ background: '#0f172a', borderRadius: 8, padding: '0.85rem 1.1rem', color: '#fff' }}>
+            <p style={{ fontSize: '0.6rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>Total a cobrar</p>
+            <p style={{ fontSize: '1.5rem', fontWeight: 900, fontVariantNumeric: 'tabular-nums' }}>{fmtU(p.totalUSD)}</p>
+            <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #334155', display: 'flex', flexDirection: 'column', gap: 3, fontSize: '0.7rem' }}>
+              <Mini label="Prorrateo + VEP" val={fmtP(p.costoFinal)} />
+              <Mini label={`÷ TC ${p.tcUsed || '—'}`} val={fmtU(p.gastosUSD)} />
+              {p.origenUSD > 0 && <Mini label="+ origen" val={fmtU(p.origenUSD)} />}
+              {p.cb.honorarios && <Mini label="+ honor. 4%" val={fmtU(p.honorarios)} />}
+              {n(p.cb.despAdic) > 0 && <Mini label="+ desp. adic." val={fmtU(n(p.cb.despAdic))} />}
             </div>
-            <button onClick={onToggleCobrado} style={{ padding: '0.45rem 0.9rem', borderRadius: 7, border: 'none', background: p.cb.cobrado ? '#f0fdf4' : '#1e293b', color: p.cb.cobrado ? '#16a34a' : '#fff', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-              {p.cb.cobrado ? '✓ Cobrado' : 'Marcar como cobrado'}
-            </button>
           </div>
+
+          {/* Ajustes */}
+          <div style={{ background: '#fff', border: '1px solid #e8ecf1', borderRadius: 8, padding: '0.9rem 1.1rem' }}>
+            <p style={SEC}><span style={{ width: 4, height: 4, borderRadius: '50%', background: '#ea580c' }} /> Ajustes de cobro</p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+              <div>
+                <p style={LBL}>T.C. cobro</p>
+                <input type="number" step="any" value={p.cb.tc || ''} onChange={e => onUpdCobrar('tc', e.target.value)} placeholder={p.tributosTC ? `${p.tributosTC} auto` : '—'} style={{ ...INP, textAlign: 'right' }} />
+                <p style={HINT}>vacío = usa el del VEP</p>
+              </div>
+              <div>
+                <p style={LBL}>Desp. adic. USD</p>
+                <input type="number" step="any" value={p.cb.despAdic || ''} onChange={e => onUpdCobrar('despAdic', e.target.value)} placeholder="0" style={{ ...INP, textAlign: 'right' }} />
+                <p style={HINT}>extras del despachante</p>
+              </div>
+            </div>
+
+            {/* Honorarios switch — compact pill */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.7rem', background: '#f8fafc', borderRadius: 6, border: '1px solid #e8ecf1' }}>
+              <div>
+                <p style={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151' }}>Honorarios 4%</p>
+                <p style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: 1 }}>sobre (gastos + origen)</p>
+              </div>
+              <button onClick={() => onUpdCobrar('honorarios', !p.cb.honorarios)}
+                style={{ position: 'relative', width: 36, height: 20, borderRadius: 99, border: 'none', cursor: 'pointer', background: p.cb.honorarios ? '#059669' : '#cbd5e1', transition: 'background 0.15s' }}>
+                <div style={{ position: 'absolute', top: 2, left: p.cb.honorarios ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: '#fff', transition: 'left 0.15s', boxShadow: '0 1px 2px rgba(0,0,0,0.2)' }} />
+              </button>
+            </div>
+          </div>
+
+          {/* Estado de cobro — inline button */}
+          <button onClick={onToggleCobrado}
+            style={{ background: p.cb.cobrado ? '#f0fdf4' : '#fff', border: `1px solid ${p.cb.cobrado ? '#bbf7d0' : '#e8ecf1'}`, borderRadius: 8, padding: '0.7rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', transition: 'all 0.15s' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 28, height: 28, borderRadius: 7, background: p.cb.cobrado ? '#dcfce7' : '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {p.cb.cobrado ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><circle cx="12" cy="12" r="10"/></svg>
+                )}
+              </div>
+              <div style={{ textAlign: 'left' }}>
+                <p style={{ fontSize: '0.78rem', fontWeight: 700, color: p.cb.cobrado ? '#16a34a' : '#1e293b' }}>{p.cb.cobrado ? 'Cobrado' : 'Pendiente de cobro'}</p>
+                <p style={{ fontSize: '0.65rem', color: p.cb.cobrado ? '#059669' : '#94a3b8', marginTop: 1 }}>
+                  {p.cb.cobrado ? (p.cb.fechaCobro ? `el ${p.cb.fechaCobro}` : 'cobrado') : 'click para marcar'}
+                </p>
+              </div>
+            </div>
+            <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{p.cb.cobrado ? 'Desmarcar' : 'Marcar'}</span>
+          </button>
         </div>
 
       </div>
     </div>
+  )
+}
+
+function Mini({ label, val }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#94a3b8' }}>
+      <span>{label}</span>
+      <span style={{ color: '#cbd5e1', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{val}</span>
+    </div>
+  )
+}
+
+function Help({ title }) {
+  return (
+    <span title={title} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 12, height: 12, borderRadius: '50%', background: '#e2e8f0', color: '#64748b', fontSize: '0.55rem', fontWeight: 700, marginLeft: 4, cursor: 'help', verticalAlign: 'middle' }}>?</span>
   )
 }
 
