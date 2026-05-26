@@ -1,0 +1,211 @@
+/* ─── Gestion Portal — scoped under .gestion-root ─────────────────────────── */
+
+.gestion-root {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: #f4f6f9;
+  color: #0f172a;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+
+  --g-primary:       #ea580c;
+  --g-primary-dark:  #c2410c;
+  --g-primary-light: #fff4ee;
+  --g-text-muted:    #64748b;
+  --g-text-subtle:   #94a3b8;
+  --g-border:        #e2e8f0;
+  --g-shadow-card:   0 4px 20px rgba(0,0,0,0.05);
+  --g-radius-md:     12px;
+  --g-radius-lg:     16px;
+}
+
+.gestion-root a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* Layout */
+.gestion-root .app-container {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* ── Sidebar ── */
+.gestion-root .sidebar {
+  width: 240px;
+  background-color: #ffffff;
+  border-right: 1px solid var(--g-border);
+  padding: 1.75rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.gestion-root .sidebar-logo {
+  display: flex;
+  align-items: center;
+  margin-bottom: 2rem;
+  user-select: none;
+}
+
+.gestion-root .sidebar-back {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--g-text-subtle);
+  padding: 0.35rem 0.75rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+  transition: color 0.15s, background 0.15s;
+  border: 1px solid var(--g-border);
+  background: #f8fafc;
+}
+
+.gestion-root .sidebar-back:hover {
+  color: var(--g-primary);
+  border-color: #fed7aa;
+  background: var(--g-primary-light);
+}
+
+.gestion-root .nav-section-label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: var(--g-text-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 0 0.75rem;
+  margin-bottom: 0.4rem;
+  margin-top: 1.25rem;
+}
+
+.gestion-root .nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--g-radius-md);
+  color: var(--g-text-muted);
+  font-weight: 500;
+  font-size: 0.875rem;
+  transition: all 0.15s ease;
+  margin-bottom: 0.2rem;
+  cursor: pointer;
+  position: relative;
+}
+
+.gestion-root .nav-item:hover {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+.gestion-root .nav-item.active {
+  background-color: var(--g-primary-light);
+  color: var(--g-primary);
+}
+
+.gestion-root .nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  background: var(--g-primary);
+  border-radius: 0 3px 3px 0;
+}
+
+/* ── Main Content ── */
+.gestion-root .main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 2rem 2.5rem;
+  overflow-x: hidden;
+  min-width: 0;
+}
+
+/* ── Top Header ── */
+.gestion-root .top-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--g-border);
+}
+
+.gestion-root .top-header h1 {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 0.15rem;
+}
+
+.gestion-root p.muted {
+  color: var(--g-text-muted);
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.gestion-root .search-bar {
+  background-color: #fff;
+  border: 1px solid var(--g-border);
+  border-radius: 50px;
+  padding: 0.6rem 1.25rem;
+  width: 320px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  transition: border-color 0.15s;
+}
+
+.gestion-root .search-bar:focus-within {
+  border-color: var(--g-primary);
+}
+
+.gestion-root .search-bar input {
+  border: none;
+  outline: none;
+  width: 100%;
+  font-size: 0.875rem;
+  color: #0f172a;
+  background: transparent;
+  font-family: inherit;
+}
+
+.gestion-root .search-bar input::placeholder {
+  color: var(--g-text-muted);
+}
+
+.gestion-root .user-profile {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.gestion-root .avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ea580c, #c2410c);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+/* Scrollbar */
+.gestion-root ::-webkit-scrollbar { width: 6px; height: 6px; }
+.gestion-root ::-webkit-scrollbar-track { background: transparent; }
+.gestion-root ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 3px; }
+.gestion-root ::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }

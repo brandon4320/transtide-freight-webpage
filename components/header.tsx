@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react"
 import Image from "next/image"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { Menu, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -14,8 +16,12 @@ const navItems = [
 ]
 
 export default function Header() {
+  const pathname = usePathname()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
+
+  // Hide header entirely inside the gestion portal
+  if (pathname.startsWith("/gestion")) return null
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20)
@@ -71,7 +77,17 @@ export default function Header() {
                   ))}
                 </nav>
 
-                <Button asChild className="ml-2 inline-flex h-[36px] items-center rounded-full bg-accent px-5 py-0 text-[15px] font-medium text-white shadow-[0_8px_18px_rgba(249,115,22,0.18)] hover:bg-accent-700">
+                <Link
+                  href="/gestion"
+                  className="inline-flex h-[36px] items-center gap-1.5 rounded-full border border-[rgba(234,88,12,0.25)] bg-white/60 px-4 text-[13px] font-semibold text-[#ea580c] backdrop-blur transition-colors hover:bg-[#fff4ee] hover:border-[rgba(234,88,12,0.5)]"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+                    <rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>
+                  </svg>
+                  Portal
+                </Link>
+                <Button asChild className="ml-1 inline-flex h-[36px] items-center rounded-full bg-accent px-5 py-0 text-[15px] font-medium text-white shadow-[0_8px_18px_rgba(249,115,22,0.18)] hover:bg-accent-700">
                   <a href="#contact">Cotizar operación</a>
                 </Button>
               </div>
@@ -108,7 +124,18 @@ export default function Header() {
                     {item.name}
                   </a>
                 ))}
-                <Button asChild className="mt-3 w-full rounded-full bg-accent py-5 text-base text-white shadow-[0_8px_22px_rgba(249,115,22,0.22)] hover:bg-accent-700">
+                <Link
+                  href="/gestion"
+                  onClick={handleCloseMenu}
+                  className="mt-2 flex items-center gap-2 rounded-2xl border border-[rgba(234,88,12,0.3)] bg-[#fff4ee] px-4 py-3 text-base font-semibold text-[#ea580c]"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+                    <rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>
+                  </svg>
+                  Portal de Gestión
+                </Link>
+                <Button asChild className="mt-2 w-full rounded-full bg-accent py-5 text-base text-white shadow-[0_8px_22px_rgba(249,115,22,0.22)] hover:bg-accent-700">
                   <a href="#contact" onClick={handleCloseMenu}>Cotizar operación</a>
                 </Button>
               </nav>
