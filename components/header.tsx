@@ -20,9 +20,6 @@ export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
 
-  // Hide header entirely inside the gestion portal
-  if (pathname.startsWith("/gestion")) return null
-
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20)
     window.addEventListener("scroll", handleScroll, { passive: true })
@@ -38,6 +35,9 @@ export default function Header() {
   }, [isMenuOpen])
 
   const handleCloseMenu = () => setIsMenuOpen(false)
+
+  // Hide header entirely inside the gestion portal (after all hooks)
+  if (pathname.startsWith("/gestion")) return null
 
   return (
     <>
