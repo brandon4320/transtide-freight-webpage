@@ -1,7 +1,7 @@
 'use client'
 
 import './gestion.css'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 const NAV_ITEMS = [
@@ -54,6 +54,16 @@ const NAV_ITEMS = [
 
 export default function GestionLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const router = useRouter()
+
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    // Fire a custom event so the active page can intercept if it has unsaved changes
+    const event = new CustomEvent('gestion:navigate', { detail: { href }, cancelable: true })
+    const cancelled = !window.dispatchEvent(event)
+    if (cancelled) {
+      e.preventDefault()
+    }
+  }
 
   return (
     <div className="gestion-root">
@@ -85,6 +95,7 @@ export default function GestionLayout({ children }: { children: React.ReactNode 
                   <Link
                     key={href}
                     href={href}
+                    onClick={(e) => handleNavClick(e, href)}
                     className={`nav-item${pathname === href || pathname.startsWith(href + '/') ? ' active' : ''}`}
                   >
                     {icon}

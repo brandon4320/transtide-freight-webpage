@@ -1,5 +1,6 @@
 'use client';
 import { useState, useMemo, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 const CLIENTES_KEY = 'transtide-clientes';
 const MOCK_CLIENTES = [
@@ -400,10 +401,12 @@ function OperationsList({ onSelect }) {
 
 // ─── OperationDetail ──────────────────────────────────────────────────────────
 function OperationDetail({ op, onBack }) {
+  const router = useRouter();
   const [mainTab,     setMainTab]     = useState('proveedores');
   const [gastoTab,    setGastoTab]    = useState('naviera');
   const [isDirty,     setIsDirty]     = useState(false);
   const [showDiscard, setShowDiscard] = useState(false);
+  const [pendingNav,  setPendingNav]  = useState(null);
   const [saveFlash,   setSaveFlash]   = useState(false);
 
   const init = (arr) => arr.length ? arr.map((r, i) => ({ ...r, id: i + 1 })) : [newRow()];
@@ -454,6 +457,29 @@ function OperationDetail({ op, onBack }) {
     } catch { /* keep mock */ }
   }, []);
 
+  // ── warn on browser close / refresh while dirty ──
+  useEffect(() => {
+    const handler = (e) => {
+      if (!isDirty) return;
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDirty]);
+
+  // ── intercept sidebar navigation while dirty ──
+  useEffect(() => {
+    const handler = (e) => {
+      if (!isDirty) return;
+      e.preventDefault(); // cancels the Link navigation
+      setPendingNav(e.detail.href);
+      setShowDiscard(true);
+    };
+    window.addEventListener('gestion:navigate', handler);
+    return () => window.removeEventListener('gestion:navigate', handler);
+  }, [isDirty]);
+
   const toggleCheck = (id) => setChecked(prev => {
     const next = new Set(prev);
     next.has(id) ? next.delete(id) : next.add(id);
@@ -475,9 +501,10 @@ function OperationDetail({ op, onBack }) {
     setSaveFlash(true);
     setTimeout(() => setSaveFlash(false), 2200);
   };
-  const handleBack     = () => { if (isDirty) setShowDiscard(true); else onBack(); };
-  const discardAndBack = () => { setIsDirty(false); setShowDiscard(false); onBack(); };
-  const saveAndBack    = () => { saveAll(); setShowDiscard(false); setTimeout(onBack, 50); };
+  const doNavigate     = () => { if (pendingNav) { router.push(pendingNav); setPendingNav(null); } else { onBack(); } };
+  const handleBack     = () => { if (isDirty) { setPendingNav(null); setShowDiscard(true); } else onBack(); };
+  const discardAndBack = () => { setIsDirty(false); setShowDiscard(false); doNavigate(); };
+  const saveAndBack    = () => { saveAll(); setShowDiscard(false); setTimeout(doNavigate, 50); };
 
   const calc = useMemo(() => {
     const tNav  = catTot(naviera);
