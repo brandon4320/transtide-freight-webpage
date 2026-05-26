@@ -63,6 +63,7 @@ export default function TestPage() {
   const [showChecklist, setShowChecklist] = useState(false)
   const [costosOpen, setCostosOpen] = useState(true)
   const [editingCat, setEditingCat] = useState(null) // {id, label, color}
+  const [addingCat, setAddingCat] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
   const [saveFlash, setSaveFlash] = useState(false)
 
@@ -77,6 +78,7 @@ export default function TestPage() {
       const filled = {
         naviera: [], terminal: [], aduana: [], transporte: [], despachante: [], admin: [], fleteIntl: [],
         proveedores: [], cobrar: [], puertoOrigen: '',
+        customGastos: [], // [{id, label, color, kind: 'blanco'|'cash'}]
         ...d
       }
       setDetail(filled)
@@ -156,30 +158,45 @@ export default function TestPage() {
   // calc
   const calc = useMemo(() => {
     if (!detail || !op) return null
-    const { naviera = [], terminal = [], aduana = [], transporte = [], despachante = [], admin = [], fleteIntl = [], proveedores = [], cobrar = [] } = detail
+    const { naviera = [], terminal = [], aduana = [], transporte = [], despachante = [], admin = [], fleteIntl = [], proveedores = [], cobrar = [], customGastos = [] } = detail
     const tNav = catTot(naviera), tTerm = catTot(terminal), tAdu = catTot(aduana), tTra = catTot(transporte), tDes = catTot(despachante), tAdm = catTot(admin), tFlt = catTot(fleteIntl)
-    const enBlanco = tNav + tTerm + tAdu + tTra + tDes + tAdm
-    const cash = tFlt
-    const prorBase = enBlanco - tAdu + cash
+
+    // custom categories grouped by kind
+    let customBlanco = 0
+    let customCash   = 0
+    customGastos.forEach(cg => {
+      const t = catTot(detail[cg.id] || [])
+      if (cg.kind === 'cash') customCash += t
+      else customBlanco += t
+    })
+
+    const enBlanco = tNav + tTerm + tAdu + tTra + tDes + tAdm + customBlanco
+    const cash     = tFlt + customCash
+    const prorBase = enBlanco - tAdu + cash  // VEP aduana se asigna manualmente
     const totalGastos = enBlanco + cash
     const totalM3 = proveedores.reduce((s, p) => s + n(p.m3), 0)
+
     const perProv = proveedores.map((p, i) => {
       const clienteNombre = p.clienteId ? clientes.find(c => c.id === p.clienteId)?.nombre || '' : ''
       const ratio = totalM3 > 0 ? n(p.m3) / totalM3 : 0
-      const prorPesos = Math.round(ratio * prorBase)
+      const prorBlancoPesos = Math.round(ratio * (enBlanco - tAdu)) // parte blanco que prorratea
+      const prorCashPesos   = Math.round(ratio * cash)               // tu desembolso propio recuperable
+      const prorPesos       = prorBlancoPesos + prorCashPesos
       const vepPesos = Math.round(n(p.tributosUSD) * n(p.tributosTC))
       const costoFinal = prorPesos + vepPesos
       const cb = cobrar[i] || { tc: 0, honorarios: false, despAdic: 0 }
       const tcUsed = n(cb.tc) > 0 ? n(cb.tc) : n(p.tributosTC)
       const gastosUSD = tcUsed > 0 ? Math.round((costoFinal / tcUsed) * 100) / 100 : 0
+      const cashUSD   = tcUsed > 0 ? Math.round((prorCashPesos / tcUsed) * 100) / 100 : 0
       const origenUSD = n(p.gastosOrigenUSD)
       const honorarios = cb.honorarios ? Math.round((gastosUSD + origenUSD) * 0.04 * 100) / 100 : 0
       const totalUSD = Math.round((gastosUSD + origenUSD + honorarios + n(cb.despAdic)) * 100) / 100
-      return { ...p, clienteNombre, ratio, prorPesos, vepPesos, costoFinal, tcUsed, gastosUSD, origenUSD, honorarios, totalUSD, cb, idx: i }
+      return { ...p, clienteNombre, ratio, prorPesos, prorBlancoPesos, prorCashPesos, cashUSD, vepPesos, costoFinal, tcUsed, gastosUSD, origenUSD, honorarios, totalUSD, cb, idx: i }
     })
-    return { tNav, tTerm, tAdu, tTra, tDes, tAdm, tFlt, enBlanco, cash, prorBase, totalGastos, totalM3, perProv,
+    return { tNav, tTerm, tAdu, tTra, tDes, tAdm, tFlt, customBlanco, customCash, enBlanco, cash, prorBase, totalGastos, totalM3, perProv,
       totalACobrar:  perProv.reduce((s, p) => s + p.totalUSD, 0),
       totalCobrado:  perProv.reduce((s, p) => s + (p.cb.cobrado ? p.totalUSD : 0), 0),
+      totalCashUSD:  perProv.reduce((s, p) => s + p.cashUSD, 0),
       cobrados:      perProv.filter(p => p.cb.cobrado).length,
     }
   }, [detail, op, clientes])
@@ -203,15 +220,43 @@ export default function TestPage() {
   const cap = CONTAINER_M3[op.contenedor]
   const fillPct = cap ? (calc.totalM3 / cap) * 100 : 0
 
-  const GASTOS = [
-    { id: 'naviera',     label: 'Naviera',           color: '#0284c7', total: calc.tNav,  rows: detail.naviera },
-    { id: 'terminal',    label: 'Terminal',          color: '#7c3aed', total: calc.tTerm, rows: detail.terminal },
-    { id: 'aduana',      label: 'VEP Aduana',        color: '#dc2626', total: calc.tAdu,  rows: detail.aduana, note: 'No se proratea — se asigna manualmente por proveedor' },
-    { id: 'transporte',  label: 'Transporte',        color: '#d97706', total: calc.tTra,  rows: detail.transporte },
-    { id: 'despachante', label: 'Despachante',       color: '#059669', total: calc.tDes,  rows: detail.despachante },
-    { id: 'admin',       label: 'Admin',             color: '#64748b', total: calc.tAdm,  rows: detail.admin },
-    { id: 'fleteIntl',   label: 'Flete Intl (Cash)', color: '#0891b2', total: calc.tFlt,  rows: detail.fleteIntl, note: 'CASH — desembolso propio, se proratea por m³' },
+  // built-in + custom categories — split by kind (blanco vs cash)
+  const BUILTIN = [
+    { id: 'naviera',     label: 'Naviera',     color: '#0284c7', kind: 'blanco', total: calc.tNav,  rows: detail.naviera },
+    { id: 'terminal',    label: 'Terminal',    color: '#7c3aed', kind: 'blanco', total: calc.tTerm, rows: detail.terminal },
+    { id: 'aduana',      label: 'VEP Aduana',  color: '#dc2626', kind: 'blanco', total: calc.tAdu,  rows: detail.aduana, note: 'No se proratea — se asigna manualmente por proveedor' },
+    { id: 'transporte',  label: 'Transporte',  color: '#d97706', kind: 'blanco', total: calc.tTra,  rows: detail.transporte },
+    { id: 'despachante', label: 'Despachante', color: '#059669', kind: 'blanco', total: calc.tDes,  rows: detail.despachante },
+    { id: 'admin',       label: 'Admin',       color: '#64748b', kind: 'blanco', total: calc.tAdm,  rows: detail.admin },
+    { id: 'fleteIntl',   label: 'Flete Internacional', color: '#0891b2', kind: 'cash', builtin: true, total: calc.tFlt, rows: detail.fleteIntl, note: 'CASH propio — se proratea por m³ y se recupera de cada cliente' },
   ]
+  const customGastos = (detail.customGastos || []).map(cg => ({
+    ...cg, total: catTot(detail[cg.id] || []), rows: detail[cg.id] || [], custom: true,
+  }))
+  const ALL_GASTOS = [...BUILTIN, ...customGastos]
+  const GASTOS_BLANCO = ALL_GASTOS.filter(g => g.kind === 'blanco')
+  const GASTOS_CASH   = ALL_GASTOS.filter(g => g.kind === 'cash')
+
+  const addCustomCategory = ({ label, color, kind }) => {
+    const id = `custom-${Date.now()}`
+    setDetail(d => ({
+      ...d,
+      customGastos: [...(d.customGastos || []), { id, label, color, kind }],
+      [id]: [],
+    }))
+    D()
+  }
+  const removeCustomCategory = (catId) => {
+    if (!confirm('¿Eliminar esta categoría? Se perderán las facturas cargadas.')) return
+    setDetail(d => {
+      const next = { ...d }
+      delete next[catId]
+      next.customGastos = (d.customGastos || []).filter(c => c.id !== catId)
+      return next
+    })
+    D()
+    setEditingCat(null)
+  }
 
   return (
     <div style={{ fontFamily: 'inherit', color: '#0f172a', paddingBottom: '5rem' }}>
@@ -384,23 +429,45 @@ export default function TestPage() {
             </button>
             {costosOpen && (
               <div style={{ padding: '0 0.5rem 0.6rem' }}>
-                {GASTOS.map(g => (
-                  <button key={g.id} onClick={() => setEditingCat(g)}
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.55rem', borderRadius: 6, cursor: 'pointer', transition: 'background 0.1s', width: '100%', border: 'none', background: 'transparent', textAlign: 'left' }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: g.total > 0 ? g.color : '#e2e8f0' }} />
-                      <span style={{ fontSize: '0.75rem', color: '#475569' }}>{g.label}</span>
-                    </div>
-                    <span style={{ fontSize: '0.74rem', fontWeight: 600, color: g.total > 0 ? '#1e293b' : '#cbd5e1', fontVariantNumeric: 'tabular-nums' }}>{g.total > 0 ? fmtP(g.total) : '—'}</span>
-                  </button>
+
+                {/* ── Grupo: EN BLANCO ── */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.3rem 0.55rem 0.3rem' }}>
+                  <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>En blanco</span>
+                  <span style={{ fontSize: '0.62rem', color: '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>{fmtP(calc.enBlanco)}</span>
+                </div>
+                {GASTOS_BLANCO.map(g => (
+                  <CategoryBtn key={g.id} g={g} onClick={() => setEditingCat(g)} />
                 ))}
-                <div style={{ marginTop: 6, padding: '0.6rem 0.55rem', background: '#0f172a', borderRadius: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+
+                {/* ── Grupo: CASH PROPIO ── */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.85rem 0.55rem 0.3rem' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.58rem', fontWeight: 700, color: '#0891b2', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="6" x2="12" y2="18"/><line x1="6" y1="12" x2="18" y2="12"/></svg>
+                    Cash propio
+                  </span>
+                  <span style={{ fontSize: '0.62rem', color: '#0891b2', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmtP(calc.cash)}</span>
+                </div>
+                <div style={{ background: '#f0f9ff', borderRadius: 6, padding: 3, border: '1px solid #e0f2fe' }}>
+                  {GASTOS_CASH.map(g => (
+                    <CategoryBtn key={g.id} g={g} onClick={() => setEditingCat(g)} cash />
+                  ))}
+                </div>
+                <p style={{ fontSize: '0.62rem', color: '#0c4a6e', padding: '0.4rem 0.55rem 0', lineHeight: 1.4 }}>
+                  Lo pagaste vos de tu bolsillo · se recupera de cada cliente según su m³
+                </p>
+
+                {/* ── + Agregar categoría ── */}
+                <button onClick={() => setAddingCat(true)} style={{ width: '100%', marginTop: 10, padding: '0.45rem 0.55rem', borderRadius: 6, border: '1px dashed #cbd5e1', background: 'transparent', color: '#94a3b8', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, transition: 'all 0.1s' }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#94a3b8'; e.currentTarget.style.color = '#475569' }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.color = '#94a3b8' }}>
+                  <span style={{ fontSize: '0.9rem', lineHeight: 1 }}>+</span> Agregar categoría
+                </button>
+
+                {/* ── Total general ── */}
+                <div style={{ marginTop: 10, padding: '0.65rem 0.7rem', background: '#0f172a', borderRadius: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600 }}>Total general</span>
                   <span style={{ fontSize: '0.82rem', color: '#fff', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{fmtP(calc.totalGastos)}</span>
                 </div>
-                <p style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: 8, padding: '0 0.55rem', textAlign: 'center' }}>Click en una categoría para editar facturas</p>
               </div>
             )}
           </div>
@@ -434,6 +501,15 @@ export default function TestPage() {
           rows={detail[editingCat.id] || []}
           onChange={(rows) => updCategory(editingCat.id, rows)}
           onClose={() => setEditingCat(null)}
+          onDelete={editingCat.custom ? () => removeCustomCategory(editingCat.id) : null}
+        />
+      )}
+
+      {/* ADD CUSTOM CATEGORY MODAL */}
+      {addingCat && (
+        <AddCategoryModal
+          onAdd={(data) => { addCustomCategory(data); setAddingCat(false) }}
+          onClose={() => setAddingCat(false)}
         />
       )}
 
@@ -496,8 +572,86 @@ export default function TestPage() {
 
 function FRow({ children }) { return <>{children}</> }
 
+// ─── Category button (used in right rail) ────────────────────────────────
+function CategoryBtn({ g, onClick, cash }) {
+  return (
+    <button onClick={onClick}
+      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.45rem 0.55rem', borderRadius: 5, cursor: 'pointer', transition: 'background 0.1s', width: '100%', border: 'none', background: 'transparent', textAlign: 'left' }}
+      onMouseEnter={e => e.currentTarget.style.background = cash ? '#e0f2fe' : '#f8fafc'}
+      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: g.total > 0 ? g.color : '#e2e8f0', flexShrink: 0 }} />
+        <span style={{ fontSize: '0.74rem', color: cash ? '#0c4a6e' : '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.label}</span>
+        {g.custom && <span style={{ fontSize: '0.55rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', background: '#f1f5f9', padding: '0 4px', borderRadius: 3 }}>custom</span>}
+      </div>
+      <span style={{ fontSize: '0.73rem', fontWeight: 600, color: g.total > 0 ? (cash ? '#0891b2' : '#1e293b') : '#cbd5e1', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{g.total > 0 ? fmtP(g.total) : '—'}</span>
+    </button>
+  )
+}
+
+// ─── Add custom category modal ───────────────────────────────────────────
+const PALETTE = ['#0284c7', '#7c3aed', '#dc2626', '#d97706', '#059669', '#64748b', '#0891b2', '#e11d48', '#9333ea', '#16a34a']
+function AddCategoryModal({ onAdd, onClose }) {
+  const [label, setLabel] = useState('')
+  const [kind,  setKind]  = useState('blanco')
+  const [color, setColor] = useState(PALETTE[0])
+  const valid = label.trim().length > 0
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 100 }} />
+      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 'min(420px, 92vw)', background: '#fff', borderRadius: 12, zIndex: 110, boxShadow: '0 24px 64px rgba(0,0,0,0.2)', padding: '1.4rem' }}>
+        <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', marginBottom: 16 }}>Nueva categoría de gasto</h3>
+
+        <div style={{ marginBottom: 14 }}>
+          <p style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>Nombre</p>
+          <input autoFocus value={label} onChange={e => setLabel(e.target.value)} placeholder="Ej: Seguro de carga" style={INP} />
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <p style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>Tipo de pago</p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {[
+              { v: 'blanco', t: 'En blanco', d: 'Pagado por banco · gasto normal' },
+              { v: 'cash',   t: 'Cash propio', d: 'Pagado de tu bolsillo · a recuperar' },
+            ].map(opt => {
+              const sel = kind === opt.v
+              return (
+                <button key={opt.v} onClick={() => setKind(opt.v)} style={{
+                  padding: '0.65rem 0.7rem', borderRadius: 7, border: `1.5px solid ${sel ? (opt.v === 'cash' ? '#0891b2' : '#475569') : '#e2e8f0'}`,
+                  background: sel ? (opt.v === 'cash' ? '#f0f9ff' : '#f8fafc') : '#fff', cursor: 'pointer', textAlign: 'left',
+                }}>
+                  <p style={{ fontSize: '0.78rem', fontWeight: 700, color: sel ? (opt.v === 'cash' ? '#0891b2' : '#1e293b') : '#475569' }}>{opt.t}</p>
+                  <p style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: 2, lineHeight: 1.3 }}>{opt.d}</p>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 18 }}>
+          <p style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>Color</p>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {PALETTE.map(c => (
+              <button key={c} onClick={() => setColor(c)} style={{
+                width: 26, height: 26, borderRadius: '50%', background: c, border: `2px solid ${color === c ? '#0f172a' : 'transparent'}`,
+                cursor: 'pointer', padding: 0, transition: 'transform 0.1s',
+              }} title={c} />
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{ padding: '0.5rem 1rem', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}>Cancelar</button>
+          <button onClick={() => valid && onAdd({ label: label.trim(), kind, color })} disabled={!valid} style={{ padding: '0.5rem 1.25rem', borderRadius: 7, border: 'none', background: valid ? '#059669' : '#e2e8f0', color: valid ? '#fff' : '#94a3b8', fontWeight: 700, fontSize: '0.8rem', cursor: valid ? 'pointer' : 'default' }}>Crear categoría</button>
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ─── Category editor modal ───────────────────────────────────────────────
-function CategoryEditor({ cat, rows: initRows, onChange, onClose }) {
+function CategoryEditor({ cat, rows: initRows, onChange, onClose, onDelete }) {
   const [rows, setRows] = useState(initRows.length ? initRows : [newRow()])
   const tot = catTot(rows)
 
@@ -570,9 +724,18 @@ function CategoryEditor({ cat, rows: initRows, onChange, onClose }) {
 
         {/* footer */}
         <div style={{ padding: '1rem 1.4rem', borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', borderRadius: '0 0 12px 12px' }}>
-          <div>
-            <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Subtotal {cat.label}</span>
-            <p style={{ fontSize: '1.05rem', fontWeight: 800, color: cat.color, fontVariantNumeric: 'tabular-nums' }}>{fmtP(tot)}</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div>
+              <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Subtotal {cat.label}</span>
+              <p style={{ fontSize: '1.05rem', fontWeight: 800, color: cat.color, fontVariantNumeric: 'tabular-nums' }}>{fmtP(tot)}</p>
+            </div>
+            {onDelete && (
+              <button onClick={onDelete} style={{ background: 'none', border: 'none', color: '#cbd5e1', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer', padding: 0, transition: 'color 0.15s' }}
+                onMouseEnter={e => e.currentTarget.style.color = '#dc2626'}
+                onMouseLeave={e => e.currentTarget.style.color = '#cbd5e1'}>
+                Eliminar categoría
+              </button>
+            )}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={onClose} style={{ padding: '0.5rem 1rem', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}>Cancelar</button>
@@ -693,12 +856,23 @@ function ExpandedDetail({ p, clientes, onUpdProveedor, onUpdCobrar, onToggleCobr
             <p style={{ fontSize: '0.6rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>Total a cobrar</p>
             <p style={{ fontSize: '1.5rem', fontWeight: 900, fontVariantNumeric: 'tabular-nums' }}>{fmtU(p.totalUSD)}</p>
             <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #334155', display: 'flex', flexDirection: 'column', gap: 3, fontSize: '0.7rem' }}>
-              <Mini label="Prorrateo + VEP" val={fmtP(p.costoFinal)} />
+              <Mini label="Prorrateo blanco" val={fmtP(p.prorBlancoPesos)} />
+              {p.prorCashPesos > 0 && <Mini label="Prorrateo cash" val={fmtP(p.prorCashPesos)} cash />}
+              <Mini label="VEP Aduana" val={fmtP(p.vepPesos)} />
               <Mini label={`÷ TC ${p.tcUsed || '—'}`} val={fmtU(p.gastosUSD)} />
               {p.origenUSD > 0 && <Mini label="+ origen" val={fmtU(p.origenUSD)} />}
               {p.cb.honorarios && <Mini label="+ honor. 4%" val={fmtU(p.honorarios)} />}
               {n(p.cb.despAdic) > 0 && <Mini label="+ desp. adic." val={fmtU(n(p.cb.despAdic))} />}
             </div>
+            {p.cashUSD > 0 && (
+              <div style={{ marginTop: 8, padding: '0.5rem 0.65rem', background: '#0c4a6e', borderRadius: 5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="6" x2="12" y2="18"/><line x1="6" y1="12" x2="18" y2="12"/></svg>
+                  <span style={{ fontSize: '0.66rem', color: '#7dd3fc', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>De los que recuperás cash</span>
+                </div>
+                <span style={{ fontSize: '0.85rem', color: '#38bdf8', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{fmtU(p.cashUSD)}</span>
+              </div>
+            )}
           </div>
 
           {/* Ajustes */}
@@ -758,11 +932,14 @@ function ExpandedDetail({ p, clientes, onUpdProveedor, onUpdCobrar, onToggleCobr
   )
 }
 
-function Mini({ label, val }) {
+function Mini({ label, val, cash }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#94a3b8' }}>
-      <span>{label}</span>
-      <span style={{ color: '#cbd5e1', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{val}</span>
+    <div style={{ display: 'flex', justifyContent: 'space-between', color: cash ? '#7dd3fc' : '#94a3b8' }}>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+        {cash && <span style={{ width: 4, height: 4, borderRadius: '50%', background: '#38bdf8' }} />}
+        {label}
+      </span>
+      <span style={{ color: cash ? '#38bdf8' : '#cbd5e1', fontWeight: cash ? 600 : 500, fontVariantNumeric: 'tabular-nums' }}>{val}</span>
     </div>
   )
 }
