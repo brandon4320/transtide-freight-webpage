@@ -137,63 +137,32 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 2rem;
-  padding-bottom: 1.5rem;
+  padding-bottom: 1.25rem;
   border-bottom: 1px solid var(--g-border);
 }
 
 .gestion-root .top-header h1 {
-  font-size: 1.4rem;
+  font-size: 1.25rem;
   font-weight: 800;
   color: #0f172a;
-  margin: 0 0 0.15rem;
+  margin: 0 0 0.1rem;
 }
 
 .gestion-root p.muted {
-  color: var(--g-text-muted);
-  font-size: 0.875rem;
+  color: var(--g-text-subtle);
+  font-size: 0.78rem;
   margin: 0;
-}
-
-.gestion-root .search-bar {
-  background-color: #fff;
-  border: 1px solid var(--g-border);
-  border-radius: 50px;
-  padding: 0.6rem 1.25rem;
-  width: 320px;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-  transition: border-color 0.15s;
-}
-
-.gestion-root .search-bar:focus-within {
-  border-color: var(--g-primary);
-}
-
-.gestion-root .search-bar input {
-  border: none;
-  outline: none;
-  width: 100%;
-  font-size: 0.875rem;
-  color: #0f172a;
-  background: transparent;
-  font-family: inherit;
-}
-
-.gestion-root .search-bar input::placeholder {
-  color: var(--g-text-muted);
 }
 
 .gestion-root .user-profile {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .gestion-root .avatar {
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   background: linear-gradient(135deg, #ea580c, #c2410c);
   color: white;
@@ -201,7 +170,22 @@
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+/* ── Nav item improvements ── */
+.gestion-root .nav-item {
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.gestion-root .nav-item:hover {
+  background-color: #f1f5f9;
+  color: #0f172a;
+}
+
+.gestion-root .nav-item.active:hover {
+  background-color: var(--g-primary-light);
 }
 
 /* Scrollbar */
