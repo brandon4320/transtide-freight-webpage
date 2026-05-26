@@ -446,6 +446,7 @@ function OperationDetail({ op, onBack }) {
   const [showDiscard, setShowDiscard] = useState(false);
   const [pendingNav,  setPendingNav]  = useState(null);
   const [saveFlash,   setSaveFlash]   = useState(false);
+  const [showChecklist, setShowChecklist] = useState(false);
 
   const init = (arr) => arr.length ? arr.map((r, i) => ({ ...r, id: i + 1 })) : [newRow()];
   const DKEY = `transtide-opdetail-${op.id}`;
@@ -672,9 +673,9 @@ function OperationDetail({ op, onBack }) {
 
       {/* ══ TAB: PROVEEDORES ════════════════════════════════════════════════ */}
       {mainTab === 'proveedores' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '1.25rem', alignItems: 'start' }}>
+        <div>
 
-          {/* LEFT: provider table */}
+          {/* provider table (now full width) */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
 
             <div style={CARD}>
@@ -791,59 +792,6 @@ function OperationDetail({ op, onBack }) {
             </div>
           </div>
 
-          {/* RIGHT: checklist sticky */}
-          <div style={{ position: 'sticky', top: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-
-            {/* progress header */}
-            <div style={{ ...CARD, padding: '1rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
-                <p style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b' }}>Avance de la operación</p>
-                <span style={{ fontSize: '0.8rem', fontWeight: 800, color: progress === 100 ? '#059669' : '#ea580c' }}>{progress}%</span>
-              </div>
-              <div style={{ width: '100%', height: '7px', background: '#e2e8f0', borderRadius: '99px', overflow: 'hidden' }}>
-                <div style={{ width: `${progress}%`, height: '100%', background: progress === 100 ? '#059669' : '#ea580c', borderRadius: '99px', transition: 'width 0.3s' }} />
-              </div>
-              <p style={{ fontSize: '0.68rem', color: '#94a3b8', marginTop: '0.4rem' }}>{doneTasks} de {totalTasks} tareas completadas</p>
-            </div>
-
-            {/* checklist by phase */}
-            {FASES.map(fase => {
-              const items = CHECKLIST.filter(t => t.fase === fase.id);
-              const doneInFase = items.filter(t => checked.has(t.id)).length;
-              return (
-                <div key={fase.id} style={{ ...CARD, padding: '0.9rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: fase.color }} />
-                      <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e293b' }}>Fase {fase.id} — {fase.label}</p>
-                    </div>
-                    <span style={{ fontSize: '0.65rem', fontWeight: 700, background: fase.bg, color: fase.color, padding: '0.1rem 0.5rem', borderRadius: '50px', border: `1px solid ${fase.badge}` }}>
-                      {doneInFase}/{items.length}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                    {items.map(task => {
-                      const done = checked.has(task.id);
-                      return (
-                        <div key={task.id} onClick={() => toggleCheck(task.id)}
-                          style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', cursor: 'pointer', padding: '0.3rem 0.4rem', borderRadius: '7px', transition: 'background 0.1s', background: done ? fase.bg : 'transparent' }}
-                          onMouseEnter={e => !done && (e.currentTarget.style.background = '#f8fafc')}
-                          onMouseLeave={e => !done && (e.currentTarget.style.background = 'transparent')}
-                        >
-                          <div style={{ width: '16px', height: '16px', borderRadius: '4px', border: done ? `2px solid ${fase.color}` : '2px solid #cbd5e1', background: done ? fase.color : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '1px', transition: 'all 0.15s' }}>
-                            {done && <svg width="9" height="9" viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                          </div>
-                          <span style={{ fontSize: '0.75rem', color: done ? '#64748b' : '#374151', textDecoration: done ? 'line-through' : 'none', lineHeight: '1.4', fontWeight: done ? 400 : 500 }}>
-                            {task.label}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
         </div>
       )}
 
@@ -1210,6 +1158,86 @@ function OperationDetail({ op, onBack }) {
           </div>
 
         </div>
+      )}
+
+      {/* ── Floating checklist FAB ── */}
+      <button
+        onClick={() => setShowChecklist(!showChecklist)}
+        style={{
+          position: 'fixed', bottom: 24, right: 24, zIndex: 40,
+          display: 'flex', alignItems: 'center', gap: '0.6rem',
+          padding: '0.7rem 1.1rem', borderRadius: 50, border: 'none',
+          background: '#1e293b', color: '#fff', cursor: 'pointer',
+          fontSize: '0.8rem', fontWeight: 700,
+          boxShadow: '0 8px 24px rgba(15,23,42,0.18)',
+          transition: 'transform 0.15s',
+        }}
+        onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+        onMouseLeave={e => e.currentTarget.style.transform = 'none'}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+        </svg>
+        Checklist {doneTasks}/{totalTasks}
+        <span style={{
+          fontSize: '0.68rem', fontWeight: 700, padding: '0.12rem 0.5rem',
+          borderRadius: 99, background: progress === 100 ? '#16a34a' : '#ea580c', color: '#fff',
+        }}>{progress}%</span>
+      </button>
+
+      {/* ── Checklist drawer ── */}
+      {showChecklist && (
+        <>
+          <div onClick={() => setShowChecklist(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.3)', zIndex: 50 }} />
+          <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(400px, 92vw)', background: '#fff', zIndex: 60, boxShadow: '-8px 0 32px rgba(0,0,0,0.12)', overflowY: 'auto', padding: '1.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1rem' }}>
+              <div>
+                <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', marginBottom: 2 }}>Checklist de la operación</h3>
+                <p style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{doneTasks} de {totalTasks} tareas completadas</p>
+              </div>
+              <button onClick={() => setShowChecklist(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '1.4rem', lineHeight: 1, padding: 0 }}>×</button>
+            </div>
+            <div style={{ height: 6, background: '#f1f5f9', borderRadius: 99, marginBottom: '1.5rem', overflow: 'hidden' }}>
+              <div style={{ width: `${progress}%`, height: '100%', background: progress === 100 ? '#059669' : '#ea580c', borderRadius: 99, transition: 'width 0.3s' }} />
+            </div>
+            {FASES.map(fase => {
+              const items = CHECKLIST.filter(t => t.fase === fase.id);
+              const doneInFase = items.filter(t => checked.has(t.id)).length;
+              return (
+                <div key={fase.id} style={{ marginBottom: '1.25rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <span style={{ width: 7, height: 7, borderRadius: '50%', background: fase.color }} />
+                      <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e293b' }}>Fase {fase.id} — {fase.label}</p>
+                    </div>
+                    <span style={{ fontSize: '0.65rem', fontWeight: 700, background: fase.bg, color: fase.color, padding: '0.1rem 0.5rem', borderRadius: 99, border: `1px solid ${fase.badge}` }}>
+                      {doneInFase}/{items.length}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                    {items.map(task => {
+                      const done = checked.has(task.id);
+                      return (
+                        <div key={task.id} onClick={() => toggleCheck(task.id)}
+                          style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', cursor: 'pointer', padding: '0.4rem 0.5rem', borderRadius: 6, transition: 'background 0.1s', background: done ? fase.bg : 'transparent' }}
+                          onMouseEnter={e => !done && (e.currentTarget.style.background = '#f8fafc')}
+                          onMouseLeave={e => !done && (e.currentTarget.style.background = 'transparent')}
+                        >
+                          <div style={{ width: 16, height: 16, borderRadius: 4, border: done ? `2px solid ${fase.color}` : '2px solid #cbd5e1', background: done ? fase.color : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1, transition: 'all 0.15s' }}>
+                            {done && <svg width="9" height="9" viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                          </div>
+                          <span style={{ fontSize: '0.78rem', color: done ? '#94a3b8' : '#374151', textDecoration: done ? 'line-through' : 'none', lineHeight: 1.4, fontWeight: done ? 400 : 500 }}>
+                            {task.label}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {/* ── Discard modal ── */}
