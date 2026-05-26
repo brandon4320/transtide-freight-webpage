@@ -16,9 +16,9 @@ const fmtU = (v) => v == null || isNaN(v) ? '—' : 'USD ' + (Math.round(v * 100
 const pct  = (v) => isNaN(v) ? '—' : (v * 100).toFixed(2) + '%';
 
 // ─── styles ───────────────────────────────────────────────────────────────────
-const CARD = { background: '#fff', borderRadius: '16px', padding: '1.25rem', boxShadow: '0 4px 20px rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.04)' };
+const CARD = { background: '#fff', borderRadius: '10px', padding: '1.25rem', boxShadow: '0 1px 4px rgba(0,0,0,0.05)', border: '1px solid #e8ecf1' };
 const LBL  = { display: 'block', fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.25rem' };
-const INP  = { width: '100%', padding: '0.42rem 0.6rem', border: '1px solid #e2e8f0', borderRadius: '7px', fontSize: '0.82rem', color: '#1e293b', background: '#fff', outline: 'none' };
+const INP  = { width: '100%', padding: '0.42rem 0.6rem', border: '1px solid #e2e8f0', borderRadius: '7px', fontSize: '0.82rem', color: '#1e293b', background: '#fff', outline: 'none', transition: 'border-color 0.15s' };
 const TH   = { fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '0.45rem 0.6rem', textAlign: 'left' };
 const TD   = { fontSize: '0.82rem', color: '#374151', padding: '0.38rem 0.6rem', borderBottom: '1px solid #f8fafc' };
 
@@ -134,17 +134,17 @@ function InvoiceTable({ rows, onUpdate, onAdd, onRemove, accentColor = '#ea580c'
                   <td style={TD}><input value={row.factura} onChange={e => onUpdate(i,'factura',e.target.value)} style={{ ...INP, fontSize: '0.8rem' }} placeholder="—" /></td>
                   <td style={TD}>
                     <input type="number" step="any" value={row.usd} onChange={e => onUpdate(i,'usd',e.target.value)}
-                      style={{ ...INP, textAlign: 'right', color: '#ea580c', fontWeight: 600 }} placeholder="" />
+                      style={{ ...INP, textAlign: 'right', color: '#1e293b', fontWeight: 500 }} placeholder="" />
                   </td>
                   <td style={TD}>
                     <input type="number" step="any" value={row.tc} onChange={e => onUpdate(i,'tc',e.target.value)}
-                      style={{ ...INP, textAlign: 'right', color: '#ea580c', fontWeight: 600 }} placeholder="—" />
+                      style={{ ...INP, textAlign: 'right', color: '#1e293b', fontWeight: 500 }} placeholder="—" />
                   </td>
                   <td style={TD}>
                     {calcPesos
                       ? <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#059669' }}>{fmtP(n(row.usd) * n(row.tc))}</span>
                       : <input type="number" step="any" value={row.pesos} onChange={e => onUpdate(i,'pesos',e.target.value)}
-                          style={{ ...INP, textAlign: 'right', color: '#ea580c', fontWeight: 600 }} placeholder="" />
+                          style={{ ...INP, textAlign: 'right', color: '#1e293b', fontWeight: 500 }} placeholder="" />
                     }
                   </td>
                   <td style={TD}>
@@ -325,7 +325,7 @@ function OperationsList({ onSelect }) {
                 {/* status badge */}
                 <div style={{ position: 'relative' }}>
                   <button onClick={() => setStatusPop(statusPop === op.id ? null : op.id)}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.25rem 0.65rem', borderRadius: '50px', fontSize: '0.68rem', fontWeight: 700, background: est.bg, color: est.color, border: `1.5px solid ${est.color}40`, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.25rem 0.65rem', borderRadius: '6px', fontSize: '0.68rem', fontWeight: 600, background: est.bg, color: est.color, border: `1px solid ${est.color}30`, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                     {est.label} <span style={{ fontSize: '0.55rem', opacity: 0.6 }}>▾</span>
                   </button>
                   {statusPop === op.id && (
@@ -641,7 +641,7 @@ function OperationDetail({ op, onBack }) {
         {[
           { label: 'Total Gastos', value: fmtP(calc.totalGeneral), color: '#1e293b', bg: '#f8fafc', border: '#e2e8f0' },
           { label: 'Facturar (USD)', value: fmtU(calc.totalACobrar), color: '#ea580c', bg: '#fff4ee', border: '#fed7aa' },
-          { label: 'M³ Ocupados', value: `${calc.totalM3.toFixed(1)} / ${CONTAINER_M3[op.contenedor] || '?'} m³`, color: '#0891b2', bg: '#ecfeff', border: '#a5f3fc' },
+          { label: 'M³ Ocupados', value: `${calc.totalM3.toFixed(1)} / ${CONTAINER_M3[op.contenedor] || '?'} m³`, color: '#475569', bg: '#f8fafc', border: '#e2e8f0' },
           { label: `Tareas ${doneTasks}/${totalTasks}`, value: `${progress}% completado`, color: progress === 100 ? '#059669' : '#ea580c', bg: progress === 100 ? '#f0fdf4' : '#fff7ed', border: progress === 100 ? '#bbf7d0' : '#fed7aa', progress: true },
         ].map(({ label, value, color, bg, border, progress: showBar }) => (
           <div key={label} style={{ background: bg, border: `1px solid ${border}`, borderRadius: '12px', padding: '0.85rem 1rem' }}>
@@ -706,7 +706,7 @@ function OperationDetail({ op, onBack }) {
                       const ratioVal = calc.totalM3 > 0 ? n(p.m3) / calc.totalM3 : 0;
                       return (
                         <tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#fafbfc' }}>
-                          <td style={TD}><input value={p.nombre} onChange={e => updP(i,'nombre',e.target.value)} style={{ ...INP, fontWeight: 600, color: '#ea580c' }} placeholder="Nombre" /></td>
+                          <td style={TD}><input value={p.nombre} onChange={e => updP(i,'nombre',e.target.value)} style={{ ...INP, fontWeight: 600, color: '#1e293b' }} placeholder="Nombre" /></td>
                           <td style={{ ...TD, minWidth: '180px' }}>
                             {p.nombre ? (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
@@ -714,9 +714,10 @@ function OperationDetail({ op, onBack }) {
                                 <div style={{ display: 'flex', gap: '0.3rem' }}>
                                   {['Cliente','Propio'].map(t => (
                                     <button key={t} onClick={() => updP(i,'tipo',t)}
-                                      style={{ padding: '0.15rem 0.55rem', borderRadius: '50px', border: 'none', cursor: 'pointer', fontSize: '0.65rem', fontWeight: 700,
-                                        background: (p.tipo||'Cliente') === t ? (t==='Propio' ? '#f0fdf4' : '#fff4ee') : '#f1f5f9',
-                                        color:      (p.tipo||'Cliente') === t ? (t==='Propio' ? '#059669' : '#ea580c') : '#94a3b8',
+                                      style={{ padding: '0.15rem 0.55rem', borderRadius: '5px', border: `1px solid ${(p.tipo||'Cliente') === t ? '#cbd5e1' : 'transparent'}`, cursor: 'pointer', fontSize: '0.65rem', fontWeight: 600,
+                                        background: (p.tipo||'Cliente') === t ? '#fff' : 'transparent',
+                                        color: (p.tipo||'Cliente') === t ? '#374151' : '#94a3b8',
+                                        boxShadow: (p.tipo||'Cliente') === t ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
                                       }}>
                                       {t}
                                     </button>
@@ -733,9 +734,9 @@ function OperationDetail({ op, onBack }) {
                               </div>
                             ) : <span style={{ color: '#cbd5e1', fontSize: '0.8rem' }}>—</span>}
                           </td>
-                          <td style={TD}><input type="number" step="any" value={p.m3} onChange={e => updP(i,'m3',e.target.value)} style={{ ...INP, color: '#ea580c', fontWeight: 600, textAlign: 'right' }} placeholder="" /></td>
-                          <td style={TD}><input type="number" step="any" value={p.fobUSD} onChange={e => updP(i,'fobUSD',e.target.value)} style={{ ...INP, color: '#ea580c', fontWeight: 600, textAlign: 'right' }} placeholder="" /></td>
-                          <td style={TD}><input type="number" step="any" value={p.gastosOrigenUSD} onChange={e => updP(i,'gastosOrigenUSD',e.target.value)} style={{ ...INP, color: n(p.gastosOrigenUSD) > 0 ? '#d97706' : '#94a3b8', fontWeight: n(p.gastosOrigenUSD) > 0 ? 700 : 400, textAlign: 'right' }} placeholder="" /></td>
+                          <td style={TD}><input type="number" step="any" value={p.m3} onChange={e => updP(i,'m3',e.target.value)} style={{ ...INP, color: '#1e293b', fontWeight: 500, textAlign: 'right' }} placeholder="" /></td>
+                          <td style={TD}><input type="number" step="any" value={p.fobUSD} onChange={e => updP(i,'fobUSD',e.target.value)} style={{ ...INP, color: '#1e293b', fontWeight: 500, textAlign: 'right' }} placeholder="" /></td>
+                          <td style={TD}><input type="number" step="any" value={p.gastosOrigenUSD} onChange={e => updP(i,'gastosOrigenUSD',e.target.value)} style={{ ...INP, color: '#64748b', textAlign: 'right' }} placeholder="" /></td>
                           <td style={TD}>
                             {p.nombre ? (
                               <div style={{ background: '#fff7ed', borderRadius: '6px', padding: '0.28rem 0.5rem', textAlign: 'right' }}>
@@ -865,7 +866,7 @@ function OperationDetail({ op, onBack }) {
                         <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: tot.pesos > 0 ? g.color : '#e2e8f0', flexShrink: 0 }} />
                         <span style={{ fontSize: '0.8rem', fontWeight: active ? 700 : 500, color: active ? g.color : '#475569', textAlign: 'left' }}>{g.label}</span>
                       </div>
-                      <span style={{ fontSize: '0.78rem', fontWeight: 700, color: active ? g.color : (tot.pesos > 0 ? '#1e293b' : '#cbd5e1'), flexShrink: 0, marginLeft: '0.5rem' }}>
+                      <span style={{ fontSize: '0.78rem', fontWeight: 700, color: active ? g.color : '#475569', flexShrink: 0, marginLeft: '0.5rem' }}>
                         {tot.pesos > 0 ? fmtP(tot.pesos) : '—'}
                       </span>
                     </button>
@@ -938,8 +939,8 @@ function OperationDetail({ op, onBack }) {
                   {proveedores.filter(p => p.nombre !== '').map((p, i) => (
                     <tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
                       <td style={{ ...TD, fontWeight: 600, color: '#374151' }}>{p.nombre}</td>
-                      <td style={TD}><input type="number" step="any" value={p.tributosUSD} onChange={e => updP(proveedores.indexOf(p),'tributosUSD',e.target.value)} style={{ ...INP, color: '#ea580c', fontWeight: 600, textAlign: 'right' }} placeholder="" /></td>
-                      <td style={TD}><input type="number" step="any" value={p.tributosTC} onChange={e => updP(proveedores.indexOf(p),'tributosTC',e.target.value)} style={{ ...INP, color: '#ea580c', fontWeight: 600, textAlign: 'right' }} placeholder="—" /></td>
+                      <td style={TD}><input type="number" step="any" value={p.tributosUSD} onChange={e => updP(proveedores.indexOf(p),'tributosUSD',e.target.value)} style={{ ...INP, color: '#1e293b', fontWeight: 500, textAlign: 'right' }} placeholder="" /></td>
+                      <td style={TD}><input type="number" step="any" value={p.tributosTC} onChange={e => updP(proveedores.indexOf(p),'tributosTC',e.target.value)} style={{ ...INP, color: '#1e293b', fontWeight: 500, textAlign: 'right' }} placeholder="—" /></td>
                       <td style={{ ...TD, fontWeight: 700, color: '#dc2626', textAlign: 'right' }}>
                         {n(p.tributosUSD) > 0 && n(p.tributosTC) > 0 ? fmtP(n(p.tributosUSD) * n(p.tributosTC)) : '—'}
                       </td>
@@ -1006,12 +1007,12 @@ function OperationDetail({ op, onBack }) {
                 {/* fila 1: stats principales */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem' }}>
                   {[
-                    ['Por Cobrar', fmtU(calc.totalACobrar), '#7c3aed', '#f5f3ff'],
+                    ['Por Cobrar', fmtU(calc.totalACobrar), '#1e293b', '#f8fafc'],
                     ['Ya Cobrado', fmtU(totalCobrado), '#059669', '#f0fdf4'],
                     [`Cobrados (${cobrados}/${calc.perProv.length})`, pendientes === 0 ? 'Todos ✓' : `${pendientes} pendiente${pendientes !== 1 ? 's' : ''}`, pendientes === 0 ? '#059669' : '#ea580c', pendientes === 0 ? '#f0fdf4' : '#fff4ee'],
-                    ['Honorarios + Desp.', fmtU(calc.perProv.reduce((s,p)=>s+p.honorarios,0)), '#7c3aed', '#f5f3ff'],
+                    ['Honorarios + Desp.', fmtU(calc.perProv.reduce((s,p)=>s+p.honorarios,0)), '#1e293b', '#f8fafc'],
                   ].map(([lbl, val, color, bg]) => (
-                    <div key={lbl} style={{ ...CARD, background: bg, border: `1px solid ${color}20`, padding: '1rem' }}>
+                    <div key={lbl} style={{ ...CARD, background: bg, border: '1px solid #e2e8f0', padding: '1rem' }}>
                       <p style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.35rem' }}>{lbl}</p>
                       <p style={{ fontSize: '1.15rem', fontWeight: 800, color, lineHeight: 1 }}>{val}</p>
                     </div>
@@ -1063,12 +1064,12 @@ function OperationDetail({ op, onBack }) {
               const accentBg    = p.tipo === 'Propio' ? '#f0fdf4' : '#f5f3ff';
               const tcOk        = p.tcUsed > 0;
               return (
-                <div key={p.nombre} style={{ ...CARD, borderLeft: `4px solid ${isCobrado ? '#059669' : accentColor}`, padding: '1.25rem', opacity: isCobrado ? 0.85 : 1, position: 'relative' }}>
+                <div key={p.nombre} style={{ ...CARD, padding: '1.25rem', opacity: isCobrado ? 0.75 : 1, position: 'relative', border: isCobrado ? '1px solid #bbf7d0' : '1px solid #e8ecf1' }}>
 
                   {/* Cobrado badge overlay */}
                   {isCobrado && (
-                    <div style={{ position: 'absolute', top: '1rem', right: '1rem', background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: '50px', padding: '0.2rem 0.7rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                      <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#059669' }}>✓ COBRADO</span>
+                    <div style={{ position: 'absolute', top: '0.85rem', right: '0.85rem', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '5px', padding: '0.15rem 0.55rem' }}>
+                      <span style={{ fontSize: '0.62rem', fontWeight: 600, color: '#16a34a', letterSpacing: '0.02em' }}>Cobrado</span>
                     </div>
                   )}
 
@@ -1078,7 +1079,7 @@ function OperationDetail({ op, onBack }) {
                       <p style={{ fontWeight: 800, fontSize: '0.95rem', color: '#1e293b' }}>{p.nombre}</p>
                       <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '1px' }}>{p.m3} m³ · {pct(p.ratio)} del contenedor</p>
                     </div>
-                    <span style={{ background: accentBg, color: accentColor, border: `1px solid ${accentColor}30`, fontSize: '0.68rem', fontWeight: 700, padding: '0.2rem 0.6rem', borderRadius: '50px' }}>
+                    <span style={{ background: '#f1f5f9', color: '#64748b', border: '1px solid #e2e8f0', fontSize: '0.68rem', fontWeight: 600, padding: '0.2rem 0.65rem', borderRadius: '6px' }}>
                       {p.tipo === 'Propio' ? 'Propio' : p.clienteNombre || 'Cliente'}
                     </span>
                   </div>
@@ -1091,9 +1092,9 @@ function OperationDetail({ op, onBack }) {
                   </div>
 
                   {/* ── T.C. → Gastos USD ── */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.85rem', background: tcOk ? '#fff4ee' : '#fff5f5', borderRadius: '10px', padding: '0.65rem 0.85rem', border: `1px solid ${tcOk ? '#fed7aa' : '#fecaca'}` }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem', background: '#f8fafc', borderRadius: '8px', padding: '0.6rem 0.85rem', border: '1px solid #e2e8f0' }}>
                     <div style={{ flex: 1 }}>
-                      <p style={{ fontSize: '0.6rem', fontWeight: 700, color: tcOk ? '#d97706' : '#dc2626', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.2rem' }}>
+                      <p style={{ fontSize: '0.6rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.2rem' }}>
                         T.C. conversión {!tcOk && '⚠ falta'}
                       </p>
                       <input type="number" step="any" value={cobrar[i]?.tc ?? ''} onChange={e => updC(i,'tc',e.target.value)}
@@ -1102,13 +1103,13 @@ function OperationDetail({ op, onBack }) {
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <p style={{ fontSize: '0.6rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.2rem' }}>Gastos en USD</p>
-                      <p style={{ fontSize: '1.1rem', fontWeight: 800, color: tcOk ? '#ea580c' : '#cbd5e1' }}>{fmtU(p.gastosUSD)}</p>
+                      <p style={{ fontSize: '1.1rem', fontWeight: 800, color: tcOk ? '#1e293b' : '#cbd5e1' }}>{fmtU(p.gastosUSD)}</p>
                     </div>
                   </div>
 
                   {/* ── Flete marítimo (desembolso propio) ── */}
                   {p.fleteIntlUSD > 0 && (
-                    <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '10px', padding: '0.6rem 0.85rem', marginBottom: '0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.55rem 0.85rem', marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <span style={{ fontSize: '0.85rem' }}>🚢</span>
                         <div>
@@ -1116,7 +1117,7 @@ function OperationDetail({ op, onBack }) {
                           <p style={{ fontSize: '0.65rem', color: '#7dd3fc' }}>{fmtP(p.fleteIntlPesos)} ÷ TC {p.tcUsed > 0 ? p.tcUsed : '—'}</p>
                         </div>
                       </div>
-                      <p style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0284c7', lineHeight: 1 }}>{fmtU(p.fleteIntlUSD)}</p>
+                      <p style={{ fontSize: '1.05rem', fontWeight: 800, color: '#1e293b', lineHeight: 1 }}>{fmtU(p.fleteIntlUSD)}</p>
                     </div>
                   )}
 
@@ -1154,9 +1155,9 @@ function OperationDetail({ op, onBack }) {
                   </div>
 
                   {/* ── Total a Cobrar ── */}
-                  <div style={{ background: accentColor + '12', borderRadius: '10px', padding: '0.75rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                    <p style={{ fontSize: '0.78rem', fontWeight: 700, color: accentColor, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total a Cobrar</p>
-                    <p style={{ fontSize: '1.5rem', fontWeight: 900, color: accentColor, lineHeight: 1 }}>{fmtU(p.totalUSD)}</p>
+                  <div style={{ borderTop: '1px solid #f1f5f9', marginTop: '0.5rem', paddingTop: '0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                    <p style={{ fontSize: '0.72rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total a Cobrar</p>
+                    <p style={{ fontSize: '1.15rem', fontWeight: 800, color: '#1e293b', lineHeight: 1 }}>{fmtU(p.totalUSD)}</p>
                   </div>
 
                   {/* ── Estado de cobro ── */}
@@ -1175,8 +1176,8 @@ function OperationDetail({ op, onBack }) {
                       }}
                       style={{
                         padding: '0.4rem 1rem', borderRadius: '50px', border: 'none', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700, transition: 'all 0.15s',
-                        background: isCobrado ? '#dcfce7' : '#ea580c',
-                        color:      isCobrado ? '#059669' : '#fff',
+                        background: isCobrado ? '#f0fdf4' : '#1e293b',
+                        color:      isCobrado ? '#16a34a' : '#fff',
                       }}>
                       {isCobrado ? '✓ Cobrado — desmarcar' : 'Marcar como cobrado'}
                     </button>
