@@ -64,6 +64,7 @@ export default function GestionLayoutClient({
 }) {
   const pathname = usePathname()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   const initial = userName.trim().charAt(0).toUpperCase() || 'U'
@@ -79,15 +80,30 @@ export default function GestionLayoutClient({
     return () => document.removeEventListener('mousedown', handler)
   }, [menuOpen])
 
+  // close sidebar drawer when route changes
+  useEffect(() => { setSidebarOpen(false) }, [pathname])
+
+  // prevent body scroll when sidebar is open on mobile
+  useEffect(() => {
+    if (sidebarOpen) {
+      const prev = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+      return () => { document.body.style.overflow = prev }
+    }
+  }, [sidebarOpen])
+
   const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
     const event = new CustomEvent('gestion:navigate', { detail: { href }, cancelable: true })
     const cancelled = !window.dispatchEvent(event)
     if (cancelled) e.preventDefault()
+    else setSidebarOpen(false)
   }
 
   return (
-    <div className="gestion-root">
+    <div className={`gestion-root${sidebarOpen ? ' sidebar-open' : ''}`}>
       <div className="app-container">
+
+        <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} aria-hidden="true" />
 
         <aside className="sidebar">
           <div className="sidebar-logo">
@@ -125,9 +141,24 @@ export default function GestionLayoutClient({
 
         <main className="main-content">
           <header className="top-header">
-            <div>
-              <h1>Portal de Gestión</h1>
-              <p className="muted">Sistema interno · Transtide Freight</p>
+            <div style={{ display: 'flex', alignItems: 'center', minWidth: 0, flex: 1 }}>
+              <button
+                type="button"
+                className="mobile-menu-toggle"
+                onClick={() => setSidebarOpen(true)}
+                aria-label="Abrir menú"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="3" y1="6" x2="21" y2="6"/>
+                  <line x1="3" y1="12" x2="21" y2="12"/>
+                  <line x1="3" y1="18" x2="21" y2="18"/>
+                </svg>
+              </button>
+              <div style={{ minWidth: 0 }}>
+                <h1>Portal de Gestión</h1>
+                <p className="muted">Sistema interno · Transtide Freight</p>
+              </div>
+              <span className="mobile-brand">TRANSTIDE<span className="dot">.</span></span>
             </div>
             <div className="user-profile" ref={menuRef} style={{ position: 'relative' }}>
               <button
@@ -142,7 +173,7 @@ export default function GestionLayoutClient({
                 aria-label="Menú de usuario"
               >
                 <div className="avatar">{initial}</div>
-                <span style={{ fontSize: '0.78rem', color: '#475569', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <span className="username-text" style={{ fontSize: '0.78rem', color: '#475569', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                   {userName}
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: menuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
                     <polyline points="6 9 12 15 18 9"/>

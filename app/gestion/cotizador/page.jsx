@@ -31,7 +31,7 @@ function F({ label, children, half }) {
   );
 }
 function NI({ value, onChange, placeholder = '0' }) {
-  return <input type="number" step="any" min="0" placeholder={placeholder} value={value} onChange={e => onChange(e.target.value)} style={INP} />;
+  return <input type="number" inputMode="decimal" step="any" min="0" placeholder={placeholder} value={value} onChange={e => onChange(e.target.value)} style={INP} />;
 }
 function TI({ value, onChange, placeholder = '' }) {
   return <input type="text" placeholder={placeholder} value={value} onChange={e => onChange(e.target.value)} style={INP} />;
@@ -386,7 +386,7 @@ export default function Cotizador() {
 
       {/* ══ SETUP CARD ════════════════════════════════════════════════════════ */}
       <Card style={{ marginBottom: '1.25rem', padding: '1.5rem' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '2rem' }}>
+        <div className="cot-setup-grid" style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '2rem' }}>
 
           {/* LEFT: contenedor */}
           <div>
@@ -407,7 +407,7 @@ export default function Cotizador() {
 
             <div style={{ marginBottom: '1rem' }}>
               <label style={LBL}>M³ del contenedor</label>
-              <input type="number" step="any" min="1" value={contM3[contType]} onChange={e => setM3(contType, e.target.value)} style={{ ...INP, width: '110px' }} />
+              <input type="number" inputMode="decimal" step="any" min="1" value={contM3[contType]} onChange={e => setM3(contType, e.target.value)} style={{ ...INP, width: '110px' }} />
             </div>
 
             <div>
@@ -416,7 +416,7 @@ export default function Cotizador() {
                 {[['Flete marítimo','flete'],['Despachante','despachante'],['Terminal','terminal'],['Naviera','naviera'],['Logística','logistica']].map(([label, key]) => (
                   <div key={key}>
                     <label style={{ ...LBL, fontSize: '0.62rem' }}>{label}</label>
-                    <input type="number" step="any" min="0" value={contCosts[contType][key]} onChange={e => setCost(contType, key, e.target.value)} style={INP} />
+                    <input type="number" inputMode="decimal" step="any" min="0" value={contCosts[contType][key]} onChange={e => setCost(contType, key, e.target.value)} style={INP} />
                   </div>
                 ))}
               </div>
@@ -435,7 +435,7 @@ export default function Cotizador() {
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1rem', marginBottom: '1rem' }}>
               <div>
                 <label style={LBL}>M³ de mi mercadería</label>
-                <input type="number" step="any" min="0" placeholder="0" value={m3Merch} onChange={e => setM3Merch(e.target.value)} style={{ ...INP, width: '130px' }} />
+                <input type="number" inputMode="decimal" step="any" min="0" placeholder="0" value={m3Merch} onChange={e => setM3Merch(e.target.value)} style={{ ...INP, width: '130px' }} />
               </div>
               <div style={{ background: c.ratio > 0 ? '#eff6ff' : '#f8fafc', border: `1px solid ${c.ratio > 0 ? '#bfdbfe' : '#e2e8f0'}`, borderRadius: '10px', padding: '0.45rem 0.9rem', marginBottom: '0.12rem' }}>
                 <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginBottom: '1px' }}>Ratio de prorrateo</p>
@@ -446,9 +446,9 @@ export default function Cotizador() {
 
             {/* charges table */}
             <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.4fr', background: '#f8fafc', padding: '0.45rem 0.85rem', borderBottom: '1px solid #e2e8f0', gap: '0.5rem' }}>
+              <div className="cot-charges-header" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.4fr', background: '#f8fafc', padding: '0.45rem 0.85rem', borderBottom: '1px solid #e2e8f0', gap: '0.5rem' }}>
                 <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Concepto</span>
-                <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', textAlign: 'right' }}>Tu costo prorrateado</span>
+                <span className="cot-charges-prorated" style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', textAlign: 'right' }}>Tu costo prorrateado</span>
                 <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', textAlign: 'right' }}>Lo que cobrás al cliente</span>
               </div>
               {[
@@ -458,11 +458,11 @@ export default function Cotizador() {
                 ['Naviera', c.navR, gNav, setGNav],
                 ['Logística', c.logR, gLog, setGLog],
               ].map(([label, prorated, val, setVal], i, arr) => (
-                <div key={label} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.4fr', alignItems: 'center', padding: '0.48rem 0.85rem', borderBottom: i < arr.length - 1 ? '1px solid #f1f5f9' : 'none', gap: '0.5rem' }}>
+                <div key={label} className="cot-charges-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.4fr', alignItems: 'center', padding: '0.48rem 0.85rem', borderBottom: i < arr.length - 1 ? '1px solid #f1f5f9' : 'none', gap: '0.5rem' }}>
                   <span style={{ fontSize: '0.83rem', fontWeight: 600, color: '#475569' }}>{label}</span>
-                  <span style={{ fontSize: '0.83rem', color: c.ratio > 0 ? '#1e293b' : '#cbd5e1', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{usd(prorated)}</span>
+                  <span className="cot-charges-prorated" style={{ fontSize: '0.83rem', color: c.ratio > 0 ? '#1e293b' : '#cbd5e1', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{usd(prorated)}</span>
                   <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <input type="number" step="any" min="0" placeholder="0" value={val} onChange={e => setVal(e.target.value)} style={{ ...INP, width: '130px', textAlign: 'right' }} />
+                    <input type="number" inputMode="decimal" step="any" min="0" placeholder="0" value={val} onChange={e => setVal(e.target.value)} style={{ ...INP, width: '130px', textAlign: 'right' }} />
                   </div>
                 </div>
               ))}
@@ -473,7 +473,7 @@ export default function Cotizador() {
       </Card>
 
       {/* ══ MAIN GRID ═════════════════════════════════════════════════════════ */}
-      <div style={{ display: 'grid', gridTemplateColumns: '460px 1fr', gap: '1.25rem', alignItems: 'start' }}>
+      <div className="cot-main-grid" style={{ display: 'grid', gridTemplateColumns: '460px 1fr', gap: '1.25rem', alignItems: 'start' }}>
 
         {/* ── LEFT: identification + tabs ──────────────────────────────────── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -594,10 +594,10 @@ export default function Cotizador() {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '1rem' }}>
                   <F label="Derechos de Importación %">
-                    <input type="number" step="any" min="0" value={pDer} onChange={e => setPDer(parseFloat(e.target.value) || 0)} style={INP} />
+                    <input type="number" inputMode="decimal" step="any" min="0" value={pDer} onChange={e => setPDer(parseFloat(e.target.value) || 0)} style={INP} />
                   </F>
                   <F label="Tasa Estadística %">
-                    <input type="number" step="any" min="0" value={pTas} onChange={e => setPTas(parseFloat(e.target.value) || 0)} style={INP} />
+                    <input type="number" inputMode="decimal" step="any" min="0" value={pTas} onChange={e => setPTas(parseFloat(e.target.value) || 0)} style={INP} />
                   </F>
                 </div>
 
@@ -612,7 +612,7 @@ export default function Cotizador() {
                   ].map(([lbl, val, setVal, paga, setPaga]) => (
                     <div key={lbl} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.75rem', alignItems: 'end', marginBottom: '0.6rem' }}>
                       <F label={lbl}>
-                        <input type="number" step="any" min="0" value={val} onChange={e => setVal(parseFloat(e.target.value) || 0)} style={INP} />
+                        <input type="number" inputMode="decimal" step="any" min="0" value={val} onChange={e => setVal(parseFloat(e.target.value) || 0)} style={INP} />
                       </F>
                       <div style={{ paddingBottom: '0.75rem' }}>
                         <PagaToggle label="¿Lo pagás?" checked={paga} onChange={setPaga} />
@@ -668,12 +668,12 @@ export default function Cotizador() {
                 </div>
 
                 <F label={`Honorarios % (s/ costo CON IVA)`}>
-                  <input type="number" step="any" min="0" value={pHon} onChange={e => setPHon(parseFloat(e.target.value) || 0)} style={INP} />
+                  <input type="number" inputMode="decimal" step="any" min="0" value={pHon} onChange={e => setPHon(parseFloat(e.target.value) || 0)} style={INP} />
                 </F>
 
                 {!usaSociedadPropia && (
                   <F label={`Gastos de Facturación % — sociedad Transtide`}>
-                    <input type="number" step="any" min="0" value={pFac} onChange={e => setPFac(parseFloat(e.target.value) || 0)} style={INP} />
+                    <input type="number" inputMode="decimal" step="any" min="0" value={pFac} onChange={e => setPFac(parseFloat(e.target.value) || 0)} style={INP} />
                   </F>
                 )}
 
@@ -706,7 +706,7 @@ export default function Cotizador() {
               <div>
                 <p style={SECL}>Precio de venta estimado</p>
                 <F label="Margen de ganancia deseado %">
-                  <input type="number" step="any" min="0" value={pMrg} onChange={e => setPMrg(parseFloat(e.target.value) || 0)} style={INP} />
+                  <input type="number" inputMode="decimal" step="any" min="0" value={pMrg} onChange={e => setPMrg(parseFloat(e.target.value) || 0)} style={INP} />
                 </F>
                 <div style={{ background: '#f0fdf4', borderRadius: '10px', padding: '1rem', marginTop: '0.5rem' }}>
                   {[
@@ -726,7 +726,7 @@ export default function Cotizador() {
         </div>
 
         {/* ── RIGHT: sticky results ────────────────────────────────────────── */}
-        <div style={{ position: 'sticky', top: '1rem', maxHeight: 'calc(100vh - 110px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div className="cot-right-rail" style={{ position: 'sticky', top: '1rem', maxHeight: 'calc(100vh - 110px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 
           {/* ══ MODO CLIENTE ════════════════════════════════════════════════ */}
           {mode === 'cliente' && (<>
@@ -810,8 +810,8 @@ export default function Cotizador() {
 
             <Card>
               <p style={{ ...SECL, margin: '0 0 0.5rem' }}>Detalle: Real vs Cobrado al cliente</p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', fontSize: '0.68rem', fontWeight: 700, color: '#cbd5e1', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
-                <span>Concepto</span><span style={{ textAlign: 'right' }}>Costo real</span><span style={{ textAlign: 'right' }}>Cobro</span><span style={{ textAlign: 'right' }}>Margen</span>
+              <div className="cot-detalle-header" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', fontSize: '0.68rem', fontWeight: 700, color: '#cbd5e1', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
+                <span>Concepto</span><span style={{ textAlign: 'right' }}>Costo real</span><span style={{ textAlign: 'right' }}>Cobro</span><span className="cot-detalle-margen" style={{ textAlign: 'right' }}>Margen</span>
               </div>
               {[
                 ['FOB Mercadería', c.fobR, c.fobC, c.mFOB],
@@ -829,20 +829,20 @@ export default function Cotizador() {
                 ['Naviera', c.navR, c.navC, c.navC - c.navR],
                 ['Logística', c.logR, c.logC, c.logC - c.logR],
               ].map(([lbl, real, cobro, diff]) => (
-                <div key={lbl} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', padding: '0.3rem 0', borderBottom: '1px solid #f8fafc', alignItems: 'center' }}>
+                <div key={lbl} className="cot-detalle-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', padding: '0.3rem 0', borderBottom: '1px solid #f8fafc', alignItems: 'center' }}>
                   <span style={{ fontSize: '0.8rem', color: '#475569' }}>{lbl}</span>
                   <span style={{ fontSize: '0.8rem', color: '#64748b', textAlign: 'right' }}>{usd(real)}</span>
                   <span style={{ fontSize: '0.8rem', fontWeight: 500, color: '#1e293b', textAlign: 'right' }}>{usd(cobro)}</span>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, textAlign: 'right', color: diff === null ? '#cbd5e1' : diff > 0 ? '#10b981' : diff < 0 ? '#ef4444' : '#94a3b8' }}>
+                  <span className="cot-detalle-margen" style={{ fontSize: '0.75rem', fontWeight: 700, textAlign: 'right', color: diff === null ? '#cbd5e1' : diff > 0 ? '#10b981' : diff < 0 ? '#ef4444' : '#94a3b8' }}>
                     {diff === null ? '—' : (diff > 0 ? '+' : '') + (usd(diff))}
                   </span>
                 </div>
               ))}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', padding: '0.5rem 0.25rem', background: '#f0f7ff', borderRadius: '8px', marginTop: '0.4rem', fontWeight: 700, fontSize: '0.85rem' }}>
+              <div className="cot-detalle-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', padding: '0.5rem 0.25rem', background: '#f0f7ff', borderRadius: '8px', marginTop: '0.4rem', fontWeight: 700, fontSize: '0.85rem' }}>
                 <span style={{ color: '#1e293b' }}>TOTAL</span>
                 <span style={{ textAlign: 'right', color: '#64748b' }}>{usd(c.totConR)}</span>
                 <span style={{ textAlign: 'right', color: '#2563eb' }}>{usd(c.totConC)}</span>
-                <span style={{ textAlign: 'right', color: c.ganTotal >= 0 ? '#10b981' : '#ef4444' }}>{c.ganTotal >= 0 ? '+' : ''}{usd(c.ganTotal)}</span>
+                <span className="cot-detalle-margen" style={{ textAlign: 'right', color: c.ganTotal >= 0 ? '#10b981' : '#ef4444' }}>{c.ganTotal >= 0 ? '+' : ''}{usd(c.ganTotal)}</span>
               </div>
             </Card>
 

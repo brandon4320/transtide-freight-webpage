@@ -69,10 +69,10 @@ export default function ClientesPage() {
           <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#1e293b', marginBottom: '0.2rem' }}>Clientes</h2>
           <p style={{ fontSize: '0.82rem', color: '#94a3b8' }}>{clientes.length} clientes registrados</p>
         </div>
-        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '0.45rem 0.75rem' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', flex: '1 1 auto', justifyContent: 'flex-end' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '0.45rem 0.75rem', flex: '1 1 180px', maxWidth: 360 }}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar cliente..." style={{ border: 'none', outline: 'none', fontSize: '0.82rem', color: '#1e293b', width: '180px', background: 'transparent' }} />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar cliente..." style={{ border: 'none', outline: 'none', fontSize: '0.82rem', color: '#1e293b', width: '100%', background: 'transparent' }} />
           </div>
           <button onClick={openNew} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.55rem 1.1rem', borderRadius: '50px', border: 'none', cursor: 'pointer', background: '#ea580c', color: '#fff', fontWeight: 700, fontSize: '0.82rem' }}>
             + Nuevo cliente
@@ -81,7 +81,7 @@ export default function ClientesPage() {
       </div>
 
       {/* stats row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
         {[
           ['Clientes totales', clientes.length, '#ea580c', '#fff4ee'],
           ['Con CUIT', clientes.filter(c=>c.cuit).length, '#7c3aed', '#f5f3ff'],

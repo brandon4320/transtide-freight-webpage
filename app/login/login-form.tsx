@@ -156,7 +156,7 @@ const INP: React.CSSProperties = {
   padding: '0.6rem 0.75rem',
   border: '1px solid #e2e8f0',
   borderRadius: 7,
-  fontSize: '0.88rem',
+  fontSize: '16px',
   color: '#0f172a',
   background: '#fff',
   outline: 'none',

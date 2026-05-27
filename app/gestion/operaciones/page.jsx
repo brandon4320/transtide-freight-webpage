@@ -134,17 +134,17 @@ function InvoiceTable({ rows, onUpdate, onAdd, onRemove, accentColor = '#ea580c'
                   <td style={TD}><input value={row.desc} onChange={e => onUpdate(i,'desc',e.target.value)} style={{ ...INP, fontSize: '0.8rem' }} placeholder="Descripción" /></td>
                   <td style={TD}><input value={row.factura} onChange={e => onUpdate(i,'factura',e.target.value)} style={{ ...INP, fontSize: '0.8rem' }} placeholder="—" /></td>
                   <td style={TD}>
-                    <input type="number" step="any" value={row.usd} onChange={e => onUpdate(i,'usd',e.target.value)}
+                    <input type="number" inputMode="decimal" step="any" value={row.usd} onChange={e => onUpdate(i,'usd',e.target.value)}
                       style={{ ...INP, textAlign: 'right', color: '#1e293b', fontWeight: 500 }} placeholder="" />
                   </td>
                   <td style={TD}>
-                    <input type="number" step="any" value={row.tc} onChange={e => onUpdate(i,'tc',e.target.value)}
+                    <input type="number" inputMode="decimal" step="any" value={row.tc} onChange={e => onUpdate(i,'tc',e.target.value)}
                       style={{ ...INP, textAlign: 'right', color: '#1e293b', fontWeight: 500 }} placeholder="—" />
                   </td>
                   <td style={TD}>
                     {calcPesos
                       ? <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#059669' }}>{fmtP(n(row.usd) * n(row.tc))}</span>
-                      : <input type="number" step="any" value={row.pesos} onChange={e => onUpdate(i,'pesos',e.target.value)}
+                      : <input type="number" inputMode="decimal" step="any" value={row.pesos} onChange={e => onUpdate(i,'pesos',e.target.value)}
                           style={{ ...INP, textAlign: 'right', color: '#1e293b', fontWeight: 500 }} placeholder="" />
                     }
                   </td>
@@ -266,7 +266,7 @@ function OperationsList({ onSelect }) {
         ) : (
         <>
         {/* column headers */}
-        <div style={{ display: 'grid', gridTemplateColumns: '3fr 1.6fr 1.4fr 1fr auto', gap: '0.5rem', padding: '0 1.25rem 0.55rem 5.25rem', alignItems: 'center' }}>
+        <div className="ops-list-headers" style={{ display: 'grid', gridTemplateColumns: '3fr 1.6fr 1.4fr 1fr auto', gap: '0.5rem', padding: '0 1.25rem 0.55rem 5.25rem', alignItems: 'center' }}>
           {['Operación', 'N° BL', 'Contenedor / M³', 'ETA', ''].map(h => (
             <span key={h} style={{ fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</span>
           ))}
@@ -282,6 +282,7 @@ function OperationsList({ onSelect }) {
           const m3Over = cap && ocup != null && ocup > cap * 0.9;
           return (
             <div key={op.id}
+              className="ops-list-row"
               onClick={() => { if (statusPop === op.id) return; onSelect(op); }}
               style={{
                 display: 'grid', gridTemplateColumns: '3fr 1.6fr 1.4fr 1fr auto',
@@ -310,19 +311,19 @@ function OperationsList({ onSelect }) {
               </div>
 
               {/* col 2: BL */}
-              <p style={{ fontSize: '0.8rem', fontWeight: 600, color: op.bl ? '#475569' : '#cbd5e1', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{op.bl || '—'}</p>
+              <p className="col-bl" style={{ fontSize: '0.8rem', fontWeight: 600, color: op.bl ? '#475569' : '#cbd5e1', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{op.bl || '—'}</p>
 
               {/* col 3: container + m³ */}
-              <div>
+              <div className="col-container">
                 <p style={{ fontSize: '0.82rem', fontWeight: 600, color: '#475569' }}>{op.contenedor || '—'}</p>
                 <p style={{ fontSize: '0.7rem', color: m3Over ? '#dc2626' : '#94a3b8' }}>{m3str}</p>
               </div>
 
               {/* col 4: ETA */}
-              <p style={{ fontSize: '0.82rem', fontWeight: 600, color: op.eta ? '#059669' : '#cbd5e1' }}>{op.eta || '—'}</p>
+              <p className="col-eta" style={{ fontSize: '0.82rem', fontWeight: 600, color: op.eta ? '#059669' : '#cbd5e1' }}>{op.eta || '—'}</p>
 
               {/* col 5: actions */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }} onClick={e => e.stopPropagation()}>
+              <div className="col-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }} onClick={e => e.stopPropagation()}>
                 {/* status badge */}
                 <div style={{ position: 'relative' }}>
                   <button onClick={() => setStatusPop(statusPop === op.id ? null : op.id)}
@@ -347,10 +348,10 @@ function OperationsList({ onSelect }) {
                   )}
                 </div>
                 {/* edit icon */}
-                <button onClick={e => openEdit(op, e)} title="Editar"
+                <button className="edit-btn" onClick={e => openEdit(op, e)} title="Editar"
                   style={{ width: '30px', height: '30px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: '0.82rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✏</button>
                 {/* delete icon */}
-                <button onClick={e => askDel(op.id, e)} title="Eliminar"
+                <button className="del-btn" onClick={e => askDel(op.id, e)} title="Eliminar"
                   style={{ width: '30px', height: '30px', borderRadius: '8px', border: '1px solid #fee2e2', background: '#fff', color: '#dc2626', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
               </div>
             </div>
@@ -672,7 +673,7 @@ function OperationDetail({ op, onBack }) {
     <div style={{ fontFamily: 'inherit', color: '#0f172a', paddingBottom: '5rem' }}>
 
       {/* Sticky header */}
-      <div style={{ position: 'sticky', top: 0, zIndex: 30, background: '#f4f6f9', paddingTop: 4, paddingBottom: 12, marginBottom: '1rem' }}>
+      <div className="op-sticky-header" style={{ position: 'sticky', top: 0, zIndex: 30, background: '#f4f6f9', paddingTop: 4, paddingBottom: 12, marginBottom: '1rem' }}>
         <div style={{ ...CARD, padding: '0.85rem 1.1rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
           <button onClick={handleBack} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.7rem', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
@@ -698,7 +699,7 @@ function OperationDetail({ op, onBack }) {
         </div>
 
         {/* KPI strip */}
-        <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 8 }}>
+        <div className="gestion-kpi-strip" style={{ marginTop: 8, display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 8 }}>
           {[
             { lbl: 'Costos totales', val: fmtP(calc.totalGastos), sub: `${fmtP(calc.enBlanco)} blanco + ${fmtP(calc.cash)} cash` },
             { lbl: 'Por cobrar', val: fmtU(calc.totalACobrar - calc.totalCobrado), sub: `de ${fmtU(calc.totalACobrar)} total`, accent: '#ea580c' },
@@ -721,7 +722,7 @@ function OperationDetail({ op, onBack }) {
       </div>
 
       {/* MAIN LAYOUT */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: '1rem', alignItems: 'start' }}>
+      <div className="gestion-main-split" style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: '1rem', alignItems: 'start' }}>
 
         {/* LEFT: Master table */}
         <div style={CARD}>
@@ -736,7 +737,7 @@ function OperationDetail({ op, onBack }) {
           </div>
 
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+            <table className="master-providers-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
               <thead>
                 <tr style={{ background: '#f8fafc' }}>
                   {[
@@ -916,7 +917,7 @@ function OperationDetail({ op, onBack }) {
       )}
 
       {/* Floating checklist FAB */}
-      <button onClick={() => setShowChecklist(!showChecklist)} style={{ position: 'fixed', bottom: 24, right: 24, padding: '0.7rem 1.1rem', borderRadius: 50, border: 'none', background: '#1e293b', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.8rem', fontWeight: 700, boxShadow: '0 8px 24px rgba(15,23,42,0.18)', zIndex: 40 }}>
+      <button className="checklist-fab" onClick={() => setShowChecklist(!showChecklist)} style={{ position: 'fixed', bottom: 24, right: 24, padding: '0.7rem 1.1rem', borderRadius: 50, border: 'none', background: '#1e293b', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.8rem', fontWeight: 700, boxShadow: '0 8px 24px rgba(15,23,42,0.18)', zIndex: 40 }}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
         Checklist {doneTasks}/{totalTasks}
         <span style={{ marginLeft: 4, fontSize: '0.7rem', background: progress === 100 ? '#16a34a' : '#ea580c', padding: '0.1rem 0.5rem', borderRadius: 99 }}>{progress}%</span>
@@ -1130,16 +1131,16 @@ function CategoryEditor({ cat, rows: initRows, onChange, onClose, onDelete }) {
                       <input value={row.factura} onChange={e => updRow(i, 'factura', e.target.value)} style={INP_MODAL} placeholder="—" />
                     </td>
                     <td style={{ padding: '0.25rem 0.3rem', width: 110 }}>
-                      <input type="number" step="any" value={row.usd} onChange={e => updRow(i, 'usd', e.target.value)} style={{ ...INP_MODAL, textAlign: 'right' }} placeholder="" />
+                      <input type="number" inputMode="decimal" step="any" value={row.usd} onChange={e => updRow(i, 'usd', e.target.value)} style={{ ...INP_MODAL, textAlign: 'right' }} placeholder="" />
                     </td>
                     <td style={{ padding: '0.25rem 0.3rem', width: 90 }}>
-                      <input type="number" step="any" value={row.tc} onChange={e => updRow(i, 'tc', e.target.value)} style={{ ...INP_MODAL, textAlign: 'right' }} placeholder="" />
+                      <input type="number" inputMode="decimal" step="any" value={row.tc} onChange={e => updRow(i, 'tc', e.target.value)} style={{ ...INP_MODAL, textAlign: 'right' }} placeholder="" />
                     </td>
                     <td style={{ padding: '0.25rem 0.3rem', width: 140 }}>
                       {calcPesos ? (
                         <div style={{ ...INP_MODAL, background: '#f8fafc', color: '#059669', fontWeight: 600, textAlign: 'right' }}>{fmtP(n(row.usd) * n(row.tc))}</div>
                       ) : (
-                        <input type="number" step="any" value={row.pesos} onChange={e => updRow(i, 'pesos', e.target.value)} style={{ ...INP_MODAL, textAlign: 'right' }} placeholder="" />
+                        <input type="number" inputMode="decimal" step="any" value={row.pesos} onChange={e => updRow(i, 'pesos', e.target.value)} style={{ ...INP_MODAL, textAlign: 'right' }} placeholder="" />
                       )}
                     </td>
                     <td style={{ padding: '0.25rem 0.3rem', width: 30 }}>
@@ -1191,13 +1192,13 @@ function ExpandedDetail({ p, clientes, onUpdProveedor, onUpdCobrar, onToggleCobr
 
   return (
     <div style={{ paddingTop: '0.6rem' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr', gap: '0.85rem', alignItems: 'start' }}>
+      <div className="expanded-detail-grid" style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr', gap: '0.85rem', alignItems: 'start' }}>
 
         <div style={{ background: '#fff', border: '1px solid #e8ecf1', borderRadius: 8, padding: '1rem 1.1rem' }}>
 
           <div style={{ marginBottom: 18 }}>
             <p style={SEC}><span style={{ width: 4, height: 4, borderRadius: '50%', background: '#94a3b8' }} /> Identidad</p>
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.3fr 1.7fr', gap: 10 }}>
+            <div className="expanded-detail-identidad" style={{ display: 'grid', gridTemplateColumns: '2fr 1.3fr 1.7fr', gap: 10 }}>
               <div>
                 <p style={LBL_E}>Nombre</p>
                 <input value={p.nombre || ''} onChange={e => onUpdProveedor('nombre', e.target.value)} style={INP_E} placeholder="Ej: Gimnasio Marce" />
@@ -1230,19 +1231,19 @@ function ExpandedDetail({ p, clientes, onUpdProveedor, onUpdCobrar, onToggleCobr
 
           <div style={{ marginBottom: 18 }}>
             <p style={SEC}><span style={{ width: 4, height: 4, borderRadius: '50%', background: '#0284c7' }} /> Carga en el contenedor</p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+            <div className="expanded-detail-carga" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
               <div>
                 <p style={LBL_E}>m³ (CBM) <Help title="Volumen en metros cúbicos. Define el % de prorrateo de los costos compartidos." /></p>
-                <input type="number" step="any" value={p.m3 || ''} onChange={e => onUpdProveedor('m3', e.target.value)} style={{ ...INP_E, textAlign: 'right' }} placeholder="0.00" />
+                <input type="number" inputMode="decimal" step="any" value={p.m3 || ''} onChange={e => onUpdProveedor('m3', e.target.value)} style={{ ...INP_E, textAlign: 'right' }} placeholder="0.00" />
                 {n(p.m3) > 0 && <p style={CALC}>= {pct(p.ratio)} del contenedor</p>}
               </div>
               <div>
                 <p style={LBL_E}>FOB USD <Help title="Valor declarado del producto al embarcar (Free On Board)." /></p>
-                <input type="number" step="any" value={p.fobUSD || ''} onChange={e => onUpdProveedor('fobUSD', e.target.value)} style={{ ...INP_E, textAlign: 'right' }} placeholder="0" />
+                <input type="number" inputMode="decimal" step="any" value={p.fobUSD || ''} onChange={e => onUpdProveedor('fobUSD', e.target.value)} style={{ ...INP_E, textAlign: 'right' }} placeholder="0" />
               </div>
               <div>
                 <p style={LBL_E}>Gs. Origen USD <span style={{ color: '#cbd5e1', fontWeight: 400, fontStyle: 'italic', textTransform: 'none', letterSpacing: 0 }}>opcional</span></p>
-                <input type="number" step="any" value={p.gastosOrigenUSD || ''} onChange={e => onUpdProveedor('gastosOrigenUSD', e.target.value)} style={{ ...INP_E, textAlign: 'right' }} placeholder="0" />
+                <input type="number" inputMode="decimal" step="any" value={p.gastosOrigenUSD || ''} onChange={e => onUpdProveedor('gastosOrigenUSD', e.target.value)} style={{ ...INP_E, textAlign: 'right' }} placeholder="0" />
               </div>
             </div>
           </div>
@@ -1252,12 +1253,12 @@ function ExpandedDetail({ p, clientes, onUpdProveedor, onUpdCobrar, onToggleCobr
             <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
               <div style={{ flex: 1 }}>
                 <p style={LBL_E}>USD</p>
-                <input type="number" step="any" value={p.tributosUSD || ''} onChange={e => onUpdProveedor('tributosUSD', e.target.value)} style={{ ...INP_E, textAlign: 'right' }} placeholder="0" />
+                <input type="number" inputMode="decimal" step="any" value={p.tributosUSD || ''} onChange={e => onUpdProveedor('tributosUSD', e.target.value)} style={{ ...INP_E, textAlign: 'right' }} placeholder="0" />
               </div>
               <div style={{ paddingBottom: 8, color: '#cbd5e1', fontWeight: 700, fontSize: '0.9rem' }}>×</div>
               <div style={{ flex: 1 }}>
                 <p style={LBL_E}>T.C.</p>
-                <input type="number" step="any" value={p.tributosTC || ''} onChange={e => onUpdProveedor('tributosTC', e.target.value)} style={{ ...INP_E, textAlign: 'right' }} placeholder="—" />
+                <input type="number" inputMode="decimal" step="any" value={p.tributosTC || ''} onChange={e => onUpdProveedor('tributosTC', e.target.value)} style={{ ...INP_E, textAlign: 'right' }} placeholder="—" />
               </div>
               <div style={{ paddingBottom: 8, color: '#cbd5e1', fontWeight: 700, fontSize: '0.9rem' }}>=</div>
               <div style={{ flex: 1.2 }}>
@@ -1304,15 +1305,15 @@ function ExpandedDetail({ p, clientes, onUpdProveedor, onUpdCobrar, onToggleCobr
           <div style={{ background: '#fff', border: '1px solid #e8ecf1', borderRadius: 8, padding: '0.9rem 1.1rem' }}>
             <p style={SEC}><span style={{ width: 4, height: 4, borderRadius: '50%', background: '#ea580c' }} /> Ajustes de cobro</p>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+            <div className="expanded-detail-ajustes" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
               <div>
                 <p style={LBL_E}>T.C. cobro</p>
-                <input type="number" step="any" value={p.cb.tc || ''} onChange={e => onUpdCobrar('tc', e.target.value)} placeholder={p.tributosTC ? `${p.tributosTC} auto` : '—'} style={{ ...INP_E, textAlign: 'right' }} />
+                <input type="number" inputMode="decimal" step="any" value={p.cb.tc || ''} onChange={e => onUpdCobrar('tc', e.target.value)} placeholder={p.tributosTC ? `${p.tributosTC} auto` : '—'} style={{ ...INP_E, textAlign: 'right' }} />
                 <p style={HINT}>vacío = usa el del VEP</p>
               </div>
               <div>
                 <p style={LBL_E}>Desp. adic. USD</p>
-                <input type="number" step="any" value={p.cb.despAdic || ''} onChange={e => onUpdCobrar('despAdic', e.target.value)} placeholder="0" style={{ ...INP_E, textAlign: 'right' }} />
+                <input type="number" inputMode="decimal" step="any" value={p.cb.despAdic || ''} onChange={e => onUpdCobrar('despAdic', e.target.value)} placeholder="0" style={{ ...INP_E, textAlign: 'right' }} />
                 <p style={HINT}>extras del despachante</p>
               </div>
             </div>
