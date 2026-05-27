@@ -94,28 +94,49 @@ export async function POST(req: Request) {
   const bytes = await file.arrayBuffer()
   const base64 = Buffer.from(bytes).toString('base64')
 
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-    generationConfig: {
-      responseMimeType: 'application/json',
-      responseSchema: schema,
-      temperature: 0.1,
-    },
-  })
-
-  try {
-    const result = await model.generateContent([
-      { inlineData: { data: base64, mimeType } },
-      { text: PROMPT },
-    ])
-    const text = result.response.text()
-    const data = JSON.parse(text)
-    return NextResponse.json({ ok: true, data })
-  } catch (e: any) {
-    console.error('[gemini extract] error:', e)
-    return NextResponse.json(
-      { error: e?.message || 'extraction failed' },
-      { status: 500 }
-    )
+  // Lista de modelos en orden de preferencia. Si uno está sobrecargado (503)
+  // o sin cuota (429), pasamos al siguiente.
+  const MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-flash-latest', 'gemini-1.5-flash']
+  const genConfig = {
+    responseMimeType: 'application/json',
+    responseSchema: schema,
+    temperature: 0.1,
   }
+
+  const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+  const isRetryable = (err: any) => {
+    const msg = String(err?.message || '')
+    return /\b503\b|\b429\b|\b500\b|overloaded|unavailable|rate.limit|temporar/i.test(msg)
+  }
+
+  let lastErr: any = null
+
+  for (const modelName of MODELS) {
+    // por cada modelo: hasta 2 intentos con backoff
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const model = genAI.getGenerativeModel({ model: modelName, generationConfig: genConfig })
+        const result = await model.generateContent([
+          { inlineData: { data: base64, mimeType } },
+          { text: PROMPT },
+        ])
+        const text = result.response.text()
+        const data = JSON.parse(text)
+        return NextResponse.json({ ok: true, data, model: modelName })
+      } catch (e: any) {
+        lastErr = e
+        console.warn(`[gemini extract] ${modelName} attempt ${attempt + 1} failed:`, e?.message)
+        if (!isRetryable(e)) break // error no recuperable → probar próximo modelo
+        await sleep(800 * (attempt + 1)) // 800ms, 1600ms
+      }
+    }
+  }
+
+  console.error('[gemini extract] all models failed:', lastErr?.message)
+  const userMsg = /quota|limit: 0/i.test(String(lastErr?.message || ''))
+    ? 'Se agotó la cuota de la API. Probá de nuevo en unos minutos.'
+    : /503|overloaded|unavailable/i.test(String(lastErr?.message || ''))
+    ? 'El servicio de IA está saturado. Probá de nuevo en 1-2 minutos.'
+    : (lastErr?.message || 'No pudimos extraer los datos')
+  return NextResponse.json({ error: userMsg }, { status: 500 })
 }
