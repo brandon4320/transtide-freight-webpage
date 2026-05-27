@@ -13,6 +13,7 @@ const n    = (v) => parseFloat(v) || 0;
 const toTitle = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase().replace(/\b\w/g, c => c.toUpperCase()) : s;
 const fmtP = (v) => v == null || isNaN(v) ? '—' : '$ ' + Math.round(v).toLocaleString('es-AR');
 const fmtU = (v) => v == null || isNaN(v) ? '—' : 'USD ' + (Math.round(v * 100) / 100).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtUcompact = (v) => v == null || isNaN(v) ? '—' : Math.round(v * 100) / 100 < 1000 ? (Math.round(v * 100) / 100).toLocaleString('es-AR', { minimumFractionDigits: 2 }) : Math.round(v).toLocaleString('es-AR');
 const pct  = (v) => isNaN(v) ? '—' : (v * 100).toFixed(2) + '%';
 
 // ─── styles ───────────────────────────────────────────────────────────────────
@@ -440,43 +441,45 @@ function OperationsList({ onSelect }) {
 // ─── OperationDetail ──────────────────────────────────────────────────────────
 function OperationDetail({ op, onBack }) {
   const router = useRouter();
-  const [mainTab,     setMainTab]     = useState('proveedores');
-  const [gastoTab,    setGastoTab]    = useState('naviera');
-  const [isDirty,     setIsDirty]     = useState(false);
-  const [showDiscard, setShowDiscard] = useState(false);
-  const [pendingNav,  setPendingNav]  = useState(null);
-  const [saveFlash,   setSaveFlash]   = useState(false);
-  const [showChecklist, setShowChecklist] = useState(false);
-
-  const init = (arr) => arr.length ? arr.map((r, i) => ({ ...r, id: i + 1 })) : [newRow()];
   const DKEY = `transtide-opdetail-${op.id}`;
+  const CHECKLIST_KEY = `transtide-checklist-${op.id}`;
+  const isFranco = op.id === 'franco-modulos';
+
   const loadD = () => {
     try { const s = typeof window !== 'undefined' && localStorage.getItem(DKEY); return s ? JSON.parse(s) : null; }
     catch { return null; }
   };
 
-  const isFranco = op.id === 'franco-modulos';
-  const fallback = (key, francoVal, emptyVal) => {
-    const d = loadD();
-    if (d?.[key]?.length) return d[key];
-    return isFranco ? francoVal : emptyVal;
+  // Build initial detail object — merge saved + Franco seed + empty defaults
+  const initDetail = () => {
+    const saved = loadD();
+    const base = isFranco
+      ? {
+          naviera: FRANCO.naviera, terminal: FRANCO.terminal, aduana: FRANCO.aduana,
+          transporte: FRANCO.transporte, despachante: FRANCO.despachante, admin: FRANCO.admin,
+          fleteIntl: FRANCO.fleteIntl,
+          proveedores: FRANCO.proveedores, cobrar: FRANCO.cobrar,
+          puertoOrigen: '', customGastos: [],
+        }
+      : {
+          naviera: [], terminal: [], aduana: [], transporte: [], despachante: [], admin: [], fleteIntl: [],
+          proveedores: [], cobrar: [], puertoOrigen: '', customGastos: [],
+        };
+    return { ...base, ...(saved || {}) };
   };
 
-  const [naviera,    setNaviera]    = useState(() => fallback('naviera',    init(FRANCO.naviera),    [newRow()]));
-  const [terminal,   setTerminal]   = useState(() => fallback('terminal',   init(FRANCO.terminal),   [newRow()]));
-  const [aduana,     setAduana]     = useState(() => fallback('aduana',     init(FRANCO.aduana),     [newRow()]));
-  const [transporte, setTransporte] = useState(() => fallback('transporte', init(FRANCO.transporte), [newRow()]));
-  const [despachante,setDespachante]= useState(() => fallback('despachante',init(FRANCO.despachante),[newRow()]));
-  const [admin,      setAdmin]      = useState(() => fallback('admin',      init(FRANCO.admin),      [newRow()]));
-  const [fleteIntl,  setFleteIntl]  = useState(() => fallback('fleteIntl',  init(FRANCO.fleteIntl),  [newRow()]));
+  const [detail,     setDetail]     = useState(initDetail);
+  const [clientes,   setClientes]   = useState(MOCK_CLIENTES);
+  const [expanded,   setExpanded]   = useState(null);
+  const [showChecklist, setShowChecklist] = useState(false);
+  const [costosOpen, setCostosOpen] = useState(true);
+  const [editingCat, setEditingCat] = useState(null);
+  const [addingCat,  setAddingCat]  = useState(false);
+  const [isDirty,    setIsDirty]    = useState(false);
+  const [saveFlash,  setSaveFlash]  = useState(false);
+  const [showDiscard,setShowDiscard]= useState(false);
+  const [pendingNav, setPendingNav] = useState(null);
 
-  const [proveedores,  setProveedores]  = useState(() => { const d=loadD(); return d?.proveedores?.length ? d.proveedores : isFranco ? [...FRANCO.proveedores, newProv()] : [newProv()]; });
-  const [cobrar,       setCobrar]       = useState(() => { const d=loadD(); return d?.cobrar?.length      ? d.cobrar      : isFranco ? [...FRANCO.cobrar, { tc:'', honorarios:true, despAdic:'' }] : [{ tc:'', honorarios:false, despAdic:'' }]; });
-  const [puertoOrigen, setPuertoOrigen] = useState(() => { const d=loadD(); return d?.puertoOrigen ?? ''; });
-  const [clientes,     setClientes]     = useState(MOCK_CLIENTES);
-
-  // ── checklist: persist per operation in localStorage ──
-  const CHECKLIST_KEY = `transtide-checklist-${op.id}`;
   const [checked, setChecked] = useState(() => {
     try {
       const saved = typeof window !== 'undefined' && localStorage.getItem(CHECKLIST_KEY);
@@ -488,7 +491,7 @@ function OperationDetail({ op, onBack }) {
     localStorage.setItem(CHECKLIST_KEY, JSON.stringify([...checked]));
   }, [checked]);
 
-  // ── load clientes from localStorage ──
+  // load clientes
   useEffect(() => {
     try {
       const saved = localStorage.getItem(CLIENTES_KEY);
@@ -496,22 +499,18 @@ function OperationDetail({ op, onBack }) {
     } catch { /* keep mock */ }
   }, []);
 
-  // ── warn on browser close / refresh while dirty ──
+  // warn before unload
   useEffect(() => {
-    const handler = (e) => {
-      if (!isDirty) return;
-      e.preventDefault();
-      e.returnValue = '';
-    };
+    const handler = (e) => { if (!isDirty) return; e.preventDefault(); e.returnValue = ''; };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
   }, [isDirty]);
 
-  // ── intercept sidebar navigation while dirty ──
+  // intercept sidebar nav
   useEffect(() => {
     const handler = (e) => {
       if (!isDirty) return;
-      e.preventDefault(); // cancels the Link navigation
+      e.preventDefault();
       setPendingNav(e.detail.href);
       setShowDiscard(true);
     };
@@ -519,23 +518,57 @@ function OperationDetail({ op, onBack }) {
     return () => window.removeEventListener('gestion:navigate', handler);
   }, [isDirty]);
 
+  const D = () => setIsDirty(true);
+  const updDetail = (patch) => { setDetail(d => ({ ...d, ...patch })); D(); };
+  const updCategory = (catId, rows) => updDetail({ [catId]: rows });
+  const updProveedor = (i, field, value) => {
+    setDetail(d => ({ ...d, proveedores: d.proveedores.map((p, j) => j === i ? { ...p, [field]: value } : p) }));
+    D();
+  };
+  const updCobrar = (i, field, value) => {
+    setDetail(d => {
+      const cobrar = [...(d.cobrar || [])];
+      while (cobrar.length <= i) cobrar.push({ tc: '', honorarios: false, despAdic: '' });
+      cobrar[i] = { ...cobrar[i], [field]: value };
+      return { ...d, cobrar };
+    });
+    D();
+  };
+  const addProveedor = () => {
+    setDetail(d => ({
+      ...d,
+      proveedores: [...(d.proveedores || []), newProv()],
+      cobrar:      [...(d.cobrar || []),      { tc: '', honorarios: false, despAdic: '', cobrado: false, fechaCobro: '' }],
+    }));
+    D();
+  };
+  const removeProveedor = (i) => {
+    setDetail(d => ({
+      ...d,
+      proveedores: d.proveedores.filter((_, j) => j !== i),
+      cobrar: (d.cobrar || []).filter((_, j) => j !== i),
+    }));
+    setExpanded(null);
+    D();
+  };
+  const toggleCobrado = (i, isCobrado) => {
+    const ahora = new Date().toLocaleDateString('es-AR');
+    setDetail(d => {
+      const cobrar = [...(d.cobrar || [])];
+      while (cobrar.length <= i) cobrar.push({ tc: '', honorarios: false, despAdic: '' });
+      cobrar[i] = { ...cobrar[i], cobrado: !isCobrado, fechaCobro: !isCobrado ? ahora : '' };
+      return { ...d, cobrar };
+    });
+    D();
+  };
   const toggleCheck = (id) => setChecked(prev => {
     const next = new Set(prev);
     next.has(id) ? next.delete(id) : next.add(id);
     return next;
   });
 
-  // ── dirty-aware setters ──
-  const D = () => setIsDirty(true);
-  const upd  = (setter) => (i, f, v) => { setter(p => p.map((r, j) => j === i ? { ...r, [f]: v } : r)); D(); };
-  const add  = (setter) => () => { setter(p => [...p, newRow()]); D(); };
-  const rem  = (setter) => (i) => { setter(p => p.filter((_, j) => j !== i)); D(); };
-  const updP = (i, f, v) => { setProveedores(p => p.map((r, j) => j === i ? { ...r, [f]: v } : r)); D(); };
-  const updC = (i, f, v) => { setCobrar(p => p.map((r, j) => j === i ? { ...r, [f]: v } : r)); D(); };
-
-  // ── save / navigate ──
   const saveAll = () => {
-    localStorage.setItem(DKEY, JSON.stringify({ naviera, terminal, aduana, transporte, despachante, admin, fleteIntl, proveedores, cobrar, puertoOrigen }));
+    localStorage.setItem(DKEY, JSON.stringify(detail));
     setIsDirty(false);
     setSaveFlash(true);
     setTimeout(() => setSaveFlash(false), 2200);
@@ -545,647 +578,351 @@ function OperationDetail({ op, onBack }) {
   const discardAndBack = () => { setIsDirty(false); setShowDiscard(false); doNavigate(); };
   const saveAndBack    = () => { saveAll(); setShowDiscard(false); setTimeout(doNavigate, 50); };
 
+  const addCustomCategory = ({ label, color, kind }) => {
+    const id = `custom-${Date.now()}`;
+    setDetail(d => ({
+      ...d,
+      customGastos: [...(d.customGastos || []), { id, label, color, kind }],
+      [id]: [],
+    }));
+    D();
+  };
+  const removeCustomCategory = (catId) => {
+    if (!confirm('¿Eliminar esta categoría? Se perderán las facturas cargadas.')) return;
+    setDetail(d => {
+      const next = { ...d };
+      delete next[catId];
+      next.customGastos = (d.customGastos || []).filter(c => c.id !== catId);
+      return next;
+    });
+    D();
+    setEditingCat(null);
+  };
+
   const calc = useMemo(() => {
-    const tNav  = catTot(naviera);
-    const tTerm = catTot(terminal);
-    const tAdu  = catTot(aduana);
-    const tTra  = catTot(transporte);
-    const tDes  = catTot(despachante);
-    const tAdm  = catTot(admin);
-    const tFlt  = catTot(fleteIntl);
+    const { naviera = [], terminal = [], aduana = [], transporte = [], despachante = [], admin = [], fleteIntl = [], proveedores = [], cobrar = [], customGastos = [] } = detail;
+    const tNav = catTot(naviera).pesos, tTerm = catTot(terminal).pesos, tAdu = catTot(aduana).pesos;
+    const tTra = catTot(transporte).pesos, tDes = catTot(despachante).pesos, tAdm = catTot(admin).pesos;
+    const tFlt = catTot(fleteIntl).pesos;
 
-    const enBlancoPesos = tNav.pesos + tTerm.pesos + tAdu.pesos + tTra.pesos + tDes.pesos + tAdm.pesos;
-    const cashPesos     = tFlt.pesos;
-    const prorBase      = enBlancoPesos - tAdu.pesos + cashPesos;
+    let customBlanco = 0, customCash = 0;
+    customGastos.forEach(cg => {
+      const t = catTot(detail[cg.id] || []).pesos;
+      if (cg.kind === 'cash') customCash += t; else customBlanco += t;
+    });
 
+    const enBlanco = tNav + tTerm + tAdu + tTra + tDes + tAdm + customBlanco;
+    const cash     = tFlt + customCash;
+    const prorBase = enBlanco - tAdu + cash;
+    const totalGastos = enBlanco + cash;
     const totalM3 = proveedores.reduce((s, p) => s + n(p.m3), 0);
 
-    const perProv = proveedores
-      .filter(p => p.nombre !== '')
-      .map((p, i) => {
-        const clienteNombre = p.clienteId ? (clientes.find(c => c.id === p.clienteId)?.nombre || '') : '';
-        const ratio        = totalM3 > 0 ? n(p.m3) / totalM3 : 0;
-        const prorPesos    = Math.round(ratio * prorBase);
-        const tributoPesos = Math.round(n(p.tributosUSD) * n(p.tributosTC));
-        const costoFinal   = prorPesos + tributoPesos;
-        const cb             = cobrar[i] || { tc: 0, honorarios: false, despAdic: 0 };
-        const tcUsed         = n(cb.tc) > 0 ? n(cb.tc) : n(p.tributosTC);
-        const gastosUSD      = tcUsed > 0 ? Math.round((costoFinal / tcUsed) * 100) / 100 : 0;
-        const origenUSD      = n(p.gastosOrigenUSD);
-        const honorarios     = cb.honorarios ? Math.round((gastosUSD + origenUSD) * 0.04 * 100) / 100 : 0;
-        const totalUSD       = Math.round((gastosUSD + origenUSD + honorarios + n(cb.despAdic)) * 100) / 100;
-        // Flete marítimo (cash) — desembolso propio de Brandon, diferenciado
-        const fleteIntlPesos = Math.round(ratio * cashPesos);
-        const fleteIntlUSD   = tcUsed > 0 ? Math.round((fleteIntlPesos / tcUsed) * 100) / 100 : 0;
-        return { nombre: p.nombre, tipo: p.tipo || 'Cliente', clienteNombre, m3: n(p.m3), fobUSD: n(p.fobUSD), origenUSD, ratio, prorPesos, tributoPesos, costoFinal, gastosUSD, honorarios, totalUSD, tcUsed, cb, fleteIntlPesos, fleteIntlUSD };
-      });
-
+    const perProv = proveedores.map((p, i) => {
+      const clienteNombre = p.clienteId ? clientes.find(c => c.id === p.clienteId)?.nombre || '' : '';
+      const ratio = totalM3 > 0 ? n(p.m3) / totalM3 : 0;
+      const prorBlancoPesos = Math.round(ratio * (enBlanco - tAdu));
+      const prorCashPesos   = Math.round(ratio * cash);
+      const prorPesos       = prorBlancoPesos + prorCashPesos;
+      const vepPesos = Math.round(n(p.tributosUSD) * n(p.tributosTC));
+      const costoFinal = prorPesos + vepPesos;
+      const cb = cobrar[i] || { tc: 0, honorarios: false, despAdic: 0 };
+      const tcUsed = n(cb.tc) > 0 ? n(cb.tc) : n(p.tributosTC);
+      const gastosUSD = tcUsed > 0 ? Math.round((costoFinal / tcUsed) * 100) / 100 : 0;
+      const cashUSD   = tcUsed > 0 ? Math.round((prorCashPesos / tcUsed) * 100) / 100 : 0;
+      const origenUSD = n(p.gastosOrigenUSD);
+      const honorarios = cb.honorarios ? Math.round((gastosUSD + origenUSD) * 0.04 * 100) / 100 : 0;
+      const totalUSD = Math.round((gastosUSD + origenUSD + honorarios + n(cb.despAdic)) * 100) / 100;
+      return { ...p, clienteNombre, ratio, prorPesos, prorBlancoPesos, prorCashPesos, cashUSD, vepPesos, costoFinal, tcUsed, gastosUSD, origenUSD, honorarios, totalUSD, cb, idx: i };
+    });
     return {
-      tNav, tTerm, tAdu, tTra, tDes, tAdm, tFlt,
-      enBlancoPesos, cashPesos,
-      totalGeneral: enBlancoPesos + cashPesos,
-      prorBase, totalM3, perProv,
-      totalCostoFinal:    perProv.reduce((s, p) => s + p.costoFinal, 0),
-      totalACobrar:       perProv.reduce((s, p) => s + p.totalUSD, 0),
-      totalFleteIntlUSD:  perProv.reduce((s, p) => s + p.fleteIntlUSD, 0),
+      tNav, tTerm, tAdu, tTra, tDes, tAdm, tFlt, customBlanco, customCash,
+      enBlanco, cash, prorBase, totalGastos, totalM3, perProv,
+      totalACobrar:  perProv.reduce((s, p) => s + p.totalUSD, 0),
+      totalCobrado:  perProv.reduce((s, p) => s + (p.cb.cobrado ? p.totalUSD : 0), 0),
+      totalCashUSD:  perProv.reduce((s, p) => s + p.cashUSD, 0),
+      cobrados:      perProv.filter(p => p.cb.cobrado).length,
     };
-  }, [naviera, terminal, aduana, transporte, despachante, admin, fleteIntl, proveedores, cobrar, clientes]);
+  }, [detail, clientes]);
 
-  const GASTOS = [
-    { id: 'naviera',    label: 'Naviera',                    color: '#ea580c', rows: naviera,    setter: setNaviera    },
-    { id: 'terminal',   label: 'Terminal',                   color: '#7c3aed', rows: terminal,   setter: setTerminal   },
-    { id: 'aduana',     label: 'VEP Aduana',                 color: '#dc2626', rows: aduana,     setter: setAduana     },
-    { id: 'transporte', label: 'Transporte',                 color: '#d97706', rows: transporte, setter: setTransporte },
-    { id: 'despachante',label: 'Despachante',                color: '#059669', rows: despachante,setter: setDespachante},
-    { id: 'admin',      label: 'Gastos Admin',               color: '#64748b', rows: admin,      setter: setAdmin      },
-    { id: 'fleteIntl',  label: 'Flete Internacional (Cash)', color: '#374151', rows: fleteIntl,  setter: setFleteIntl  },
-  ];
-  const catTotMap = { naviera: calc.tNav, terminal: calc.tTerm, aduana: calc.tAdu, transporte: calc.tTra, despachante: calc.tDes, admin: calc.tAdm, fleteIntl: calc.tFlt };
-  const activeCat = GASTOS.find(g => g.id === gastoTab);
-  const provActivos = proveedores.filter(p => p.nombre !== '');
-
-  const tipoStyle = (tipo) => tipo === 'Propio'
-    ? { background: '#f0fdf4', color: '#059669', border: '1.5px solid #bbf7d0' }
-    : { background: '#fff4ee', color: '#ea580c', border: '1.5px solid #bfdbfe' };
-
-  // checklist progress
   const totalTasks = CHECKLIST.length;
   const doneTasks  = CHECKLIST.filter(t => checked.has(t.id)).length;
   const progress   = Math.round((doneTasks / totalTasks) * 100);
 
-  return (
-    <div style={{ paddingBottom: '3rem' }}>
+  const estadoC = ESTADOS.find(s => s.label === op.estado) || ESTADOS[0];
+  const cap = CONTAINER_M3[op.contenedor];
+  const fillPct = cap ? (calc.totalM3 / cap) * 100 : 0;
 
-      {/* HEADER — row 1: navigation + title + save */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <button onClick={handleBack} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.85rem', borderRadius: '50px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}>
-            ← Operaciones
+  const BUILTIN = [
+    { id: 'naviera',     label: 'Naviera',     color: '#0284c7', kind: 'blanco', total: calc.tNav,  rows: detail.naviera },
+    { id: 'terminal',    label: 'Terminal',    color: '#7c3aed', kind: 'blanco', total: calc.tTerm, rows: detail.terminal },
+    { id: 'aduana',      label: 'VEP Aduana',  color: '#dc2626', kind: 'blanco', total: calc.tAdu,  rows: detail.aduana, note: 'No se proratea — se asigna manualmente por proveedor' },
+    { id: 'transporte',  label: 'Transporte',  color: '#d97706', kind: 'blanco', total: calc.tTra,  rows: detail.transporte },
+    { id: 'despachante', label: 'Despachante', color: '#059669', kind: 'blanco', total: calc.tDes,  rows: detail.despachante },
+    { id: 'admin',       label: 'Admin',       color: '#64748b', kind: 'blanco', total: calc.tAdm,  rows: detail.admin },
+    { id: 'fleteIntl',   label: 'Flete Internacional', color: '#0891b2', kind: 'cash', builtin: true, total: calc.tFlt, rows: detail.fleteIntl, note: 'CASH propio — se proratea por m³ y se recupera de cada cliente' },
+  ];
+  const customGastosList = (detail.customGastos || []).map(cg => ({
+    ...cg, total: catTot(detail[cg.id] || []).pesos, rows: detail[cg.id] || [], custom: true,
+  }));
+  const ALL_GASTOS = [...BUILTIN, ...customGastosList];
+  const GASTOS_BLANCO = ALL_GASTOS.filter(g => g.kind === 'blanco');
+  const GASTOS_CASH   = ALL_GASTOS.filter(g => g.kind === 'cash');
+
+  return (
+    <div style={{ fontFamily: 'inherit', color: '#0f172a', paddingBottom: '5rem' }}>
+
+      {/* Sticky header */}
+      <div style={{ position: 'sticky', top: 0, zIndex: 30, background: '#f4f6f9', paddingTop: 4, paddingBottom: 12, marginBottom: '1rem' }}>
+        <div style={{ ...CARD, padding: '0.85rem 1.1rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+          <button onClick={handleBack} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.7rem', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            Volver
           </button>
-          <div style={{ height: '20px', width: '1px', background: '#e2e8f0' }} />
-          <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#1e293b' }}>{toTitle(op.nombre)}</h2>
-          {isDirty && !saveFlash && (
-            <span style={{ fontSize: '0.68rem', color: '#f59e0b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }} />
-              Sin guardar
-            </span>
-          )}
-          {saveFlash && <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#059669' }}>✓ Guardado</span>}
+          <div style={{ flex: 1, minWidth: 240 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+              <h1 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0 }}>{toTitle(op.nombre)}</h1>
+              <span style={{ background: estadoC.bg, color: estadoC.color, border: `1px solid ${estadoC.color}30`, fontSize: '0.68rem', fontWeight: 700, padding: '0.18rem 0.6rem', borderRadius: 5 }}>{op.estado}</span>
+              {isDirty && !saveFlash && <span style={{ fontSize: '0.68rem', color: '#f59e0b', fontWeight: 600 }}>● Sin guardar</span>}
+              {saveFlash && <span style={{ fontSize: '0.72rem', color: '#059669', fontWeight: 700 }}>✓ Guardado</span>}
+            </div>
+            <div style={{ display: 'flex', gap: '0.85rem', marginTop: 4, fontSize: '0.72rem', color: '#64748b', flexWrap: 'wrap' }}>
+              <span><strong style={{ color: '#475569', fontFamily: 'ui-monospace,monospace' }}>{op.bl || '—'}</strong> · BL</span>
+              <span>{op.contenedor}</span>
+              <span>ETA <strong style={{ color: '#059669' }}>{op.eta || '—'}</strong></span>
+            </div>
+          </div>
+          <button onClick={saveAll} disabled={!isDirty} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 1.1rem', borderRadius: 8, border: isDirty ? 'none' : '1px solid #e2e8f0', background: isDirty ? '#059669' : '#fff', color: isDirty ? '#fff' : '#94a3b8', fontWeight: 700, fontSize: '0.78rem', cursor: isDirty ? 'pointer' : 'default' }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            {isDirty ? 'Guardar' : 'Guardado'}
+          </button>
         </div>
-        <button onClick={saveAll} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1.2rem', borderRadius: '50px', background: isDirty ? '#059669' : 'transparent', color: isDirty ? '#fff' : '#94a3b8', border: isDirty ? 'none' : '1px solid #e2e8f0', fontWeight: 700, fontSize: '0.82rem', cursor: isDirty ? 'pointer' : 'default', transition: 'all 0.2s' }}>
-          {saveFlash ? '✓ Guardado' : '↑ Guardar'}
-        </button>
+
+        {/* KPI strip */}
+        <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 8 }}>
+          {[
+            { lbl: 'Costos totales', val: fmtP(calc.totalGastos), sub: `${fmtP(calc.enBlanco)} blanco + ${fmtP(calc.cash)} cash` },
+            { lbl: 'Por cobrar', val: fmtU(calc.totalACobrar - calc.totalCobrado), sub: `de ${fmtU(calc.totalACobrar)} total`, accent: '#ea580c' },
+            { lbl: 'Cobrado', val: fmtU(calc.totalCobrado), sub: `${calc.cobrados}/${calc.perProv.length} proveedores`, accent: '#059669' },
+            { lbl: 'Ocupación', val: cap ? `${calc.totalM3.toFixed(1)} / ${cap} m³` : `${calc.totalM3.toFixed(1)} m³`, sub: cap ? `${fillPct.toFixed(0)}% del contenedor` : '—', bar: cap ? fillPct : null },
+            { lbl: 'Checklist', val: `${doneTasks}/${totalTasks}`, sub: `${progress}% completado`, accent: progress === 100 ? '#059669' : '#ea580c', bar: progress },
+          ].map(({ lbl, val, sub, accent = '#0f172a', bar }) => (
+            <div key={lbl} style={{ ...CARD, padding: '0.65rem 0.85rem' }}>
+              <p style={{ fontSize: '0.58rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>{lbl}</p>
+              <p style={{ fontSize: '0.95rem', fontWeight: 800, color: accent, lineHeight: 1.1 }}>{val}</p>
+              <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 3 }}>{sub}</p>
+              {bar != null && (
+                <div style={{ marginTop: 5, height: 3, background: '#e8ecf1', borderRadius: 99, overflow: 'hidden' }}>
+                  <div style={{ width: `${Math.min(bar, 100)}%`, height: '100%', background: accent, borderRadius: 99 }} />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* HEADER — row 2: stat cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.85rem', marginBottom: '1.5rem' }}>
-        {[
-          { label: 'Total Gastos', value: fmtP(calc.totalGeneral), color: '#1e293b', bg: '#f8fafc', border: '#e2e8f0' },
-          { label: 'Facturar (USD)', value: fmtU(calc.totalACobrar), color: '#ea580c', bg: '#fff4ee', border: '#fed7aa' },
-          { label: 'M³ Ocupados', value: `${calc.totalM3.toFixed(1)} / ${CONTAINER_M3[op.contenedor] || '?'} m³`, color: '#475569', bg: '#f8fafc', border: '#e2e8f0' },
-          { label: `Tareas ${doneTasks}/${totalTasks}`, value: `${progress}% completado`, color: progress === 100 ? '#059669' : '#ea580c', bg: progress === 100 ? '#f0fdf4' : '#fff7ed', border: progress === 100 ? '#bbf7d0' : '#fed7aa', progress: true },
-        ].map(({ label, value, color, bg, border, progress: showBar }) => (
-          <div key={label} style={{ background: bg, border: `1px solid ${border}`, borderRadius: '12px', padding: '0.85rem 1rem' }}>
-            <p style={{ fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.35rem' }}>{label}</p>
-            <p style={{ fontSize: '1rem', fontWeight: 800, color, lineHeight: 1.2 }}>{value}</p>
-            {showBar && (
-              <div style={{ marginTop: '0.45rem', width: '100%', height: '4px', background: '#e2e8f0', borderRadius: '99px', overflow: 'hidden' }}>
-                <div style={{ width: `${progress}%`, height: '100%', background: color, borderRadius: '99px', transition: 'width 0.3s' }} />
+      {/* MAIN LAYOUT */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: '1rem', alignItems: 'start' }}>
+
+        {/* LEFT: Master table */}
+        <div style={CARD}>
+          <div style={{ padding: '0.85rem 1rem', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <p style={{ fontSize: '0.85rem', fontWeight: 700 }}>Proveedores</p>
+              <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{calc.perProv.length} cargados · {calc.totalM3.toFixed(1)} m³</span>
+            </div>
+            <button onClick={addProveedor} style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6, padding: '0.3rem 0.7rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontSize: '0.9rem' }}>+</span> Proveedor
+            </button>
+          </div>
+
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+              <thead>
+                <tr style={{ background: '#f8fafc' }}>
+                  {[
+                    { l: 'Proveedor', a: 'left' }, { l: 'Tipo', a: 'left' }, { l: 'm³', a: 'right' },
+                    { l: 'FOB USD', a: 'right' }, { l: 'Costo $', a: 'right' }, { l: 'TC', a: 'right' },
+                    { l: 'A cobrar', a: 'right' }, { l: 'Estado', a: 'left' }, { l: '', a: 'right' },
+                  ].map((c, idx) => (
+                    <th key={idx} style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '0.6rem 0.7rem', textAlign: c.a, borderBottom: '1px solid #e8ecf1' }}>{c.l}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {calc.perProv.map((p, i) => {
+                  const isExp = expanded === i;
+                  const isCobrado = p.cb.cobrado;
+                  return (
+                    <FRow key={p.id || i}>
+                      <tr onClick={() => setExpanded(isExp ? null : i)}
+                        style={{ cursor: 'pointer', background: isExp ? '#f8fafc' : 'transparent', opacity: isCobrado && !isExp ? 0.65 : 1, borderBottom: isExp ? 'none' : '1px solid #f1f5f9', transition: 'background 0.1s' }}
+                        onMouseEnter={e => !isExp && (e.currentTarget.style.background = '#fbfcfd')}
+                        onMouseLeave={e => !isExp && (e.currentTarget.style.background = 'transparent')}
+                      >
+                        <td style={{ padding: '0.7rem', fontWeight: 600, color: '#1e293b' }}>{p.nombre || <span style={{ color: '#cbd5e1' }}>— sin nombre —</span>}</td>
+                        <td style={{ padding: '0.7rem' }}>
+                          <span style={{ background: '#f1f5f9', color: '#64748b', fontSize: '0.66rem', fontWeight: 600, padding: '0.15rem 0.55rem', borderRadius: 5, border: '1px solid #e2e8f0' }}>
+                            {p.tipo === 'Propio' ? 'Propio' : (p.clienteNombre || 'Cliente s/asignar')}
+                          </span>
+                        </td>
+                        <td style={{ padding: '0.7rem', textAlign: 'right', color: '#475569', fontVariantNumeric: 'tabular-nums' }}>{p.m3 || '—'}</td>
+                        <td style={{ padding: '0.7rem', textAlign: 'right', color: '#475569', fontVariantNumeric: 'tabular-nums' }}>{n(p.fobUSD) > 0 ? fmtUcompact(n(p.fobUSD)) : '—'}</td>
+                        <td style={{ padding: '0.7rem', textAlign: 'right', color: '#1e293b', fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>{p.costoFinal > 0 ? fmtP(p.costoFinal) : '—'}</td>
+                        <td style={{ padding: '0.7rem', textAlign: 'right', color: '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>{p.tcUsed || '—'}</td>
+                        <td style={{ padding: '0.7rem', textAlign: 'right', fontWeight: 700, color: '#1e293b', fontVariantNumeric: 'tabular-nums' }}>{p.totalUSD > 0 ? fmtUcompact(p.totalUSD) : '—'}</td>
+                        <td style={{ padding: '0.7rem' }}>
+                          {isCobrado ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#16a34a', fontSize: '0.72rem', fontWeight: 600 }}>
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
+                              Cobrado
+                            </span>
+                          ) : (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#d97706', fontSize: '0.72rem', fontWeight: 600 }}>
+                              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#d97706' }} />
+                              Pendiente
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: '0.7rem', textAlign: 'right' }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" style={{ transform: isExp ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}><polyline points="6 9 12 15 18 9"/></svg>
+                        </td>
+                      </tr>
+
+                      {isExp && (
+                        <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e8ecf1' }}>
+                          <td colSpan={9} style={{ padding: '0 1rem 1.1rem' }}>
+                            <ExpandedDetail
+                              p={p}
+                              clientes={clientes}
+                              onUpdProveedor={(f, v) => updProveedor(i, f, v)}
+                              onUpdCobrar={(f, v) => updCobrar(i, f, v)}
+                              onToggleCobrado={() => toggleCobrado(i, p.cb.cobrado)}
+                              onRemove={() => removeProveedor(i)}
+                            />
+                          </td>
+                        </tr>
+                      )}
+                    </FRow>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr style={{ background: '#f1f5f9', borderTop: '2px solid #e8ecf1' }}>
+                  <td style={{ padding: '0.7rem', fontWeight: 700, color: '#475569', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Total</td>
+                  <td />
+                  <td style={{ padding: '0.7rem', textAlign: 'right', fontWeight: 700, color: '#475569', fontVariantNumeric: 'tabular-nums' }}>{calc.totalM3.toFixed(2)}</td>
+                  <td style={{ padding: '0.7rem', textAlign: 'right', fontWeight: 700, color: '#475569', fontVariantNumeric: 'tabular-nums' }}>{fmtUcompact(calc.perProv.reduce((s, p) => s + n(p.fobUSD), 0))}</td>
+                  <td style={{ padding: '0.7rem', textAlign: 'right', fontWeight: 700, color: '#1e293b', fontVariantNumeric: 'tabular-nums' }}>{fmtP(calc.perProv.reduce((s, p) => s + p.costoFinal, 0))}</td>
+                  <td />
+                  <td style={{ padding: '0.7rem', textAlign: 'right', fontWeight: 800, color: '#1e293b', fontVariantNumeric: 'tabular-nums' }}>{fmtU(calc.totalACobrar)}</td>
+                  <td colSpan={2} style={{ padding: '0.7rem', fontSize: '0.7rem', color: '#94a3b8' }}>{calc.cobrados}/{calc.perProv.length} cobrados</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        {/* RIGHT RAIL */}
+        <div style={{ position: 'sticky', top: 220, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={CARD}>
+            <button onClick={() => setCostosOpen(!costosOpen)} style={{ width: '100%', padding: '0.75rem 0.95rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'transparent', border: 'none', cursor: 'pointer' }}>
+              <p style={{ fontSize: '0.82rem', fontWeight: 700 }}>Costos compartidos</p>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5" style={{ transform: costosOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            {costosOpen && (
+              <div style={{ padding: '0 0.5rem 0.6rem' }}>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.3rem 0.55rem 0.3rem' }}>
+                  <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>En blanco</span>
+                  <span style={{ fontSize: '0.62rem', color: '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>{fmtP(calc.enBlanco)}</span>
+                </div>
+                {GASTOS_BLANCO.map(g => (
+                  <CategoryBtn key={g.id} g={g} onClick={() => setEditingCat(g)} />
+                ))}
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.85rem 0.55rem 0.3rem' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.58rem', fontWeight: 700, color: '#0891b2', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="6" x2="12" y2="18"/><line x1="6" y1="12" x2="18" y2="12"/></svg>
+                    Cash propio
+                  </span>
+                  <span style={{ fontSize: '0.62rem', color: '#0891b2', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmtP(calc.cash)}</span>
+                </div>
+                <div style={{ background: '#f0f9ff', borderRadius: 6, padding: 3, border: '1px solid #e0f2fe' }}>
+                  {GASTOS_CASH.map(g => (
+                    <CategoryBtn key={g.id} g={g} onClick={() => setEditingCat(g)} cash />
+                  ))}
+                </div>
+                <p style={{ fontSize: '0.62rem', color: '#0c4a6e', padding: '0.4rem 0.55rem 0', lineHeight: 1.4 }}>
+                  Lo pagaste vos de tu bolsillo · se recupera de cada cliente según su m³
+                </p>
+
+                <button onClick={() => setAddingCat(true)} style={{ width: '100%', marginTop: 10, padding: '0.45rem 0.55rem', borderRadius: 6, border: '1px dashed #cbd5e1', background: 'transparent', color: '#94a3b8', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, transition: 'all 0.1s' }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#94a3b8'; e.currentTarget.style.color = '#475569'; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.color = '#94a3b8'; }}>
+                  <span style={{ fontSize: '0.9rem', lineHeight: 1 }}>+</span> Agregar categoría
+                </button>
+
+                <div style={{ marginTop: 10, padding: '0.65rem 0.7rem', background: '#0f172a', borderRadius: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600 }}>Total general</span>
+                  <span style={{ fontSize: '0.82rem', color: '#fff', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{fmtP(calc.totalGastos)}</span>
+                </div>
               </div>
             )}
           </div>
-        ))}
+
+          <div style={CARD}>
+            <div style={{ padding: '0.75rem 0.95rem', borderBottom: '1px solid #f1f5f9' }}>
+              <p style={{ fontSize: '0.82rem', fontWeight: 700 }}>Información</p>
+            </div>
+            <div style={{ padding: '0.6rem 0.95rem 0.9rem', display: 'flex', flexDirection: 'column', gap: 6, fontSize: '0.74rem' }}>
+              {[
+                ['Contenedor', op.contenedor],
+                ['BL', op.bl || '—'],
+                ['Fecha alta', op.fecha || '—'],
+                ['ETA', op.eta || '—'],
+                ['Puerto origen',
+                  <input key="po" value={detail.puertoOrigen || ''} onChange={e => updDetail({ puertoOrigen: e.target.value })}
+                    placeholder="—"
+                    style={{ width: 120, padding: '0.15rem 0.4rem', border: '1px solid #e2e8f0', borderRadius: 5, fontSize: '0.72rem', color: '#475569', background: '#fff', outline: 'none', textAlign: 'right' }} />
+                ],
+              ].map(([l, v]) => (
+                <div key={l} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: '#94a3b8' }}>{l}</span>
+                  <span style={{ color: '#475569', fontWeight: 500 }}>{v}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* MAIN TABS */}
-      <div style={{ display: 'flex', background: '#fff', borderRadius: '12px', padding: '4px', border: '1px solid #e2e8f0', gap: '3px', marginBottom: '1.25rem', width: 'fit-content' }}>
-        {[
-          { id: 'proveedores', lbl: 'Proveedores & Carga', icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
-          { id: 'gastos',      lbl: 'Gastos',              icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> },
-          { id: 'acobrar',     lbl: 'A Cobrar',            icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><path d="M12 16h.01"/><path d="M9 12h6"/><path d="M12 8v1m0 6v1"/><circle cx="12" cy="12" r="3"/><path d="M12 6v2m0 8v2M6 12h2m8 0h2"/></svg> },
-        ].map(({ id, lbl, icon }) => (
-          <button key={id} onClick={() => setMainTab(id)}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.6rem 1.35rem', borderRadius: '9px', border: 'none', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700, background: mainTab === id ? '#ea580c' : 'transparent', color: mainTab === id ? '#fff' : '#64748b', transition: 'all 0.15s' }}>
-            {icon} {lbl}
-          </button>
-        ))}
-      </div>
-
-      {/* ══ TAB: PROVEEDORES ════════════════════════════════════════════════ */}
-      {mainTab === 'proveedores' && (
-        <div>
-
-          {/* provider table (now full width) */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-
-            <div style={CARD}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <div style={{ width: '26px', height: '26px', borderRadius: '7px', background: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                  </div>
-                  <p style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b' }}>Proveedores y carga</p>
-                  <span style={{ fontSize: '0.65rem', background: '#fff7ed', color: '#d97706', padding: '0.15rem 0.6rem', borderRadius: '50px', fontWeight: 700, border: '1px solid #fde68a' }}>Paso 1</span>
-                </div>
-                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8' }}>{provActivos.length} activos · {calc.totalM3.toFixed(1)} m³</span>
-              </div>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ background: '#fff7ed' }}>
-                      <th style={{ ...TH, color: '#92400e', background: 'none', width: '25%' }}>Proveedor</th>
-                      <th style={{ ...TH, color: '#92400e', background: 'none', width: '12%' }}>Tipo</th>
-                      <th style={{ ...TH, color: '#92400e', background: 'none', width: '12%' }}>m³ (CBM)</th>
-                      <th style={{ ...TH, color: '#92400e', background: 'none', width: '15%' }}>FOB USD</th>
-                      <th style={{ ...TH, color: '#92400e', background: 'none', width: '15%' }}>Gs. Origen USD</th>
-                      <th style={{ ...TH, color: '#92400e', background: 'none', width: '11%' }}>% Ocup.</th>
-                      <th style={{ width: '5%' }}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {proveedores.map((p, i) => {
-                      const ratioVal = calc.totalM3 > 0 ? n(p.m3) / calc.totalM3 : 0;
-                      return (
-                        <tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#fafbfc' }}>
-                          <td style={TD}><input value={p.nombre} onChange={e => updP(i,'nombre',e.target.value)} style={{ ...INP, fontWeight: 600, color: '#1e293b' }} placeholder="Nombre" /></td>
-                          <td style={{ ...TD, minWidth: '180px' }}>
-                            {p.nombre ? (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                                {/* Propio / Cliente toggle */}
-                                <div style={{ display: 'flex', gap: '0.3rem' }}>
-                                  {['Cliente','Propio'].map(t => (
-                                    <button key={t} onClick={() => updP(i,'tipo',t)}
-                                      style={{ padding: '0.15rem 0.55rem', borderRadius: '5px', border: `1px solid ${(p.tipo||'Cliente') === t ? '#cbd5e1' : 'transparent'}`, cursor: 'pointer', fontSize: '0.65rem', fontWeight: 600,
-                                        background: (p.tipo||'Cliente') === t ? '#fff' : 'transparent',
-                                        color: (p.tipo||'Cliente') === t ? '#374151' : '#94a3b8',
-                                        boxShadow: (p.tipo||'Cliente') === t ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
-                                      }}>
-                                      {t}
-                                    </button>
-                                  ))}
-                                </div>
-                                {/* Client selector — only when tipo is Cliente */}
-                                {(p.tipo || 'Cliente') === 'Cliente' && (
-                                  <select value={p.clienteId || ''} onChange={e => updP(i,'clienteId',e.target.value)}
-                                    style={{ fontSize: '0.75rem', padding: '0.22rem 0.45rem', border: '1px solid #bfdbfe', borderRadius: '6px', background: '#fff4ee', color: '#1e40af', fontWeight: 600, outline: 'none', cursor: 'pointer', maxWidth: '170px' }}>
-                                    <option value="">— Seleccionar cliente —</option>
-                                    {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                                  </select>
-                                )}
-                              </div>
-                            ) : <span style={{ color: '#cbd5e1', fontSize: '0.8rem' }}>—</span>}
-                          </td>
-                          <td style={TD}><input type="number" step="any" value={p.m3} onChange={e => updP(i,'m3',e.target.value)} style={{ ...INP, color: '#1e293b', fontWeight: 500, textAlign: 'right' }} placeholder="" /></td>
-                          <td style={TD}><input type="number" step="any" value={p.fobUSD} onChange={e => updP(i,'fobUSD',e.target.value)} style={{ ...INP, color: '#1e293b', fontWeight: 500, textAlign: 'right' }} placeholder="" /></td>
-                          <td style={TD}><input type="number" step="any" value={p.gastosOrigenUSD} onChange={e => updP(i,'gastosOrigenUSD',e.target.value)} style={{ ...INP, color: '#64748b', textAlign: 'right' }} placeholder="" /></td>
-                          <td style={TD}>
-                            {p.nombre ? (
-                              <div style={{ background: '#fff7ed', borderRadius: '6px', padding: '0.28rem 0.5rem', textAlign: 'right' }}>
-                                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#d97706' }}>{pct(ratioVal)}</span>
-                              </div>
-                            ) : <span style={{ color: '#cbd5e1', fontSize: '0.8rem' }}>—</span>}
-                          </td>
-                          <td style={TD}>
-                            {p.nombre && <button onClick={() => { setProveedores(pr => pr.filter((_, j) => j !== i)); setCobrar(c => c.filter((_, j) => j !== i)); D(); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#cbd5e1' }}>×</button>}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                  <tfoot>
-                    <tr style={{ background: '#f1f5f9' }}>
-                      <td colSpan={2} style={{ ...TD, fontWeight: 700 }}>TOTAL</td>
-                      <td style={{ ...TD, fontWeight: 700, textAlign: 'right' }}>{calc.totalM3.toFixed(2)} m³</td>
-                      <td style={{ ...TD, fontWeight: 700, textAlign: 'right' }}>{fmtU(proveedores.reduce((s, p) => s + n(p.fobUSD), 0))}</td>
-                      <td style={{ ...TD, fontWeight: 700, textAlign: 'right', color: '#d97706' }}>{fmtU(proveedores.reduce((s, p) => s + n(p.gastosOrigenUSD), 0))}</td>
-                      <td style={{ ...TD, fontWeight: 700 }}>100%</td>
-                      <td />
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-              <button onClick={() => { setProveedores(p => [...p, newProv()]); setCobrar(c => [...c, { tc: '', honorarios: true, despAdic: '', cobrado: false, fechaCobro: '' }]); D(); }}
-                style={{ marginTop: '0.6rem', background: 'none', border: '1px dashed #d97706', borderRadius: '7px', padding: '0.3rem 0.8rem', fontSize: '0.75rem', fontWeight: 700, color: '#d97706', cursor: 'pointer' }}>
-                + Agregar proveedor
-              </button>
-            </div>
-
-            {/* resumen ocupación contenedor */}
-            <div style={{ ...CARD, background: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
-              <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
-                <div>
-                  <p style={LBL}>m³ cargados</p>
-                  <p style={{ fontSize: '1.1rem', fontWeight: 800, color: '#1e293b' }}>{calc.totalM3.toFixed(2)} m³</p>
-                </div>
-                <div>
-                  <p style={LBL}>FOB total</p>
-                  <p style={{ fontSize: '1.1rem', fontWeight: 800, color: '#ea580c' }}>{fmtU(proveedores.reduce((s,p)=>s+n(p.fobUSD),0))}</p>
-                </div>
-                <div>
-                  <p style={LBL}>Puerto de Origen</p>
-                  <input value={puertoOrigen} onChange={e => { setPuertoOrigen(e.target.value); D(); }} style={{ ...INP, width: '160px', fontSize: '0.85rem', fontWeight: 600 }} placeholder="Ej: Shanghai" />
-                </div>
-              </div>
-              <button onClick={() => setMainTab('gastos')} style={{ padding: '0.55rem 1.1rem', borderRadius: '50px', border: '1px solid #e2e8f0', background: '#fff', color: '#ea580c', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>
-                Cargar gastos →
-              </button>
-            </div>
-          </div>
-
-        </div>
+      {/* CATEGORY EDIT MODAL */}
+      {editingCat && (
+        <CategoryEditor
+          cat={editingCat}
+          rows={detail[editingCat.id] || []}
+          onChange={(rows) => updCategory(editingCat.id, rows)}
+          onClose={() => setEditingCat(null)}
+          onDelete={editingCat.custom ? () => removeCustomCategory(editingCat.id) : null}
+        />
       )}
 
-      {/* ══ TAB: GASTOS ══════════════════════════════════════════════════════ */}
-      {mainTab === 'gastos' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '230px 1fr', gap: '1.25rem', alignItems: 'start' }}>
-
-            {/* LEFT: vertical category sidebar */}
-            <div style={{ position: 'sticky', top: '1rem' }}>
-              <div style={{ ...CARD, padding: '0.5rem' }}>
-                <p style={{ ...LBL, padding: '0.4rem 0.75rem 0.6rem' }}>Categorías de gasto</p>
-                {GASTOS.map(g => {
-                  const tot = catTotMap[g.id];
-                  const active = gastoTab === g.id;
-                  return (
-                    <button key={g.id} onClick={() => setGastoTab(g.id)}
-                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '0.6rem 0.75rem', borderRadius: '9px', border: 'none', cursor: 'pointer', background: active ? g.color + '14' : 'transparent', marginBottom: '2px', transition: 'background 0.1s', borderLeft: active ? `3px solid ${g.color}` : '3px solid transparent' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: tot.pesos > 0 ? g.color : '#e2e8f0', flexShrink: 0 }} />
-                        <span style={{ fontSize: '0.8rem', fontWeight: active ? 700 : 500, color: active ? g.color : '#475569', textAlign: 'left' }}>{g.label}</span>
-                      </div>
-                      <span style={{ fontSize: '0.78rem', fontWeight: 700, color: active ? g.color : '#475569', flexShrink: 0, marginLeft: '0.5rem' }}>
-                        {tot.pesos > 0 ? fmtP(tot.pesos) : '—'}
-                      </span>
-                    </button>
-                  );
-                })}
-                {/* total footer */}
-                <div style={{ marginTop: '0.5rem', borderTop: '1px solid #f1f5f9', paddingTop: '0.5rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0.75rem', background: '#1e293b', borderRadius: '9px' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8' }}>Total General</span>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#fff' }}>{fmtP(calc.totalGeneral)}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.35rem 0.75rem', marginTop: '4px' }}>
-                    <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Banco</span>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>{fmtP(calc.enBlancoPesos)}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.35rem 0.75rem' }}>
-                    <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Cash (flete)</span>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: calc.cashPesos > 0 ? '#0891b2' : '#cbd5e1' }}>{fmtP(calc.cashPesos)}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* RIGHT: invoice table + prorrateo note */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {activeCat && (
-                <div style={CARD}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
-                    <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: activeCat.color, flexShrink: 0 }} />
-                    <p style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b' }}>{activeCat.label}</p>
-                    {activeCat.id === 'aduana' && (
-                      <span style={{ fontSize: '0.65rem', background: '#fee2e2', color: '#dc2626', padding: '0.15rem 0.5rem', borderRadius: '50px', fontWeight: 700 }}>No se proratea — se asigna por proveedor</span>
-                    )}
-                    {activeCat.id === 'fleteIntl' && (
-                      <span style={{ fontSize: '0.65rem', background: '#f0f9ff', color: '#0284c7', padding: '0.15rem 0.5rem', borderRadius: '50px', fontWeight: 700, border: '1px solid #bae6fd' }}>CASH — se proratea por m³</span>
-                    )}
-                  </div>
-                  <InvoiceTable rows={activeCat.rows} accentColor={activeCat.color} onUpdate={upd(activeCat.setter)} onAdd={add(activeCat.setter)} onRemove={rem(activeCat.setter)} />
-                </div>
-              )}
-
-              <div style={{ ...CARD, background: '#fffbeb', border: '1px solid #fde68a', padding: '0.85rem 1rem' }}>
-                <p style={{ fontSize: '0.72rem', fontWeight: 700, color: '#92400e', marginBottom: '0.4rem' }}>Base de prorrateo por m³</p>
-                <p style={{ fontSize: '0.78rem', color: '#78350f' }}>
-                  Total en Blanco <strong>{fmtP(calc.enBlancoPesos)}</strong>
-                  &nbsp;− VEP Aduana <strong>{fmtP(calc.tAdu.pesos)}</strong>
-                  &nbsp;+ Cash <strong>{fmtP(calc.cashPesos)}</strong>
-                  &nbsp;= <strong>{fmtP(calc.prorBase)}</strong>
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* VEP + Costo final — aparecen después de cargar los gastos */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
-
-            <div style={CARD}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#dc2626' }} />
-                <p style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b' }}>VEP Aduana por proveedor</p>
-                <span style={{ fontSize: '0.65rem', background: '#fee2e2', color: '#dc2626', padding: '0.15rem 0.5rem', borderRadius: '50px', fontWeight: 700 }}>Asignación manual</span>
-              </div>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ background: '#fff5f5' }}>
-                    {['Proveedor', 'USD Tributos', 'T.C.', 'PESOS'].map(h => <th key={h} style={{ ...TH, color: '#dc2626' }}>{h}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  {proveedores.filter(p => p.nombre !== '').map((p, i) => (
-                    <tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
-                      <td style={{ ...TD, fontWeight: 600, color: '#374151' }}>{p.nombre}</td>
-                      <td style={TD}><input type="number" step="any" value={p.tributosUSD} onChange={e => updP(proveedores.indexOf(p),'tributosUSD',e.target.value)} style={{ ...INP, color: '#1e293b', fontWeight: 500, textAlign: 'right' }} placeholder="" /></td>
-                      <td style={TD}><input type="number" step="any" value={p.tributosTC} onChange={e => updP(proveedores.indexOf(p),'tributosTC',e.target.value)} style={{ ...INP, color: '#1e293b', fontWeight: 500, textAlign: 'right' }} placeholder="—" /></td>
-                      <td style={{ ...TD, fontWeight: 700, color: '#dc2626', textAlign: 'right' }}>
-                        {n(p.tributosUSD) > 0 && n(p.tributosTC) > 0 ? fmtP(n(p.tributosUSD) * n(p.tributosTC)) : '—'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr style={{ background: '#fee2e2' }}>
-                    <td style={{ ...TD, fontWeight: 700 }}>TOTAL</td>
-                    <td style={{ ...TD, fontWeight: 700, textAlign: 'right' }}>{fmtU(proveedores.filter(p=>p.nombre!=='').reduce((s,p)=>s+n(p.tributosUSD),0))}</td>
-                    <td />
-                    <td style={{ ...TD, fontWeight: 700, textAlign: 'right', color: '#dc2626' }}>{fmtP(calc.perProv.reduce((s,p)=>s+p.tributoPesos,0))}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-
-            <div style={CARD}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#059669' }} />
-                <p style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b' }}>Costo final asignado por proveedor</p>
-              </div>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ background: '#f0fdf4' }}>
-                    {['Proveedor', 'Sin VEP (prorr.)', 'VEP', 'TOTAL PESOS'].map(h => <th key={h} style={{ ...TH, color: '#059669' }}>{h}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  {calc.perProv.map((p, i) => (
-                    <tr key={p.nombre} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
-                      <td style={{ ...TD, fontWeight: 600 }}>{p.nombre}</td>
-                      <td style={{ ...TD, textAlign: 'right', color: '#64748b' }}>{fmtP(p.prorPesos)}</td>
-                      <td style={{ ...TD, textAlign: 'right', color: '#dc2626' }}>{fmtP(p.tributoPesos)}</td>
-                      <td style={{ ...TD, textAlign: 'right', fontWeight: 700, color: '#059669' }}>{fmtP(p.costoFinal)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr style={{ background: '#dcfce7' }}>
-                    <td style={{ ...TD, fontWeight: 700 }}>TOTAL</td>
-                    <td style={{ ...TD, fontWeight: 700, textAlign: 'right' }}>{fmtP(calc.perProv.reduce((s,p)=>s+p.prorPesos,0))}</td>
-                    <td style={{ ...TD, fontWeight: 700, textAlign: 'right', color: '#dc2626' }}>{fmtP(calc.perProv.reduce((s,p)=>s+p.tributoPesos,0))}</td>
-                    <td style={{ ...TD, fontWeight: 800, textAlign: 'right', color: '#059669' }}>{fmtP(calc.totalCostoFinal)}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </div>
-        </div>
+      {/* ADD CUSTOM CATEGORY MODAL */}
+      {addingCat && (
+        <AddCategoryModal
+          onAdd={(data) => { addCustomCategory(data); setAddingCat(false); }}
+          onClose={() => setAddingCat(false)}
+        />
       )}
 
-      {/* ══ TAB: A COBRAR ════════════════════════════════════════════════════ */}
-      {mainTab === 'acobrar' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-
-          {/* ── Barra resumen superior ── */}
-          {(() => {
-            const cobrados     = cobrar.filter(c => c?.cobrado).length;
-            const pendientes   = calc.perProv.length - cobrados;
-            const totalCobrado = calc.perProv.reduce((s,p,i) => s + (cobrar[i]?.cobrado ? p.totalUSD : 0), 0);
-            return (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {/* fila 1: stats principales */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem' }}>
-                  {[
-                    ['Por Cobrar', fmtU(calc.totalACobrar), '#1e293b', '#f8fafc'],
-                    ['Ya Cobrado', fmtU(totalCobrado), '#059669', '#f0fdf4'],
-                    [`Cobrados (${cobrados}/${calc.perProv.length})`, pendientes === 0 ? 'Todos ✓' : `${pendientes} pendiente${pendientes !== 1 ? 's' : ''}`, pendientes === 0 ? '#059669' : '#ea580c', pendientes === 0 ? '#f0fdf4' : '#fff4ee'],
-                    ['Honorarios + Desp.', fmtU(calc.perProv.reduce((s,p)=>s+p.honorarios,0)), '#1e293b', '#f8fafc'],
-                  ].map(([lbl, val, color, bg]) => (
-                    <div key={lbl} style={{ ...CARD, background: bg, border: '1px solid #e2e8f0', padding: '1rem' }}>
-                      <p style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.35rem' }}>{lbl}</p>
-                      <p style={{ fontSize: '1.15rem', fontWeight: 800, color, lineHeight: 1 }}>{val}</p>
-                    </div>
-                  ))}
-                </div>
-                {/* fila 2: flete marítimo destacado */}
-                {calc.cashPesos > 0 && (
-                  <div style={{ background: '#f0f9ff', border: '1.5px solid #bae6fd', borderRadius: '14px', padding: '0.85rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <div style={{ width: '34px', height: '34px', borderRadius: '9px', background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0284c7" strokeWidth="2"><path d="M3 17l9-9 4 4 5-5"/><path d="M14 7h7v7"/></svg>
-                      </div>
-                      <div>
-                        <p style={{ fontSize: '0.7rem', fontWeight: 700, color: '#0284c7', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Flete Marítimo — tu desembolso propio (cash)</p>
-                        <p style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '1px' }}>Pagado por vos · a recuperar de cada cliente según su % de carga</p>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: '2.5rem', alignItems: 'center' }}>
-                      <div style={{ textAlign: 'right' }}>
-                        <p style={{ fontSize: '0.62rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '2px' }}>Total en pesos</p>
-                        <p style={{ fontSize: '1rem', fontWeight: 700, color: '#475569' }}>{fmtP(calc.cashPesos)}</p>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <p style={{ fontSize: '0.62rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '2px' }}>Total a recuperar (USD)</p>
-                        <p style={{ fontSize: '1.4rem', fontWeight: 900, color: '#0284c7' }}>{fmtU(calc.totalFleteIntlUSD)}</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-
-          {/* ── Aviso si falta TC ── */}
-          {calc.perProv.some(p => p.tcUsed === 0) && (
-            <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-              <span>⚠️</span>
-              <p style={{ fontSize: '0.8rem', color: '#92400e', fontWeight: 600 }}>
-                Algunos proveedores no tienen T.C. — cargalo en VEP/Tributos o directamente en cada tarjeta.
-              </p>
-            </div>
-          )}
-
-          {/* ── Tarjetas por proveedor ── */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
-            {calc.perProv.map((p, i) => {
-              const isCobrado = cobrar[i]?.cobrado ?? false;
-              const accentColor = p.tipo === 'Propio' ? '#059669' : '#7c3aed';
-              const accentBg    = p.tipo === 'Propio' ? '#f0fdf4' : '#f5f3ff';
-              const tcOk        = p.tcUsed > 0;
-              return (
-                <div key={p.nombre} style={{ ...CARD, padding: '1.25rem', opacity: isCobrado ? 0.75 : 1, position: 'relative', border: isCobrado ? '1px solid #bbf7d0' : '1px solid #e8ecf1' }}>
-
-                  {/* Cobrado badge overlay */}
-                  {isCobrado && (
-                    <div style={{ position: 'absolute', top: '0.85rem', right: '0.85rem', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '5px', padding: '0.15rem 0.55rem' }}>
-                      <span style={{ fontSize: '0.62rem', fontWeight: 600, color: '#16a34a', letterSpacing: '0.02em' }}>Cobrado</span>
-                    </div>
-                  )}
-
-                  {/* ── Header ── */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', paddingRight: isCobrado ? '6rem' : 0 }}>
-                    <div>
-                      <p style={{ fontWeight: 800, fontSize: '0.95rem', color: '#1e293b' }}>{p.nombre}</p>
-                      <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '1px' }}>{p.m3} m³ · {pct(p.ratio)} del contenedor</p>
-                    </div>
-                    <span style={{ background: '#f1f5f9', color: '#64748b', border: '1px solid #e2e8f0', fontSize: '0.68rem', fontWeight: 600, padding: '0.2rem 0.65rem', borderRadius: '6px' }}>
-                      {p.tipo === 'Propio' ? 'Propio' : p.clienteNombre || 'Cliente'}
-                    </span>
-                  </div>
-
-                  {/* ── Costo asignado en pesos ── */}
-                  <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '0.65rem 0.85rem', marginBottom: '0.85rem' }}>
-                    <p style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.2rem' }}>Costo asignado (pesos)</p>
-                    <p style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1e293b' }}>{fmtP(p.costoFinal)}</p>
-                    <p style={{ fontSize: '0.68rem', color: '#94a3b8', marginTop: '1px' }}>{fmtP(p.prorPesos)} prorrateo + {fmtP(p.tributoPesos)} VEP</p>
-                  </div>
-
-                  {/* ── T.C. → Gastos USD ── */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem', background: '#f8fafc', borderRadius: '8px', padding: '0.6rem 0.85rem', border: '1px solid #e2e8f0' }}>
-                    <div style={{ flex: 1 }}>
-                      <p style={{ fontSize: '0.6rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.2rem' }}>
-                        T.C. conversión {!tcOk && '⚠ falta'}
-                      </p>
-                      <input type="number" step="any" value={cobrar[i]?.tc ?? ''} onChange={e => updC(i,'tc',e.target.value)}
-                        placeholder={p.tcUsed > 0 ? `${p.tcUsed} (auto)` : 'Ingresá T.C.'}
-                        style={{ ...INP, background: 'transparent', border: 'none', padding: 0, fontSize: '1.1rem', fontWeight: 800, color: '#1e293b', width: '130px' }} />
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <p style={{ fontSize: '0.6rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.2rem' }}>Gastos en USD</p>
-                      <p style={{ fontSize: '1.1rem', fontWeight: 800, color: tcOk ? '#1e293b' : '#cbd5e1' }}>{fmtU(p.gastosUSD)}</p>
-                    </div>
-                  </div>
-
-                  {/* ── Flete marítimo (desembolso propio) ── */}
-                  {p.fleteIntlUSD > 0 && (
-                    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.55rem 0.85rem', marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span style={{ fontSize: '0.85rem' }}>🚢</span>
-                        <div>
-                          <p style={{ fontSize: '0.65rem', fontWeight: 700, color: '#0284c7', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Flete marítimo (tu parte)</p>
-                          <p style={{ fontSize: '0.65rem', color: '#7dd3fc' }}>{fmtP(p.fleteIntlPesos)} ÷ TC {p.tcUsed > 0 ? p.tcUsed : '—'}</p>
-                        </div>
-                      </div>
-                      <p style={{ fontSize: '1.05rem', fontWeight: 800, color: '#1e293b', lineHeight: 1 }}>{fmtU(p.fleteIntlUSD)}</p>
-                    </div>
-                  )}
-
-                  {/* ── Conceptos adicionales ── */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem', marginBottom: '0.85rem', padding: '0 0.15rem' }}>
-
-                    {/* Gs. Origen */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem' }}>
-                      <span style={{ color: '#64748b' }}>+ Gastos de Origen</span>
-                      <span style={{ fontWeight: 600, color: p.origenUSD > 0 ? '#d97706' : '#cbd5e1' }}>{p.origenUSD > 0 ? fmtU(p.origenUSD) : '—'}</span>
-                    </div>
-
-                    {/* Honorarios 4% */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem', background: cobrar[i]?.honorarios ? '#faf5ff' : 'transparent', borderRadius: '8px', padding: cobrar[i]?.honorarios ? '0.4rem 0.6rem' : '0', margin: cobrar[i]?.honorarios ? '0 -0.15rem' : '0' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span style={{ color: '#64748b' }}>+ Honorarios (4%)</span>
-                        <button onClick={() => updC(i,'honorarios',!cobrar[i]?.honorarios)}
-                          style={{ padding: '0.12rem 0.55rem', borderRadius: '50px', border: 'none', cursor: 'pointer', fontSize: '0.65rem', fontWeight: 700,
-                            background: cobrar[i]?.honorarios ? '#ede9fe' : '#f1f5f9',
-                            color: cobrar[i]?.honorarios ? '#7c3aed' : '#94a3b8' }}>
-                          {cobrar[i]?.honorarios ? 'SÍ' : 'NO'}
-                        </button>
-                      </div>
-                      <span style={{ fontWeight: 700, color: cobrar[i]?.honorarios ? '#7c3aed' : '#cbd5e1' }}>
-                        {cobrar[i]?.honorarios ? fmtU(p.honorarios) : '—'}
-                      </span>
-                    </div>
-
-                    {/* Desp. Adicional */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem' }}>
-                      <span style={{ color: '#64748b' }}>+ Desp. adicional (USD)</span>
-                      <input type="number" step="any" value={cobrar[i]?.despAdic ?? ''} onChange={e => updC(i,'despAdic',e.target.value)} placeholder=""
-                        style={{ ...INP, width: '90px', textAlign: 'right', fontWeight: 600, color: n(cobrar[i]?.despAdic) > 0 ? '#059669' : '#94a3b8', padding: '0.25rem 0.5rem', fontSize: '0.82rem' }} />
-                    </div>
-                  </div>
-
-                  {/* ── Total a Cobrar ── */}
-                  <div style={{ borderTop: '1px solid #f1f5f9', marginTop: '0.5rem', paddingTop: '0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                    <p style={{ fontSize: '0.72rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total a Cobrar</p>
-                    <p style={{ fontSize: '1.15rem', fontWeight: 800, color: '#1e293b', lineHeight: 1 }}>{fmtU(p.totalUSD)}</p>
-                  </div>
-
-                  {/* ── Estado de cobro ── */}
-                  <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
-                    <div>
-                      <p style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.2rem' }}>Estado de cobro</p>
-                      {isCobrado && cobrar[i]?.fechaCobro && (
-                        <p style={{ fontSize: '0.7rem', color: '#059669' }}>Cobrado el {cobrar[i].fechaCobro}</p>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => {
-                        const ahora = new Date().toLocaleDateString('es-AR');
-                        updC(i, 'cobrado', !isCobrado);
-                        updC(i, 'fechaCobro', !isCobrado ? ahora : '');
-                      }}
-                      style={{
-                        padding: '0.4rem 1rem', borderRadius: '50px', border: 'none', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700, transition: 'all 0.15s',
-                        background: isCobrado ? '#f0fdf4' : '#1e293b',
-                        color:      isCobrado ? '#16a34a' : '#fff',
-                      }}>
-                      {isCobrado ? '✓ Cobrado — desmarcar' : 'Marcar como cobrado'}
-                    </button>
-                  </div>
-
-                </div>
-              );
-            })}
-          </div>
-
-          {/* ── Fila resumen final ── */}
-          <div style={{ ...CARD, background: '#1e293b', padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-            <p style={{ fontSize: '0.85rem', fontWeight: 700, color: '#94a3b8' }}>TOTAL GENERAL A COBRAR — {calc.perProv.length} PROVEEDORES</p>
-            <div style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
-              {calc.totalFleteIntlUSD > 0 && (
-                <div style={{ textAlign: 'right', borderRight: '1px solid #334155', paddingRight: '2rem' }}>
-                  <p style={{ fontSize: '0.65rem', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.07em' }}>🚢 Flete marítimo</p>
-                  <p style={{ fontSize: '1rem', fontWeight: 700, color: '#38bdf8' }}>{fmtU(calc.totalFleteIntlUSD)}</p>
-                </div>
-              )}
-              <div style={{ textAlign: 'right' }}>
-                <p style={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Honorarios + Desp.</p>
-                <p style={{ fontSize: '1rem', fontWeight: 700, color: '#c4b5fd' }}>{fmtU(calc.perProv.reduce((s,p,i)=>s+p.honorarios+n(cobrar[i]?.despAdic),0))}</p>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <p style={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Total USD</p>
-                <p style={{ fontSize: '1.5rem', fontWeight: 900, color: '#fff' }}>{fmtU(calc.totalACobrar)}</p>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      )}
-
-      {/* ── Floating checklist FAB ── */}
-      <button
-        onClick={() => setShowChecklist(!showChecklist)}
-        style={{
-          position: 'fixed', bottom: 24, right: 24, zIndex: 40,
-          display: 'flex', alignItems: 'center', gap: '0.6rem',
-          padding: '0.7rem 1.1rem', borderRadius: 50, border: 'none',
-          background: '#1e293b', color: '#fff', cursor: 'pointer',
-          fontSize: '0.8rem', fontWeight: 700,
-          boxShadow: '0 8px 24px rgba(15,23,42,0.18)',
-          transition: 'transform 0.15s',
-        }}
-        onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
-        onMouseLeave={e => e.currentTarget.style.transform = 'none'}
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-          <polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
-        </svg>
+      {/* Floating checklist FAB */}
+      <button onClick={() => setShowChecklist(!showChecklist)} style={{ position: 'fixed', bottom: 24, right: 24, padding: '0.7rem 1.1rem', borderRadius: 50, border: 'none', background: '#1e293b', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.8rem', fontWeight: 700, boxShadow: '0 8px 24px rgba(15,23,42,0.18)', zIndex: 40 }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
         Checklist {doneTasks}/{totalTasks}
-        <span style={{
-          fontSize: '0.68rem', fontWeight: 700, padding: '0.12rem 0.5rem',
-          borderRadius: 99, background: progress === 100 ? '#16a34a' : '#ea580c', color: '#fff',
-        }}>{progress}%</span>
+        <span style={{ marginLeft: 4, fontSize: '0.7rem', background: progress === 100 ? '#16a34a' : '#ea580c', padding: '0.1rem 0.5rem', borderRadius: 99 }}>{progress}%</span>
       </button>
 
-      {/* ── Checklist drawer ── */}
+      {/* Checklist drawer */}
       {showChecklist && (
         <>
           <div onClick={() => setShowChecklist(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.3)', zIndex: 50 }} />
@@ -1240,7 +977,7 @@ function OperationDetail({ op, onBack }) {
         </>
       )}
 
-      {/* ── Discard modal ── */}
+      {/* Discard modal */}
       {showDiscard && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
           <div style={{ background: '#fff', borderRadius: '16px', padding: '2rem', width: '100%', maxWidth: '400px', margin: '1rem', boxShadow: '0 24px 64px rgba(0,0,0,0.18)' }}>
@@ -1267,6 +1004,375 @@ function OperationDetail({ op, onBack }) {
     </div>
   );
 }
+
+// ─── Helper sub-components ────────────────────────────────────────────────────
+function FRow({ children }) { return <>{children}</>; }
+
+function CategoryBtn({ g, onClick, cash }) {
+  return (
+    <button onClick={onClick}
+      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.45rem 0.55rem', borderRadius: 5, cursor: 'pointer', transition: 'background 0.1s', width: '100%', border: 'none', background: 'transparent', textAlign: 'left' }}
+      onMouseEnter={e => e.currentTarget.style.background = cash ? '#e0f2fe' : '#f8fafc'}
+      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: g.total > 0 ? g.color : '#e2e8f0', flexShrink: 0 }} />
+        <span style={{ fontSize: '0.74rem', color: cash ? '#0c4a6e' : '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.label}</span>
+        {g.custom && <span style={{ fontSize: '0.55rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', background: '#f1f5f9', padding: '0 4px', borderRadius: 3 }}>custom</span>}
+      </div>
+      <span style={{ fontSize: '0.73rem', fontWeight: 600, color: g.total > 0 ? (cash ? '#0891b2' : '#1e293b') : '#cbd5e1', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{g.total > 0 ? fmtP(g.total) : '—'}</span>
+    </button>
+  );
+}
+
+const PALETTE = ['#0284c7', '#7c3aed', '#dc2626', '#d97706', '#059669', '#64748b', '#0891b2', '#e11d48', '#9333ea', '#16a34a'];
+function AddCategoryModal({ onAdd, onClose }) {
+  const [label, setLabel] = useState('');
+  const [kind,  setKind]  = useState('blanco');
+  const [color, setColor] = useState(PALETTE[0]);
+  const valid = label.trim().length > 0;
+  const INP_MODAL = { width: '100%', padding: '0.4rem 0.55rem', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.78rem', color: '#1e293b', background: '#fff', outline: 'none', boxSizing: 'border-box' };
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 100 }} />
+      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 'min(420px, 92vw)', background: '#fff', borderRadius: 12, zIndex: 110, boxShadow: '0 24px 64px rgba(0,0,0,0.2)', padding: '1.4rem' }}>
+        <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', marginBottom: 16 }}>Nueva categoría de gasto</h3>
+
+        <div style={{ marginBottom: 14 }}>
+          <p style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>Nombre</p>
+          <input autoFocus value={label} onChange={e => setLabel(e.target.value)} placeholder="Ej: Seguro de carga" style={INP_MODAL} />
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <p style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>Tipo de pago</p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {[
+              { v: 'blanco', t: 'En blanco', d: 'Pagado por banco · gasto normal' },
+              { v: 'cash',   t: 'Cash propio', d: 'Pagado de tu bolsillo · a recuperar' },
+            ].map(opt => {
+              const sel = kind === opt.v;
+              return (
+                <button key={opt.v} onClick={() => setKind(opt.v)} style={{
+                  padding: '0.65rem 0.7rem', borderRadius: 7, border: `1.5px solid ${sel ? (opt.v === 'cash' ? '#0891b2' : '#475569') : '#e2e8f0'}`,
+                  background: sel ? (opt.v === 'cash' ? '#f0f9ff' : '#f8fafc') : '#fff', cursor: 'pointer', textAlign: 'left',
+                }}>
+                  <p style={{ fontSize: '0.78rem', fontWeight: 700, color: sel ? (opt.v === 'cash' ? '#0891b2' : '#1e293b') : '#475569' }}>{opt.t}</p>
+                  <p style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: 2, lineHeight: 1.3 }}>{opt.d}</p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 18 }}>
+          <p style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>Color</p>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {PALETTE.map(c => (
+              <button key={c} onClick={() => setColor(c)} style={{
+                width: 26, height: 26, borderRadius: '50%', background: c, border: `2px solid ${color === c ? '#0f172a' : 'transparent'}`,
+                cursor: 'pointer', padding: 0, transition: 'transform 0.1s',
+              }} title={c} />
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{ padding: '0.5rem 1rem', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}>Cancelar</button>
+          <button onClick={() => valid && onAdd({ label: label.trim(), kind, color })} disabled={!valid} style={{ padding: '0.5rem 1.25rem', borderRadius: 7, border: 'none', background: valid ? '#059669' : '#e2e8f0', color: valid ? '#fff' : '#94a3b8', fontWeight: 700, fontSize: '0.8rem', cursor: valid ? 'pointer' : 'default' }}>Crear categoría</button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function CategoryEditor({ cat, rows: initRows, onChange, onClose, onDelete }) {
+  const [rows, setRows] = useState(initRows.length ? initRows : [newRow()]);
+  const tot = catTot(rows).pesos;
+  const INP_MODAL = { width: '100%', padding: '0.4rem 0.55rem', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.78rem', color: '#1e293b', background: '#fff', outline: 'none', boxSizing: 'border-box' };
+
+  const updRow = (i, f, v) => setRows(rs => rs.map((r, j) => j === i ? { ...r, [f]: v } : r));
+  const addRow = () => setRows(rs => [...rs, newRow()]);
+  const remRow = (i) => setRows(rs => rs.filter((_, j) => j !== i));
+
+  const save = () => { onChange(rows.filter(r => r.desc || r.usd || r.pesos)); onClose(); };
+
+  return (
+    <>
+      <div onClick={save} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 100 }} />
+      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 'min(820px, 94vw)', maxHeight: '88vh', background: '#fff', borderRadius: 12, zIndex: 110, boxShadow: '0 24px 64px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '1.1rem 1.4rem', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: cat.color }} />
+            <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a' }}>{cat.label}</h3>
+            {cat.note && <span style={{ fontSize: '0.68rem', color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', padding: '0.15rem 0.55rem', borderRadius: 5, fontWeight: 600 }}>{cat.note}</span>}
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '1.4rem', lineHeight: 1 }}>×</button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.4rem' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                {['Descripción', 'N° Factura', 'USD', 'T.C.', 'Pesos', ''].map(h => (
+                  <th key={h} style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '0.5rem 0.6rem 0.6rem', textAlign: h === 'USD' || h === 'T.C.' || h === 'Pesos' ? 'right' : 'left' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, i) => {
+                const calcPesos = n(row.usd) > 0 && n(row.tc) > 0;
+                return (
+                  <tr key={row.id}>
+                    <td style={{ padding: '0.25rem 0.3rem' }}>
+                      <input value={row.desc} onChange={e => updRow(i, 'desc', e.target.value)} style={INP_MODAL} placeholder="Descripción" />
+                    </td>
+                    <td style={{ padding: '0.25rem 0.3rem', width: 130 }}>
+                      <input value={row.factura} onChange={e => updRow(i, 'factura', e.target.value)} style={INP_MODAL} placeholder="—" />
+                    </td>
+                    <td style={{ padding: '0.25rem 0.3rem', width: 110 }}>
+                      <input type="number" step="any" value={row.usd} onChange={e => updRow(i, 'usd', e.target.value)} style={{ ...INP_MODAL, textAlign: 'right' }} placeholder="" />
+                    </td>
+                    <td style={{ padding: '0.25rem 0.3rem', width: 90 }}>
+                      <input type="number" step="any" value={row.tc} onChange={e => updRow(i, 'tc', e.target.value)} style={{ ...INP_MODAL, textAlign: 'right' }} placeholder="" />
+                    </td>
+                    <td style={{ padding: '0.25rem 0.3rem', width: 140 }}>
+                      {calcPesos ? (
+                        <div style={{ ...INP_MODAL, background: '#f8fafc', color: '#059669', fontWeight: 600, textAlign: 'right' }}>{fmtP(n(row.usd) * n(row.tc))}</div>
+                      ) : (
+                        <input type="number" step="any" value={row.pesos} onChange={e => updRow(i, 'pesos', e.target.value)} style={{ ...INP_MODAL, textAlign: 'right' }} placeholder="" />
+                      )}
+                    </td>
+                    <td style={{ padding: '0.25rem 0.3rem', width: 30 }}>
+                      <button onClick={() => remRow(i)} style={{ background: 'none', border: 'none', color: '#cbd5e1', cursor: 'pointer', fontSize: '1rem' }}>×</button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <button onClick={addRow} style={{ marginTop: '0.6rem', background: 'transparent', border: `1px dashed ${cat.color}`, borderRadius: 7, padding: '0.4rem 0.9rem', fontSize: '0.75rem', fontWeight: 700, color: cat.color, cursor: 'pointer' }}>
+            + Agregar línea
+          </button>
+        </div>
+
+        <div style={{ padding: '1rem 1.4rem', borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', borderRadius: '0 0 12px 12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div>
+              <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Subtotal {cat.label}</span>
+              <p style={{ fontSize: '1.05rem', fontWeight: 800, color: cat.color, fontVariantNumeric: 'tabular-nums' }}>{fmtP(tot)}</p>
+            </div>
+            {onDelete && (
+              <button onClick={onDelete} style={{ background: 'none', border: 'none', color: '#cbd5e1', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer', padding: 0, transition: 'color 0.15s' }}
+                onMouseEnter={e => e.currentTarget.style.color = '#dc2626'}
+                onMouseLeave={e => e.currentTarget.style.color = '#cbd5e1'}>
+                Eliminar categoría
+              </button>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={onClose} style={{ padding: '0.5rem 1rem', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}>Cancelar</button>
+            <button onClick={save} style={{ padding: '0.5rem 1.25rem', borderRadius: 7, border: 'none', background: '#059669', color: '#fff', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer' }}>Guardar</button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function ExpandedDetail({ p, clientes, onUpdProveedor, onUpdCobrar, onToggleCobrado, onRemove }) {
+  const LBL_E  = { fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 };
+  const SEC  = { fontSize: '0.65rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 };
+  const HINT = { fontSize: '0.65rem', color: '#94a3b8', fontStyle: 'italic', marginTop: 3 };
+  const CALC = { fontSize: '0.7rem', color: '#059669', fontWeight: 600, marginTop: 3, fontVariantNumeric: 'tabular-nums' };
+  const INP_E = { width: '100%', padding: '0.4rem 0.55rem', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.78rem', color: '#1e293b', background: '#fff', outline: 'none', boxSizing: 'border-box' };
+
+  const vepPesos = n(p.tributosUSD) * n(p.tributosTC);
+  const hasVepBoth = n(p.tributosUSD) > 0 && n(p.tributosTC) > 0;
+
+  return (
+    <div style={{ paddingTop: '0.6rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr', gap: '0.85rem', alignItems: 'start' }}>
+
+        <div style={{ background: '#fff', border: '1px solid #e8ecf1', borderRadius: 8, padding: '1rem 1.1rem' }}>
+
+          <div style={{ marginBottom: 18 }}>
+            <p style={SEC}><span style={{ width: 4, height: 4, borderRadius: '50%', background: '#94a3b8' }} /> Identidad</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.3fr 1.7fr', gap: 10 }}>
+              <div>
+                <p style={LBL_E}>Nombre</p>
+                <input value={p.nombre || ''} onChange={e => onUpdProveedor('nombre', e.target.value)} style={INP_E} placeholder="Ej: Gimnasio Marce" />
+              </div>
+              <div>
+                <p style={LBL_E}>Tipo</p>
+                <div style={{ display: 'flex', gap: 0, background: '#f1f5f9', padding: 3, borderRadius: 6 }}>
+                  {['Cliente', 'Propio'].map(t => {
+                    const sel = (p.tipo || 'Cliente') === t;
+                    return (
+                      <button key={t} onClick={() => onUpdProveedor('tipo', t)}
+                        style={{ flex: 1, padding: '0.35rem 0', borderRadius: 4, border: 'none', background: sel ? '#fff' : 'transparent', fontSize: '0.72rem', fontWeight: 600, color: sel ? '#1e293b' : '#94a3b8', cursor: 'pointer', boxShadow: sel ? '0 1px 2px rgba(0,0,0,0.08)' : 'none', transition: 'all 0.15s' }}>{t}</button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div>
+                <p style={LBL_E}>{(p.tipo || 'Cliente') === 'Cliente' ? 'Cliente final' : 'Categoría'}</p>
+                {(p.tipo || 'Cliente') === 'Cliente' ? (
+                  <select value={p.clienteId || ''} onChange={e => onUpdProveedor('clienteId', e.target.value)} style={{ ...INP_E, cursor: 'pointer' }}>
+                    <option value="">— Sin asignar —</option>
+                    {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                  </select>
+                ) : (
+                  <div style={{ ...INP_E, background: '#f8fafc', color: '#94a3b8', fontStyle: 'italic' }}>Mercadería propia</div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 18 }}>
+            <p style={SEC}><span style={{ width: 4, height: 4, borderRadius: '50%', background: '#0284c7' }} /> Carga en el contenedor</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+              <div>
+                <p style={LBL_E}>m³ (CBM) <Help title="Volumen en metros cúbicos. Define el % de prorrateo de los costos compartidos." /></p>
+                <input type="number" step="any" value={p.m3 || ''} onChange={e => onUpdProveedor('m3', e.target.value)} style={{ ...INP_E, textAlign: 'right' }} placeholder="0.00" />
+                {n(p.m3) > 0 && <p style={CALC}>= {pct(p.ratio)} del contenedor</p>}
+              </div>
+              <div>
+                <p style={LBL_E}>FOB USD <Help title="Valor declarado del producto al embarcar (Free On Board)." /></p>
+                <input type="number" step="any" value={p.fobUSD || ''} onChange={e => onUpdProveedor('fobUSD', e.target.value)} style={{ ...INP_E, textAlign: 'right' }} placeholder="0" />
+              </div>
+              <div>
+                <p style={LBL_E}>Gs. Origen USD <span style={{ color: '#cbd5e1', fontWeight: 400, fontStyle: 'italic', textTransform: 'none', letterSpacing: 0 }}>opcional</span></p>
+                <input type="number" step="any" value={p.gastosOrigenUSD || ''} onChange={e => onUpdProveedor('gastosOrigenUSD', e.target.value)} style={{ ...INP_E, textAlign: 'right' }} placeholder="0" />
+              </div>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 14 }}>
+            <p style={SEC}><span style={{ width: 4, height: 4, borderRadius: '50%', background: '#dc2626' }} /> VEP Aduana <Help title="Tributos aduaneros pagados por este proveedor. USD × T.C. = pesos asignados." /></p>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+              <div style={{ flex: 1 }}>
+                <p style={LBL_E}>USD</p>
+                <input type="number" step="any" value={p.tributosUSD || ''} onChange={e => onUpdProveedor('tributosUSD', e.target.value)} style={{ ...INP_E, textAlign: 'right' }} placeholder="0" />
+              </div>
+              <div style={{ paddingBottom: 8, color: '#cbd5e1', fontWeight: 700, fontSize: '0.9rem' }}>×</div>
+              <div style={{ flex: 1 }}>
+                <p style={LBL_E}>T.C.</p>
+                <input type="number" step="any" value={p.tributosTC || ''} onChange={e => onUpdProveedor('tributosTC', e.target.value)} style={{ ...INP_E, textAlign: 'right' }} placeholder="—" />
+              </div>
+              <div style={{ paddingBottom: 8, color: '#cbd5e1', fontWeight: 700, fontSize: '0.9rem' }}>=</div>
+              <div style={{ flex: 1.2 }}>
+                <p style={LBL_E}>Pesos</p>
+                <div style={{ ...INP_E, background: hasVepBoth ? '#f0fdf4' : '#f8fafc', color: hasVepBoth ? '#059669' : '#cbd5e1', fontWeight: 700, textAlign: 'right', borderColor: hasVepBoth ? '#bbf7d0' : '#e2e8f0' }}>
+                  {hasVepBoth ? fmtP(vepPesos) : '—'}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button onClick={onRemove} style={{ marginTop: 4, background: 'none', border: 'none', color: '#cbd5e1', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer', padding: '0.3rem 0', transition: 'color 0.15s' }}
+            onMouseEnter={e => e.currentTarget.style.color = '#dc2626'}
+            onMouseLeave={e => e.currentTarget.style.color = '#cbd5e1'}>
+            Eliminar este proveedor
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+          <div style={{ background: '#0f172a', borderRadius: 8, padding: '0.85rem 1.1rem', color: '#fff' }}>
+            <p style={{ fontSize: '0.6rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>Total a cobrar</p>
+            <p style={{ fontSize: '1.5rem', fontWeight: 900, fontVariantNumeric: 'tabular-nums' }}>{fmtU(p.totalUSD)}</p>
+            <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #334155', display: 'flex', flexDirection: 'column', gap: 3, fontSize: '0.7rem' }}>
+              <Mini label="Prorrateo blanco" val={fmtP(p.prorBlancoPesos)} />
+              {p.prorCashPesos > 0 && <Mini label="Prorrateo cash" val={fmtP(p.prorCashPesos)} cash />}
+              <Mini label="VEP Aduana" val={fmtP(p.vepPesos)} />
+              <Mini label={`÷ TC ${p.tcUsed || '—'}`} val={fmtU(p.gastosUSD)} />
+              {p.origenUSD > 0 && <Mini label="+ origen" val={fmtU(p.origenUSD)} />}
+              {p.cb.honorarios && <Mini label="+ honor. 4%" val={fmtU(p.honorarios)} />}
+              {n(p.cb.despAdic) > 0 && <Mini label="+ desp. adic." val={fmtU(n(p.cb.despAdic))} />}
+            </div>
+            {p.cashUSD > 0 && (
+              <div style={{ marginTop: 8, padding: '0.5rem 0.65rem', background: '#0c4a6e', borderRadius: 5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="6" x2="12" y2="18"/><line x1="6" y1="12" x2="18" y2="12"/></svg>
+                  <span style={{ fontSize: '0.66rem', color: '#7dd3fc', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>De los que recuperás cash</span>
+                </div>
+                <span style={{ fontSize: '0.85rem', color: '#38bdf8', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{fmtU(p.cashUSD)}</span>
+              </div>
+            )}
+          </div>
+
+          <div style={{ background: '#fff', border: '1px solid #e8ecf1', borderRadius: 8, padding: '0.9rem 1.1rem' }}>
+            <p style={SEC}><span style={{ width: 4, height: 4, borderRadius: '50%', background: '#ea580c' }} /> Ajustes de cobro</p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+              <div>
+                <p style={LBL_E}>T.C. cobro</p>
+                <input type="number" step="any" value={p.cb.tc || ''} onChange={e => onUpdCobrar('tc', e.target.value)} placeholder={p.tributosTC ? `${p.tributosTC} auto` : '—'} style={{ ...INP_E, textAlign: 'right' }} />
+                <p style={HINT}>vacío = usa el del VEP</p>
+              </div>
+              <div>
+                <p style={LBL_E}>Desp. adic. USD</p>
+                <input type="number" step="any" value={p.cb.despAdic || ''} onChange={e => onUpdCobrar('despAdic', e.target.value)} placeholder="0" style={{ ...INP_E, textAlign: 'right' }} />
+                <p style={HINT}>extras del despachante</p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.7rem', background: '#f8fafc', borderRadius: 6, border: '1px solid #e8ecf1' }}>
+              <div>
+                <p style={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151' }}>Honorarios 4%</p>
+                <p style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: 1 }}>sobre (gastos + origen)</p>
+              </div>
+              <button onClick={() => onUpdCobrar('honorarios', !p.cb.honorarios)}
+                style={{ position: 'relative', width: '36px', minWidth: '36px', height: '20px', borderRadius: '999px', border: 'none', padding: 0, margin: 0, cursor: 'pointer', background: p.cb.honorarios ? '#059669' : '#cbd5e1', transition: 'background 0.15s', flexShrink: 0, appearance: 'none', WebkitAppearance: 'none', display: 'inline-block', boxSizing: 'border-box' }}>
+                <span style={{ position: 'absolute', top: '2px', left: p.cb.honorarios ? '18px' : '2px', width: '16px', height: '16px', borderRadius: '50%', background: '#fff', transition: 'left 0.15s', boxShadow: '0 1px 2px rgba(0,0,0,0.2)', display: 'block' }} />
+              </button>
+            </div>
+          </div>
+
+          <button onClick={onToggleCobrado}
+            style={{ background: p.cb.cobrado ? '#f0fdf4' : '#fff', border: `1px solid ${p.cb.cobrado ? '#bbf7d0' : '#e8ecf1'}`, borderRadius: 8, padding: '0.7rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', transition: 'all 0.15s' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 28, height: 28, borderRadius: 7, background: p.cb.cobrado ? '#dcfce7' : '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {p.cb.cobrado ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><circle cx="12" cy="12" r="10"/></svg>
+                )}
+              </div>
+              <div style={{ textAlign: 'left' }}>
+                <p style={{ fontSize: '0.78rem', fontWeight: 700, color: p.cb.cobrado ? '#16a34a' : '#1e293b' }}>{p.cb.cobrado ? 'Cobrado' : 'Pendiente de cobro'}</p>
+                <p style={{ fontSize: '0.65rem', color: p.cb.cobrado ? '#059669' : '#94a3b8', marginTop: 1 }}>
+                  {p.cb.cobrado ? (p.cb.fechaCobro ? `el ${p.cb.fechaCobro}` : 'cobrado') : 'click para marcar'}
+                </p>
+              </div>
+            </div>
+            <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{p.cb.cobrado ? 'Desmarcar' : 'Marcar'}</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+function Mini({ label, val, cash }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', color: cash ? '#7dd3fc' : '#94a3b8' }}>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+        {cash && <span style={{ width: 4, height: 4, borderRadius: '50%', background: '#38bdf8' }} />}
+        {label}
+      </span>
+      <span style={{ color: cash ? '#38bdf8' : '#cbd5e1', fontWeight: cash ? 600 : 500, fontVariantNumeric: 'tabular-nums' }}>{val}</span>
+    </div>
+  );
+}
+
+function Help({ title }) {
+  return (
+    <span title={title} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 12, height: 12, borderRadius: '50%', background: '#e2e8f0', color: '#64748b', fontSize: '0.55rem', fontWeight: 700, marginLeft: 4, cursor: 'help', verticalAlign: 'middle' }}>?</span>
+  );
+}
+
 
 // ─── Main Export ──────────────────────────────────────────────────────────────
 export default function Operations() {
