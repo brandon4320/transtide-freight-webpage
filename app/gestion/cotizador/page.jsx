@@ -1086,7 +1086,7 @@ function CotizadorAereo() {
   // lado cliente
   const [fobCliente, setFobCliente] = useState('');
   const [fobDecCli, setFobDecCli] = useState('');
-  const [tarifaCli, setTarifaCli] = useState('');
+  const [fleteCliInput, setFleteCliInput] = useState('');
   const [awbCli, setAwbCli] = useState('');
   const [handCli, setHandCli] = useState('');
   const [terCli, setTerCli] = useState('');
@@ -1096,7 +1096,7 @@ function CotizadorAereo() {
   // lado real
   const [fobReal, setFobReal] = useState('');
   const [fobDecReal, setFobDecReal] = useState('');
-  const [tarifaReal, setTarifaReal] = useState('');
+  const [fleteRealInput, setFleteRealInput] = useState('');
   const [awbReal, setAwbReal] = useState('');
   const [handReal, setHandReal] = useState('');
   const [terReal, setTerReal] = useState('');
@@ -1132,9 +1132,9 @@ function CotizadorAereo() {
     const fobR  = n(fobReal);
     const fobDR = n(fobDecReal) || fobR;
 
-    // flete = chargeable kg × tarifa
-    const fleteC = chargeable * n(tarifaCli);
-    const fleteR = chargeable * n(tarifaReal);
+    // flete = total USD (cerrado, lo pasa el agente)
+    const fleteC = n(fleteCliInput);
+    const fleteR = n(fleteRealInput);
 
     // ── LADO CLIENTE ──
     const segC   = fobDC * 0.01;
@@ -1207,7 +1207,7 @@ function CotizadorAereo() {
     };
   }, [
     fobCliente, fobDecCli, fobReal, fobDecReal,
-    tarifaCli, tarifaReal, chargeable,
+    fleteCliInput, fleteRealInput, chargeable,
     awbCli, handCli, terCli, desCli, traCli,
     awbReal, handReal, terReal, desReal, traReal,
     pDer, pTas, pIva, pagaIva, pIvaA, pagaIvaA, pGan, pagaGan, pIIBB, pagaIIBB,
@@ -1317,11 +1317,7 @@ function CotizadorAereo() {
 
                 <p style={SECL}>Línea aérea destino (cobrado al cliente)</p>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
-                  <F label="Tarifa USD/kg (cobrada)"><NI value={tarifaCli} onChange={setTarifaCli} /></F>
-                  <div style={{ background: '#f8fafc', borderRadius: '8px', padding: '0.5rem 0.7rem', alignSelf: 'end' }}>
-                    <p style={{ fontSize: '0.62rem', color: '#94a3b8' }}>Flete cobrado</p>
-                    <p style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1e293b' }}>{usd(c.fleteC)}</p>
-                  </div>
+                  <F label="Flete aéreo (USD)"><NI value={fleteCliInput} onChange={setFleteCliInput} /></F>
                   <F label="AWB"><NI value={awbCli} onChange={setAwbCli} /></F>
                   <F label="Handling"><NI value={handCli} onChange={setHandCli} /></F>
                   <F label="Terminal aérea"><NI value={terCli} onChange={setTerCli} /></F>
@@ -1342,12 +1338,9 @@ function CotizadorAereo() {
             {/* MIS COSTOS REALES */}
             {tab === 'real_fob' && (
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '1rem', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                    <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065f46', textTransform: 'uppercase', letterSpacing: '0.05em' }}>FOB & costos reales</p>
-                  </div>
-                  <button onClick={usarPreset} style={{ padding: '0.32rem 0.7rem', borderRadius: '50px', border: '1px solid #bbf7d0', background: '#f0fdf4', color: '#059669', fontSize: '0.68rem', fontWeight: 700, cursor: 'pointer' }}>Usar valores del preset</button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '1rem' }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                  <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065f46', textTransform: 'uppercase', letterSpacing: '0.05em' }}>FOB & costos reales</p>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
@@ -1363,11 +1356,7 @@ function CotizadorAereo() {
 
                 <p style={SECL}>Línea aérea destino & gastos aeroportuarios (real)</p>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
-                  <F label="Tarifa USD/kg (real)"><NI value={tarifaReal} onChange={setTarifaReal} /></F>
-                  <div style={{ background: '#f8fafc', borderRadius: '8px', padding: '0.5rem 0.7rem', alignSelf: 'end' }}>
-                    <p style={{ fontSize: '0.62rem', color: '#94a3b8' }}>Flete real</p>
-                    <p style={{ fontSize: '0.95rem', fontWeight: 700, color: '#059669' }}>{usd(c.fleteR)}</p>
-                  </div>
+                  <F label="Flete aéreo real (USD)"><NI value={fleteRealInput} onChange={setFleteRealInput} /></F>
                   <F label="AWB real"><NI value={awbReal} onChange={setAwbReal} /></F>
                   <F label="Handling real"><NI value={handReal} onChange={setHandReal} /></F>
                   <F label="Terminal aérea real"><NI value={terReal} onChange={setTerReal} /></F>
@@ -1628,7 +1617,7 @@ function CotizadorAereo() {
                 <div style={{ padding: '6px 12px', background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}><span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Base de la Importación</span></div>
                 {[
                   ['Valor de Mercadería (FOB Declarado)', usd(c.fobDC)],
-                  [`Flete Aéreo (${chargeable.toFixed(2)} kg × $${n(tarifaCli).toFixed(2)}/kg)`, usd(c.fleteC)],
+                  [`Flete Aéreo (${chargeable.toFixed(2)} kg chargeable)`, usd(c.fleteC)],
                   ['Seguro (1% FOB)', usd(c.segC)],
                 ].map(([l, v]) => (
                   <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 12px', borderBottom: '1px solid #f8fafc', fontSize: '0.83rem', color: '#374151' }}>
