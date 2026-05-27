@@ -82,12 +82,9 @@ function RRow({ label, val, val2, diff, dimmed, bold }) {
   );
 }
 
-// ─── aéreo presets ────────────────────────────────────────────────────────────
-const AEREO_PRESETS = {
-  'standard': { label: 'Standard',  tarifaKg: 4.5,  awb: 50, handling: 80,  terminal: 120, despachante: 350, transporte: 100, transit: '5-7 días' },
-  'express':  { label: 'Express',   tarifaKg: 7.0,  awb: 60, handling: 100, terminal: 120, despachante: 350, transporte: 100, transit: '2-3 días' },
-  'charter':  { label: 'Charter',   tarifaKg: null, awb: 80, handling: 150, terminal: 150, despachante: 400, transporte: 120, transit: 'a coordinar' },
-};
+// ─── aéreo: conversión IATA volumétrica ──────────────────────────────────────
+// 1 m³ ≈ 167 kg volumétrico (estándar IATA para carga general)
+const KG_PER_M3 = 167;
 
 // ─── tab switcher icons ───────────────────────────────────────────────────────
 const ShipIcon = ({ size = 16 }) => (
@@ -1073,23 +1070,17 @@ function CotizadorMaritimo() {
 
 // ─── aéreo component ──────────────────────────────────────────────────────────
 function CotizadorAereo() {
-  // setup
-  const [preset, setPreset] = useState('standard');
-  const p = AEREO_PRESETS[preset];
-
   // identification
   const [cliente, setCliente] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [clasificacion, setClasificacion] = useState('');
 
-  // carga
+  // carga: el agente nos pasa m³ y peso real, no diferenciamos por bulto
+  const [m3Input,  setM3Input]  = useState('');
   const [pesoReal, setPesoReal] = useState('');
-  const [largo, setLargo] = useState('');
-  const [ancho, setAncho] = useState('');
-  const [alto, setAlto] = useState('');
 
-  const pesoVol = (n(largo) * n(ancho) * n(alto)) / 6000;
-  const chargeable = Math.max(n(pesoReal), pesoVol);
+  const pesoVol       = n(m3Input) * KG_PER_M3;
+  const chargeable    = Math.max(n(pesoReal), pesoVol);
   const usaVolumetrico = pesoVol > n(pesoReal) && pesoVol > 0;
 
   // lado cliente
@@ -1129,16 +1120,6 @@ function CotizadorAereo() {
   // ui
   const [tab, setTab] = useState('cliente_fob');
   const [showClienteView, setShowClienteView] = useState(false);
-
-  // helper: fill real with preset values
-  const usarPreset = () => {
-    if (p.tarifaKg !== null) setTarifaReal(String(p.tarifaKg));
-    setAwbReal(String(p.awb));
-    setHandReal(String(p.handling));
-    setTerReal(String(p.terminal));
-    setDesReal(String(p.despachante));
-    setTraReal(String(p.transporte));
-  };
 
   // calc
   const c = useMemo(() => {
@@ -1250,89 +1231,37 @@ function CotizadorAereo() {
         </button>
       </div>
 
-      {/* SETUP */}
-      <Card style={{ marginBottom: '1.25rem', padding: '1.5rem' }}>
-        <div className="cot-setup-grid" style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: '2rem' }}>
-
-          {/* LEFT: preset + carga */}
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-              <div style={{ width: '26px', height: '26px', borderRadius: '7px', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563eb' }}>
-                <PlaneIcon size={13} />
-              </div>
-              <p style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b' }}>Servicio aéreo</p>
-            </div>
-
-            <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: '10px', padding: '3px', gap: '2px', marginBottom: '0.85rem' }}>
-              {Object.entries(AEREO_PRESETS).map(([key, pr]) => (
-                <button key={key} onClick={() => setPreset(key)} style={{ flex: 1, padding: '0.42rem 0.25rem', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '0.73rem', fontWeight: 700, transition: 'all 0.15s', background: preset === key ? '#2563eb' : 'transparent', color: preset === key ? '#fff' : '#64748b' }}>
-                  {pr.label}
-                </button>
-              ))}
-            </div>
-
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.25rem 0.65rem', background: '#eff6ff', color: '#2563eb', borderRadius: '50px', fontSize: '0.7rem', fontWeight: 700 }}>
-                Tránsito: {p.transit}
-              </span>
-              {p.tarifaKg !== null && (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.25rem 0.65rem', background: '#f0fdf4', color: '#059669', borderRadius: '50px', fontSize: '0.7rem', fontWeight: 700 }}>
-                  ${p.tarifaKg}/kg ref.
-                </span>
-              )}
-            </div>
-
-            <label style={{ ...LBL, marginBottom: '0.5rem' }}>Costos de referencia (USD)</label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem', fontSize: '0.72rem' }}>
-              {[['AWB', p.awb],['Handling', p.handling],['Terminal', p.terminal],['Despachante', p.despachante],['Transporte', p.transporte]].map(([l, v]) => (
-                <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.3rem 0.5rem', background: '#f8fafc', borderRadius: '6px', border: '1px solid #f1f5f9' }}>
-                  <span style={{ color: '#94a3b8' }}>{l}</span>
-                  <strong style={{ color: '#1e293b' }}>{usd(v)}</strong>
-                </div>
-              ))}
-            </div>
-            <button onClick={usarPreset} style={{ marginTop: '0.6rem', padding: '0.45rem 0.85rem', borderRadius: '8px', border: '1px solid #bfdbfe', background: '#eff6ff', color: '#2563eb', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', width: '100%' }}>
-              Usar estos valores como costos reales
-            </button>
+      {/* SETUP — Carga a transportar */}
+      <Card style={{ marginBottom: '1.25rem', padding: '1.25rem 1.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+          <div style={{ width: '26px', height: '26px', borderRadius: '7px', background: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
           </div>
+          <p style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b' }}>Carga a transportar</p>
+        </div>
 
-          {/* RIGHT: carga */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.4fr', gap: '0.85rem', alignItems: 'stretch' }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-              <div style={{ width: '26px', height: '26px', borderRadius: '7px', background: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-              </div>
-              <p style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b' }}>Carga a transportar</p>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0.5rem', marginBottom: '1rem' }}>
-              <F label="Peso real (kg)"><NI value={pesoReal} onChange={setPesoReal} /></F>
-              <F label="Largo (cm)"><NI value={largo} onChange={setLargo} /></F>
-              <F label="Ancho (cm)"><NI value={ancho} onChange={setAncho} /></F>
-              <F label="Alto (cm)"><NI value={alto} onChange={setAlto} /></F>
-            </div>
-
-            {/* chargeable weight box */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.2fr', gap: '0.5rem' }}>
-              <div style={{ background: !usaVolumetrico && chargeable > 0 ? '#fff7ed' : '#f8fafc', border: `1px solid ${!usaVolumetrico && chargeable > 0 ? '#fed7aa' : '#f1f5f9'}`, borderRadius: '10px', padding: '0.7rem 0.8rem' }}>
-                <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginBottom: '0.15rem', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>Peso real</p>
-                <p style={{ fontSize: '1.05rem', fontWeight: 800, color: !usaVolumetrico && chargeable > 0 ? '#d97706' : '#1e293b', lineHeight: 1 }}>{n(pesoReal).toFixed(2)} kg</p>
-              </div>
-              <div style={{ background: usaVolumetrico ? '#fff7ed' : '#f8fafc', border: `1px solid ${usaVolumetrico ? '#fed7aa' : '#f1f5f9'}`, borderRadius: '10px', padding: '0.7rem 0.8rem' }}>
-                <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginBottom: '0.15rem', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>Peso volumétrico</p>
-                <p style={{ fontSize: '1.05rem', fontWeight: 800, color: usaVolumetrico ? '#d97706' : '#1e293b', lineHeight: 1 }}>{pesoVol.toFixed(2)} kg</p>
-                <p style={{ fontSize: '0.6rem', color: '#94a3b8', marginTop: '0.1rem' }}>(L×A×H)/6000</p>
-              </div>
-              <div style={{ background: chargeable > 0 ? 'linear-gradient(135deg, #f97316, #ea580c)' : '#f8fafc', borderRadius: '10px', padding: '0.7rem 0.9rem', color: chargeable > 0 ? '#fff' : '#cbd5e1', boxShadow: chargeable > 0 ? '0 2px 12px rgba(249,115,22,0.25)' : 'none' }}>
-                <p style={{ fontSize: '0.62rem', marginBottom: '0.15rem', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700, opacity: chargeable > 0 ? 0.9 : 1 }}>Chargeable weight</p>
-                <p style={{ fontSize: '1.35rem', fontWeight: 800, lineHeight: 1 }}>{chargeable.toFixed(2)} kg</p>
-                <p style={{ fontSize: '0.62rem', marginTop: '0.15rem', opacity: chargeable > 0 ? 0.9 : 1 }}>
-                  {chargeable > 0 ? (usaVolumetrico ? 'aplica peso volumétrico' : 'aplica peso real') : '—'}
-                </p>
-              </div>
-            </div>
+            <label style={LBL}>Volumen (m³)</label>
+            <NI value={m3Input} onChange={setM3Input} />
+            <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: '0.3rem' }}>1 m³ ≈ {KG_PER_M3} kg vol. (IATA)</p>
           </div>
-
+          <div>
+            <label style={LBL}>Peso real (kg)</label>
+            <NI value={pesoReal} onChange={setPesoReal} />
+            <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: '0.3rem' }}>peso bruto declarado</p>
+          </div>
+          <div style={{ background: chargeable > 0 ? 'linear-gradient(135deg, #f97316, #ea580c)' : '#f8fafc', border: chargeable > 0 ? 'none' : '1px solid #f1f5f9', borderRadius: '10px', padding: '0.7rem 1rem', color: chargeable > 0 ? '#fff' : '#cbd5e1', boxShadow: chargeable > 0 ? '0 2px 12px rgba(249,115,22,0.25)' : 'none', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            <p style={{ fontSize: '0.62rem', marginBottom: '0.2rem', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700, opacity: chargeable > 0 ? 0.9 : 1 }}>Peso a tarifar (chargeable)</p>
+            <p style={{ fontSize: '1.5rem', fontWeight: 800, lineHeight: 1 }}>{chargeable.toFixed(2)} kg</p>
+            <p style={{ fontSize: '0.62rem', marginTop: '0.25rem', opacity: chargeable > 0 ? 0.9 : 1 }}>
+              {chargeable > 0
+                ? (usaVolumetrico
+                  ? `aplica volumétrico (${pesoVol.toFixed(2)} kg) — supera al real`
+                  : `aplica peso real — supera al volumétrico (${pesoVol.toFixed(2)} kg)`)
+                : 'cargá volumen y peso'}
+            </p>
+          </div>
         </div>
       </Card>
 
@@ -1388,7 +1317,7 @@ function CotizadorAereo() {
 
                 <p style={SECL}>Línea aérea destino (cobrado al cliente)</p>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
-                  <F label="Tarifa USD/kg (cobrada)"><NI value={tarifaCli} onChange={setTarifaCli} placeholder={p.tarifaKg !== null ? String(p.tarifaKg) : '0'} /></F>
+                  <F label="Tarifa USD/kg (cobrada)"><NI value={tarifaCli} onChange={setTarifaCli} /></F>
                   <div style={{ background: '#f8fafc', borderRadius: '8px', padding: '0.5rem 0.7rem', alignSelf: 'end' }}>
                     <p style={{ fontSize: '0.62rem', color: '#94a3b8' }}>Flete cobrado</p>
                     <p style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1e293b' }}>{usd(c.fleteC)}</p>
@@ -1434,7 +1363,7 @@ function CotizadorAereo() {
 
                 <p style={SECL}>Línea aérea destino & gastos aeroportuarios (real)</p>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
-                  <F label="Tarifa USD/kg (real)"><NI value={tarifaReal} onChange={setTarifaReal} placeholder={p.tarifaKg !== null ? String(p.tarifaKg) : '0'} /></F>
+                  <F label="Tarifa USD/kg (real)"><NI value={tarifaReal} onChange={setTarifaReal} /></F>
                   <div style={{ background: '#f8fafc', borderRadius: '8px', padding: '0.5rem 0.7rem', alignSelf: 'end' }}>
                     <p style={{ fontSize: '0.62rem', color: '#94a3b8' }}>Flete real</p>
                     <p style={{ fontSize: '0.95rem', fontWeight: 700, color: '#059669' }}>{usd(c.fleteR)}</p>
@@ -1692,7 +1621,7 @@ function CotizadorAereo() {
               <div style={{ background: '#2563eb', borderRadius: '12px', padding: '1rem 1.2rem', marginBottom: '1.2rem' }}>
                 <p style={{ fontSize: '0.95rem', fontWeight: 800, color: '#fff', letterSpacing: '0.01em' }}>COTIZACIÓN DE IMPORTACIÓN AÉREA</p>
                 {cliente && <p style={{ fontSize: '0.8rem', color: '#bfdbfe', marginTop: '3px' }}>Cliente: <strong style={{ color: '#fff' }}>{cliente}</strong></p>}
-                <p style={{ fontSize: '0.72rem', color: '#bfdbfe', marginTop: '4px' }}>{p.label} · Tránsito {p.transit} · Chargeable {chargeable.toFixed(2)} kg</p>
+                <p style={{ fontSize: '0.72rem', color: '#bfdbfe', marginTop: '4px' }}>Servicio aéreo · Chargeable {chargeable.toFixed(2)} kg ({n(m3Input).toFixed(2)} m³ · {n(pesoReal).toFixed(2)} kg real)</p>
               </div>
 
               <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden', marginBottom: '1rem' }}>
