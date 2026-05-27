@@ -1,6 +1,7 @@
 'use client';
 import { useState, useMemo, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
+import ImportDialog from './import-dialog';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 const usd = (n) => {
@@ -163,6 +164,29 @@ function CotizadorMaritimo() {
 
   // ── UI ──
   const [showClienteView, setShowClienteView] = useState(false);
+
+  // ── AI import event listener ──
+  useEffect(() => {
+    const handler = (e) => {
+      if (!e.detail || e.detail.mode !== 'maritimo') return;
+      const d = e.detail.data || {};
+      if (d.proveedor) setCliente(d.proveedor);
+      const desc = [
+        d.notas,
+        d.items && d.items.length
+          ? `Items: ${d.items.slice(0, 5).map((it) => it.descripcion).filter(Boolean).join(', ')}${d.items.length > 5 ? '…' : ''}`
+          : null,
+      ].filter(Boolean).join(' — ');
+      if (desc) setDescripcion(desc);
+      if (d.total_m3 != null) setM3Merch(String(d.total_m3));
+      if (d.total_fob != null) {
+        setFobCliente(String(d.total_fob));
+        setFobReal(String(d.total_fob));
+      }
+    };
+    window.addEventListener('cotizador:apply', handler);
+    return () => window.removeEventListener('cotizador:apply', handler);
+  }, []);
 
   // ─── calculations ─────────────────────────────────────────────────────────
   const c = useMemo(() => {
@@ -1121,6 +1145,30 @@ function CotizadorAereo() {
   const [tab, setTab] = useState('cliente_fob');
   const [showClienteView, setShowClienteView] = useState(false);
 
+  // ── AI import event listener ──
+  useEffect(() => {
+    const handler = (e) => {
+      if (!e.detail || e.detail.mode !== 'aereo') return;
+      const d = e.detail.data || {};
+      if (d.proveedor) setCliente(d.proveedor);
+      const desc = [
+        d.notas,
+        d.items && d.items.length
+          ? `Items: ${d.items.slice(0, 5).map((it) => it.descripcion).filter(Boolean).join(', ')}${d.items.length > 5 ? '…' : ''}`
+          : null,
+      ].filter(Boolean).join(' — ');
+      if (desc) setDescripcion(desc);
+      if (d.total_m3 != null) setM3Input(String(d.total_m3));
+      if (d.total_kg != null) setPesoReal(String(d.total_kg));
+      if (d.total_fob != null) {
+        setFobCliente(String(d.total_fob));
+        setFobReal(String(d.total_fob));
+      }
+    };
+    window.addEventListener('cotizador:apply', handler);
+    return () => window.removeEventListener('cotizador:apply', handler);
+  }, []);
+
   // calc
   const c = useMemo(() => {
     const der = pDer / 100, tas = pTas / 100, iva = pIva / 100,
@@ -1684,6 +1732,7 @@ function CotizadorInner() {
   const pathname = usePathname();
   const initialMode = searchParams.get('modo') === 'aereo' ? 'aereo' : 'maritimo';
   const [mode, setMode] = useState(initialMode);
+  const [importOpen, setImportOpen] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(Array.from(searchParams.entries()));
@@ -1693,23 +1742,54 @@ function CotizadorInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
+  const handleApply = (targetMode, data) => {
+    setMode(targetMode);
+    // Defer dispatch so the target cotizador is visible/ready
+    setTimeout(() => {
+      window.dispatchEvent(
+        new CustomEvent('cotizador:apply', { detail: { mode: targetMode, data } })
+      );
+    }, 0);
+    setImportOpen(false);
+  };
+
   return (
     <>
-      <div style={{ display: 'flex', gap: 4, padding: 4, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, marginBottom: '1.25rem', width: 'fit-content', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
-        {[
-          { id: 'maritimo', icon: <ShipIcon />, label: 'Marítimo' },
-          { id: 'aereo', icon: <PlaneIcon />, label: 'Aéreo' },
-        ].map(t => (
-          <button key={t.id} onClick={() => setMode(t.id)} style={{
-            display: 'flex', alignItems: 'center', gap: '0.5rem',
-            padding: '0.6rem 1.2rem', borderRadius: 9, border: 'none', cursor: 'pointer',
-            fontSize: '0.85rem', fontWeight: 700, transition: 'all 0.15s',
-            background: mode === t.id ? '#0f172a' : 'transparent',
-            color: mode === t.id ? '#fff' : '#64748b',
-          }}>
-            {t.icon} {t.label}
-          </button>
-        ))}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+        <div style={{ display: 'flex', gap: 4, padding: 4, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, width: 'fit-content', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
+          {[
+            { id: 'maritimo', icon: <ShipIcon />, label: 'Marítimo' },
+            { id: 'aereo', icon: <PlaneIcon />, label: 'Aéreo' },
+          ].map(t => (
+            <button key={t.id} onClick={() => setMode(t.id)} style={{
+              display: 'flex', alignItems: 'center', gap: '0.5rem',
+              padding: '0.6rem 1.2rem', borderRadius: 9, border: 'none', cursor: 'pointer',
+              fontSize: '0.85rem', fontWeight: 700, transition: 'all 0.15s',
+              background: mode === t.id ? '#0f172a' : 'transparent',
+              color: mode === t.id ? '#fff' : '#64748b',
+            }}>
+              {t.icon} {t.label}
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={() => setImportOpen(true)}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            padding: '0.55rem 1.1rem', borderRadius: 10, border: 'none',
+            background: '#0f172a', color: '#fff', fontWeight: 700, fontSize: '0.82rem',
+            cursor: 'pointer', boxShadow: '0 2px 10px rgba(15,23,42,0.15)',
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" y1="3" x2="12" y2="15" />
+          </svg>
+          Importar de PDF/foto
+          <span style={{ fontSize: '0.62rem', background: '#3b82f6', padding: '0.1rem 0.45rem', borderRadius: 99, fontWeight: 700 }}>IA</span>
+        </button>
       </div>
 
       {/* Both mounted to preserve state on toggle */}
@@ -1719,6 +1799,13 @@ function CotizadorInner() {
       <div style={{ display: mode === 'aereo' ? 'block' : 'none' }}>
         <CotizadorAereo />
       </div>
+
+      {importOpen && (
+        <ImportDialog
+          onClose={() => setImportOpen(false)}
+          onApply={handleApply}
+        />
+      )}
     </>
   );
 }
