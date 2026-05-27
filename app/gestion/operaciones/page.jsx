@@ -2,12 +2,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-const CLIENTES_KEY = 'transtide-clientes';
-const MOCK_CLIENTES = [
-  { id: 'c1', nombre: 'Franco Modulos SRL', cuit: '30-71234567-8' },
-  { id: 'c2', nombre: 'Gym Equipment SA',   cuit: '30-67890123-4' },
-];
-
 // ─── helpers ─────────────────────────────────────────────────────────────────
 const n    = (v) => parseFloat(v) || 0;
 const toTitle = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase().replace(/\b\w/g, c => c.toUpperCase()) : s;
@@ -75,39 +69,8 @@ const estadoObj   = (e) => ESTADOS.find(s => s.label === e) || ESTADOS[0];
 const estadoColor = (e) => estadoObj(e).color;
 const CONTENEDORES = ['20 Pies', '40 Pies', '40HQ', 'Flat Rack', 'LCL'];
 const CONTAINER_M3 = { '20 Pies': 28, '40 Pies': 56, '40HQ': 76, 'Flat Rack': 76, 'LCL': null };
-const OPS_KEY = 'transtide-operaciones';
 
-const INIT_OPS = [
-  { id: 'franco-modulos', nombre: 'Franco Modulos 2 + varios',      contenedor: '40HQ',    bl: 'MAEU7546833339', eta: '22/03/2024', proveedores: 3, estado: 'Liquidado',    fecha: '15/03/2024' },
-  { id: 'agro-export',    nombre: 'Agro Export — Fertilizantes',    contenedor: '20 Pies', bl: 'HLCU4012981002', eta: '10/04/2024', proveedores: 1, estado: 'En aduana',    fecha: '02/04/2024' },
-  { id: 'med-supply',     nombre: 'Med Supply — Insumos Médicos',   contenedor: '40HQ',    bl: '',               eta: '28/04/2024', proveedores: 2, estado: 'Consolidando', fecha: '20/04/2024' },
-];
-const emptyOp = () => ({ id: '', nombre: '', contenedor: '40HQ', bl: '', eta: '', proveedores: '', estado: 'Consolidando', fecha: '' });
-
-// ─── initial data (Franco Modulos) ───────────────────────────────────────────
-const FRANCO = {
-  naviera:    [
-    { id: 1, desc: 'MAERSK', factura: '7546833339', usd: 791, tc: 1479, pesos: '' },
-    { id: 2, desc: 'MAERSK', factura: '7547097709', usd: 57,  tc: 1478, pesos: '' },
-  ],
-  terminal:   [{ id: 1, desc: 'TERMINAL 4', factura: '747512', usd: '', tc: '', pesos: 2278971.82 }],
-  aduana:     [{ id: 1, desc: 'VEP / Tributos Aduaneros', factura: '', usd: '', tc: '', pesos: 12500000 }],
-  transporte: [{ id: 1, desc: 'Flete BsAs → Bahía Blanca', factura: '4149', usd: '', tc: '', pesos: 4235000 }],
-  despachante:[],
-  admin:      [],
-  fleteIntl:  [],
-  proveedores:[
-    { id: 1, nombre: 'karting',     tipo: 'Cliente', clienteId: 'c1', m3: 20.34, fobUSD: 25314, gastosOrigenUSD: '',  tributosUSD: 3991.87, tributosTC: 1390 },
-    { id: 2, nombre: 'gimnasio',    tipo: 'Cliente', clienteId: 'c1', m3: 13,    fobUSD: 5500,  gastosOrigenUSD: '',  tributosUSD: 2746.04, tributosTC: 1390 },
-    { id: 3, nombre: 'generadores', tipo: 'Propio',  clienteId: '',   m3: 4.8,   fobUSD: 16000, gastosOrigenUSD: 350, tributosUSD: 1176.05, tributosTC: 1390 },
-  ],
-  cobrar:[
-    { tc: 1425, honorarios: false, despAdic: 8000, cobrado: false, fechaCobro: '' },
-    { tc: 1425, honorarios: false, despAdic: 1670, cobrado: false, fechaCobro: '' },
-    { tc: 1425, honorarios: false, despAdic: 920,  cobrado: false, fechaCobro: '' },
-  ],
-  checked: ['cg', 'ncm', 'bl', 'inv', 'legajo', 'fnav', 'lib', 'flete', 'facts', 'costs'],
-};
+const emptyOp = () => ({ id: '', nombre: '', contenedor: '40HQ', bl: '', eta: '', estado: 'Consolidando', fecha: '' });
 
 // ─── InvoiceTable ─────────────────────────────────────────────────────────────
 function InvoiceTable({ rows, onUpdate, onAdd, onRemove, accentColor = '#ea580c' }) {
@@ -175,42 +138,77 @@ function InvoiceTable({ rows, onUpdate, onAdd, onRemove, accentColor = '#ea580c'
 
 // ─── OperationsList ───────────────────────────────────────────────────────────
 function OperationsList({ onSelect }) {
-  const [ops,     setOps]     = useState(() => {
-    try { const s = typeof window !== 'undefined' && localStorage.getItem(OPS_KEY); return s ? JSON.parse(s) : INIT_OPS; } catch { return INIT_OPS; }
-  });
+  const [ops,       setOps]       = useState([]);
+  const [loading,   setLoading]   = useState(true);
   const [modal,     setModal]     = useState(null); // null | 'new' | opObj
   const [form,      setForm]      = useState(emptyOp());
   const [confirm,   setConfirm]   = useState(null); // id to delete
   const [statusPop, setStatusPop] = useState(null); // op.id with open status picker
 
-  const saveOps = (list) => { setOps(list); localStorage.setItem(OPS_KEY, JSON.stringify(list)); };
+  // Load from API
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch('/api/db/operations');
+        if (!r.ok) throw new Error('failed');
+        const data = await r.json();
+        if (!cancelled) setOps(Array.isArray(data) ? data : []);
+      } catch {
+        if (!cancelled) setOps([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
-  // Get occupied m³ from saved operation detail (sum of providers' m³)
-  const getOcupado = (opId) => {
-    try {
-      const d = typeof window !== 'undefined' && localStorage.getItem(`transtide-opdetail-${opId}`);
-      if (!d) return null;
-      const parsed = JSON.parse(d);
-      const provs = parsed?.proveedores || [];
-      const total = provs.reduce((s, p) => s + (parseFloat(p.m3) || 0), 0);
-      return total > 0 ? total : null;
-    } catch { return null; }
+  // Occupied m³ comes from the operations GET (m3_total aggregated server-side)
+  const getOcupado = (op) => {
+    const t = parseFloat(op?.m3_total);
+    return t > 0 ? t : null;
   };
-  const openNew  = () => { setForm(emptyOp()); setModal('new'); };
-  const openEdit = (op, e) => { e.stopPropagation(); setForm({ ...op }); setModal(op); };
-  const askDel   = (id, e) => { e.stopPropagation(); setConfirm(id); };
-  const setEstado = (id, estado) => { saveOps(ops.map(o => o.id === id ? { ...o, estado } : o)); setStatusPop(null); };
 
-  const submit = () => {
+  const openNew  = () => { setForm(emptyOp()); setModal('new'); };
+  const openEdit = (op, e) => { e.stopPropagation(); setForm({ ...emptyOp(), ...op }); setModal(op); };
+  const askDel   = (id, e) => { e.stopPropagation(); setConfirm(id); };
+
+  const setEstado = async (id, estado) => {
+    const op = ops.find(o => o.id === id);
+    if (!op) return;
+    const next = { ...op, estado };
+    setOps(ops.map(o => o.id === id ? next : o));
+    setStatusPop(null);
+    try {
+      await fetch(`/api/db/operations/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(next) });
+    } catch {}
+  };
+
+  const submit = async () => {
     if (!form.nombre.trim()) return;
     if (modal === 'new') {
-      saveOps([...ops, { ...form, id: 'op-' + Date.now() }]);
+      const id = 'op-' + Date.now();
+      const newOp = { ...form, id };
+      const r = await fetch('/api/db/operations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newOp) });
+      if (r.ok) {
+        const created = await r.json();
+        setOps([{ ...created, m3_total: 0 }, ...ops]);
+      }
     } else {
-      saveOps(ops.map(o => o.id === modal.id ? { ...form, id: modal.id } : o));
+      const id = modal.id;
+      const updated = { ...form, id };
+      const r = await fetch(`/api/db/operations/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) });
+      if (r.ok) {
+        setOps(ops.map(o => o.id === id ? { ...o, ...updated } : o));
+      }
     }
     setModal(null);
   };
-  const remove = (id) => { saveOps(ops.filter(o => o.id !== id)); setConfirm(null); };
+  const remove = async (id) => {
+    const r = await fetch(`/api/db/operations/${id}`, { method: 'DELETE' });
+    if (r.ok) setOps(ops.filter(o => o.id !== id));
+    setConfirm(null);
+  };
 
   const INP2 = { ...INP, padding: '0.5rem 0.75rem', boxSizing: 'border-box' };
   const SEL  = { ...INP2, cursor: 'pointer', appearance: 'auto' };
@@ -252,7 +250,11 @@ function OperationsList({ onSelect }) {
 
       {/* list */}
       <div style={{ display: 'flex', flexDirection: 'column' }}>
-        {ops.length === 0 ? (
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '4rem 2rem', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', color: '#94a3b8', fontSize: '0.85rem' }}>
+            Cargando operaciones...
+          </div>
+        ) : ops.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '4rem 2rem', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
             <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem' }}>
               <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5"><polygon points="3 6 12 2 21 6 21 16 12 20 3 16 3 6"/><line x1="12" y1="22" x2="12" y2="12"/><line x1="21" y1="6" x2="12" y2="12"/><line x1="3" y1="6" x2="12" y2="12"/></svg>
@@ -275,7 +277,7 @@ function OperationsList({ onSelect }) {
         {ops.map(op => {
           const est = estadoObj(op.estado);
           const cap = CONTAINER_M3[op.contenedor];
-          const ocup = getOcupado(op.id);
+          const ocup = getOcupado(op);
           const m3str = cap
             ? `${ocup != null ? ocup.toFixed(1) : '—'} / ${cap} m³`
             : ocup != null ? `${ocup.toFixed(1)} m³` : '—';
@@ -442,35 +444,15 @@ function OperationsList({ onSelect }) {
 // ─── OperationDetail ──────────────────────────────────────────────────────────
 function OperationDetail({ op, onBack }) {
   const router = useRouter();
-  const DKEY = `transtide-opdetail-${op.id}`;
-  const CHECKLIST_KEY = `transtide-checklist-${op.id}`;
-  const isFranco = op.id === 'franco-modulos';
 
-  const loadD = () => {
-    try { const s = typeof window !== 'undefined' && localStorage.getItem(DKEY); return s ? JSON.parse(s) : null; }
-    catch { return null; }
-  };
+  const emptyDetail = () => ({
+    naviera: [], terminal: [], aduana: [], transporte: [], despachante: [], admin: [], fleteIntl: [],
+    proveedores: [], cobrar: [], puertoOrigen: '', customGastos: [],
+  });
 
-  // Build initial detail object — merge saved + Franco seed + empty defaults
-  const initDetail = () => {
-    const saved = loadD();
-    const base = isFranco
-      ? {
-          naviera: FRANCO.naviera, terminal: FRANCO.terminal, aduana: FRANCO.aduana,
-          transporte: FRANCO.transporte, despachante: FRANCO.despachante, admin: FRANCO.admin,
-          fleteIntl: FRANCO.fleteIntl,
-          proveedores: FRANCO.proveedores, cobrar: FRANCO.cobrar,
-          puertoOrigen: '', customGastos: [],
-        }
-      : {
-          naviera: [], terminal: [], aduana: [], transporte: [], despachante: [], admin: [], fleteIntl: [],
-          proveedores: [], cobrar: [], puertoOrigen: '', customGastos: [],
-        };
-    return { ...base, ...(saved || {}) };
-  };
-
-  const [detail,     setDetail]     = useState(initDetail);
-  const [clientes,   setClientes]   = useState(MOCK_CLIENTES);
+  const [detail,     setDetail]     = useState(emptyDetail);
+  const [detailLoading, setDetailLoading] = useState(true);
+  const [clientes,   setClientes]   = useState([]);
   const [expanded,   setExpanded]   = useState(null);
   const [showChecklist, setShowChecklist] = useState(false);
   const [costosOpen, setCostosOpen] = useState(true);
@@ -480,24 +462,73 @@ function OperationDetail({ op, onBack }) {
   const [saveFlash,  setSaveFlash]  = useState(false);
   const [showDiscard,setShowDiscard]= useState(false);
   const [pendingNav, setPendingNav] = useState(null);
+  const [checked,    setChecked]    = useState(() => new Set());
+  const [checklistLoaded, setChecklistLoaded] = useState(false);
 
-  const [checked, setChecked] = useState(() => {
-    try {
-      const saved = typeof window !== 'undefined' && localStorage.getItem(CHECKLIST_KEY);
-      if (saved) return new Set(JSON.parse(saved));
-      return isFranco ? new Set(FRANCO.checked) : new Set();
-    } catch { return isFranco ? new Set(FRANCO.checked) : new Set(); }
-  });
+  // Load detail from API
   useEffect(() => {
-    localStorage.setItem(CHECKLIST_KEY, JSON.stringify([...checked]));
-  }, [checked]);
+    let cancelled = false;
+    setDetailLoading(true);
+    (async () => {
+      try {
+        const r = await fetch(`/api/db/operations/${op.id}/detail`);
+        if (!r.ok) throw new Error('failed');
+        const d = await r.json();
+        if (!cancelled) setDetail({ ...emptyDetail(), ...d });
+      } catch {
+        if (!cancelled) setDetail(emptyDetail());
+      } finally {
+        if (!cancelled) setDetailLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [op.id]);
+
+  // Load checklist
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`/api/db/operations/${op.id}/checklist`);
+        if (!r.ok) throw new Error('failed');
+        const data = await r.json();
+        if (!cancelled) setChecked(new Set(Array.isArray(data) ? data : []));
+      } catch {
+        if (!cancelled) setChecked(new Set());
+      } finally {
+        if (!cancelled) setChecklistLoaded(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [op.id]);
+
+  // Debounced checklist save
+  useEffect(() => {
+    if (!checklistLoaded) return;
+    const t = setTimeout(() => {
+      fetch(`/api/db/operations/${op.id}/checklist`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify([...checked]),
+      }).catch(() => {});
+    }, 600);
+    return () => clearTimeout(t);
+  }, [checked, checklistLoaded, op.id]);
 
   // load clientes
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(CLIENTES_KEY);
-      if (saved) setClientes(JSON.parse(saved));
-    } catch { /* keep mock */ }
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch('/api/db/clientes');
+        if (!r.ok) throw new Error('failed');
+        const data = await r.json();
+        if (!cancelled) setClientes(Array.isArray(data) ? data : []);
+      } catch {
+        if (!cancelled) setClientes([]);
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   // warn before unload
@@ -568,16 +599,25 @@ function OperationDetail({ op, onBack }) {
     return next;
   });
 
-  const saveAll = () => {
-    localStorage.setItem(DKEY, JSON.stringify(detail));
-    setIsDirty(false);
-    setSaveFlash(true);
-    setTimeout(() => setSaveFlash(false), 2200);
+  const saveAll = async () => {
+    try {
+      const r = await fetch(`/api/db/operations/${op.id}/detail`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(detail),
+      });
+      if (!r.ok) throw new Error('failed');
+      setIsDirty(false);
+      setSaveFlash(true);
+      setTimeout(() => setSaveFlash(false), 2200);
+    } catch (e) {
+      alert('Error al guardar. Reintentá.');
+    }
   };
   const doNavigate     = () => { if (pendingNav) { router.push(pendingNav); setPendingNav(null); } else { onBack(); } };
   const handleBack     = () => { if (isDirty) { setPendingNav(null); setShowDiscard(true); } else onBack(); };
   const discardAndBack = () => { setIsDirty(false); setShowDiscard(false); doNavigate(); };
-  const saveAndBack    = () => { saveAll(); setShowDiscard(false); setTimeout(doNavigate, 50); };
+  const saveAndBack    = async () => { await saveAll(); setShowDiscard(false); doNavigate(); };
 
   const addCustomCategory = ({ label, color, kind }) => {
     const id = `custom-${Date.now()}`;
@@ -652,6 +692,14 @@ function OperationDetail({ op, onBack }) {
   const estadoC = ESTADOS.find(s => s.label === op.estado) || ESTADOS[0];
   const cap = CONTAINER_M3[op.contenedor];
   const fillPct = cap ? (calc.totalM3 / cap) * 100 : 0;
+
+  if (detailLoading) {
+    return (
+      <div style={{ padding: '4rem 2rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.9rem' }}>
+        Cargando operación...
+      </div>
+    );
+  }
 
   const BUILTIN = [
     { id: 'naviera',     label: 'Naviera',     color: '#0284c7', kind: 'blanco', total: calc.tNav,  rows: detail.naviera },

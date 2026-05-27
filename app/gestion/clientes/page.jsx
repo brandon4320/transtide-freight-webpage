@@ -1,63 +1,69 @@
 'use client';
 import { useState, useEffect } from 'react';
 
-const STORAGE_KEY = 'transtide-clientes';
-
 const CARD = { background: '#fff', borderRadius: '16px', padding: '1.25rem', boxShadow: '0 4px 20px rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.04)' };
 const INP  = { width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '0.85rem', color: '#1e293b', background: '#fff', outline: 'none', boxSizing: 'border-box' };
 const LBL  = { display: 'block', fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' };
-
-const MOCK_CLIENTES = [
-  { id: 'c1', nombre: 'Franco Modulos SRL', cuit: '30-71234567-8', email: 'contacto@francomodulos.com', telefono: '11-4444-5555', notas: 'Karting y gimnasio' },
-  { id: 'c2', nombre: 'Gym Equipment SA',   cuit: '30-67890123-4', email: 'info@gymequip.com.ar',       telefono: '11-3333-4444', notas: '' },
-];
 
 const emptyForm = () => ({ nombre: '', cuit: '', email: '', telefono: '', notas: '' });
 
 export default function ClientesPage() {
   const [clientes, setClientes]   = useState([]);
+  const [loading,  setLoading]    = useState(true);
   const [modal,    setModal]      = useState(null); // null | 'new' | clienteObj
   const [form,     setForm]       = useState(emptyForm());
   const [search,   setSearch]     = useState('');
   const [confirm,  setConfirm]    = useState(null); // id to delete
 
-  // load from localStorage (fallback to mock)
+  // Load from API
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      setClientes(saved ? JSON.parse(saved) : MOCK_CLIENTES);
-    } catch {
-      setClientes(MOCK_CLIENTES);
-    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch('/api/db/clientes');
+        if (!r.ok) throw new Error('failed');
+        const data = await r.json();
+        if (!cancelled) setClientes(Array.isArray(data) ? data : []);
+      } catch {
+        if (!cancelled) setClientes([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
-  const save = (list) => {
-    setClientes(list);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-  };
-
   const openNew  = () => { setForm(emptyForm()); setModal('new'); };
-  const openEdit = (c) => { setForm({ ...c }); setModal(c); };
+  const openEdit = (c) => { setForm({ nombre: c.nombre || '', cuit: c.cuit || '', email: c.email || '', telefono: c.telefono || '', notas: c.notas || '' }); setModal(c); };
 
-  const submit = () => {
+  const submit = async () => {
     if (!form.nombre.trim()) return;
     if (modal === 'new') {
-      save([...clientes, { ...form, id: 'c' + Date.now() }]);
+      const r = await fetch('/api/db/clientes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      if (r.ok) {
+        const created = await r.json();
+        setClientes(prev => [created, ...prev]);
+      }
     } else {
-      save(clientes.map(c => c.id === modal.id ? { ...form, id: modal.id } : c));
+      const id = modal.id;
+      const r = await fetch(`/api/db/clientes/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      if (r.ok) {
+        setClientes(prev => prev.map(c => c.id === id ? { ...form, id } : c));
+      }
     }
     setModal(null);
   };
 
-  const remove = (id) => {
-    save(clientes.filter(c => c.id !== id));
+  const remove = async (id) => {
+    const r = await fetch(`/api/db/clientes/${id}`, { method: 'DELETE' });
+    if (r.ok) setClientes(prev => prev.filter(c => c.id !== id));
     setConfirm(null);
   };
 
   const filtered = clientes.filter(c =>
-    c.nombre.toLowerCase().includes(search.toLowerCase()) ||
-    c.cuit.includes(search) ||
-    c.email.toLowerCase().includes(search.toLowerCase())
+    (c.nombre || '').toLowerCase().includes(search.toLowerCase()) ||
+    (c.cuit || '').includes(search) ||
+    (c.email || '').toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -95,7 +101,11 @@ export default function ClientesPage() {
       </div>
 
       {/* client cards grid */}
-      {filtered.length === 0 ? (
+      {loading ? (
+        <div style={{ ...CARD, textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
+          <p style={{ fontSize: '0.85rem' }}>Cargando clientes...</p>
+        </div>
+      ) : filtered.length === 0 ? (
         <div style={{ ...CARD, textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1.5" style={{ marginBottom: '0.75rem' }}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           <p style={{ fontWeight: 600, marginBottom: '0.3rem' }}>{search ? 'Sin resultados' : 'No hay clientes aún'}</p>
@@ -107,7 +117,7 @@ export default function ClientesPage() {
             <div key={c.id} style={{ ...CARD, borderTop: '3px solid #2563eb', position: 'relative' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
                 <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#fff4ee', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', fontWeight: 800, color: '#ea580c' }}>
-                  {c.nombre.charAt(0).toUpperCase()}
+                  {(c.nombre || '?').charAt(0).toUpperCase()}
                 </div>
                 <div style={{ display: 'flex', gap: '0.4rem' }}>
                   <button onClick={() => openEdit(c)} style={{ padding: '0.3rem 0.6rem', borderRadius: '7px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer' }}>Editar</button>
