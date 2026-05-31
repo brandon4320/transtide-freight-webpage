@@ -47,7 +47,7 @@ const schema: any = {
   required: ['documento_tipo'],
 }
 
-const PROMPT = `Extraé información estructurada de este documento de comercio exterior (puede ser una proforma invoice, packing list, commercial invoice, o similar).
+const PROMPT_SINGLE = `Extraé información estructurada de este documento de comercio exterior (puede ser una proforma invoice, packing list, commercial invoice, o similar).
 
 Devolvé un JSON que cumpla exactamente con el schema indicado.
 
@@ -59,6 +59,28 @@ Notas importantes:
 - Si un campo no se puede determinar con certeza razonable, devolvé null en vez de inventar.
 - Para "items", incluí hasta 20 líneas. Si hay más, agregá una nota.
 - "notas" puede contener observaciones como "Incluye flete CIF $X", "Pago 50% anticipo", etc.
+
+Devolvé SOLO el JSON, sin texto adicional.`
+
+const PROMPT_DUAL = `Te paso DOS documentos de comercio exterior del mismo embarque:
+1. Una FACTURA / PROFORMA INVOICE (con los precios y términos comerciales)
+2. Un PACKING LIST (con dimensiones, peso y cantidad de bultos)
+
+Extraé un ÚNICO JSON estructurado combinando la información de ambos:
+- De la factura: proveedor, número, fecha, términos, moneda, total_fob, items con precios, NCM.
+- Del packing list: total_m3, total_kg, total_bultos, dimensiones.
+- Si hay datos contradictorios entre los dos, priorizá la factura para precios y el packing list para medidas/peso.
+- Si solo un dato aparece en uno de los dos, usalo igual.
+
+Notas importantes:
+- Si el packing list muestra dimensiones (L×W×H cm) por bulto, calculá el m³ total: (L*W*H)/1000000 * cantidad_bultos.
+- Si solo tenés peso volumétrico, devolvelo en m³ aplicando 167 kg/m³.
+- "total_kg" es el peso BRUTO (gross weight). Si solo está el neto, usalo igual.
+- "total_fob" debe ser el valor monetario de la factura. Si hay descuentos, usá el total después de descuentos.
+- Si un campo no se puede determinar con certeza razonable, devolvé null en vez de inventar.
+- Para "items", combiná descripciones de la factura con cantidades/bultos del packing list cuando aplique. Hasta 20 líneas.
+- "documento_tipo" devolvé "invoice" porque hay factura + packing.
+- "notas" puede mencionar discrepancias entre los dos documentos si las hay.
 
 Devolvé SOLO el JSON, sin texto adicional.`
 
@@ -79,20 +101,37 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'invalid form data' }, { status: 400 })
   }
 
-  const file = formData.get('file') as File | null
-  if (!file) return NextResponse.json({ error: 'no file' }, { status: 400 })
-  if (file.size > 10 * 1024 * 1024) {
-    return NextResponse.json({ error: 'file too large (max 10MB)' }, { status: 400 })
+  // Soportamos uploads single ("file") o dual ("factura" + "packing").
+  // Al menos uno debe existir.
+  const fileSingle  = formData.get('file')    as File | null
+  const fileFactura = formData.get('factura') as File | null
+  const filePacking = formData.get('packing') as File | null
+
+  const filesRaw: { label: string, f: File }[] = []
+  if (fileFactura) filesRaw.push({ label: 'FACTURA / PROFORMA', f: fileFactura })
+  if (filePacking) filesRaw.push({ label: 'PACKING LIST',       f: filePacking })
+  if (filesRaw.length === 0 && fileSingle) filesRaw.push({ label: 'DOCUMENTO', f: fileSingle })
+
+  if (filesRaw.length === 0) {
+    return NextResponse.json({ error: 'no file' }, { status: 400 })
   }
 
-  const mimeType = file.type || 'application/pdf'
   const allowed = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg', 'image/webp']
-  if (!allowed.includes(mimeType)) {
-    return NextResponse.json({ error: `unsupported file type: ${mimeType}` }, { status: 400 })
+  const fileParts: { inlineData: { data: string, mimeType: string }, label: string }[] = []
+  for (const { f, label } of filesRaw) {
+    if (f.size > 10 * 1024 * 1024) {
+      return NextResponse.json({ error: `archivo "${label}" supera 10MB` }, { status: 400 })
+    }
+    const mt = f.type || 'application/pdf'
+    if (!allowed.includes(mt)) {
+      return NextResponse.json({ error: `tipo no soportado en "${label}": ${mt}` }, { status: 400 })
+    }
+    const buf = await f.arrayBuffer()
+    fileParts.push({ inlineData: { data: Buffer.from(buf).toString('base64'), mimeType: mt }, label })
   }
 
-  const bytes = await file.arrayBuffer()
-  const base64 = Buffer.from(bytes).toString('base64')
+  const isDual = fileParts.length === 2
+  const PROMPT = isDual ? PROMPT_DUAL : PROMPT_SINGLE
 
   // Lista de modelos en orden de preferencia. Si uno está sobrecargado (503)
   // o sin cuota (429), pasamos al siguiente.
@@ -111,18 +150,24 @@ export async function POST(req: Request) {
 
   let lastErr: any = null
 
+  // Construir las partes del request: cada archivo precedido por una etiqueta de texto
+  // para que el modelo sepa cuál es factura y cuál packing list cuando son 2.
+  const contentParts: any[] = []
+  for (const fp of fileParts) {
+    if (isDual) contentParts.push({ text: `=== ${fp.label} ===` })
+    contentParts.push({ inlineData: fp.inlineData })
+  }
+  contentParts.push({ text: PROMPT })
+
   for (const modelName of MODELS) {
     // por cada modelo: hasta 2 intentos con backoff
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const model = genAI.getGenerativeModel({ model: modelName, generationConfig: genConfig })
-        const result = await model.generateContent([
-          { inlineData: { data: base64, mimeType } },
-          { text: PROMPT },
-        ])
+        const result = await model.generateContent(contentParts)
         const text = result.response.text()
         const data = JSON.parse(text)
-        return NextResponse.json({ ok: true, data, model: modelName })
+        return NextResponse.json({ ok: true, data, model: modelName, sources: filesRaw.map(f => f.label) })
       } catch (e: any) {
         lastErr = e
         console.warn(`[gemini extract] ${modelName} attempt ${attempt + 1} failed:`, e?.message)

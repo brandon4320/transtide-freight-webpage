@@ -83,82 +83,106 @@ function NumberCard({ label, value, onChange, unit }) {
   );
 }
 
-function UploadStage({ file, setFile, onAnalyze }) {
-  const inputRef = useRef(null);
-  const [dragOver, setDragOver] = useState(false);
-  const [localErr, setLocalErr] = useState(null);
-
-  const handleFiles = (files) => {
-    setLocalErr(null);
+function FileSlot({ label, hint, accent, file, setFile, setErr }) {
+  const ref = useRef(null);
+  const [over, setOver] = useState(false);
+  const onPick = (files) => {
     const f = files?.[0];
     if (!f) return;
-    if (f.size > MAX_BYTES) {
-      setLocalErr(`Archivo muy grande (${formatSize(f.size)}). Máximo 10 MB.`);
-      return;
-    }
+    if (f.size > MAX_BYTES) { setErr(`"${label}" muy grande (${formatSize(f.size)}). Máx 10 MB.`); return; }
+    setErr(null);
     setFile(f);
   };
+  return (
+    <div
+      onClick={() => ref.current?.click()}
+      onDragOver={(e) => { e.preventDefault(); setOver(true); }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => { e.preventDefault(); setOver(false); onPick(e.dataTransfer.files); }}
+      style={{
+        flex: 1,
+        border: `2px dashed ${file ? accent : (over ? accent : BORDER)}`,
+        background: file ? `${accent}10` : (over ? `${accent}10` : SOFT),
+        borderRadius: 12,
+        padding: '1.4rem 1rem',
+        textAlign: 'center',
+        cursor: 'pointer',
+        transition: 'all 0.15s',
+        position: 'relative',
+        minHeight: 170,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <div style={{ position: 'absolute', top: 10, left: 12, fontSize: '0.6rem', fontWeight: 700, color: accent, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>
+      {file ? (
+        <>
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="2" style={{ marginBottom: 6 }}>
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          <div style={{ fontWeight: 700, color: DARK, fontSize: '0.82rem', marginBottom: 2, wordBreak: 'break-word', padding: '0 0.5rem' }}>{file.name}</div>
+          <div style={{ fontSize: '0.7rem', color: MUTED }}>{formatSize(file.size)}</div>
+          <button onClick={(e) => { e.stopPropagation(); setFile(null); }} style={{ marginTop: 8, background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}>Quitar</button>
+        </>
+      ) : (
+        <>
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={MUTED} strokeWidth="2" style={{ marginBottom: 8 }}>
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" y1="3" x2="12" y2="15" />
+          </svg>
+          <div style={{ fontWeight: 600, color: DARK, fontSize: '0.78rem', marginBottom: 4 }}>Subir o arrastrar</div>
+          <div style={{ fontSize: '0.68rem', color: MUTED }}>{hint}</div>
+        </>
+      )}
+      <input
+        ref={ref}
+        type="file"
+        accept={ACCEPT}
+        style={{ display: 'none' }}
+        onChange={(e) => onPick(e.target.files)}
+      />
+    </div>
+  );
+}
+
+function UploadStage({ file, setFile, fileFactura, setFileFactura, filePacking, setFilePacking, onAnalyze }) {
+  const [localErr, setLocalErr] = useState(null);
+  const hasAny = !!(fileFactura || filePacking);
+  const both   = !!(fileFactura && filePacking);
 
   return (
     <div>
-      <div
-        onClick={() => inputRef.current?.click()}
-        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragOver(false);
-          handleFiles(e.dataTransfer.files);
-        }}
-        style={{
-          border: `2px dashed ${dragOver ? ACCENT : BORDER}`,
-          background: dragOver ? '#fff7ed' : SOFT,
-          borderRadius: 12,
-          padding: '2.5rem 1.5rem',
-          textAlign: 'center',
-          cursor: 'pointer',
-          transition: 'all 0.15s',
-        }}
-      >
-        <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke={ACCENT} strokeWidth="2" style={{ marginBottom: '0.75rem' }}>
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-          <polyline points="17 8 12 3 7 8" />
-          <line x1="12" y1="3" x2="12" y2="15" />
-        </svg>
-        <div style={{ fontWeight: 700, color: DARK, fontSize: '0.95rem', marginBottom: 4 }}>
-          {file ? file.name : 'Arrastrá un PDF o imagen, o hacé click'}
-        </div>
-        <div style={{ fontSize: '0.75rem', color: MUTED }}>
-          {file ? formatSize(file.size) : 'PDF, PNG, JPG, WEBP — hasta 10 MB'}
-        </div>
-        <input
-          ref={inputRef}
-          type="file"
-          accept={ACCEPT}
-          style={{ display: 'none' }}
-          onChange={(e) => handleFiles(e.target.files)}
-        />
+      <div style={{ display: 'flex', gap: 12, marginBottom: 10 }}>
+        <FileSlot label="📄 Factura / Proforma" hint="precios, FOB, términos" accent="#0284c7" file={fileFactura} setFile={setFileFactura} setErr={setLocalErr} />
+        <FileSlot label="📦 Packing list"        hint="m³, peso, bultos"    accent="#059669" file={filePacking} setFile={setFilePacking} setErr={setLocalErr} />
       </div>
 
+      <p style={{ fontSize: '0.72rem', color: MUTED, textAlign: 'center', marginBottom: 12 }}>
+        {both ? '✓ La IA combina la info de ambos documentos para máxima precisión.' : (hasAny ? 'Podés agregar el otro documento para mejorar la extracción.' : 'Subí al menos uno. Si tenés los dos, mejor.')}
+      </p>
+
       {localErr && (
-        <div style={{ marginTop: '0.75rem', padding: '0.6rem 0.8rem', background: '#fef2f2', color: '#b91c1c', borderRadius: 8, fontSize: '0.78rem' }}>
+        <div style={{ marginBottom: 12, padding: '0.6rem 0.8rem', background: '#fef2f2', color: '#b91c1c', borderRadius: 8, fontSize: '0.78rem' }}>
           {localErr}
         </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: '1.25rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
         <button
           onClick={onAnalyze}
-          disabled={!file}
+          disabled={!hasAny}
           style={{
             display: 'inline-flex', alignItems: 'center', gap: 8,
             padding: '0.65rem 1.25rem',
             borderRadius: 10, border: 'none',
-            background: file ? DARK : '#cbd5e1',
+            background: hasAny ? DARK : '#cbd5e1',
             color: '#fff',
             fontWeight: 700, fontSize: '0.85rem',
-            cursor: file ? 'pointer' : 'not-allowed',
-            boxShadow: file ? '0 2px 10px rgba(15,23,42,0.15)' : 'none',
+            cursor: hasAny ? 'pointer' : 'not-allowed',
+            boxShadow: hasAny ? '0 2px 10px rgba(15,23,42,0.15)' : 'none',
           }}
         >
           Analizar con IA
@@ -399,17 +423,19 @@ function PreviewStage({ data, setData, onApply, onBack }) {
 
 export default function ImportDialog({ onClose, onApply }) {
   const [stage, setStage] = useState('upload');
-  const [file, setFile] = useState(null);
+  const [fileFactura, setFileFactura] = useState(null);
+  const [filePacking, setFilePacking] = useState(null);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
 
   const analyze = async () => {
-    if (!file) return;
+    if (!fileFactura && !filePacking) return;
     setStage('loading');
     setError(null);
     try {
       const formData = new FormData();
-      formData.append('file', file);
+      if (fileFactura) formData.append('factura', fileFactura);
+      if (filePacking) formData.append('packing', filePacking);
       const res = await fetch('/api/ai/extract', { method: 'POST', body: formData });
       if (!res.ok) {
         let msg = `Error ${res.status}`;
@@ -479,7 +505,7 @@ export default function ImportDialog({ onClose, onApply }) {
           </button>
         </div>
 
-        {stage === 'upload' && <UploadStage file={file} setFile={setFile} onAnalyze={analyze} />}
+        {stage === 'upload' && <UploadStage fileFactura={fileFactura} setFileFactura={setFileFactura} filePacking={filePacking} setFilePacking={setFilePacking} onAnalyze={analyze} />}
         {stage === 'loading' && <LoadingStage />}
         {stage === 'preview' && data && (
           <PreviewStage
