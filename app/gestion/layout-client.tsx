@@ -12,6 +12,7 @@ const NAV_ITEMS = [
       {
         href: '/gestion/operaciones',
         label: 'Operaciones',
+        sectionKey: 'operaciones',
         icon: (
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polygon points="3 6 12 2 21 6 21 16 12 20 3 16 3 6"/>
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
       {
         href: '/gestion/tracking',
         label: 'Tracking',
+        sectionKey: 'tracking',
         icon: (
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M1 3h15v13H1z"/>
@@ -41,6 +43,7 @@ const NAV_ITEMS = [
       {
         href: '/gestion/clientes',
         label: 'Clientes',
+        sectionKey: 'clientes',
         icon: (
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
@@ -53,6 +56,7 @@ const NAV_ITEMS = [
       {
         href: '/gestion/cotizador',
         label: 'Cotizador',
+        sectionKey: 'cotizador',
         icon: (
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <rect x="2" y="3" width="20" height="14" rx="2"/>
@@ -63,21 +67,61 @@ const NAV_ITEMS = [
       },
     ],
   },
+  {
+    section: 'Administración',
+    adminOnly: true,
+    items: [
+      {
+        href: '/gestion/usuarios',
+        label: 'Usuarios',
+        sectionKey: 'usuarios',
+        adminOnly: true,
+        icon: (
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M22 11h-6"/><path d="M19 8v6"/>
+          </svg>
+        ),
+      },
+    ],
+  },
 ]
+
+const ROLE_LABEL: Record<string, string> = { admin: 'Administrador', editor: 'Editor', viewer: 'Lectura' }
 
 export default function GestionLayoutClient({
   children,
   userName,
+  role = 'editor',
+  sections = [],
   logoutAction,
 }: {
   children: React.ReactNode
   userName: string
+  role?: string
+  sections?: string[]
   logoutAction: () => Promise<void>
 }) {
   const pathname = usePathname()
   const [menuOpen, setMenuOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+
+  const isAdmin = role === 'admin'
+
+  // Filtrar nav según permisos del usuario
+  const navGroups = NAV_ITEMS
+    .filter((g: any) => !g.adminOnly || isAdmin)
+    .map((g: any) => ({
+      ...g,
+      items: g.items.filter((it: any) => {
+        if (it.adminOnly) return isAdmin
+        if (!it.sectionKey) return true
+        return isAdmin || sections.includes(it.sectionKey)
+      }),
+    }))
+    .filter((g: any) => g.items.length > 0)
 
   const initial = userName.trim().charAt(0).toUpperCase() || 'U'
 
@@ -132,10 +176,10 @@ export default function GestionLayoutClient({
           </Link>
 
           <nav style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-            {NAV_ITEMS.map(({ section, items }) => (
+            {navGroups.map(({ section, items }: any) => (
               <div key={section}>
                 <p className="nav-section-label" style={{ marginTop: section === 'Principal' ? 0 : undefined }}>{section}</p>
-                {items.map(({ href, label, icon }) => (
+                {items.map(({ href, label, icon }: any) => (
                   <Link
                     key={href}
                     href={href}
@@ -201,7 +245,7 @@ export default function GestionLayoutClient({
                 }}>
                   <div style={{ padding: '0.7rem 0.85rem', borderBottom: '1px solid #f1f5f9' }}>
                     <p style={{ fontSize: '0.78rem', fontWeight: 700, color: '#0f172a' }}>{userName}</p>
-                    <p style={{ fontSize: '0.66rem', color: '#94a3b8', marginTop: 1 }}>Conectado</p>
+                    <p style={{ fontSize: '0.66rem', color: '#94a3b8', marginTop: 1 }}>{ROLE_LABEL[role] || 'Editor'}</p>
                   </div>
                   <form action={logoutAction} style={{ margin: 0 }}>
                     <button

@@ -8,6 +8,10 @@ export default async function GestionLayout({ children }: { children: React.Reac
     redirect('/login')
   }
 
+  const u = session.user as any
+  const role: string = u.role || 'editor'
+  const sections: string[] = String(u.sections || '').split(',').map((s: string) => s.trim()).filter(Boolean)
+
   async function logout() {
     'use server'
     await signOut({ redirectTo: '/login' })
@@ -16,6 +20,8 @@ export default async function GestionLayout({ children }: { children: React.Reac
   return (
     <GestionLayoutClient
       userName={session.user.name || 'Usuario'}
+      role={role}
+      sections={sections}
       logoutAction={logout}
     >
       {children}

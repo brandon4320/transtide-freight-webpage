@@ -18,6 +18,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if ((session?.user as any)?.role === 'viewer') return NextResponse.json({ error: 'Tu usuario es de solo lectura' }, { status: 403 })
 
   const body = await request.json()
   const id = body.id || `c${Date.now()}`
