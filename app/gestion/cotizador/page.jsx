@@ -638,10 +638,10 @@ function CotizadorMaritimo() {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '1rem' }}>
                   <F label="Derechos de Importación %">
-                    <input type="number" inputMode="decimal" step="any" min="0" value={pDer} onChange={e => setPDer(parseFloat(e.target.value) || 0)} style={INP} />
+                    <input type="number" inputMode="decimal" step="any" min="0" value={pDer} onChange={e => setPDer(e.target.value)} style={INP} />
                   </F>
                   <F label="Tasa Estadística %">
-                    <input type="number" inputMode="decimal" step="any" min="0" value={pTas} onChange={e => setPTas(parseFloat(e.target.value) || 0)} style={INP} />
+                    <input type="number" inputMode="decimal" step="any" min="0" value={pTas} onChange={e => setPTas(e.target.value)} style={INP} />
                   </F>
                 </div>
 
@@ -656,7 +656,7 @@ function CotizadorMaritimo() {
                   ].map(([lbl, val, setVal, paga, setPaga]) => (
                     <div key={lbl} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.75rem', alignItems: 'end', marginBottom: '0.6rem' }}>
                       <F label={lbl}>
-                        <input type="number" inputMode="decimal" step="any" min="0" value={val} onChange={e => setVal(parseFloat(e.target.value) || 0)} style={INP} />
+                        <input type="number" inputMode="decimal" step="any" min="0" value={val} onChange={e => setVal(e.target.value)} style={INP} />
                       </F>
                       <div style={{ paddingBottom: '0.75rem' }}>
                         <PagaToggle label="¿Lo pagás?" checked={paga} onChange={setPaga} />
@@ -712,12 +712,12 @@ function CotizadorMaritimo() {
                 </div>
 
                 <F label={`Honorarios % (s/ costo CON IVA)`}>
-                  <input type="number" inputMode="decimal" step="any" min="0" value={pHon} onChange={e => setPHon(parseFloat(e.target.value) || 0)} style={INP} />
+                  <input type="number" inputMode="decimal" step="any" min="0" value={pHon} onChange={e => setPHon(e.target.value)} style={INP} />
                 </F>
 
                 {!usaSociedadPropia && (
                   <F label={`Gastos de Facturación % — sociedad Transtide`}>
-                    <input type="number" inputMode="decimal" step="any" min="0" value={pFac} onChange={e => setPFac(parseFloat(e.target.value) || 0)} style={INP} />
+                    <input type="number" inputMode="decimal" step="any" min="0" value={pFac} onChange={e => setPFac(e.target.value)} style={INP} />
                   </F>
                 )}
 
@@ -750,7 +750,7 @@ function CotizadorMaritimo() {
               <div>
                 <p style={SECL}>Precio de venta estimado</p>
                 <F label="Margen de ganancia deseado %">
-                  <input type="number" inputMode="decimal" step="any" min="0" value={pMrg} onChange={e => setPMrg(parseFloat(e.target.value) || 0)} style={INP} />
+                  <input type="number" inputMode="decimal" step="any" min="0" value={pMrg} onChange={e => setPMrg(e.target.value)} style={INP} />
                 </F>
                 <div style={{ background: '#f0fdf4', borderRadius: '10px', padding: '1rem', marginTop: '0.5rem' }}>
                   {[
@@ -1433,10 +1433,10 @@ function CotizadorAereo() {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '1rem' }}>
                   <F label="Derechos de Importación %">
-                    <input type="number" inputMode="decimal" step="any" min="0" value={pDer} onChange={e => setPDer(parseFloat(e.target.value) || 0)} style={INP} />
+                    <input type="number" inputMode="decimal" step="any" min="0" value={pDer} onChange={e => setPDer(e.target.value)} style={INP} />
                   </F>
                   <F label="Tasa Estadística %">
-                    <input type="number" inputMode="decimal" step="any" min="0" value={pTas} onChange={e => setPTas(parseFloat(e.target.value) || 0)} style={INP} />
+                    <input type="number" inputMode="decimal" step="any" min="0" value={pTas} onChange={e => setPTas(e.target.value)} style={INP} />
                   </F>
                 </div>
 
@@ -1451,7 +1451,7 @@ function CotizadorAereo() {
                   ].map(([lbl, val, setVal, paga, setPaga]) => (
                     <div key={lbl} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.75rem', alignItems: 'end', marginBottom: '0.6rem' }}>
                       <F label={lbl}>
-                        <input type="number" inputMode="decimal" step="any" min="0" value={val} onChange={e => setVal(parseFloat(e.target.value) || 0)} style={INP} />
+                        <input type="number" inputMode="decimal" step="any" min="0" value={val} onChange={e => setVal(e.target.value)} style={INP} />
                       </F>
                       <div style={{ paddingBottom: '0.75rem' }}>
                         <PagaToggle label="¿Lo pagás?" checked={paga} onChange={setPaga} />
@@ -1494,11 +1494,11 @@ function CotizadorAereo() {
                 </div>
 
                 <F label={`Honorarios % (s/ costo CON IVA)`}>
-                  <input type="number" inputMode="decimal" step="any" min="0" value={pHon} onChange={e => setPHon(parseFloat(e.target.value) || 0)} style={INP} />
+                  <input type="number" inputMode="decimal" step="any" min="0" value={pHon} onChange={e => setPHon(e.target.value)} style={INP} />
                 </F>
                 {!usaSociedadPropia && (
                   <F label={`Gastos de Facturación % — sociedad Transtide`}>
-                    <input type="number" inputMode="decimal" step="any" min="0" value={pFac} onChange={e => setPFac(parseFloat(e.target.value) || 0)} style={INP} />
+                    <input type="number" inputMode="decimal" step="any" min="0" value={pFac} onChange={e => setPFac(e.target.value)} style={INP} />
                   </F>
                 )}
 
