@@ -1371,9 +1371,8 @@ function ExpandedDetail({ p, clientes, onUpdProveedor, onUpdCobrar, onToggleCobr
                 <p style={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151' }}>Honorarios 4%</p>
                 <p style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: 1 }}>sobre (gastos + origen)</p>
               </div>
-              <button onClick={() => onUpdCobrar('honorarios', !p.cb.honorarios)}
-                style={{ position: 'relative', width: '36px', minWidth: '36px', height: '20px', borderRadius: '999px', border: 'none', padding: 0, margin: 0, cursor: 'pointer', background: p.cb.honorarios ? '#059669' : '#cbd5e1', transition: 'background 0.15s', flexShrink: 0, appearance: 'none', WebkitAppearance: 'none', display: 'inline-block', boxSizing: 'border-box' }}>
-                <span style={{ position: 'absolute', top: '2px', left: p.cb.honorarios ? '18px' : '2px', width: '16px', height: '16px', borderRadius: '50%', background: '#fff', transition: 'left 0.15s', boxShadow: '0 1px 2px rgba(0,0,0,0.2)', display: 'block' }} />
+              <button type="button" onClick={() => onUpdCobrar('honorarios', !p.cb.honorarios)} className={`g-toggle${p.cb.honorarios ? ' on' : ''}`} aria-pressed={!!p.cb.honorarios}>
+                <span className="g-toggle-knob" />
               </button>
             </div>
           </div>

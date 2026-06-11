@@ -218,8 +218,8 @@ export default function UsuariosPage() {
                   <p style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151' }}>Usuario activo</p>
                   <p style={{ fontSize: '0.68rem', color: '#94a3b8' }}>si lo desactivás, no puede iniciar sesión</p>
                 </div>
-                <button onClick={() => setForm(f => ({ ...f, active: f.active ? 0 : 1 }))} style={{ position: 'relative', width: 38, height: 22, borderRadius: 99, border: 'none', padding: 0, cursor: 'pointer', background: form.active ? '#059669' : '#cbd5e1', flexShrink: 0 }}>
-                  <span style={{ position: 'absolute', top: 2, left: form.active ? 18 : 2, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left 0.15s', boxShadow: '0 1px 2px rgba(0,0,0,0.2)' }} />
+                <button type="button" onClick={() => setForm(f => ({ ...f, active: f.active ? 0 : 1 }))} className={`g-toggle${form.active ? ' on' : ''}`} aria-pressed={!!form.active}>
+                  <span className="g-toggle-knob" />
                 </button>
               </div>
             )}
