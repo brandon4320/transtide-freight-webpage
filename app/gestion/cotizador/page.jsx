@@ -204,9 +204,9 @@ function CotizadorMaritimo() {
   });
 
   const setCost = (type, field, val) =>
-    setContCosts(prev => ({ ...prev, [type]: { ...prev[type], [field]: parseFloat(val) || 0 } }));
+    setContCosts(prev => ({ ...prev, [type]: { ...prev[type], [field]: val } }));
   const setM3 = (type, val) =>
-    setContM3(prev => ({ ...prev, [type]: parseFloat(val) || 0 }));
+    setContM3(prev => ({ ...prev, [type]: val }));
 
   const curM3 = contM3[contType];
   const curCosts = contCosts[contType];
