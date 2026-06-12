@@ -12,6 +12,91 @@ const usd = (n) => {
 };
 const n = (v) => parseFloat(v) || 0;
 
+// ─── estados (saved quotes) ─────────────────────────────────────────────────────
+const ESTADOS = [
+  { id: 'borrador',    label: 'Borrador',       fg: '#64748b', bg: '#f1f5f9' },
+  { id: 'enviada',     label: 'Enviada',        fg: '#0284c7', bg: '#eff6ff' },
+  { id: 'negociacion', label: 'En negociación', fg: '#d97706', bg: '#fffbeb' },
+  { id: 'aprobada',    label: 'Aprobada',       fg: '#059669', bg: '#f0fdf4' },
+  { id: 'rechazada',   label: 'Rechazada',      fg: '#dc2626', bg: '#fef2f2' },
+];
+const estadoMeta = (id) => ESTADOS.find(e => e.id === id) || ESTADOS[0];
+
+// ─── save-quote modal (shared) ──────────────────────────────────────────────────
+function SaveQuoteModal({ modo, defaultCliente, getPayload, onClose }) {
+  const [nombre, setNombre]   = useState(defaultCliente || '');
+  const [cliente, setCliente] = useState(defaultCliente || '');
+  const [estado, setEstado]   = useState('borrador');
+  const [notas, setNotas]     = useState('');
+  const [saving, setSaving]   = useState(false);
+  const [done, setDone]       = useState(false);
+  const [err, setErr]         = useState('');
+
+  const save = async () => {
+    if (!nombre.trim()) { setErr('La referencia es obligatoria.'); return; }
+    setSaving(true); setErr('');
+    try {
+      const extra = getPayload();
+      const res = await fetch('/api/db/cotizaciones', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre: nombre.trim(), cliente: cliente.trim(), estado, notas, modo, ...extra }),
+      });
+      if (!res.ok) throw new Error('Error al guardar');
+      setDone(true);
+      setTimeout(onClose, 900);
+    } catch (e) {
+      setErr(e.message || 'Error al guardar');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div onClick={e => { if (e.target === e.currentTarget) onClose(); }} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}>
+      <div style={{ background: '#fff', borderRadius: '18px', width: '100%', maxWidth: '440px', boxShadow: '0 25px 60px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.1rem 1.4rem', borderBottom: '1px solid #f1f5f9' }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#1e293b' }}>Guardar cotización</h3>
+          <button onClick={onClose} style={{ width: '32px', height: '32px', borderRadius: '50%', border: 'none', cursor: 'pointer', background: '#f1f5f9', color: '#64748b', fontSize: '1.1rem' }}>×</button>
+        </div>
+        {done ? (
+          <div style={{ padding: '2.5rem 1.4rem', textAlign: 'center' }}>
+            <div style={{ fontSize: '2rem' }}>✓</div>
+            <p style={{ fontSize: '0.95rem', fontWeight: 700, color: '#059669', marginTop: '0.4rem' }}>Guardada</p>
+          </div>
+        ) : (
+          <div style={{ padding: '1.3rem 1.4rem' }}>
+            <F label="Nombre / referencia *"><TI value={nombre} onChange={setNombre} placeholder="Ej: Importación máquinas — Acme" /></F>
+            <F label="Cliente"><TI value={cliente} onChange={setCliente} placeholder="Nombre del cliente" /></F>
+            <F label="Estado">
+              <select value={estado} onChange={e => setEstado(e.target.value)} style={INP}>
+                {ESTADOS.map(e => <option key={e.id} value={e.id}>{e.label}</option>)}
+              </select>
+            </F>
+            <F label="Notas">
+              <textarea value={notas} onChange={e => setNotas(e.target.value)} placeholder="Opcional" rows={3} style={{ ...INP, resize: 'vertical', fontFamily: 'inherit' }} />
+            </F>
+            {err && <p style={{ fontSize: '0.78rem', color: '#dc2626', marginBottom: '0.6rem' }}>{err}</p>}
+            <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
+              <button onClick={onClose} style={{ padding: '0.55rem 1.1rem', borderRadius: '10px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={save} disabled={saving} style={{ padding: '0.55rem 1.3rem', borderRadius: '10px', border: 'none', background: saving ? '#94a3b8' : '#2563eb', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: saving ? 'default' : 'pointer', boxShadow: '0 2px 10px rgba(37,99,235,0.3)' }}>{saving ? 'Guardando…' : 'Guardar'}</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── "guardar cotización" header button ─────────────────────────────────────────
+function SaveQuoteButton({ onClick }) {
+  return (
+    <button onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', padding: '0.55rem 1.1rem', borderRadius: '50px', border: '1px solid #e2e8f0', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700, background: '#fff', color: '#334155' }}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+      Guardar cotización
+    </button>
+  );
+}
+
 // ─── container presets ────────────────────────────────────────────────────────
 const PRESETS = {
   '20': { label: '20 Pies', m3: 30, flete: 3500, despachante: 2000, terminal: 2300, naviera: 800, logistica: 2150 },
@@ -164,6 +249,56 @@ function CotizadorMaritimo() {
 
   // ── UI ──
   const [showClienteView, setShowClienteView] = useState(false);
+  const [showSave, setShowSave] = useState(false);
+
+  // ── serialize / restore (saved quotes) ──
+  const serialize = () => ({
+    contType, contM3, contCosts, cliente, descripcion, clasificacion,
+    fobCliente, fobDecCli, fleteCli, gDes, gTer, gNav, gLog,
+    fobReal, fobDecReal, fleteRealInput, m3Merch,
+    pDer, pTas, pIva, pagaIva, pIvaA, pagaIvaA, pGan, pagaGan, pIIBB, pagaIIBB,
+    pHon, pFac, pMrg, usaSociedadPropia,
+  });
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (!e.detail || e.detail.mode !== 'maritimo') return;
+      const d = e.detail.data || {};
+      if (d.contType !== undefined) setContType(d.contType);
+      if (d.contM3 !== undefined) setContM3(d.contM3);
+      if (d.contCosts !== undefined) setContCosts(d.contCosts);
+      if (d.cliente !== undefined) setCliente(d.cliente);
+      if (d.descripcion !== undefined) setDescripcion(d.descripcion);
+      if (d.clasificacion !== undefined) setClasificacion(d.clasificacion);
+      if (d.fobCliente !== undefined) setFobCliente(d.fobCliente);
+      if (d.fobDecCli !== undefined) setFobDecCli(d.fobDecCli);
+      if (d.fleteCli !== undefined) setFleteCli(d.fleteCli);
+      if (d.gDes !== undefined) setGDes(d.gDes);
+      if (d.gTer !== undefined) setGTer(d.gTer);
+      if (d.gNav !== undefined) setGNav(d.gNav);
+      if (d.gLog !== undefined) setGLog(d.gLog);
+      if (d.fobReal !== undefined) setFobReal(d.fobReal);
+      if (d.fobDecReal !== undefined) setFobDecReal(d.fobDecReal);
+      if (d.fleteRealInput !== undefined) setFleteRealInput(d.fleteRealInput);
+      if (d.m3Merch !== undefined) setM3Merch(d.m3Merch);
+      if (d.pDer !== undefined) setPDer(d.pDer);
+      if (d.pTas !== undefined) setPTas(d.pTas);
+      if (d.pIva !== undefined) setPIva(d.pIva);
+      if (d.pagaIva !== undefined) setPagaIva(d.pagaIva);
+      if (d.pIvaA !== undefined) setPIvaA(d.pIvaA);
+      if (d.pagaIvaA !== undefined) setPagaIvaA(d.pagaIvaA);
+      if (d.pGan !== undefined) setPGan(d.pGan);
+      if (d.pagaGan !== undefined) setPagaGan(d.pagaGan);
+      if (d.pIIBB !== undefined) setPIIBB(d.pIIBB);
+      if (d.pagaIIBB !== undefined) setPagaIIBB(d.pagaIIBB);
+      if (d.pHon !== undefined) setPHon(d.pHon);
+      if (d.pFac !== undefined) setPFac(d.pFac);
+      if (d.pMrg !== undefined) setPMrg(d.pMrg);
+      if (d.usaSociedadPropia !== undefined) setUsaSociedadPropia(d.usaSociedadPropia);
+    };
+    window.addEventListener('cotizador:load', handler);
+    return () => window.removeEventListener('cotizador:load', handler);
+  }, []);
 
   // ── AI import event listener ──
   useEffect(() => {
@@ -415,6 +550,7 @@ function CotizadorMaritimo() {
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <SaveQuoteButton onClick={() => setShowSave(true)} />
           {mode === 'cliente' && (
             <button onClick={() => setShowClienteView(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', padding: '0.55rem 1.1rem', borderRadius: '50px', border: 'none', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700, background: '#2563eb', color: '#fff', boxShadow: '0 2px 10px rgba(37,99,235,0.3)' }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
@@ -1088,6 +1224,19 @@ function CotizadorMaritimo() {
         </div>
       )}
 
+      {showSave && (
+        <SaveQuoteModal
+          modo="maritimo"
+          defaultCliente={cliente}
+          getPayload={() => ({
+            total_usd: String(Math.round(usaSociedadPropia ? c.precioSinF : c.precioConF)),
+            resumen: `FOB ${Math.round(c.fobC)} · ${n(m3Merch)}m³ · USD ${(Math.round((usaSociedadPropia ? c.precioSinF : c.precioConF)) / 1000).toFixed(1)}k final`,
+            data: serialize(),
+          })}
+          onClose={() => setShowSave(false)}
+        />
+      )}
+
     </div>
   );
 }
@@ -1144,6 +1293,60 @@ function CotizadorAereo() {
   // ui
   const [tab, setTab] = useState('cliente_fob');
   const [showClienteView, setShowClienteView] = useState(false);
+  const [showSave, setShowSave] = useState(false);
+
+  // ── serialize / restore (saved quotes) ──
+  const serialize = () => ({
+    cliente, descripcion, clasificacion, m3Input, pesoReal,
+    fobCliente, fobDecCli, fleteCliInput, awbCli, handCli, terCli, desCli, traCli,
+    fobReal, fobDecReal, fleteRealInput, awbReal, handReal, terReal, desReal, traReal,
+    pDer, pTas, pIva, pagaIva, pIvaA, pagaIvaA, pGan, pagaGan, pIIBB, pagaIIBB,
+    pHon, pFac, pMrg, usaSociedadPropia,
+  });
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (!e.detail || e.detail.mode !== 'aereo') return;
+      const d = e.detail.data || {};
+      if (d.cliente !== undefined) setCliente(d.cliente);
+      if (d.descripcion !== undefined) setDescripcion(d.descripcion);
+      if (d.clasificacion !== undefined) setClasificacion(d.clasificacion);
+      if (d.m3Input !== undefined) setM3Input(d.m3Input);
+      if (d.pesoReal !== undefined) setPesoReal(d.pesoReal);
+      if (d.fobCliente !== undefined) setFobCliente(d.fobCliente);
+      if (d.fobDecCli !== undefined) setFobDecCli(d.fobDecCli);
+      if (d.fleteCliInput !== undefined) setFleteCliInput(d.fleteCliInput);
+      if (d.awbCli !== undefined) setAwbCli(d.awbCli);
+      if (d.handCli !== undefined) setHandCli(d.handCli);
+      if (d.terCli !== undefined) setTerCli(d.terCli);
+      if (d.desCli !== undefined) setDesCli(d.desCli);
+      if (d.traCli !== undefined) setTraCli(d.traCli);
+      if (d.fobReal !== undefined) setFobReal(d.fobReal);
+      if (d.fobDecReal !== undefined) setFobDecReal(d.fobDecReal);
+      if (d.fleteRealInput !== undefined) setFleteRealInput(d.fleteRealInput);
+      if (d.awbReal !== undefined) setAwbReal(d.awbReal);
+      if (d.handReal !== undefined) setHandReal(d.handReal);
+      if (d.terReal !== undefined) setTerReal(d.terReal);
+      if (d.desReal !== undefined) setDesReal(d.desReal);
+      if (d.traReal !== undefined) setTraReal(d.traReal);
+      if (d.pDer !== undefined) setPDer(d.pDer);
+      if (d.pTas !== undefined) setPTas(d.pTas);
+      if (d.pIva !== undefined) setPIva(d.pIva);
+      if (d.pagaIva !== undefined) setPagaIva(d.pagaIva);
+      if (d.pIvaA !== undefined) setPIvaA(d.pIvaA);
+      if (d.pagaIvaA !== undefined) setPagaIvaA(d.pagaIvaA);
+      if (d.pGan !== undefined) setPGan(d.pGan);
+      if (d.pagaGan !== undefined) setPagaGan(d.pagaGan);
+      if (d.pIIBB !== undefined) setPIIBB(d.pIIBB);
+      if (d.pagaIIBB !== undefined) setPagaIIBB(d.pagaIIBB);
+      if (d.pHon !== undefined) setPHon(d.pHon);
+      if (d.pFac !== undefined) setPFac(d.pFac);
+      if (d.pMrg !== undefined) setPMrg(d.pMrg);
+      if (d.usaSociedadPropia !== undefined) setUsaSociedadPropia(d.usaSociedadPropia);
+    };
+    window.addEventListener('cotizador:load', handler);
+    return () => window.removeEventListener('cotizador:load', handler);
+  }, []);
 
   // ── AI import event listener ──
   useEffect(() => {
@@ -1273,10 +1476,13 @@ function CotizadorAereo() {
           <h2 style={{ fontSize: '1.45rem', fontWeight: 800, color: '#1e293b', marginBottom: '0.2rem' }}>Cotizador Aéreo</h2>
           <p style={{ fontSize: '0.82rem', color: '#94a3b8' }}>Calculá el costo real, lo que cobrás y tu rentabilidad — importación aérea</p>
         </div>
-        <button onClick={() => setShowClienteView(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', padding: '0.55rem 1.1rem', borderRadius: '50px', border: 'none', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700, background: '#2563eb', color: '#fff', boxShadow: '0 2px 10px rgba(37,99,235,0.3)' }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-          Ver cotización al cliente
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <SaveQuoteButton onClick={() => setShowSave(true)} />
+          <button onClick={() => setShowClienteView(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', padding: '0.55rem 1.1rem', borderRadius: '50px', border: 'none', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700, background: '#2563eb', color: '#fff', boxShadow: '0 2px 10px rgba(37,99,235,0.3)' }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            Ver cotización al cliente
+          </button>
+        </div>
       </div>
 
       {/* SETUP — Carga a transportar */}
@@ -1721,6 +1927,174 @@ function CotizadorAereo() {
         </div>
       )}
 
+      {showSave && (
+        <SaveQuoteModal
+          modo="aereo"
+          defaultCliente={cliente}
+          getPayload={() => ({
+            total_usd: String(Math.round(usaSociedadPropia ? c.precioSinF : c.precioConF)),
+            resumen: `FOB ${Math.round(c.fobC)} · ${chargeable.toFixed(0)}kg · USD ${(Math.round((usaSociedadPropia ? c.precioSinF : c.precioConF)) / 1000).toFixed(1)}k final`,
+            data: serialize(),
+          })}
+          onClose={() => setShowSave(false)}
+        />
+      )}
+
+    </div>
+  );
+}
+
+// ─── saved-quotes panel ─────────────────────────────────────────────────────────
+function SavedQuotesPanel({ onClose, onReactivate }) {
+  const [quotes, setQuotes]   = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr]         = useState('');
+  const [filter, setFilter]   = useState('todas');
+  const [search, setSearch]   = useState('');
+  const [busyId, setBusyId]   = useState(null);
+
+  const load = async () => {
+    setLoading(true); setErr('');
+    try {
+      const res = await fetch('/api/db/cotizaciones');
+      if (!res.ok) throw new Error('Error al cargar');
+      const json = await res.json();
+      setQuotes(Array.isArray(json) ? json : (json.data || json.rows || []));
+    } catch (e) {
+      setErr(e.message || 'Error al cargar');
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { load(); }, []);
+
+  const reactivate = async (q) => {
+    setBusyId(q.id);
+    try {
+      const res = await fetch(`/api/db/cotizaciones/${q.id}`);
+      if (!res.ok) throw new Error('Error al abrir');
+      const full = await res.json();
+      const data = full.data || {};
+      onReactivate(q.modo, data);
+    } catch (e) {
+      alert(e.message || 'Error al abrir la cotización');
+      setBusyId(null);
+    }
+  };
+
+  const changeEstado = async (q, estado) => {
+    setBusyId(q.id);
+    try {
+      const res = await fetch(`/api/db/cotizaciones/${q.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ onlyEstado: true, estado }),
+      });
+      if (!res.ok) throw new Error('Error');
+      setQuotes(qs => qs.map(x => x.id === q.id ? { ...x, estado } : x));
+    } catch (e) {
+      alert('No se pudo cambiar el estado');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const remove = async (q) => {
+    if (!confirm(`¿Eliminar "${q.nombre}"?`)) return;
+    setBusyId(q.id);
+    try {
+      const res = await fetch(`/api/db/cotizaciones/${q.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Error');
+      setQuotes(qs => qs.filter(x => x.id !== q.id));
+    } catch (e) {
+      alert('No se pudo eliminar');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const s = search.trim().toLowerCase();
+  const visible = quotes.filter(q => {
+    if (filter !== 'todas' && q.estado !== filter) return false;
+    if (s && !((q.nombre || '').toLowerCase().includes(s) || (q.cliente || '').toLowerCase().includes(s))) return false;
+    return true;
+  });
+
+  const fmtDate = (v) => {
+    if (!v) return '—';
+    const d = new Date(v);
+    if (isNaN(d)) return '—';
+    return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  };
+
+  return (
+    <div onClick={e => { if (e.target === e.currentTarget) onClose(); }} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', zIndex: 1050, display: 'flex', alignItems: 'stretch', justifyContent: 'flex-end' }}>
+      <div style={{ background: '#f8fafc', width: '100%', maxWidth: '560px', height: '100%', overflowY: 'auto', boxShadow: '-10px 0 40px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column' }}>
+        {/* header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.1rem 1.4rem', borderBottom: '1px solid #e2e8f0', background: '#fff', position: 'sticky', top: 0, zIndex: 10 }}>
+          <div>
+            <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#1e293b' }}>Cotizaciones guardadas</h3>
+            <p style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{quotes.length} guardada{quotes.length === 1 ? '' : 's'}</p>
+          </div>
+          <button onClick={onClose} style={{ width: '34px', height: '34px', borderRadius: '50%', border: 'none', cursor: 'pointer', background: '#f1f5f9', color: '#64748b', fontSize: '1.1rem' }}>×</button>
+        </div>
+
+        {/* filters */}
+        <div style={{ padding: '0.9rem 1.4rem', background: '#fff', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: '64px', zIndex: 9 }}>
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nombre o cliente…" style={{ ...INP, marginBottom: '0.6rem' }} />
+          <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+            {[['todas', 'Todas'], ...ESTADOS.map(e => [e.id, e.label])].map(([id, label]) => {
+              const active = filter === id;
+              return (
+                <button key={id} onClick={() => setFilter(id)} style={{ padding: '0.3rem 0.75rem', borderRadius: '50px', border: `1px solid ${active ? '#2563eb' : '#e2e8f0'}`, cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, background: active ? '#2563eb' : '#fff', color: active ? '#fff' : '#64748b' }}>
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* list */}
+        <div style={{ padding: '1rem 1.4rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', flex: 1 }}>
+          {loading && <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Cargando…</p>}
+          {err && <p style={{ color: '#dc2626', fontSize: '0.85rem' }}>{err}</p>}
+          {!loading && !err && visible.length === 0 && <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>No hay cotizaciones que coincidan.</p>}
+          {visible.map(q => {
+            const em = estadoMeta(q.estado);
+            const busy = busyId === q.id;
+            return (
+              <div key={q.id} style={{ background: '#fff', borderRadius: '12px', padding: '0.9rem 1rem', border: '1px solid #e2e8f0', opacity: busy ? 0.6 : 1 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem', marginBottom: '0.45rem' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ fontSize: '0.92rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.nombre}</p>
+                    {q.cliente && <p style={{ fontSize: '0.76rem', color: '#64748b' }}>{q.cliente}</p>}
+                  </div>
+                  <span style={{ flexShrink: 0, fontSize: '0.7rem', fontWeight: 700, padding: '0.18rem 0.6rem', borderRadius: '50px', color: em.fg, background: em.bg }}>{em.label}</span>
+                </div>
+                {q.resumen && <p style={{ fontSize: '0.74rem', color: '#94a3b8', marginBottom: '0.5rem' }}>{q.resumen}</p>}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', fontSize: '0.72rem', color: '#94a3b8', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
+                  <span>{q.modo === 'aereo' ? '✈️ Aéreo' : '🚢 Marítimo'}</span>
+                  {q.total_usd && <span style={{ fontWeight: 700, color: '#059669' }}>USD {Number(q.total_usd).toLocaleString('es-AR')}</span>}
+                  <span>{fmtDate(q.updated_at || q.created_at)}</span>
+                  {q.created_by && <span>· {q.created_by}</span>}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <button onClick={() => reactivate(q)} disabled={busy} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.9rem', borderRadius: '8px', border: 'none', cursor: busy ? 'default' : 'pointer', fontSize: '0.76rem', fontWeight: 700, background: '#2563eb', color: '#fff' }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                    Reactivar
+                  </button>
+                  <select value={q.estado} onChange={e => changeEstado(q, e.target.value)} disabled={busy} style={{ padding: '0.4rem 0.5rem', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.74rem', color: '#334155', background: '#fff', cursor: 'pointer' }}>
+                    {ESTADOS.map(e => <option key={e.id} value={e.id}>{e.label}</option>)}
+                  </select>
+                  <button onClick={() => remove(q)} disabled={busy} style={{ marginLeft: 'auto', padding: '0.4rem 0.7rem', borderRadius: '8px', border: '1px solid #fecaca', cursor: busy ? 'default' : 'pointer', fontSize: '0.76rem', fontWeight: 700, background: '#fff', color: '#dc2626' }}>
+                    Eliminar
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1733,6 +2107,7 @@ function CotizadorInner() {
   const initialMode = searchParams.get('modo') === 'aereo' ? 'aereo' : 'maritimo';
   const [mode, setMode] = useState(initialMode);
   const [importOpen, setImportOpen] = useState(false);
+  const [savedOpen, setSavedOpen] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(Array.from(searchParams.entries()));
@@ -1751,6 +2126,17 @@ function CotizadorInner() {
       );
     }, 0);
     setImportOpen(false);
+  };
+
+  const handleReactivate = (targetMode, data) => {
+    const m = targetMode === 'aereo' ? 'aereo' : 'maritimo';
+    setMode(m);
+    setSavedOpen(false);
+    setTimeout(() => {
+      window.dispatchEvent(
+        new CustomEvent('cotizador:load', { detail: { mode: m, data } })
+      );
+    }, 0);
   };
 
   return (
@@ -1773,23 +2159,40 @@ function CotizadorInner() {
           ))}
         </div>
 
-        <button
-          onClick={() => setImportOpen(true)}
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: 8,
-            padding: '0.55rem 1.1rem', borderRadius: 10, border: 'none',
-            background: '#0f172a', color: '#fff', fontWeight: 700, fontSize: '0.82rem',
-            cursor: 'pointer', boxShadow: '0 2px 10px rgba(15,23,42,0.15)',
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="17 8 12 3 7 8" />
-            <line x1="12" y1="3" x2="12" y2="15" />
-          </svg>
-          Importar de PDF/foto
-          <span style={{ fontSize: '0.62rem', background: '#3b82f6', padding: '0.1rem 0.45rem', borderRadius: 99, fontWeight: 700 }}>IA</span>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+          <button
+            onClick={() => setSavedOpen(true)}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              padding: '0.55rem 1.1rem', borderRadius: 10, border: '1px solid #e2e8f0',
+              background: '#fff', color: '#334155', fontWeight: 700, fontSize: '0.82rem',
+              cursor: 'pointer',
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            </svg>
+            Cotizaciones guardadas
+          </button>
+
+          <button
+            onClick={() => setImportOpen(true)}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              padding: '0.55rem 1.1rem', borderRadius: 10, border: 'none',
+              background: '#0f172a', color: '#fff', fontWeight: 700, fontSize: '0.82rem',
+              cursor: 'pointer', boxShadow: '0 2px 10px rgba(15,23,42,0.15)',
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+            Importar de PDF/foto
+            <span style={{ fontSize: '0.62rem', background: '#3b82f6', padding: '0.1rem 0.45rem', borderRadius: 99, fontWeight: 700 }}>IA</span>
+          </button>
+        </div>
       </div>
 
       {/* Both mounted to preserve state on toggle */}
@@ -1804,6 +2207,13 @@ function CotizadorInner() {
         <ImportDialog
           onClose={() => setImportOpen(false)}
           onApply={handleApply}
+        />
+      )}
+
+      {savedOpen && (
+        <SavedQuotesPanel
+          onClose={() => setSavedOpen(false)}
+          onReactivate={handleReactivate}
         />
       )}
     </>
