@@ -20,6 +20,33 @@ function sectionForPath(pathname: string): string | null {
   return null
 }
 
+// Auto-reparación de tokens viejos: si el JWT no tiene role/sections (sesión
+// creada antes de la feature de roles), los buscamos en la DB por username.
+async function fetchUserPerms(username: string): Promise<{ role: string; sections: string } | null> {
+  const acc = process.env.CF_ACCOUNT_ID
+  const db = process.env.CF_D1_DATABASE_ID
+  const token = process.env.CF_D1_API_TOKEN
+  if (!acc || !db || !token || !username) return null
+  try {
+    const res = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${acc}/d1/database/${db}/query`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sql: 'SELECT role, sections FROM users WHERE lower(username) = ? LIMIT 1', params: [username.toLowerCase()] }),
+        cache: 'no-store',
+      }
+    )
+    if (!res.ok) return null
+    const json = await res.json()
+    const row = json?.result?.[0]?.results?.[0]
+    if (!row) return null
+    return { role: row.role || 'editor', sections: row.sections || '' }
+  } catch {
+    return null
+  }
+}
+
 export const authConfig = {
   pages: {
     signIn: '/login',
@@ -70,6 +97,13 @@ export const authConfig = {
         token.username = (user as any).username
         token.role = (user as any).role || 'editor'
         token.sections = (user as any).sections || ''
+      } else if (token && token.role === undefined && token.username) {
+        // Token viejo (sin role/sections) → auto-reparar desde la DB
+        const perms = await fetchUserPerms(token.username as string)
+        if (perms) {
+          token.role = perms.role
+          token.sections = perms.sections
+        }
       }
       return token
     },
