@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 const FIELDS = [
   'num', 'origen', 'destino', 'contenedores', 'modo', 'bl', 'carrier', 'etd', 'eta', 'status',
   'sea_freight_usd', 'other_fees_usd', 'discount_usd', 'total_usd', 'suppliers',
-  'amount_due_usd', 'amount_rec_usd', 'balance_usd', 'payment_date', 'notes',
+  'amount_due_usd', 'amount_rec_usd', 'balance_usd', 'payment_date', 'notes', 'agente',
 ]
 
 export async function GET() {

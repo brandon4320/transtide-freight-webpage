@@ -7,6 +7,10 @@ const INP = { width: '100%', padding: '0.5rem 0.65rem', border: '1px solid #e2e8
 const LBL = { display: 'block', fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }
 
 const STATUSES = ['In Transit', 'Delivered - Payment Pending', 'Delivered - Paid', 'Cancelled', 'Booked', 'Customs']
+const AGENTES = ['Bruce', 'Yachao']
+const agenteStyle = (a) => a === 'Yachao'
+  ? { c: '#0284c7', bg: '#eff6ff', border: '#bfdbfe' }
+  : { c: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' } // Bruce
 
 function statusStyle(raw) {
   const s = (raw || '').toLowerCase()
@@ -23,7 +27,7 @@ const blNorm = (b) => (b || '').replace(/[\s-]/g, '').toUpperCase()
 const numUSD = (v) => { const n = parseFloat(String(v || '').replace(/\./g, '').replace(',', '.')); return isNaN(n) ? 0 : n }
 const fmtUSD = (n) => 'USD ' + Math.round(n).toLocaleString('es-AR')
 
-const EMPTY = { num: '', origen: '', destino: '', contenedores: '', modo: '', bl: '', carrier: '', etd: '', eta: '', status: 'In Transit', sea_freight_usd: '', other_fees_usd: '', discount_usd: '', total_usd: '', suppliers: '', amount_due_usd: '', amount_rec_usd: '', balance_usd: '', payment_date: '', notes: '' }
+const EMPTY = { num: '', agente: 'Bruce', origen: '', destino: '', contenedores: '', modo: '', bl: '', carrier: '', etd: '', eta: '', status: 'In Transit', sea_freight_usd: '', other_fees_usd: '', discount_usd: '', total_usd: '', suppliers: '', amount_due_usd: '', amount_rec_usd: '', balance_usd: '', payment_date: '', notes: '' }
 
 export default function TrackingPage() {
   const [ships, setShips] = useState([])
@@ -31,6 +35,7 @@ export default function TrackingPage() {
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState('todos')
+  const [agenteFilter, setAgenteFilter] = useState('todos')
   const [modal, setModal] = useState(null)   // null | 'new' | shipObj
   const [form, setForm] = useState(EMPTY)
   const [confirmDel, setConfirmDel] = useState(null)
@@ -53,22 +58,24 @@ export default function TrackingPage() {
 
   const filtered = useMemo(() => {
     let l = ships
+    if (agenteFilter !== 'todos') l = l.filter(s => (s.agente || 'Bruce') === agenteFilter)
     if (query.trim()) {
       const q = query.toLowerCase()
-      l = l.filter(s => [s.num, s.bl, s.origen, s.destino, s.carrier, s.contenedores, s.status, s.suppliers].some(v => (v || '').toLowerCase().includes(q)))
+      l = l.filter(s => [s.num, s.bl, s.origen, s.destino, s.carrier, s.contenedores, s.status, s.suppliers, s.agente].some(v => (v || '').toLowerCase().includes(q)))
     }
     if (filter === 'transito')  l = l.filter(s => /transit/i.test(s.status))
     if (filter === 'pendiente') l = l.filter(s => /pending|pendiente/i.test(s.status))
     if (filter === 'pagado')    l = l.filter(s => /paid/i.test(s.status))
     return l
-  }, [ships, query, filter])
+  }, [ships, query, filter, agenteFilter])
 
   const stats = useMemo(() => {
-    const transito = ships.filter(s => /transit/i.test(s.status)).length
-    const pendienteCobro = ships.filter(s => /pending|pendiente/i.test(s.status)).length
-    const balancePend = ships.reduce((a, s) => a + numUSD(s.balance_usd), 0)
-    return { total: ships.length, transito, pendienteCobro, balancePend }
-  }, [ships])
+    const base = agenteFilter === 'todos' ? ships : ships.filter(s => (s.agente || 'Bruce') === agenteFilter)
+    const transito = base.filter(s => /transit/i.test(s.status)).length
+    const pendientePago = base.filter(s => /pending|pendiente/i.test(s.status)).length
+    const saldoPagar = base.reduce((a, s) => a + numUSD(s.balance_usd), 0)
+    return { total: base.length, transito, pendientePago, saldoPagar }
+  }, [ships, agenteFilter])
 
   const openNew  = () => { setForm({ ...EMPTY }); setModal('new') }
   const openEdit = (s) => { setForm({ ...EMPTY, ...s }); setModal(s) }
@@ -100,11 +107,30 @@ export default function TrackingPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#1e293b', marginBottom: '0.2rem' }}>Tracking de contenedores</h2>
-          <p style={{ fontSize: '0.82rem', color: '#94a3b8' }}>{ships.length} embarques cargados en el sistema</p>
+          <p style={{ fontSize: '0.82rem', color: '#94a3b8' }}>Costos que pagás a tu agente de carga · {ships.length} embarques</p>
         </div>
         <button onClick={openNew} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0.55rem 1.1rem', borderRadius: 50, border: 'none', background: '#ea580c', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>
           + Nuevo embarque
         </button>
+      </div>
+
+      {/* Selector de agente */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 4 }}>Agente:</span>
+        {['todos', ...AGENTES].map(a => {
+          const sel = agenteFilter === a
+          const st = a === 'todos' ? { c: '#0f172a', bg: '#0f172a' } : agenteStyle(a)
+          return (
+            <button key={a} onClick={() => setAgenteFilter(a)} style={{
+              padding: '0.4rem 0.95rem', borderRadius: 50, cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700,
+              border: `1.5px solid ${sel ? (a === 'todos' ? '#0f172a' : st.c) : '#e2e8f0'}`,
+              background: sel ? (a === 'todos' ? '#0f172a' : st.bg) : '#fff',
+              color: sel ? (a === 'todos' ? '#fff' : st.c) : '#64748b',
+            }}>
+              {a === 'todos' ? 'Todos' : a}{a === 'Bruce' ? ' · marítimo' : a === 'Yachao' ? ' · aéreo' : ''}
+            </button>
+          )
+        })}
       </div>
 
       {/* KPIs */}
@@ -112,8 +138,8 @@ export default function TrackingPage() {
         {[
           { lbl: 'Total embarques', val: stats.total, color: '#1e293b' },
           { lbl: 'En tránsito', val: stats.transito, color: '#ea580c' },
-          { lbl: 'Pendiente de cobro', val: stats.pendienteCobro, color: '#d97706' },
-          { lbl: 'Balance pendiente', val: fmtUSD(stats.balancePend), color: '#dc2626' },
+          { lbl: 'Pendiente de pago', val: stats.pendientePago, color: '#d97706' },
+          { lbl: 'Saldo a pagar al agente', val: fmtUSD(stats.saldoPagar), color: '#dc2626' },
         ].map(k => (
           <div key={k.lbl} style={{ ...CARD, padding: '0.7rem 1rem', flex: 1, minWidth: 150 }}>
             <p style={{ fontSize: '0.58rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>{k.lbl}</p>
@@ -129,7 +155,7 @@ export default function TrackingPage() {
           <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar BL, carrier, origen, proveedor…" style={{ ...INP, paddingLeft: '2.2rem' }} />
         </div>
         <div style={{ display: 'flex', gap: 3, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 9, padding: 3 }}>
-          {[['todos','Todos'],['transito','En tránsito'],['pendiente','Pend. cobro'],['pagado','Pagados']].map(([id, lbl]) => (
+          {[['todos','Todos'],['transito','En tránsito'],['pendiente','Pend. pago'],['pagado','Pagados']].map(([id, lbl]) => (
             <button key={id} onClick={() => setFilter(id)} style={{ padding: '0.4rem 0.85rem', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: '0.76rem', fontWeight: 600, background: filter === id ? '#0f172a' : 'transparent', color: filter === id ? '#fff' : '#64748b' }}>{lbl}</button>
           ))}
         </div>
@@ -149,7 +175,7 @@ export default function TrackingPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
               <thead>
                 <tr style={{ background: '#f8fafc' }}>
-                  {['#','Ruta','Cont.','B/L','Carrier','ETA','Estado','Total','Balance','Operación',''].map(h => (
+                  {['#','Agente','Ruta','Cont.','Proveedores','B/L','ETA','Estado','Total','Saldo','Oper.',''].map(h => (
                     <th key={h} style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '0.6rem 0.65rem', textAlign: 'left', borderBottom: '1px solid #e8ecf1', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
@@ -166,13 +192,23 @@ export default function TrackingPage() {
                       onMouseLeave={e => e.currentTarget.style.background = op ? '#fafffe' : 'transparent'}>
                       <td style={{ padding: '0.55rem 0.65rem', color: '#94a3b8', fontWeight: 600 }}>{s.num || '—'}</td>
                       <td style={{ padding: '0.55rem 0.65rem', whiteSpace: 'nowrap' }}>
+                        {(() => { const ag = s.agente || 'Bruce'; const a = agenteStyle(ag); return (
+                          <span style={{ background: a.bg, color: a.c, border: `1px solid ${a.border}`, fontSize: '0.66rem', fontWeight: 700, padding: '0.12rem 0.5rem', borderRadius: 5 }}>{ag}</span>
+                        )})()}
+                      </td>
+                      <td style={{ padding: '0.55rem 0.65rem', whiteSpace: 'nowrap' }}>
                         <span style={{ fontWeight: 600, color: '#1e293b' }}>{s.origen || '—'}</span>
                         <span style={{ color: '#cbd5e1', margin: '0 4px' }}>→</span>
                         <span style={{ color: '#475569' }}>{s.destino || '—'}</span>
+                        {s.carrier && <span style={{ fontSize: '0.64rem', color: '#94a3b8', marginLeft: 6 }}>· {s.carrier}</span>}
                       </td>
                       <td style={{ padding: '0.55rem 0.65rem', color: '#475569', whiteSpace: 'nowrap' }}>{s.contenedores || '—'}</td>
+                      <td style={{ padding: '0.55rem 0.65rem', maxWidth: 220 }}>
+                        {s.suppliers ? (
+                          <span title={s.suppliers} style={{ fontSize: '0.72rem', color: '#475569', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.suppliers}</span>
+                        ) : <span style={{ color: '#cbd5e1', fontSize: '0.72rem' }}>—</span>}
+                      </td>
                       <td style={{ padding: '0.55rem 0.65rem', fontFamily: 'ui-monospace,monospace', fontSize: '0.72rem', color: '#475569', whiteSpace: 'nowrap' }}>{s.bl || '—'}</td>
-                      <td style={{ padding: '0.55rem 0.65rem', color: '#475569' }}>{s.carrier || '—'}</td>
                       <td style={{ padding: '0.55rem 0.65rem', color: s.eta ? '#059669' : '#cbd5e1', fontWeight: 600, whiteSpace: 'nowrap' }}>{s.eta || '—'}</td>
                       <td style={{ padding: '0.55rem 0.65rem' }}>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: st.bg, color: st.c, border: `1px solid ${st.border}`, fontSize: '0.66rem', fontWeight: 600, padding: '0.15rem 0.5rem', borderRadius: 5, whiteSpace: 'nowrap' }}>
@@ -208,6 +244,12 @@ export default function TrackingPage() {
             <p style={{ fontSize: '0.62rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Logística</p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: '1.25rem' }}>
               <div><label style={LBL}>N°</label><input value={form.num} onChange={e => upd('num', e.target.value)} style={INP} /></div>
+              <div><label style={LBL}>Agente de carga</label>
+                <select value={form.agente || 'Bruce'} onChange={e => upd('agente', e.target.value)} style={{ ...INP, cursor: 'pointer' }}>
+                  {AGENTES.map(a => <option key={a} value={a}>{a}{a === 'Bruce' ? ' (marítimo)' : a === 'Yachao' ? ' (aéreo)' : ''}</option>)}
+                  {form.agente && !AGENTES.includes(form.agente) && <option value={form.agente}>{form.agente}</option>}
+                </select>
+              </div>
               <div><label style={LBL}>Origen</label><input value={form.origen} onChange={e => upd('origen', e.target.value)} style={INP} /></div>
               <div><label style={LBL}>Destino</label><input value={form.destino} onChange={e => upd('destino', e.target.value)} style={INP} /></div>
               <div><label style={LBL}>Contenedores</label><input value={form.contenedores} onChange={e => upd('contenedores', e.target.value)} style={INP} placeholder="1×40HQ" /></div>
@@ -224,15 +266,15 @@ export default function TrackingPage() {
               </div>
             </div>
 
-            <p style={{ fontSize: '0.62rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Costos & cobro (USD)</p>
+            <p style={{ fontSize: '0.62rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Lo que pagás al agente (USD)</p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: '1.25rem' }}>
               <div><label style={LBL}>Sea Freight</label><input value={form.sea_freight_usd} onChange={e => upd('sea_freight_usd', e.target.value)} style={INP} /></div>
               <div><label style={LBL}>Other Fees</label><input value={form.other_fees_usd} onChange={e => upd('other_fees_usd', e.target.value)} style={INP} /></div>
               <div><label style={LBL}>Descuento</label><input value={form.discount_usd} onChange={e => upd('discount_usd', e.target.value)} style={INP} /></div>
               <div><label style={LBL}>Total</label><input value={form.total_usd} onChange={e => upd('total_usd', e.target.value)} style={{ ...INP, fontWeight: 700 }} /></div>
-              <div><label style={LBL}>A cobrar</label><input value={form.amount_due_usd} onChange={e => upd('amount_due_usd', e.target.value)} style={INP} /></div>
-              <div><label style={LBL}>Cobrado</label><input value={form.amount_rec_usd} onChange={e => upd('amount_rec_usd', e.target.value)} style={INP} /></div>
-              <div><label style={LBL}>Balance</label><input value={form.balance_usd} onChange={e => upd('balance_usd', e.target.value)} style={{ ...INP, color: numUSD(form.balance_usd) > 0 ? '#dc2626' : '#0f172a', fontWeight: 600 }} /></div>
+              <div><label style={LBL}>A pagar</label><input value={form.amount_due_usd} onChange={e => upd('amount_due_usd', e.target.value)} style={INP} /></div>
+              <div><label style={LBL}>Pagado</label><input value={form.amount_rec_usd} onChange={e => upd('amount_rec_usd', e.target.value)} style={INP} /></div>
+              <div><label style={LBL}>Saldo a pagar</label><input value={form.balance_usd} onChange={e => upd('balance_usd', e.target.value)} style={{ ...INP, color: numUSD(form.balance_usd) > 0 ? '#dc2626' : '#0f172a', fontWeight: 600 }} /></div>
               <div><label style={LBL}>Fecha pago</label><input value={form.payment_date} onChange={e => upd('payment_date', e.target.value)} style={INP} /></div>
             </div>
 
