@@ -12,6 +12,64 @@ const usd = (n) => {
 };
 const n = (v) => parseFloat(v) || 0;
 
+// Imprime/exporta a PDF un HTML sin depender de window.open (que bloquean los popup-blockers).
+// Usa un iframe oculto; cae a una pestaña nueva solo si el iframe falla.
+function printHTML(html) {
+  try {
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document || iframe.contentDocument;
+    doc.open();
+    doc.write(html);
+    doc.close();
+
+    const trigger = () => {
+      try {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+      } catch (e) {
+        console.error('print failed', e);
+      }
+      // limpiar después de un rato (deja tiempo al diálogo de impresión)
+      setTimeout(() => { try { document.body.removeChild(iframe); } catch {} }, 60000);
+    };
+
+    // esperar a que el contenido (y fuentes) carguen
+    if (iframe.contentWindow?.document?.readyState === 'complete') {
+      setTimeout(trigger, 300);
+    } else {
+      iframe.onload = () => setTimeout(trigger, 300);
+      setTimeout(trigger, 800); // fallback por si onload no dispara
+    }
+  } catch (e) {
+    // Fallback: pestaña nueva
+    const w = window.open('', '_blank');
+    if (w) { w.document.write(html); w.document.close(); w.focus(); setTimeout(() => w.print(), 500); }
+    else alert('El navegador bloqueó la impresión. Permití las ventanas emergentes para este sitio.');
+  }
+}
+
+// Imprime el contenido (innerHTML) de un elemento del DOM, preservando estilos inline.
+function printElement(elementId, title = 'Cotización') {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>${title}</title>
+    <style>
+      @page { margin: 14mm; size: A4; }
+      * { box-sizing: border-box; }
+      body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; color: #1e293b; }
+      @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+    </style></head><body>${el.innerHTML}</body></html>`;
+  printHTML(html);
+}
+
 // ─── estados (saved quotes) ─────────────────────────────────────────────────────
 const ESTADOS = [
   { id: 'borrador',    label: 'Borrador',       fg: '#64748b', bg: '#f1f5f9' },
@@ -530,11 +588,7 @@ function CotizadorMaritimo() {
     </div>
     </body></html>`;
 
-    const w = window.open('', '_blank', 'width=820,height=950,scrollbars=yes');
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    setTimeout(() => w.print(), 600);
+    printHTML(html);
   };
 
   // ─── RENDER ───────────────────────────────────────────────────────────────
@@ -1848,9 +1902,15 @@ function CotizadorAereo() {
                 <p style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.1rem' }}>Vista previa</p>
                 <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#1e293b' }}>Cotización Aérea al Cliente</h3>
               </div>
-              <button onClick={() => setShowClienteView(false)} style={{ width: '36px', height: '36px', borderRadius: '50%', border: 'none', cursor: 'pointer', background: '#f1f5f9', color: '#64748b', fontSize: '1.1rem' }}>×</button>
+              <div style={{ display: 'flex', gap: '0.6rem' }}>
+                <button onClick={() => printElement('cot-aereo-print', `Cotización Aérea - ${cliente || 'Cliente'}`)} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', borderRadius: '50px', border: 'none', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700, background: '#2563eb', color: '#fff', boxShadow: '0 2px 8px rgba(37,99,235,0.3)' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                  Imprimir / PDF
+                </button>
+                <button onClick={() => setShowClienteView(false)} style={{ width: '36px', height: '36px', borderRadius: '50%', border: 'none', cursor: 'pointer', background: '#f1f5f9', color: '#64748b', fontSize: '1.1rem' }}>×</button>
+              </div>
             </div>
-            <div style={{ padding: '1.5rem' }}>
+            <div id="cot-aereo-print" style={{ padding: '1.5rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.2rem' }}>
                 <div>
                   <p style={{ fontSize: '1.3rem', fontWeight: 800, color: '#2563eb', letterSpacing: '-0.02em' }}>TRANSTIDE FREIGHT</p>
