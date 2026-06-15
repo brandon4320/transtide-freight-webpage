@@ -274,6 +274,23 @@ function CotizadorMaritimo() {
   const [descripcion, setDescripcion] = useState('');
   const [clasificacion, setClasificacion] = useState('');
 
+  // ── clientes (autocomplete) ──
+  const [clientesList, setClientesList] = useState([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch('/api/db/clientes');
+        if (!r.ok) throw new Error('failed');
+        const data = await r.json();
+        if (!cancelled) setClientesList(Array.isArray(data) ? data : []);
+      } catch {
+        if (!cancelled) setClientesList([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   // ── LADO CLIENTE ──
   const [fobCliente, setFobCliente] = useState('');       // lo que cobro por la mercadería
   const [fobDecCli, setFobDecCli] = useState('');         // lo que le digo que voy a declarar
@@ -719,7 +736,12 @@ function CotizadorMaritimo() {
               <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Identificación del embarque</p>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '0.6rem' }}>
-              <F label="Cliente"><TI value={cliente} onChange={setCliente} placeholder="Nombre del cliente" /></F>
+              <F label="Cliente">
+                <input type="text" list="clientes-list-mar" value={cliente} onChange={e => setCliente(e.target.value)} placeholder="Nombre del cliente" style={INP} />
+                <datalist id="clientes-list-mar">
+                  {clientesList.map(cl => <option key={cl.id} value={cl.nombre} />)}
+                </datalist>
+              </F>
               <F label="Posición arancelaria"><TI value={clasificacion} onChange={setClasificacion} placeholder="8456.11.00" /></F>
             </div>
             <F label="Descripción de la mercadería"><TI value={descripcion} onChange={setDescripcion} placeholder="Ej: Máquinas cortadoras láser 1000W" /></F>
@@ -1302,6 +1324,23 @@ function CotizadorAereo() {
   const [descripcion, setDescripcion] = useState('');
   const [clasificacion, setClasificacion] = useState('');
 
+  // ── clientes (autocomplete) ──
+  const [clientesList, setClientesList] = useState([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch('/api/db/clientes');
+        if (!r.ok) throw new Error('failed');
+        const data = await r.json();
+        if (!cancelled) setClientesList(Array.isArray(data) ? data : []);
+      } catch {
+        if (!cancelled) setClientesList([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   // carga: el agente nos pasa m³ y peso real, no diferenciamos por bulto
   const [m3Input,  setM3Input]  = useState('');
   const [pesoReal, setPesoReal] = useState('');
@@ -1586,7 +1625,12 @@ function CotizadorAereo() {
               <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Identificación del embarque</p>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '0.6rem' }}>
-              <F label="Cliente"><TI value={cliente} onChange={setCliente} placeholder="Nombre del cliente" /></F>
+              <F label="Cliente">
+                <input type="text" list="clientes-list-aereo" value={cliente} onChange={e => setCliente(e.target.value)} placeholder="Nombre del cliente" style={INP} />
+                <datalist id="clientes-list-aereo">
+                  {clientesList.map(cl => <option key={cl.id} value={cl.nombre} />)}
+                </datalist>
+              </F>
               <F label="Posición arancelaria"><TI value={clasificacion} onChange={setClasificacion} placeholder="8456.11.00" /></F>
             </div>
             <F label="Descripción de la mercadería"><TI value={descripcion} onChange={setDescripcion} placeholder="Ej: Componentes electrónicos" /></F>

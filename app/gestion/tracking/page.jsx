@@ -217,8 +217,16 @@ export default function TrackingPage() {
                       </td>
                       <td style={{ padding: '0.55rem 0.65rem', color: '#1e293b', fontWeight: 600, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{s.total_usd ? 'USD ' + s.total_usd : '—'}</td>
                       <td style={{ padding: '0.55rem 0.65rem', fontWeight: 700, whiteSpace: 'nowrap', color: bal > 0 ? '#dc2626' : '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>{bal > 0 ? 'USD ' + s.balance_usd : '✓'}</td>
-                      <td style={{ padding: '0.55rem 0.65rem', whiteSpace: 'nowrap' }}>
-                        {op ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#059669', fontSize: '0.7rem', fontWeight: 600 }}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>{op.nombre?.length > 18 ? op.nombre.slice(0,18)+'…' : op.nombre}</span> : <span style={{ color: '#cbd5e1', fontSize: '0.7rem' }}>—</span>}
+                      <td style={{ padding: '0.55rem 0.65rem', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
+                        {op ? (
+                          <button
+                            onClick={() => { window.location.href = `/gestion/operaciones?op=${encodeURIComponent(op.id)}` }}
+                            title={`Abrir operación: ${op.nombre || ''}`}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#059669', fontSize: '0.7rem', fontWeight: 600, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}
+                          >
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>{op.nombre?.length > 18 ? op.nombre.slice(0,18)+'…' : op.nombre}
+                          </button>
+                        ) : <span style={{ color: '#cbd5e1', fontSize: '0.7rem' }}>—</span>}
                       </td>
                       <td style={{ padding: '0.55rem 0.65rem' }} onClick={e => e.stopPropagation()}>
                         <button onClick={() => setConfirmDel(s.id)} style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid #fee2e2', background: '#fff', color: '#dc2626', fontSize: '0.85rem', cursor: 'pointer' }}>×</button>

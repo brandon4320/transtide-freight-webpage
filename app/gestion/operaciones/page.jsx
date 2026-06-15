@@ -1,6 +1,6 @@
 'use client';
-import { useState, useMemo, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useMemo, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 const n    = (v) => parseFloat(v) || 0;
@@ -72,6 +72,19 @@ const CONTAINER_M3 = { '20 Pies': 28, '40 Pies': 56, '40HQ': 76, 'Flat Rack': 76
 
 const emptyOp = () => ({ id: '', nombre: '', contenedor: '40HQ', bl: '', eta: '', estado: 'Consolidando', fecha: '' });
 
+// ─── tracking link helpers ──────────────────────────────────────────────────────
+const blNorm = (b) => (b || '').replace(/[\s-]/g, '').toUpperCase();
+const trackingStatusColor = (raw) => {
+  const s = (raw || '').toLowerCase();
+  if (/cancel/.test(s))  return '#dc2626';
+  if (/paid/.test(s))    return '#059669';
+  if (/pending/.test(s)) return '#d97706';
+  if (/deliver/.test(s)) return '#059669';
+  if (/transit/.test(s)) return '#ea580c';
+  return '#64748b';
+};
+const trackBalNum = (v) => { const x = parseFloat(String(v || '').replace(/\./g, '').replace(',', '.')); return isNaN(x) ? 0 : x; };
+
 // ─── InvoiceTable ─────────────────────────────────────────────────────────────
 function InvoiceTable({ rows, onUpdate, onAdd, onRemove, accentColor = '#ea580c' }) {
   const tot = catTot(rows);
@@ -137,13 +150,14 @@ function InvoiceTable({ rows, onUpdate, onAdd, onRemove, accentColor = '#ea580c'
 }
 
 // ─── OperationsList ───────────────────────────────────────────────────────────
-function OperationsList({ onSelect }) {
+function OperationsList({ onSelect, deepLinkId }) {
   const [ops,       setOps]       = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [modal,     setModal]     = useState(null); // null | 'new' | opObj
   const [form,      setForm]      = useState(emptyOp());
   const [confirm,   setConfirm]   = useState(null); // id to delete
   const [statusPop, setStatusPop] = useState(null); // op.id with open status picker
+  const [deepLinkDone, setDeepLinkDone] = useState(false);
 
   // Load from API
   useEffect(() => {
@@ -162,6 +176,16 @@ function OperationsList({ onSelect }) {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  // Deep-link: open a specific operation when ?op=<id> matches a loaded op
+  useEffect(() => {
+    if (deepLinkDone || !deepLinkId || loading) return;
+    const match = ops.find(o => String(o.id) === String(deepLinkId));
+    if (match) {
+      setDeepLinkDone(true);
+      onSelect(match);
+    }
+  }, [deepLinkId, ops, loading, deepLinkDone, onSelect]);
 
   // Occupied m³ comes from the operations GET (m3_total aggregated server-side)
   const getOcupado = (op) => {
@@ -464,6 +488,8 @@ function OperationDetail({ op, onBack }) {
   const [pendingNav, setPendingNav] = useState(null);
   const [checked,    setChecked]    = useState(() => new Set());
   const [checklistLoaded, setChecklistLoaded] = useState(false);
+  const [shipment,   setShipment]   = useState(null);
+  const [shipmentLoaded, setShipmentLoaded] = useState(false);
 
   // Load detail from API
   useEffect(() => {
@@ -530,6 +556,29 @@ function OperationDetail({ op, onBack }) {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  // load matching tracking shipment (by BL)
+  useEffect(() => {
+    let cancelled = false;
+    setShipmentLoaded(false);
+    setShipment(null);
+    (async () => {
+      try {
+        const r = await fetch('/api/tracking');
+        if (!r.ok) throw new Error('failed');
+        const data = await r.json();
+        const list = Array.isArray(data?.shipments) ? data.shipments : [];
+        const target = blNorm(op.bl);
+        const match = target ? list.find(s => blNorm(s.bl) === target) : null;
+        if (!cancelled) setShipment(match || null);
+      } catch {
+        if (!cancelled) setShipment(null);
+      } finally {
+        if (!cancelled) setShipmentLoaded(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [op.id, op.bl]);
 
   // warn before unload
   useEffect(() => {
@@ -917,6 +966,49 @@ function OperationDetail({ op, onBack }) {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Seguimiento del agente (tracking) */}
+          <div style={CARD}>
+            <div style={{ padding: '0.75rem 0.95rem', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <p style={{ fontSize: '0.82rem', fontWeight: 700 }}>Seguimiento del agente</p>
+              <button onClick={() => router.push('/gestion/tracking')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0284c7', fontSize: '0.7rem', fontWeight: 700, padding: 0 }}>Ver en Tracking →</button>
+            </div>
+            <div style={{ padding: '0.7rem 0.95rem 0.9rem' }}>
+              {!shipmentLoaded ? (
+                <p style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Cargando…</p>
+              ) : !shipment ? (
+                <p style={{ fontSize: '0.72rem', color: '#94a3b8', lineHeight: 1.4 }}>Sin embarque vinculado en Tracking (se vincula por N° BL).</p>
+              ) : (() => {
+                const stColor = trackingStatusColor(shipment.status);
+                const bal = trackBalNum(shipment.balance_usd);
+                const agente = shipment.agente || 'Bruce';
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ background: '#f1f5f9', color: '#334155', border: '1px solid #e2e8f0', fontSize: '0.64rem', fontWeight: 700, padding: '0.12rem 0.5rem', borderRadius: 5 }}>{agente}</span>
+                      {shipment.carrier && <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>{shipment.carrier}</span>}
+                      <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5, color: stColor, border: `1px solid ${stColor}40`, background: `${stColor}12`, fontSize: '0.64rem', fontWeight: 700, padding: '0.12rem 0.5rem', borderRadius: 5, whiteSpace: 'nowrap' }}>
+                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: stColor }} />{shipment.status || '—'}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: '#1e293b', fontWeight: 600 }}>
+                      {shipment.origen || '—'} <span style={{ color: '#cbd5e1' }}>→</span> {shipment.destino || '—'}
+                    </div>
+                    <div style={{ display: 'flex', gap: 14, fontSize: '0.72rem' }}>
+                      <div><span style={{ color: '#94a3b8' }}>Zarpe (ETD): </span><span style={{ color: '#475569', fontWeight: 600 }}>{shipment.etd || '—'}</span></div>
+                      <div><span style={{ color: '#94a3b8' }}>ETA: </span><span style={{ color: '#059669', fontWeight: 600 }}>{shipment.eta || '—'}</span></div>
+                    </div>
+                    {bal > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.4rem 0.55rem', background: '#fef2f2', borderRadius: 6, border: '1px solid #fecaca' }}>
+                        <span style={{ fontSize: '0.68rem', color: '#b91c1c', fontWeight: 600 }}>Saldo a pagar al agente</span>
+                        <span style={{ fontSize: '0.78rem', color: '#dc2626', fontWeight: 800 }}>USD {shipment.balance_usd}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
           </div>
 
           <div style={CARD}>
@@ -1423,8 +1515,18 @@ function Help({ title }) {
 
 
 // ─── Main Export ──────────────────────────────────────────────────────────────
-export default function Operations() {
+function OperationsInner() {
+  const searchParams = useSearchParams();
+  const deepLinkId = searchParams.get('op');
   const [selected, setSelected] = useState(null);
   if (selected) return <OperationDetail op={selected} onBack={() => setSelected(null)} />;
-  return <OperationsList onSelect={setSelected} />;
+  return <OperationsList onSelect={setSelected} deepLinkId={deepLinkId} />;
+}
+
+export default function Operations() {
+  return (
+    <Suspense fallback={<div style={{ padding: '4rem 2rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>Cargando operaciones...</div>}>
+      <OperationsInner />
+    </Suspense>
+  );
 }
