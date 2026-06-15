@@ -2059,6 +2059,25 @@ function SavedQuotesPanel({ onClose, onReactivate }) {
     }
   };
 
+  const convertir = async (q) => {
+    if (q.operation_id) { window.location.href = '/gestion/operaciones'; return; }
+    if (!confirm(`¿Convertir "${q.nombre}" en una operación?\n\nSe creará una operación con el cliente, contenedor, m³ y FOB precargados.`)) return;
+    setBusyId(q.id);
+    try {
+      const res = await fetch(`/api/db/cotizaciones/${q.id}/convertir`, { method: 'POST' });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || 'Error al convertir');
+      setQuotes(qs => qs.map(x => x.id === q.id ? { ...x, estado: 'aprobada', operation_id: j.operationId } : x));
+      if (confirm('✓ Operación creada. ¿Ir a Operaciones ahora?')) {
+        window.location.href = '/gestion/operaciones';
+      }
+    } catch (e) {
+      alert(e.message || 'No se pudo convertir');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const remove = async (q) => {
     if (!confirm(`¿Eliminar "${q.nombre}"?`)) return;
     setBusyId(q.id);
@@ -2142,6 +2161,10 @@ function SavedQuotesPanel({ onClose, onReactivate }) {
                   <button onClick={() => reactivate(q)} disabled={busy} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.9rem', borderRadius: '8px', border: 'none', cursor: busy ? 'default' : 'pointer', fontSize: '0.76rem', fontWeight: 700, background: '#2563eb', color: '#fff' }}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
                     Reactivar
+                  </button>
+                  <button onClick={() => convertir(q)} disabled={busy} title={q.operation_id ? 'Ya convertida — ir a la operación' : 'Crear operación desde esta cotización'} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.9rem', borderRadius: '8px', border: 'none', cursor: busy ? 'default' : 'pointer', fontSize: '0.76rem', fontWeight: 700, background: q.operation_id ? '#f0fdf4' : '#059669', color: q.operation_id ? '#16a34a' : '#fff' }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polygon points="3 6 12 2 21 6 21 16 12 20 3 16 3 6"/><line x1="12" y1="22" x2="12" y2="12"/></svg>
+                    {q.operation_id ? 'Ver operación' : 'Convertir en operación'}
                   </button>
                   <select value={q.estado} onChange={e => changeEstado(q, e.target.value)} disabled={busy} style={{ padding: '0.4rem 0.5rem', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.74rem', color: '#334155', background: '#fff', cursor: 'pointer' }}>
                     {ESTADOS.map(e => <option key={e.id} value={e.id}>{e.label}</option>)}

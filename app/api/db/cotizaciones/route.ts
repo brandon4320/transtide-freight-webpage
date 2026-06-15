@@ -9,7 +9,7 @@ export async function GET() {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const rows = await d1Query(
-    `SELECT id, nombre, cliente, modo, estado, total_usd, resumen, notas, created_by, created_at, updated_at
+    `SELECT id, nombre, cliente, modo, estado, total_usd, resumen, notas, operation_id, created_by, created_at, updated_at
      FROM cotizaciones ORDER BY updated_at DESC`
   )
   return NextResponse.json(rows)
