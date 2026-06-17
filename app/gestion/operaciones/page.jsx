@@ -559,6 +559,32 @@ function OperationDetail({ op, onBack }) {
     return () => { cancelled = true; };
   }, []);
 
+  // create a cliente inline; returns new id or null
+  const createCliente = async (nombre) => {
+    const nm = (nombre || '').trim();
+    if (!nm) { alert('Ingresá un nombre para el cliente.'); return null; }
+    try {
+      const r = await fetch('/api/db/clientes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre: nm }),
+      });
+      if (!r.ok) {
+        if (r.status === 403) alert('No tenés permisos para crear clientes.');
+        else if (r.status === 409) alert('Ya existe un cliente con ese nombre.');
+        else alert('No se pudo crear el cliente. Intentá de nuevo.');
+        return null;
+      }
+      const nuevo = await r.json();
+      if (!nuevo || !nuevo.id) { alert('No se pudo crear el cliente.'); return null; }
+      setClientes(prev => [...prev, nuevo]);
+      return nuevo.id;
+    } catch {
+      alert('No se pudo crear el cliente. Revisá la conexión.');
+      return null;
+    }
+  };
+
   // load matching tracking shipment (by BL)
   useEffect(() => {
     let cancelled = false;
@@ -750,6 +776,13 @@ function OperationDetail({ op, onBack }) {
   const cap = CONTAINER_M3[op.contenedor];
   const fillPct = cap ? (calc.totalM3 / cap) * 100 : 0;
 
+  // VEP reconciliation
+  const vepAsignado = calc.perProv.reduce((s, p) => s + (p.vepPesos || 0), 0);
+  const vepTotal = calc.tAdu || 0;
+  const vepDiff = Math.round(vepTotal - vepAsignado);
+  const vepMatch = Math.abs(vepDiff) <= 1 && vepTotal > 0;
+  const showVepBanner = vepTotal > 0 || vepAsignado > 0;
+
   if (detailLoading) {
     return (
       <div style={{ padding: '4rem 2rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.9rem' }}>
@@ -841,6 +874,26 @@ function OperationDetail({ op, onBack }) {
             </button>
           </div>
 
+          {showVepBanner && (
+            <div style={{
+              margin: '0.7rem 1rem 0',
+              fontSize: '0.72rem',
+              fontWeight: 600,
+              padding: '0.5rem 0.75rem',
+              borderRadius: 8,
+              border: '1px solid',
+              ...(vepMatch
+                ? { background: '#f0fdf4', borderColor: '#bbf7d0', color: '#16a34a' }
+                : { background: '#fffbeb', borderColor: '#fde68a', color: '#d97706' }),
+            }}>
+              {vepMatch
+                ? `VEP asignado: ${fmtP(vepAsignado)} — coincide con el total ✓`
+                : vepTotal === 0
+                  ? 'Cargá el VEP Aduana total en Costos compartidos para validar el reparto.'
+                  : `VEP asignado a proveedores: ${fmtP(vepAsignado)} de ${fmtP(vepTotal)} total · ${vepDiff > 0 ? `faltan ${fmtP(Math.abs(vepDiff))}` : `asignaste ${fmtP(Math.abs(vepDiff))} de más`}`}
+            </div>
+          )}
+
           <div style={{ overflowX: 'auto' }}>
             <table className="master-providers-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
               <thead>
@@ -900,6 +953,7 @@ function OperationDetail({ op, onBack }) {
                             <ExpandedDetail
                               p={p}
                               clientes={clientes}
+                              onCreateCliente={createCliente}
                               onUpdProveedor={(f, v) => updProveedor(i, f, v)}
                               onUpdCobrar={(f, v) => updCobrar(i, f, v)}
                               onToggleCobrado={() => toggleCobrado(i, p.cb.cobrado)}
@@ -1328,12 +1382,25 @@ function CategoryEditor({ cat, rows: initRows, onChange, onClose, onDelete }) {
   );
 }
 
-function ExpandedDetail({ p, clientes, onUpdProveedor, onUpdCobrar, onToggleCobrado, onRemove }) {
+function ExpandedDetail({ p, clientes, onCreateCliente, onUpdProveedor, onUpdCobrar, onToggleCobrado, onRemove }) {
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState('');
   const LBL_E  = { fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 };
   const SEC  = { fontSize: '0.65rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 };
   const HINT = { fontSize: '0.65rem', color: '#94a3b8', fontStyle: 'italic', marginTop: 3 };
   const CALC = { fontSize: '0.7rem', color: '#059669', fontWeight: 600, marginTop: 3, fontVariantNumeric: 'tabular-nums' };
   const INP_E = { width: '100%', padding: '0.4rem 0.55rem', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.78rem', color: '#1e293b', background: '#fff', outline: 'none', boxSizing: 'border-box' };
+
+  const handleCrear = async () => {
+    const nm = newName.trim();
+    if (!nm) return;
+    const newId = await onCreateCliente(nm);
+    if (newId) {
+      onUpdProveedor('clienteId', newId);
+      setCreating(false);
+      setNewName('');
+    }
+  };
 
   const vepPesos = n(p.tributosUSD) * n(p.tributosTC);
   const hasVepBoth = n(p.tributosUSD) > 0 && n(p.tributosTC) > 0;
@@ -1366,10 +1433,42 @@ function ExpandedDetail({ p, clientes, onUpdProveedor, onUpdCobrar, onToggleCobr
               <div>
                 <p style={LBL_E}>{(p.tipo || 'Cliente') === 'Cliente' ? 'Cliente final' : 'Categoría'}</p>
                 {(p.tipo || 'Cliente') === 'Cliente' ? (
-                  <select value={p.clienteId || ''} onChange={e => onUpdProveedor('clienteId', e.target.value)} style={{ ...INP_E, cursor: 'pointer' }}>
-                    <option value="">— Sin asignar —</option>
-                    {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                  </select>
+                  creating ? (
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                      <input
+                        autoFocus
+                        value={newName}
+                        onChange={e => setNewName(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter' && newName.trim()) { e.preventDefault(); handleCrear(); } }}
+                        placeholder="Nombre del cliente"
+                        style={{ ...INP_E, flex: 1 }}
+                      />
+                      <button
+                        onClick={handleCrear}
+                        disabled={!newName.trim()}
+                        style={{ flexShrink: 0, padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #16a34a', background: newName.trim() ? '#16a34a' : '#cbd5e1', color: '#fff', fontSize: '0.72rem', fontWeight: 600, cursor: newName.trim() ? 'pointer' : 'not-allowed' }}>
+                        Crear
+                      </button>
+                      <button
+                        onClick={() => { setCreating(false); setNewName(''); }}
+                        title="Cancelar"
+                        style={{ flexShrink: 0, padding: '0.4rem 0.5rem', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#94a3b8', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer' }}>
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <select
+                      value={p.clienteId || ''}
+                      onChange={e => {
+                        if (e.target.value === '__nuevo__') { setNewName(''); setCreating(true); }
+                        else onUpdProveedor('clienteId', e.target.value);
+                      }}
+                      style={{ ...INP_E, cursor: 'pointer' }}>
+                      <option value="">— Sin asignar —</option>
+                      {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                      <option value="__nuevo__">+ Crear cliente nuevo…</option>
+                    </select>
+                  )
                 ) : (
                   <div style={{ ...INP_E, background: '#f8fafc', color: '#94a3b8', fontStyle: 'italic' }}>Mercadería propia</div>
                 )}
