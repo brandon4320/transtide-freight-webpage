@@ -144,7 +144,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     const rows: any[] = body[cat] || []
     rows.forEach((row, idx) => {
       statements.push({
-        sql: `INSERT INTO gastos (operation_id, categoria, position, descripcion, factura, usd, tc, pesos, created_at)
+        sql: `INSERT OR REPLACE INTO gastos (operation_id, categoria, position, descripcion, factura, usd, tc, pesos, created_at)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
         params: [
           id, cat, idx,
@@ -164,7 +164,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   proveedores.forEach((p, idx) => {
     const cb = cobrar[idx] || {}
     statements.push({
-      sql: `INSERT INTO proveedores_op
+      sql: `INSERT OR REPLACE INTO proveedores_op
             (operation_id, position, nombre, tipo, cliente_id, m3, fob_usd, gastos_origen_usd, tributos_usd, tributos_tc,
              cobrar_tc, honorarios, desp_adic, cobrado, fecha_cobro, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,

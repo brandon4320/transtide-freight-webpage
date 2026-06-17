@@ -1,5 +1,5 @@
 'use client';
-import { useState, useMemo, useEffect, Suspense } from 'react';
+import { useState, useMemo, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -484,6 +484,8 @@ function OperationDetail({ op, onBack }) {
   const [addingCat,  setAddingCat]  = useState(false);
   const [isDirty,    setIsDirty]    = useState(false);
   const [saveFlash,  setSaveFlash]  = useState(false);
+  const [saving,     setSaving]     = useState(false);
+  const savingRef = useRef(false);
   const [showDiscard,setShowDiscard]= useState(false);
   const [pendingNav, setPendingNav] = useState(null);
   const [checked,    setChecked]    = useState(() => new Set());
@@ -649,6 +651,9 @@ function OperationDetail({ op, onBack }) {
   });
 
   const saveAll = async () => {
+    if (savingRef.current) return; // evita guardados concurrentes (duplicaba datos)
+    savingRef.current = true;
+    setSaving(true);
     try {
       const r = await fetch(`/api/db/operations/${op.id}/detail`, {
         method: 'PUT',
@@ -661,6 +666,9 @@ function OperationDetail({ op, onBack }) {
       setTimeout(() => setSaveFlash(false), 2200);
     } catch (e) {
       alert('Error al guardar. Reintentá.');
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
   };
   const doNavigate     = () => { if (pendingNav) { router.push(pendingNav); setPendingNav(null); } else { onBack(); } };
@@ -789,9 +797,9 @@ function OperationDetail({ op, onBack }) {
               <span>ETA <strong style={{ color: '#059669' }}>{op.eta || '—'}</strong></span>
             </div>
           </div>
-          <button onClick={saveAll} disabled={!isDirty} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 1.1rem', borderRadius: 8, border: isDirty ? 'none' : '1px solid #e2e8f0', background: isDirty ? '#059669' : '#fff', color: isDirty ? '#fff' : '#94a3b8', fontWeight: 700, fontSize: '0.78rem', cursor: isDirty ? 'pointer' : 'default' }}>
+          <button onClick={saveAll} disabled={!isDirty || saving} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 1.1rem', borderRadius: 8, border: isDirty ? 'none' : '1px solid #e2e8f0', background: saving ? '#94a3b8' : (isDirty ? '#059669' : '#fff'), color: isDirty || saving ? '#fff' : '#94a3b8', fontWeight: 700, fontSize: '0.78rem', cursor: (isDirty && !saving) ? 'pointer' : 'default' }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-            {isDirty ? 'Guardar' : 'Guardado'}
+            {saving ? 'Guardando…' : (isDirty ? 'Guardar' : 'Guardado')}
           </button>
         </div>
 
