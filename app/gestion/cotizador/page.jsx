@@ -2008,10 +2008,27 @@ function CotizadorAereo() {
                 </>)}
               </div>
 
+              {/* Honorarios & cierre — itemizado */}
+              <div style={{ border: '1px solid #e9d5ff', borderRadius: '10px', overflow: 'hidden', marginBottom: '1.2rem' }}>
+                <div style={{ padding: '6px 12px', background: '#faf5ff', borderBottom: '2px solid #e9d5ff' }}><span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Servicio Transtide</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 12px', borderBottom: '1px solid #f8fafc', fontSize: '0.83rem', fontWeight: 600, color: '#1e293b' }}>
+                  <span>Costo Total (mercadería + flete + aranceles + gastos)</span><span>{usd(c.totConC)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 12px', borderBottom: '1px solid #f8fafc', fontSize: '0.83rem', color: '#374151' }}>
+                  <span>+ Honorarios ({pHon}%)</span><span>{usd(c.honorarios)}</span>
+                </div>
+                {!usaSociedadPropia && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 12px', borderBottom: '1px solid #f8fafc', fontSize: '0.83rem', color: '#7c3aed' }}>
+                    <span>+ Gastos de Facturación ({pFac}%)</span><span>{usd(c.gastFac)}</span>
+                  </div>
+                )}
+              </div>
+
               <div style={{ display: 'grid', gridTemplateColumns: usaSociedadPropia ? '1fr' : '1fr 1fr', gap: '0.75rem', marginBottom: '1.2rem' }}>
                 <div style={{ background: '#065f46', borderRadius: '12px', padding: '1.1rem 1.2rem' }}>
                   <p style={{ fontSize: '0.62rem', fontWeight: 700, color: '#6ee7b7', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '6px' }}>{usaSociedadPropia ? 'Precio Final' : 'Precio Final CON Factura'}</p>
                   <p style={{ fontSize: '1.5rem', fontWeight: 800, color: '#fff', lineHeight: 1 }}>{usd(c.precioConF)}</p>
+                  <p style={{ fontSize: '0.7rem', color: '#6ee7b7', marginTop: '0.2rem' }}>Hon. {usd(c.honorarios)}{!usaSociedadPropia ? ` + Fac. ${usd(c.gastFac)}` : ''}</p>
                 </div>
                 {!usaSociedadPropia && (
                   <div style={{ background: '#78350f', borderRadius: '12px', padding: '1.1rem 1.2rem' }}>
