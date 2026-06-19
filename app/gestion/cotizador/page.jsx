@@ -16,38 +16,42 @@ const n = (v) => parseFloat(v) || 0;
 // Usa un iframe oculto; cae a una pestaña nueva solo si el iframe falla.
 function printHTML(html) {
   try {
+    // Quitar cualquier iframe de impresión anterior que haya quedado
+    const prev = document.getElementById('__print_iframe__');
+    if (prev) { try { prev.remove(); } catch {} }
+
     const iframe = document.createElement('iframe');
+    iframe.id = '__print_iframe__';
+    iframe.setAttribute('aria-hidden', 'true');
     iframe.style.position = 'fixed';
     iframe.style.right = '0';
     iframe.style.bottom = '0';
     iframe.style.width = '0';
     iframe.style.height = '0';
     iframe.style.border = '0';
-    document.body.appendChild(iframe);
+    iframe.style.visibility = 'hidden';
 
-    const doc = iframe.contentWindow?.document || iframe.contentDocument;
-    doc.open();
-    doc.write(html);
-    doc.close();
-
+    let fired = false;
     const trigger = () => {
+      if (fired) return;           // dispara EXACTAMENTE una vez
+      fired = true;
       try {
-        iframe.contentWindow.focus();
-        iframe.contentWindow.print();
+        const win = iframe.contentWindow;
+        win.focus();
+        win.print();
       } catch (e) {
         console.error('print failed', e);
       }
-      // limpiar después de un rato (deja tiempo al diálogo de impresión)
-      setTimeout(() => { try { document.body.removeChild(iframe); } catch {} }, 60000);
+      setTimeout(() => { try { iframe.remove(); } catch {} }, 60000);
     };
 
-    // esperar a que el contenido (y fuentes) carguen
-    if (iframe.contentWindow?.document?.readyState === 'complete') {
-      setTimeout(trigger, 300);
-    } else {
-      iframe.onload = () => setTimeout(trigger, 300);
-      setTimeout(trigger, 800); // fallback por si onload no dispara
-    }
+    // srcdoc dispara onload de forma confiable cuando el contenido está listo
+    iframe.srcdoc = html;
+    iframe.onload = () => setTimeout(trigger, 350); // deja asentar fuentes/estilos
+    document.body.appendChild(iframe);
+
+    // Red de seguridad: si onload no disparó en 1.5s, forzar
+    setTimeout(trigger, 1500);
   } catch (e) {
     // Fallback: pestaña nueva
     const w = window.open('', '_blank');
