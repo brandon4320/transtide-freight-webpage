@@ -6,7 +6,7 @@ import { getSessionInfo, isAdmin } from '@/lib/perms'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const VALID_SECTIONS = ['operaciones', 'tracking', 'clientes', 'cotizador']
+const VALID_SECTIONS = ['operaciones', 'tracking', 'clientes', 'cotizador', 'comparador']
 const VALID_ROLES = ['admin', 'editor', 'viewer']
 
 function cleanSections(input: any): string {

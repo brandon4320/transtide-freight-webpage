@@ -11,6 +11,7 @@ const SECTIONS = [
   { id: 'tracking', label: 'Tracking' },
   { id: 'clientes', label: 'Clientes' },
   { id: 'cotizador', label: 'Cotizador' },
+  { id: 'comparador', label: 'Comparador' },
 ]
 const ROLES = [
   { id: 'admin',  label: 'Administrador', desc: 'Acceso total + gestión de usuarios', c: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
