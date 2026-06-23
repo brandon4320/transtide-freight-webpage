@@ -752,12 +752,12 @@ function CotizadorMaritimo() {
               </div>
             </div>
 
-            {/* charges table */}
+            {/* charges table — la columna "lo que cobrás" solo aplica al cotizar para un cliente */}
             <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden' }}>
-              <div className="cot-charges-header" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.4fr', background: '#f8fafc', padding: '0.45rem 0.85rem', borderBottom: '1px solid #e2e8f0', gap: '0.5rem' }}>
+              <div className="cot-charges-header" style={{ display: 'grid', gridTemplateColumns: mode === 'cliente' ? '1fr 1fr 1.4fr' : '1fr 1.2fr', background: '#f8fafc', padding: '0.45rem 0.85rem', borderBottom: '1px solid #e2e8f0', gap: '0.5rem' }}>
                 <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Concepto</span>
                 <span className="cot-charges-prorated" style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', textAlign: 'right' }}>Tu costo prorrateado</span>
-                <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', textAlign: 'right' }}>Lo que cobrás al cliente</span>
+                {mode === 'cliente' && <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', textAlign: 'right' }}>Lo que cobrás al cliente</span>}
               </div>
               {[
                 ['Flete', c.fleteR, fleteCli, setFleteCli],
@@ -766,12 +766,14 @@ function CotizadorMaritimo() {
                 ['Naviera', c.navR, gNav, setGNav],
                 ['Logística', c.logR, gLog, setGLog],
               ].map(([label, prorated, val, setVal], i, arr) => (
-                <div key={label} className="cot-charges-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.4fr', alignItems: 'center', padding: '0.48rem 0.85rem', borderBottom: i < arr.length - 1 ? '1px solid #f1f5f9' : 'none', gap: '0.5rem' }}>
+                <div key={label} className="cot-charges-row" style={{ display: 'grid', gridTemplateColumns: mode === 'cliente' ? '1fr 1fr 1.4fr' : '1fr 1.2fr', alignItems: 'center', padding: '0.48rem 0.85rem', borderBottom: i < arr.length - 1 ? '1px solid #f1f5f9' : 'none', gap: '0.5rem' }}>
                   <span style={{ fontSize: '0.83rem', fontWeight: 600, color: '#475569' }}>{label}</span>
                   <span className="cot-charges-prorated" style={{ fontSize: '0.83rem', color: c.ratio > 0 ? '#1e293b' : '#cbd5e1', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{usd(prorated)}</span>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <input type="number" inputMode="decimal" step="any" min="0" placeholder="0" value={val} onChange={e => setVal(e.target.value)} style={{ ...INP, width: '130px', textAlign: 'right' }} />
-                  </div>
+                  {mode === 'cliente' && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <input type="number" inputMode="decimal" step="any" min="0" placeholder="0" value={val} onChange={e => setVal(e.target.value)} style={{ ...INP, width: '130px', textAlign: 'right' }} />
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
