@@ -795,8 +795,8 @@ function CotizadorMaritimo() {
               <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Identificación del embarque</p>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '0.6rem' }}>
-              <F label="Cliente">
-                <input type="text" list="clientes-list-mar" value={cliente} onChange={e => setCliente(e.target.value)} placeholder="Nombre del cliente" style={INP} />
+              <F label={mode === 'cliente' ? 'Cliente' : 'Cliente / Referencia'}>
+                <input type="text" list="clientes-list-mar" value={cliente} onChange={e => setCliente(e.target.value)} placeholder={mode === 'cliente' ? 'Nombre del cliente' : 'Referencia de la importación'} style={INP} />
                 <datalist id="clientes-list-mar">
                   {clientesList.map(cl => <option key={cl.id} value={cl.nombre} />)}
                 </datalist>
@@ -829,7 +829,7 @@ function CotizadorMaritimo() {
           <Card style={{ padding: '1.25rem' }}>
 
             {/* ── TAB: COTIZACIÓN CLIENTE ── */}
-            {tab === 'cliente_fob' && (
+            {tab === 'cliente_fob' && mode === 'cliente' && (
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '1rem' }}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
@@ -946,8 +946,11 @@ function CotizadorMaritimo() {
                   ))}
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginTop: '0.75rem' }}>
-                  {[['Base IVA cliente', c.bivC, '#eff6ff', '#2563eb'], ['Base IVA real', c.bivR, '#f0fdf4', '#059669']].map(([l, v, bg, color]) => (
+                <div style={{ display: 'grid', gridTemplateColumns: mode === 'cliente' ? '1fr 1fr' : '1fr', gap: '0.5rem', marginTop: '0.75rem' }}>
+                  {(mode === 'cliente'
+                    ? [['Base IVA cliente', c.bivC, '#eff6ff', '#2563eb'], ['Base IVA real', c.bivR, '#f0fdf4', '#059669']]
+                    : [['Base IVA', c.bivR, '#f0fdf4', '#059669']]
+                  ).map(([l, v, bg, color]) => (
                     <div key={l} style={{ background: bg, borderRadius: '8px', padding: '0.6rem 0.8rem' }}>
                       <p style={{ fontSize: '0.68rem', color: '#94a3b8', marginBottom: '0.15rem' }}>{l}</p>
                       <p style={{ fontSize: '0.95rem', fontWeight: 700, color }}>{usd(v)}</p>
