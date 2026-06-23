@@ -385,6 +385,7 @@ function CotizadorMaritimo() {
 
   // ── serialize / restore (saved quotes) ──
   const serialize = () => ({
+    mode, // 'cliente' | 'personal' — para reactivar con el formato elegido
     contType, contM3, contCosts, cliente, descripcion, clasificacion,
     fobCliente, fobDecCli, fleteCli, gDes, gTer, gNav, gLog,
     fobReal, fobDecReal, fleteRealInput, m3Merch,
@@ -396,6 +397,10 @@ function CotizadorMaritimo() {
     const handler = (e) => {
       if (!e.detail || e.detail.mode !== 'maritimo') return;
       const d = e.detail.data || {};
+      if (d.mode === 'cliente' || d.mode === 'personal') {
+        setMode(d.mode);
+        setTab(d.mode === 'cliente' ? 'cliente_fob' : 'real_fob');
+      }
       if (d.contType !== undefined) setContType(d.contType);
       if (d.contM3 !== undefined) setContM3(d.contM3);
       if (d.contCosts !== undefined) setContCosts(d.contCosts);
