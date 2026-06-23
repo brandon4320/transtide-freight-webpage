@@ -85,7 +85,7 @@ const ESTADOS = [
 const estadoMeta = (id) => ESTADOS.find(e => e.id === id) || ESTADOS[0];
 
 // ─── save-quote modal (shared) ──────────────────────────────────────────────────
-function SaveQuoteModal({ modo, defaultCliente, getPayload, onClose }) {
+function SaveQuoteModal({ modo, defaultCliente, getPayload, ncmPayload = null, onClose }) {
   const [nombre, setNombre]   = useState(defaultCliente || '');
   const [cliente, setCliente] = useState(defaultCliente || '');
   const [estado, setEstado]   = useState('borrador');
@@ -105,6 +105,19 @@ function SaveQuoteModal({ modo, defaultCliente, getPayload, onClose }) {
         body: JSON.stringify({ nombre: nombre.trim(), cliente: cliente.trim(), estado, notas, modo, ...extra }),
       });
       if (!res.ok) throw new Error('Error al guardar');
+      // Best-effort: upsert la NCM a la biblioteca. Nunca bloquea el guardado.
+      if (ncmPayload) {
+        try {
+          const np = ncmPayload();
+          if (np) {
+            await fetch('/api/db/ncm', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(np),
+            }).catch(() => {});
+          }
+        } catch {}
+      }
       setDone(true);
       setTimeout(onClose, 900);
     } catch (e) {
@@ -156,6 +169,40 @@ function SaveQuoteButton({ onClick }) {
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
       Guardar cotización
     </button>
+  );
+}
+
+// ─── NCM picker (compact selector, used in both cotizadores) ────────────────────
+// Aplica una NCM guardada: setea código, descripción (solo si la guardada no está vacía)
+// y todas las tasas tal cual están almacenadas (strings crudos).
+function applyNcm(n, setters) {
+  if (!n) return;
+  const { setClasificacion, setDescripcion, setPDer, setPTas, setPIva, setPIvaA, setPGan, setPIIBB } = setters;
+  setClasificacion(n.codigo || '');
+  if (n.producto) setDescripcion(n.producto);
+  setPDer(n.der || '');
+  setPTas(n.tasa || '');
+  setPIva(n.iva || '');
+  setPIvaA(n.iva_adic || '');
+  setPGan(n.ganancias || '');
+  setPIIBB(n.iibb || '');
+}
+
+function NcmPicker({ ncmList, onPick }) {
+  return (
+    <select
+      value=""
+      onChange={e => {
+        const sel = ncmList.find(x => String(x.id) === e.target.value);
+        if (sel) onPick(sel);
+      }}
+      style={{ ...INP, cursor: 'pointer', background: '#f8fafc' }}
+    >
+      <option value="">— Elegir NCM guardada —</option>
+      {ncmList.map(n => (
+        <option key={n.id} value={n.id}>{n.codigo}{n.producto ? ` — ${n.producto}` : ''}</option>
+      ))}
+    </select>
   );
 }
 
@@ -293,6 +340,12 @@ function CotizadorMaritimo() {
       }
     })();
     return () => { cancelled = true; };
+  }, []);
+
+  // ── NCM library (picker + autocomplete) ──
+  const [ncmList, setNcmList] = useState([]);
+  useEffect(() => {
+    fetch('/api/db/ncm').then(r => r.ok ? r.json() : []).then(d => setNcmList(Array.isArray(d) ? d : [])).catch(() => {});
   }, []);
 
   // ── LADO CLIENTE ──
@@ -746,8 +799,18 @@ function CotizadorMaritimo() {
                   {clientesList.map(cl => <option key={cl.id} value={cl.nombre} />)}
                 </datalist>
               </F>
-              <F label="Posición arancelaria"><TI value={clasificacion} onChange={setClasificacion} placeholder="8456.11.00" /></F>
+              <F label="Posición arancelaria">
+                <input type="text" list="ncm-codes-mar" value={clasificacion} onChange={e => setClasificacion(e.target.value)} placeholder="8456.11.00" style={INP} />
+                <datalist id="ncm-codes-mar">
+                  {ncmList.map(nc => <option key={nc.id} value={nc.codigo}>{nc.producto}</option>)}
+                </datalist>
+              </F>
             </div>
+            {ncmList.length > 0 && (
+              <F label="NCM guardada (autocompleta aranceles)">
+                <NcmPicker ncmList={ncmList} onPick={(nc) => applyNcm(nc, { setClasificacion, setDescripcion, setPDer, setPTas, setPIva, setPIvaA, setPGan, setPIIBB })} />
+              </F>
+            )}
             <F label="Descripción de la mercadería"><TI value={descripcion} onChange={setDescripcion} placeholder="Ej: Máquinas cortadoras láser 1000W" /></F>
           </Card>
 
@@ -1313,6 +1376,7 @@ function CotizadorMaritimo() {
             resumen: `FOB ${Math.round(c.fobC)} · ${n(m3Merch)}m³ · USD ${(Math.round((usaSociedadPropia ? c.precioSinF : c.precioConF)) / 1000).toFixed(1)}k final`,
             data: serialize(),
           })}
+          ncmPayload={() => clasificacion.trim() ? ({ codigo: clasificacion.trim(), producto: descripcion, der: String(pDer), tasa: String(pTas), iva: String(pIva), iva_adic: String(pIvaA), ganancias: String(pGan), iibb: String(pIIBB) }) : null}
           onClose={() => setShowSave(false)}
         />
       )}
@@ -1343,6 +1407,12 @@ function CotizadorAereo() {
       }
     })();
     return () => { cancelled = true; };
+  }, []);
+
+  // ── NCM library (picker + autocomplete) ──
+  const [ncmList, setNcmList] = useState([]);
+  useEffect(() => {
+    fetch('/api/db/ncm').then(r => r.ok ? r.json() : []).then(d => setNcmList(Array.isArray(d) ? d : [])).catch(() => {});
   }, []);
 
   // carga: el agente nos pasa m³ y peso real, no diferenciamos por bulto
@@ -1635,8 +1705,18 @@ function CotizadorAereo() {
                   {clientesList.map(cl => <option key={cl.id} value={cl.nombre} />)}
                 </datalist>
               </F>
-              <F label="Posición arancelaria"><TI value={clasificacion} onChange={setClasificacion} placeholder="8456.11.00" /></F>
+              <F label="Posición arancelaria">
+                <input type="text" list="ncm-codes-aereo" value={clasificacion} onChange={e => setClasificacion(e.target.value)} placeholder="8456.11.00" style={INP} />
+                <datalist id="ncm-codes-aereo">
+                  {ncmList.map(nc => <option key={nc.id} value={nc.codigo}>{nc.producto}</option>)}
+                </datalist>
+              </F>
             </div>
+            {ncmList.length > 0 && (
+              <F label="NCM guardada (autocompleta aranceles)">
+                <NcmPicker ncmList={ncmList} onPick={(nc) => applyNcm(nc, { setClasificacion, setDescripcion, setPDer, setPTas, setPIva, setPIvaA, setPGan, setPIIBB })} />
+              </F>
+            )}
             <F label="Descripción de la mercadería"><TI value={descripcion} onChange={setDescripcion} placeholder="Ej: Componentes electrónicos" /></F>
           </Card>
 
@@ -2061,6 +2141,7 @@ function CotizadorAereo() {
             resumen: `FOB ${Math.round(c.fobC)} · ${chargeable.toFixed(0)}kg · USD ${(Math.round((usaSociedadPropia ? c.precioSinF : c.precioConF)) / 1000).toFixed(1)}k final`,
             data: serialize(),
           })}
+          ncmPayload={() => clasificacion.trim() ? ({ codigo: clasificacion.trim(), producto: descripcion, der: String(pDer), tasa: String(pTas), iva: String(pIva), iva_adic: String(pIvaA), ganancias: String(pGan), iibb: String(pIIBB) }) : null}
           onClose={() => setShowSave(false)}
         />
       )}
@@ -2247,6 +2328,188 @@ function SavedQuotesPanel({ onClose, onReactivate }) {
   );
 }
 
+// ─── NCM library panel (manage saved NCM codes) ────────────────────────────────
+const NCM_FIELDS = [
+  ['codigo', 'Código NCM *', '8456.11.00'],
+  ['producto', 'Producto / descripción', 'Ej: Máquinas láser'],
+  ['der', 'DER %', '35'],
+  ['tasa', 'Tasa Estadística %', '0'],
+  ['iva', 'IVA %', '21'],
+  ['iva_adic', 'IVA Adicional %', '20'],
+  ['ganancias', 'Perc. Ganancias %', '6'],
+  ['iibb', 'Perc. IIBB %', '2.5'],
+];
+
+function NcmForm({ initial, onCancel, onSaved }) {
+  const empty = { codigo: '', producto: '', der: '', tasa: '', iva: '', iva_adic: '', ganancias: '', iibb: '', notas: '' };
+  const [form, setForm] = useState({ ...empty, ...(initial || {}) });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const save = async () => {
+    if (!form.codigo.trim()) { setErr('El código NCM es obligatorio.'); return; }
+    setSaving(true); setErr('');
+    const body = {
+      codigo: form.codigo.trim(), producto: form.producto, der: form.der, tasa: form.tasa,
+      iva: form.iva, iva_adic: form.iva_adic, ganancias: form.ganancias, iibb: form.iibb, notas: form.notas,
+    };
+    try {
+      let res;
+      if (initial && initial.id) {
+        res = await fetch(`/api/db/ncm/${initial.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      } else {
+        res = await fetch('/api/db/ncm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      }
+      if (!res.ok) throw new Error('Error al guardar');
+      onSaved();
+    } catch (e) {
+      setErr(e.message || 'Error al guardar');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ background: '#fff', borderRadius: '12px', padding: '1rem', border: '1px solid #e2e8f0' }}>
+      <p style={{ fontSize: '0.82rem', fontWeight: 800, color: '#1e293b', marginBottom: '0.8rem' }}>{initial && initial.id ? 'Editar NCM' : 'Nueva NCM'}</p>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+        {NCM_FIELDS.map(([key, label, ph]) => (
+          <div key={key} style={key === 'codigo' || key === 'producto' ? { gridColumn: '1 / -1' } : {}}>
+            <label style={LBL}>{label}</label>
+            <input
+              type={['der','tasa','iva','iva_adic','ganancias','iibb'].includes(key) ? 'number' : 'text'}
+              inputMode={['der','tasa','iva','iva_adic','ganancias','iibb'].includes(key) ? 'decimal' : undefined}
+              step="any"
+              value={form[key] ?? ''}
+              onChange={e => set(key, e.target.value)}
+              placeholder={ph}
+              style={{ ...INP, fontFamily: key === 'codigo' ? 'monospace' : 'inherit' }}
+            />
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: '0.6rem' }}>
+        <label style={LBL}>Notas</label>
+        <textarea value={form.notas ?? ''} onChange={e => set('notas', e.target.value)} placeholder="Opcional" rows={2} style={{ ...INP, resize: 'vertical', fontFamily: 'inherit' }} />
+      </div>
+      {err && <p style={{ fontSize: '0.78rem', color: '#dc2626', marginTop: '0.5rem' }}>{err}</p>}
+      <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '0.75rem' }}>
+        <button onClick={onCancel} style={{ padding: '0.5rem 1rem', borderRadius: '9px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer' }}>Cancelar</button>
+        <button onClick={save} disabled={saving} style={{ padding: '0.5rem 1.2rem', borderRadius: '9px', border: 'none', background: saving ? '#94a3b8' : '#2563eb', color: '#fff', fontWeight: 700, fontSize: '0.78rem', cursor: saving ? 'default' : 'pointer' }}>{saving ? 'Guardando…' : 'Guardar'}</button>
+      </div>
+    </div>
+  );
+}
+
+function NcmPanel({ onClose }) {
+  const [list, setList]       = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr]         = useState('');
+  const [search, setSearch]   = useState('');
+  const [editing, setEditing] = useState(null); // null = none, {} = new, {id,...} = edit
+  const [busyId, setBusyId]   = useState(null);
+
+  const load = async () => {
+    setLoading(true); setErr('');
+    try {
+      const res = await fetch('/api/db/ncm');
+      if (!res.ok) throw new Error('Error al cargar');
+      const json = await res.json();
+      setList(Array.isArray(json) ? json : []);
+    } catch (e) {
+      setErr(e.message || 'Error al cargar');
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { load(); }, []);
+
+  const remove = async (nc) => {
+    if (!confirm(`¿Eliminar la NCM "${nc.codigo}"?`)) return;
+    setBusyId(nc.id);
+    try {
+      const res = await fetch(`/api/db/ncm/${nc.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Error');
+      setList(xs => xs.filter(x => x.id !== nc.id));
+    } catch {
+      alert('No se pudo eliminar');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const onSaved = () => { setEditing(null); load(); };
+
+  const s = search.trim().toLowerCase();
+  const visible = list.filter(nc =>
+    !s || (nc.codigo || '').toLowerCase().includes(s) || (nc.producto || '').toLowerCase().includes(s)
+  );
+
+  // arma "DER 35% · IVA 21% · …" omitiendo vacíos/cero
+  const ratesLine = (nc) => {
+    const parts = [];
+    const add = (lbl, v) => { const num = parseFloat(v); if (v != null && v !== '' && !isNaN(num) && num !== 0) parts.push(`${lbl} ${v}%`); };
+    add('DER', nc.der); add('Tasa', nc.tasa); add('IVA', nc.iva);
+    add('IVA ad.', nc.iva_adic); add('Gan.', nc.ganancias); add('IIBB', nc.iibb);
+    return parts.join(' · ');
+  };
+
+  return (
+    <div onClick={e => { if (e.target === e.currentTarget) onClose(); }} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', zIndex: 1050, display: 'flex', alignItems: 'stretch', justifyContent: 'flex-end' }}>
+      <div style={{ background: '#f8fafc', width: '100%', maxWidth: '560px', height: '100%', overflowY: 'auto', boxShadow: '-10px 0 40px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column' }}>
+        {/* header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.1rem 1.4rem', borderBottom: '1px solid #e2e8f0', background: '#fff', position: 'sticky', top: 0, zIndex: 10 }}>
+          <div>
+            <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#1e293b' }}>NCM guardadas</h3>
+            <p style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{list.length} posición{list.length === 1 ? '' : 'es'} arancelaria{list.length === 1 ? '' : 's'}</p>
+          </div>
+          <button onClick={onClose} style={{ width: '34px', height: '34px', borderRadius: '50%', border: 'none', cursor: 'pointer', background: '#f1f5f9', color: '#64748b', fontSize: '1.1rem' }}>×</button>
+        </div>
+
+        {/* search + new */}
+        <div style={{ padding: '0.9rem 1.4rem', background: '#fff', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: '64px', zIndex: 9, display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por código o producto…" style={{ ...INP, flex: 1 }} />
+          <button onClick={() => setEditing({})} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.55rem 0.9rem', borderRadius: '9px', border: 'none', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700, background: '#ea580c', color: '#fff', whiteSpace: 'nowrap' }}>
+            + Nueva NCM
+          </button>
+        </div>
+
+        {/* body */}
+        <div style={{ padding: '1rem 1.4rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', flex: 1 }}>
+          {editing && (
+            <NcmForm initial={editing.id ? editing : null} onCancel={() => setEditing(null)} onSaved={onSaved} />
+          )}
+
+          {loading && <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Cargando…</p>}
+          {err && <p style={{ color: '#dc2626', fontSize: '0.85rem' }}>{err}</p>}
+          {!loading && !err && visible.length === 0 && !editing && <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>No hay NCM que coincidan. Creá una con “+ Nueva NCM”.</p>}
+
+          {visible.map(nc => {
+            const busy = busyId === nc.id;
+            const rl = ratesLine(nc);
+            return (
+              <div key={nc.id} style={{ background: '#fff', borderRadius: '12px', padding: '0.9rem 1rem', border: '1px solid #e2e8f0', opacity: busy ? 0.6 : 1 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem', marginBottom: '0.35rem' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ fontSize: '0.9rem', fontWeight: 800, color: '#1e293b', fontFamily: 'monospace' }}>{nc.codigo}</p>
+                    {nc.producto && <p style={{ fontSize: '0.78rem', color: '#475569', marginTop: '0.1rem' }}>{nc.producto}</p>}
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
+                    <button onClick={() => setEditing(nc)} disabled={busy} style={{ padding: '0.32rem 0.7rem', borderRadius: '8px', border: '1px solid #e2e8f0', cursor: busy ? 'default' : 'pointer', fontSize: '0.74rem', fontWeight: 700, background: '#fff', color: '#334155' }}>Editar</button>
+                    <button onClick={() => remove(nc)} disabled={busy} title="Eliminar" style={{ width: '28px', height: '28px', borderRadius: '8px', border: '1px solid #fecaca', cursor: busy ? 'default' : 'pointer', fontSize: '0.95rem', fontWeight: 700, background: '#fff', color: '#dc2626', lineHeight: 1 }}>×</button>
+                  </div>
+                </div>
+                {rl && <p style={{ fontSize: '0.74rem', color: '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>{rl}</p>}
+                {nc.notas && <p style={{ fontSize: '0.72rem', color: '#cbd5e1', marginTop: '0.25rem' }}>{nc.notas}</p>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── tab switcher + default export ────────────────────────────────────────────
 function CotizadorInner() {
   const searchParams = useSearchParams();
@@ -2256,6 +2519,7 @@ function CotizadorInner() {
   const [mode, setMode] = useState(initialMode);
   const [importOpen, setImportOpen] = useState(false);
   const [savedOpen, setSavedOpen] = useState(false);
+  const [ncmOpen, setNcmOpen] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(Array.from(searchParams.entries()));
@@ -2324,6 +2588,22 @@ function CotizadorInner() {
           </button>
 
           <button
+            onClick={() => setNcmOpen(true)}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              padding: '0.55rem 1.1rem', borderRadius: 10, border: '1px solid #e2e8f0',
+              background: '#fff', color: '#334155', fontWeight: 700, fontSize: '0.82rem',
+              cursor: 'pointer',
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+              <line x1="7" y1="7" x2="7.01" y2="7" />
+            </svg>
+            NCM guardadas
+          </button>
+
+          <button
             onClick={() => setImportOpen(true)}
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 8,
@@ -2363,6 +2643,10 @@ function CotizadorInner() {
           onClose={() => setSavedOpen(false)}
           onReactivate={handleReactivate}
         />
+      )}
+
+      {ncmOpen && (
+        <NcmPanel onClose={() => setNcmOpen(false)} />
       )}
     </>
   );
