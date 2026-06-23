@@ -524,7 +524,13 @@ function CotizadorMaritimo() {
     const ganTotal = mFOB + mFlet + mAranc + mGas + honorarios;
 
     // ── modo personal ──
-    const precioVenta = totConR * (1 + mrg);
+    // El IVA del import es crédito fiscal recuperable → NO es costo real.
+    // El margen se aplica sobre el costo SIN IVA; al vender se suma el IVA.
+    const ventaNeta      = totSinR * (1 + mrg);          // precio de venta sin IVA
+    const gananciaNeta   = totSinR * mrg;                // = ventaNeta - costo sin IVA
+    const ivaVentaMonto  = ventaNeta * iva;              // IVA que cargás en la venta (pIva)
+    const precioVentaFinal = ventaNeta * (1 + iva);      // precio final con IVA
+    const precioVenta    = precioVentaFinal;             // alias (compat)
 
     return {
       fobC, fobDC, fobR, fobDR,
@@ -534,7 +540,7 @@ function CotizadorMaritimo() {
       desR, terR, navR, logR, gasR, totConR, totSinR,
       honorarios, gastFac, precioConF, precioSinF,
       mFOB, mFlet, mDer, mTas, mIva, mIvaA, mGan, mIIBB, mAranc, mGas, ganTotal,
-      precioVenta,
+      precioVenta, ventaNeta, gananciaNeta, ivaVentaMonto, precioVentaFinal,
       ratio, curM3,
     };
   }, [
@@ -1036,14 +1042,17 @@ function CotizadorMaritimo() {
                 <F label="Margen de ganancia deseado %">
                   <input type="number" inputMode="decimal" step="any" min="0" value={pMrg} onChange={e => setPMrg(e.target.value)} style={INP} />
                 </F>
-                <div style={{ background: '#f0fdf4', borderRadius: '10px', padding: '1rem', marginTop: '0.5rem' }}>
+                <p style={{ fontSize: '0.68rem', color: '#94a3b8', margin: '0 0 0.6rem' }}>El IVA del import es crédito fiscal recuperable: el margen se calcula sobre el costo sin IVA, y el IVA se suma recién al vender.</p>
+                <div style={{ background: '#f0fdf4', borderRadius: '10px', padding: '1rem', marginTop: '0.2rem' }}>
                   {[
-                    ['Costo real CON IVA', c.totConR],
-                    [`+ Margen (${pMrg}%)`, c.totConR * (pMrg / 100)],
-                    ['= Precio de venta estimado', c.precioVenta],
-                  ].map(([lbl, val], i) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', padding: '0.35rem 0', borderBottom: i < 2 ? '1px solid #d1fae5' : 'none', fontWeight: i === 2 ? 700 : 400, color: i === 2 ? '#059669' : '#374151' }}>
-                      <span>{lbl}</span><span>{usd(val)}</span>
+                    ['Costo real (sin IVA)', c.totSinR, false, false],
+                    [`+ Margen (${pMrg}%) — ganancia neta`, c.gananciaNeta, false, 'profit'],
+                    ['= Precio de venta neto', c.ventaNeta, true, false],
+                    [`+ IVA (${pIva}%) sobre la venta`, c.ivaVentaMonto, false, false],
+                    ['= Precio de venta final (con IVA)', c.precioVentaFinal, 'final', false],
+                  ].map(([lbl, val, emph, kind], i, arr) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: emph === 'final' ? '0.95rem' : '0.85rem', padding: '0.4rem 0', borderBottom: i < arr.length - 1 ? '1px solid #d1fae5' : 'none', fontWeight: emph ? 800 : 400, color: emph === 'final' ? '#059669' : kind === 'profit' ? '#0891b2' : emph ? '#065f46' : '#374151' }}>
+                      <span>{lbl}</span><span style={{ fontVariantNumeric: 'tabular-nums' }}>{usd(val)}</span>
                     </div>
                   ))}
                 </div>
@@ -1180,15 +1189,25 @@ function CotizadorMaritimo() {
           {mode === 'personal' && (<>
 
             <Card>
-              <p style={{ ...SECL, margin: '0 0 0.7rem' }}>Costo total de importación</p>
-              <p style={{ fontSize: '2rem', fontWeight: 800, color: '#1e293b', lineHeight: 1 }}>{usd(c.totConR)}</p>
-              <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.3rem' }}>SIN IVA: {usd(c.totSinR)}</p>
-              {c.precioVenta > 0 && (
+              <p style={{ ...SECL, margin: '0 0 0.7rem' }}>Costo real de importación (sin IVA)</p>
+              <p style={{ fontSize: '2rem', fontWeight: 800, color: '#1e293b', lineHeight: 1 }}>{usd(c.totSinR)}</p>
+              <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.3rem' }}>Con IVA pagás {usd(c.totConR)} · el IVA es crédito fiscal recuperable</p>
+              {c.ventaNeta > 0 && (
                 <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #f1f5f9' }}>
-                  <p style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.3rem' }}>
-                    Precio de venta estimado ({pMrg}% margen)
+                  {/* Ganancia neta */}
+                  <div style={{ background: '#ecfeff', border: '1px solid #a5f3fc', borderRadius: '8px', padding: '0.5rem 0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#0891b2', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ganancia neta ({pMrg}%)</span>
+                    <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0891b2', fontVariantNumeric: 'tabular-nums' }}>{usd(c.gananciaNeta)}</span>
+                  </div>
+                  <p style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.15rem' }}>
+                    Precio de venta neto (sin IVA)
                   </p>
-                  <p style={{ fontSize: '1.5rem', fontWeight: 800, color: '#10b981' }}>{usd(c.precioVenta)}</p>
+                  <p style={{ fontSize: '1.25rem', fontWeight: 800, color: '#059669', lineHeight: 1.1 }}>{usd(c.ventaNeta)}</p>
+                  <p style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0.6rem 0 0.15rem' }}>
+                    Precio de venta final (con IVA {pIva}%)
+                  </p>
+                  <p style={{ fontSize: '1.5rem', fontWeight: 800, color: '#10b981', lineHeight: 1 }}>{usd(c.precioVentaFinal)}</p>
+                  <p style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: '0.2rem' }}>incluye {usd(c.ivaVentaMonto)} de IVA</p>
                 </div>
               )}
               <div style={{ background: '#f0fdf4', borderRadius: '8px', padding: '0.45rem 0.75rem', marginTop: '0.75rem', display: 'flex', justifyContent: 'space-between' }}>
