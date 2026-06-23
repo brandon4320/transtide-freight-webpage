@@ -14,11 +14,14 @@ type StoredUser = {
 }
 
 // Lee usuarios desde Cloudflare D1 (fuente de verdad).
-async function loadUsersFromDB(): Promise<StoredUser[]> {
+// Devuelve null si la DB NO respondió (error/credenciales): el caller debe fallar
+// cerrado, NO caer al fallback de env (que no respeta active=0 ni rotaciones).
+// Devuelve [] solo si la query fue exitosa pero no hay usuarios (bootstrap inicial).
+async function loadUsersFromDB(): Promise<StoredUser[] | null> {
   const acc = process.env.CF_ACCOUNT_ID
   const db = process.env.CF_D1_DATABASE_ID
   const token = process.env.CF_D1_API_TOKEN
-  if (!acc || !db || !token) return []
+  if (!acc || !db || !token) return null
   try {
     const res = await fetch(
       `https://api.cloudflare.com/client/v4/accounts/${acc}/d1/database/${db}/query`,
@@ -29,8 +32,9 @@ async function loadUsersFromDB(): Promise<StoredUser[]> {
         cache: 'no-store',
       }
     )
-    if (!res.ok) return []
+    if (!res.ok) return null
     const json = await res.json()
+    if (!json?.success) return null
     const rows = json?.result?.[0]?.results || []
     return rows.map((r: any) => ({
       id: String(r.id),
@@ -43,7 +47,7 @@ async function loadUsersFromDB(): Promise<StoredUser[]> {
     }))
   } catch (e) {
     console.error('[auth] DB load failed:', e)
-    return []
+    return null
   }
 }
 
@@ -72,8 +76,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const password = String(credentials?.password || '')
         if (!username || !password) return null
 
-        let users = await loadUsersFromDB()
-        if (users.length === 0) users = loadUsersFromEnv() // safety net
+        const dbUsers = await loadUsersFromDB()
+        // DB caída (null) → fallar cerrado: NO usar el fallback de env. Solo se usa el
+        // fallback cuando la DB respondió OK pero está vacía (bootstrap inicial).
+        const users: StoredUser[] = dbUsers === null ? [] : (dbUsers.length === 0 ? loadUsersFromEnv() : dbUsers)
 
         const user = users.find(u => u.username.toLowerCase() === username)
 

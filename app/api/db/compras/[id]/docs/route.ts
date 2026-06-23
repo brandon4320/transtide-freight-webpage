@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { d1Exec } from '@/lib/d1'
 import { r2Put, r2SignedGetUrl, r2Configured } from '@/lib/r2'
-import { getSessionInfo, canEdit } from '@/lib/perms'
+import { requireWrite } from '@/lib/perms'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -10,9 +10,9 @@ const MAX_SIZE = 10 * 1024 * 1024 // 10MB
 const ALLOWED_MIME = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg', 'image/webp']
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const s = await getSessionInfo()
-  if (!s) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!canEdit(s)) return NextResponse.json({ error: 'Tu usuario es de solo lectura' }, { status: 403 })
+  const g = await requireWrite('comparador')
+  if (!g.ok) return g.res
+  const s = g.s
 
   const { id } = await params
 

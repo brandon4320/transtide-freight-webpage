@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { d1Query, d1Exec } from '@/lib/d1'
-import { getSessionInfo, canEdit } from '@/lib/perms'
+import { getSessionInfo, requireWrite } from '@/lib/perms'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -18,16 +18,15 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const s = await getSessionInfo()
-  if (!s) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!canEdit(s)) return NextResponse.json({ error: 'Tu usuario es de solo lectura' }, { status: 403 })
+  const g = await requireWrite('comparador')
+  if (!g.ok) return g.res
 
   const body = await request.json()
   const id = 'comp-' + Date.now()
   const nombre = body.nombre || ''
   const descripcion = body.descripcion || ''
   const estado = 'cotizando'
-  const createdBy = s.name || s.username
+  const createdBy = g.s.name || g.s.username
 
   await d1Exec(
     `INSERT INTO compras (id, nombre, descripcion, estado, created_by, created_at, updated_at)

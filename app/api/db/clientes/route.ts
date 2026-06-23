@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { d1Query, d1Exec } from '@/lib/d1'
+import { requireWrite } from '@/lib/perms'
+
+const CLIENTE_SECTIONS = ['clientes', 'operaciones', 'cotizador']
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -16,9 +19,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if ((session?.user as any)?.role === 'viewer') return NextResponse.json({ error: 'Tu usuario es de solo lectura' }, { status: 403 })
+  const g = await requireWrite(CLIENTE_SECTIONS)
+  if (!g.ok) return g.res
 
   const body = await request.json()
   const id = body.id || `c${Date.now()}`

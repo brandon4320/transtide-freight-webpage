@@ -456,3 +456,22 @@
   transition: left 0.15s;
 }
 .gestion-root .g-toggle.on .g-toggle-knob { left: 18px; }
+
+/* Estados de foco accesibles (navegación por teclado). Los inputs usan outline:none
+   inline, así que reponemos un anillo visible vía box-shadow + outline en :focus-visible. */
+.gestion-root input:focus-visible,
+.gestion-root select:focus-visible,
+.gestion-root textarea:focus-visible,
+.gestion-root button:focus-visible,
+.gestion-root a:focus-visible,
+.gestion-root [tabindex]:focus-visible {
+  outline: 2px solid #2563eb !important;
+  outline-offset: 1px;
+  border-radius: 6px;
+}
+/* Para inputs/textarea que ya tienen borde, un anillo suave es más prolijo. */
+.gestion-root input:focus-visible,
+.gestion-root select:focus-visible,
+.gestion-root textarea:focus-visible {
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+}

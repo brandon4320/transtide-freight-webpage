@@ -1,14 +1,13 @@
 import { NextResponse } from 'next/server'
 import { d1Query, d1Exec } from '@/lib/d1'
-import { getSessionInfo, canEdit } from '@/lib/perms'
+import { requireWrite } from '@/lib/perms'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const s = await getSessionInfo()
-  if (!s) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!canEdit(s)) return NextResponse.json({ error: 'Tu usuario es de solo lectura' }, { status: 403 })
+  const g = await requireWrite('comparador')
+  if (!g.ok) return g.res
 
   const { id } = await params
   const rows = await d1Query<any>(`SELECT * FROM compras WHERE id = ?`, [id])
@@ -40,11 +39,11 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const m3 = prov.m3 || ''
   const fob = prov.precio_total || prov.precio_unitario || ''
 
-  // 1) Crear la operación.
+  // 1) Crear la operación (vinculada a la compra de origen para mantener la trazabilidad).
   await d1Exec(
-    `INSERT INTO operations (id, nombre, contenedor, bl, eta, m3, estado, fecha, puerto_origen, created_at, updated_at)
-     VALUES (?, ?, '40HQ', '', '', ?, 'Consolidando', ?, '', datetime('now'), datetime('now'))`,
-    [opId, nombre, m3, new Date().toLocaleDateString('es-AR')]
+    `INSERT INTO operations (id, nombre, contenedor, bl, eta, m3, estado, fecha, puerto_origen, compra_id, created_at, updated_at)
+     VALUES (?, ?, '40HQ', '', '', ?, 'Consolidando', ?, '', ?, datetime('now'), datetime('now'))`,
+    [opId, nombre, m3, new Date().toLocaleDateString('es-AR'), id]
   )
 
   // 2) Crear el proveedor_op inicial.

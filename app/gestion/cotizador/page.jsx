@@ -2,6 +2,7 @@
 import { useState, useMemo, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import ImportDialog from './import-dialog';
+import { gToast } from '../toast';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 const usd = (n) => {
@@ -56,7 +57,7 @@ function printHTML(html) {
     // Fallback: pestaña nueva
     const w = window.open('', '_blank');
     if (w) { w.document.write(html); w.document.close(); w.focus(); setTimeout(() => w.print(), 500); }
-    else alert('El navegador bloqueó la impresión. Permití las ventanas emergentes para este sitio.');
+    else gToast.error('El navegador bloqueó la impresión. Permití las ventanas emergentes para este sitio.');
   }
 }
 
@@ -131,7 +132,7 @@ function SaveQuoteModal({ modo, defaultCliente, getPayload, ncmPayload = null, o
       <div style={{ background: '#fff', borderRadius: '18px', width: '100%', maxWidth: '440px', boxShadow: '0 25px 60px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.1rem 1.4rem', borderBottom: '1px solid #f1f5f9' }}>
           <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#1e293b' }}>Guardar cotización</h3>
-          <button onClick={onClose} style={{ width: '32px', height: '32px', borderRadius: '50%', border: 'none', cursor: 'pointer', background: '#f1f5f9', color: '#64748b', fontSize: '1.1rem' }}>×</button>
+          <button onClick={onClose} aria-label="Cerrar" style={{ width: '32px', height: '32px', borderRadius: '50%', border: 'none', cursor: 'pointer', background: '#f1f5f9', color: '#64748b', fontSize: '1.1rem' }}>×</button>
         </div>
         {done ? (
           <div style={{ padding: '2.5rem 1.4rem', textAlign: 'center' }}>
@@ -2187,6 +2188,8 @@ function SavedQuotesPanel({ onClose, onReactivate }) {
   const [filter, setFilter]   = useState('todas');
   const [search, setSearch]   = useState('');
   const [busyId, setBusyId]   = useState(null);
+  const [confirmConv, setConfirmConv] = useState(null); // cotización a convertir
+  const [confirmDel, setConfirmDel]   = useState(null); // cotización a eliminar
 
   const load = async () => {
     setLoading(true); setErr('');
@@ -2212,7 +2215,7 @@ function SavedQuotesPanel({ onClose, onReactivate }) {
       const data = full.data || {};
       onReactivate(q.modo, data);
     } catch (e) {
-      alert(e.message || 'Error al abrir la cotización');
+      gToast.error(e.message || 'Error al abrir la cotización');
       setBusyId(null);
     }
   };
@@ -2228,40 +2231,43 @@ function SavedQuotesPanel({ onClose, onReactivate }) {
       if (!res.ok) throw new Error('Error');
       setQuotes(qs => qs.map(x => x.id === q.id ? { ...x, estado } : x));
     } catch (e) {
-      alert('No se pudo cambiar el estado');
+      gToast.error('No se pudo cambiar el estado');
     } finally {
       setBusyId(null);
     }
   };
 
-  const convertir = async (q) => {
-    if (q.operation_id) { window.location.href = '/gestion/operaciones'; return; }
-    if (!confirm(`¿Convertir "${q.nombre}" en una operación?\n\nSe creará una operación con el cliente, contenedor, m³ y FOB precargados.`)) return;
+  // Si ya está convertida, va directo a la operación; si no, abre el modal de confirmación.
+  const convertir = (q) => {
+    if (q.operation_id) { window.location.href = '/gestion/operaciones?op=' + q.operation_id; return; }
+    setConfirmConv(q);
+  };
+  const doConvertir = async (q) => {
+    setConfirmConv(null);
     setBusyId(q.id);
     try {
       const res = await fetch(`/api/db/cotizaciones/${q.id}/convertir`, { method: 'POST' });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || 'Error al convertir');
-      setQuotes(qs => qs.map(x => x.id === q.id ? { ...x, estado: 'aprobada', operation_id: j.operationId } : x));
-      if (confirm('✓ Operación creada. ¿Ir a Operaciones ahora?')) {
-        window.location.href = '/gestion/operaciones';
-      }
+      gToast.success('Operación creada. Abriéndola…');
+      window.location.href = '/gestion/operaciones?op=' + j.operationId;
     } catch (e) {
-      alert(e.message || 'No se pudo convertir');
-    } finally {
+      gToast.error(e.message || 'No se pudo convertir');
       setBusyId(null);
     }
   };
 
-  const remove = async (q) => {
-    if (!confirm(`¿Eliminar "${q.nombre}"?`)) return;
+  const remove = (q) => setConfirmDel(q);
+  const doRemove = async (q) => {
+    setConfirmDel(null);
     setBusyId(q.id);
     try {
       const res = await fetch(`/api/db/cotizaciones/${q.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Error');
       setQuotes(qs => qs.filter(x => x.id !== q.id));
+      gToast.success('Cotización eliminada.');
     } catch (e) {
-      alert('No se pudo eliminar');
+      gToast.error('No se pudo eliminar');
     } finally {
       setBusyId(null);
     }
@@ -2282,6 +2288,7 @@ function SavedQuotesPanel({ onClose, onReactivate }) {
   };
 
   return (
+    <>
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', zIndex: 1050, display: 'flex', alignItems: 'stretch', justifyContent: 'flex-end' }}>
       <div style={{ background: '#f8fafc', width: '100%', maxWidth: '560px', height: '100%', overflowY: 'auto', boxShadow: '-10px 0 40px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column' }}>
         {/* header */}
@@ -2290,7 +2297,7 @@ function SavedQuotesPanel({ onClose, onReactivate }) {
             <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#1e293b' }}>Cotizaciones guardadas</h3>
             <p style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{quotes.length} guardada{quotes.length === 1 ? '' : 's'}</p>
           </div>
-          <button onClick={onClose} style={{ width: '34px', height: '34px', borderRadius: '50%', border: 'none', cursor: 'pointer', background: '#f1f5f9', color: '#64748b', fontSize: '1.1rem' }}>×</button>
+          <button onClick={onClose} aria-label="Cerrar" style={{ width: '34px', height: '34px', borderRadius: '50%', border: 'none', cursor: 'pointer', background: '#f1f5f9', color: '#64748b', fontSize: '1.1rem' }}>×</button>
         </div>
 
         {/* filters */}
@@ -2354,6 +2361,33 @@ function SavedQuotesPanel({ onClose, onReactivate }) {
         </div>
       </div>
     </div>
+
+    {confirmConv && (
+      <div onClick={() => setConfirmConv(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, padding: '1rem' }}>
+        <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: '1.5rem', maxWidth: 380, textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}>
+          <p style={{ fontWeight: 800, color: '#0f172a', marginBottom: '0.4rem' }}>¿Convertir en operación?</p>
+          <p style={{ fontSize: '0.82rem', color: '#64748b', marginBottom: '1.25rem' }}>Se creará una operación con el cliente, contenedor, m³ y FOB precargados desde “{confirmConv.nombre}”.</p>
+          <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+            <button onClick={() => setConfirmConv(null)} style={{ padding: '0.5rem 1rem', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer' }}>Cancelar</button>
+            <button onClick={() => doConvertir(confirmConv)} style={{ padding: '0.5rem 1.2rem', borderRadius: 8, border: 'none', background: '#059669', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>Convertir</button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {confirmDel && (
+      <div onClick={() => setConfirmDel(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, padding: '1rem' }}>
+        <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: '1.5rem', maxWidth: 360, textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}>
+          <p style={{ fontWeight: 800, color: '#0f172a', marginBottom: '0.4rem' }}>¿Eliminar cotización?</p>
+          <p style={{ fontSize: '0.82rem', color: '#64748b', marginBottom: '1.25rem' }}>Se borra “{confirmDel.nombre}”. No se puede deshacer.</p>
+          <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+            <button onClick={() => setConfirmDel(null)} style={{ padding: '0.5rem 1rem', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer' }}>Cancelar</button>
+            <button onClick={() => doRemove(confirmDel)} style={{ padding: '0.5rem 1.2rem', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>Eliminar</button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
@@ -2437,6 +2471,7 @@ function NcmPanel({ onClose }) {
   const [search, setSearch]   = useState('');
   const [editing, setEditing] = useState(null); // null = none, {} = new, {id,...} = edit
   const [busyId, setBusyId]   = useState(null);
+  const [confirmDel, setConfirmDel] = useState(null); // NCM a eliminar
 
   const load = async () => {
     setLoading(true); setErr('');
@@ -2453,15 +2488,17 @@ function NcmPanel({ onClose }) {
   };
   useEffect(() => { load(); }, []);
 
-  const remove = async (nc) => {
-    if (!confirm(`¿Eliminar la NCM "${nc.codigo}"?`)) return;
+  const remove = (nc) => setConfirmDel(nc);
+  const doRemove = async (nc) => {
+    setConfirmDel(null);
     setBusyId(nc.id);
     try {
       const res = await fetch(`/api/db/ncm/${nc.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Error');
       setList(xs => xs.filter(x => x.id !== nc.id));
+      gToast.success('NCM eliminada.');
     } catch {
-      alert('No se pudo eliminar');
+      gToast.error('No se pudo eliminar la NCM');
     } finally {
       setBusyId(null);
     }
@@ -2484,6 +2521,7 @@ function NcmPanel({ onClose }) {
   };
 
   return (
+    <>
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', zIndex: 1050, display: 'flex', alignItems: 'stretch', justifyContent: 'flex-end' }}>
       <div style={{ background: '#f8fafc', width: '100%', maxWidth: '560px', height: '100%', overflowY: 'auto', boxShadow: '-10px 0 40px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column' }}>
         {/* header */}
@@ -2492,7 +2530,7 @@ function NcmPanel({ onClose }) {
             <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#1e293b' }}>NCM guardadas</h3>
             <p style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{list.length} posición{list.length === 1 ? '' : 'es'} arancelaria{list.length === 1 ? '' : 's'}</p>
           </div>
-          <button onClick={onClose} style={{ width: '34px', height: '34px', borderRadius: '50%', border: 'none', cursor: 'pointer', background: '#f1f5f9', color: '#64748b', fontSize: '1.1rem' }}>×</button>
+          <button onClick={onClose} aria-label="Cerrar" style={{ width: '34px', height: '34px', borderRadius: '50%', border: 'none', cursor: 'pointer', background: '#f1f5f9', color: '#64748b', fontSize: '1.1rem' }}>×</button>
         </div>
 
         {/* search + new */}
@@ -2536,6 +2574,20 @@ function NcmPanel({ onClose }) {
         </div>
       </div>
     </div>
+
+    {confirmDel && (
+      <div onClick={() => setConfirmDel(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, padding: '1rem' }}>
+        <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: '1.5rem', maxWidth: 360, textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}>
+          <p style={{ fontWeight: 800, color: '#0f172a', marginBottom: '0.4rem' }}>¿Eliminar NCM?</p>
+          <p style={{ fontSize: '0.82rem', color: '#64748b', marginBottom: '1.25rem' }}>Se borra la posición “{confirmDel.codigo}”. No se puede deshacer.</p>
+          <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+            <button onClick={() => setConfirmDel(null)} style={{ padding: '0.5rem 1rem', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer' }}>Cancelar</button>
+            <button onClick={() => doRemove(confirmDel)} style={{ padding: '0.5rem 1.2rem', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>Eliminar</button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 

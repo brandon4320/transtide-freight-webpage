@@ -4,6 +4,7 @@ import './gestion.css'
 import { useState, useRef, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
+import { GestionToaster } from './toast'
 
 const NAV_ITEMS = [
   {
@@ -287,6 +288,7 @@ export default function GestionLayoutClient({
           {children}
         </main>
       </div>
+      <GestionToaster />
     </div>
   )
 }

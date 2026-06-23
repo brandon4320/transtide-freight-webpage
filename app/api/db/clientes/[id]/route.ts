@@ -1,14 +1,16 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@/auth'
 import { d1Exec } from '@/lib/d1'
+import { requireWrite } from '@/lib/perms'
+
+// Clientes se editan desde varias secciones (clientes, alta inline en operaciones/cotizador).
+const CLIENTE_SECTIONS = ['clientes', 'operaciones', 'cotizador']
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if ((session?.user as any)?.role === 'viewer') return NextResponse.json({ error: 'Tu usuario es de solo lectura' }, { status: 403 })
+  const g = await requireWrite(CLIENTE_SECTIONS)
+  if (!g.ok) return g.res
 
   const { id } = await params
   const body = await request.json()
@@ -23,9 +25,8 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 }
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if ((session?.user as any)?.role === 'viewer') return NextResponse.json({ error: 'Tu usuario es de solo lectura' }, { status: 403 })
+  const g = await requireWrite(CLIENTE_SECTIONS)
+  if (!g.ok) return g.res
 
   const { id } = await params
   await d1Exec(`DELETE FROM clientes WHERE id = ?`, [id])

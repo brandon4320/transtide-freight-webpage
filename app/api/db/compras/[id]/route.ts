@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import { d1Query, d1Exec } from '@/lib/d1'
+import { d1Query, d1Exec, d1Batch } from '@/lib/d1'
 import { r2Delete, r2SignedGetUrl } from '@/lib/r2'
-import { getSessionInfo, canEdit } from '@/lib/perms'
+import { getSessionInfo, requireWrite } from '@/lib/perms'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -36,9 +36,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 }
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const s = await getSessionInfo()
-  if (!s) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!canEdit(s)) return NextResponse.json({ error: 'Tu usuario es de solo lectura' }, { status: 403 })
+  const g = await requireWrite('comparador')
+  if (!g.ok) return g.res
 
   const { id } = await params
   const body = await request.json()
@@ -61,9 +60,8 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 }
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const s = await getSessionInfo()
-  if (!s) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!canEdit(s)) return NextResponse.json({ error: 'Tu usuario es de solo lectura' }, { status: 403 })
+  const g = await requireWrite('comparador')
+  if (!g.ok) return g.res
 
   const { id } = await params
 
@@ -74,6 +72,11 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     } catch {}
   }
 
-  await d1Exec(`DELETE FROM compras WHERE id = ?`, [id])
+  // Borrado en cascada: limpiar proveedores y docs de la compra.
+  await d1Batch([
+    { sql: `DELETE FROM compras_proveedores WHERE compra_id = ?`, params: [id] },
+    { sql: `DELETE FROM compras_docs WHERE compra_id = ?`, params: [id] },
+    { sql: `DELETE FROM compras WHERE id = ?`, params: [id] },
+  ])
   return NextResponse.json({ ok: true })
 }

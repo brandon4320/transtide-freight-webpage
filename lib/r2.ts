@@ -30,12 +30,12 @@ export async function r2Delete(key: string) {
   await client().send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }))
 }
 
-/** URL firmada para descargar/ver el archivo (válida 1 hora). */
-export async function r2SignedGetUrl(key: string, filename?: string): Promise<string> {
+/** URL firmada para descargar/ver el archivo. Expiry en segundos (default 1 hora). */
+export async function r2SignedGetUrl(key: string, filename?: string, expiresIn = 3600): Promise<string> {
   const cmd = new GetObjectCommand({
     Bucket: BUCKET,
     Key: key,
     ...(filename ? { ResponseContentDisposition: `inline; filename="${filename.replace(/"/g, '')}"` } : {}),
   })
-  return getSignedUrl(client(), cmd, { expiresIn: 3600 })
+  return getSignedUrl(client(), cmd, { expiresIn })
 }

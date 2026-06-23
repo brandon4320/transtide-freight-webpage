@@ -1,5 +1,6 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { gToast } from '../toast';
 
 const CARD = { background: '#fff', borderRadius: '16px', padding: '1.25rem', boxShadow: '0 4px 20px rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.04)' };
 const INP  = { width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '0.85rem', color: '#1e293b', background: '#fff', outline: 'none', boxSizing: 'border-box' };
@@ -14,50 +15,72 @@ export default function ClientesPage() {
   const [form,     setForm]       = useState(emptyForm());
   const [search,   setSearch]     = useState('');
   const [confirm,  setConfirm]    = useState(null); // id to delete
+  const [saving,   setSaving]     = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   // Load from API
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await fetch('/api/db/clientes');
-        if (!r.ok) throw new Error('failed');
-        const data = await r.json();
-        if (!cancelled) setClientes(Array.isArray(data) ? data : []);
-      } catch {
-        if (!cancelled) setClientes([]);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const r = await fetch('/api/db/clientes');
+      if (!r.ok) throw new Error('failed');
+      const data = await r.json();
+      setClientes(Array.isArray(data) ? data : []);
+    } catch {
+      setLoadError(true);
+      gToast.error('No se pudieron cargar los clientes. Revisá tu conexión.');
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   const openNew  = () => { setForm(emptyForm()); setModal('new'); };
   const openEdit = (c) => { setForm({ nombre: c.nombre || '', cuit: c.cuit || '', email: c.email || '', telefono: c.telefono || '', notas: c.notas || '' }); setModal(c); };
 
+  async function errMsg(r, fallback) {
+    try { const j = await r.json(); return j?.error || fallback; } catch { return fallback; }
+  }
+
   const submit = async () => {
-    if (!form.nombre.trim()) return;
-    if (modal === 'new') {
-      const r = await fetch('/api/db/clientes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
-      if (r.ok) {
+    if (!form.nombre.trim()) { gToast.error('El nombre es obligatorio.'); return; }
+    if (saving) return;
+    setSaving(true);
+    try {
+      if (modal === 'new') {
+        const r = await fetch('/api/db/clientes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+        if (!r.ok) { gToast.error(await errMsg(r, 'No se pudo crear el cliente.')); return; }
         const created = await r.json();
         setClientes(prev => [created, ...prev]);
-      }
-    } else {
-      const id = modal.id;
-      const r = await fetch(`/api/db/clientes/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
-      if (r.ok) {
+        gToast.success('Cliente creado.');
+      } else {
+        const id = modal.id;
+        const r = await fetch(`/api/db/clientes/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+        if (!r.ok) { gToast.error(await errMsg(r, 'No se pudieron guardar los cambios.')); return; }
         setClientes(prev => prev.map(c => c.id === id ? { ...form, id } : c));
+        gToast.success('Cliente actualizado.');
       }
+      setModal(null);
+    } catch {
+      gToast.error('Error de conexión. Intentá de nuevo.');
+    } finally {
+      setSaving(false);
     }
-    setModal(null);
   };
 
   const remove = async (id) => {
-    const r = await fetch(`/api/db/clientes/${id}`, { method: 'DELETE' });
-    if (r.ok) setClientes(prev => prev.filter(c => c.id !== id));
-    setConfirm(null);
+    try {
+      const r = await fetch(`/api/db/clientes/${id}`, { method: 'DELETE' });
+      if (!r.ok) { gToast.error(await errMsg(r, 'No se pudo eliminar el cliente.')); return; }
+      setClientes(prev => prev.filter(c => c.id !== id));
+      gToast.success('Cliente eliminado.');
+    } catch {
+      gToast.error('Error de conexión. Intentá de nuevo.');
+    } finally {
+      setConfirm(null);
+    }
   };
 
   const filtered = clientes.filter(c =>
@@ -105,6 +128,13 @@ export default function ClientesPage() {
         <div style={{ ...CARD, textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
           <p style={{ fontSize: '0.85rem' }}>Cargando clientes...</p>
         </div>
+      ) : loadError ? (
+        <div style={{ ...CARD, textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#fca5a5" strokeWidth="1.5" style={{ marginBottom: '0.75rem' }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <p style={{ fontWeight: 600, marginBottom: '0.3rem', color: '#b91c1c' }}>No se pudieron cargar los clientes</p>
+          <p style={{ fontSize: '0.8rem', marginBottom: '1rem' }}>Puede ser un problema de conexión.</p>
+          <button onClick={load} style={{ padding: '0.5rem 1.2rem', borderRadius: '8px', border: 'none', background: '#ea580c', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>Reintentar</button>
+        </div>
       ) : filtered.length === 0 ? (
         <div style={{ ...CARD, textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1.5" style={{ marginBottom: '0.75rem' }}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -120,8 +150,8 @@ export default function ClientesPage() {
                   {(c.nombre || '?').charAt(0).toUpperCase()}
                 </div>
                 <div style={{ display: 'flex', gap: '0.4rem' }}>
-                  <button onClick={() => openEdit(c)} style={{ padding: '0.3rem 0.6rem', borderRadius: '7px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer' }}>Editar</button>
-                  <button onClick={() => setConfirm(c.id)} style={{ padding: '0.3rem 0.6rem', borderRadius: '7px', border: '1px solid #fee2e2', background: '#fff', color: '#dc2626', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer' }}>×</button>
+                  <button onClick={() => openEdit(c)} aria-label={`Editar ${c.nombre || 'cliente'}`} style={{ padding: '0.3rem 0.6rem', borderRadius: '7px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer' }}>Editar</button>
+                  <button onClick={() => setConfirm(c.id)} aria-label={`Eliminar ${c.nombre || 'cliente'}`} title="Eliminar" style={{ padding: '0.3rem 0.6rem', borderRadius: '7px', border: '1px solid #fee2e2', background: '#fff', color: '#dc2626', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer' }}>×</button>
                 </div>
               </div>
               <p style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.95rem', marginBottom: '0.15rem' }}>{c.nombre}</p>
@@ -152,7 +182,7 @@ export default function ClientesPage() {
           <div style={{ ...CARD, width: '100%', maxWidth: '480px', margin: '1rem', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
               <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#1e293b' }}>{modal === 'new' ? 'Nuevo cliente' : 'Editar cliente'}</h3>
-              <button onClick={() => setModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '1.2rem' }}>×</button>
+              <button onClick={() => setModal(null)} aria-label="Cerrar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '1.2rem' }}>×</button>
             </div>
             <div style={{ display: 'grid', gap: '0.85rem' }}>
               {[
@@ -173,8 +203,8 @@ export default function ClientesPage() {
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.25rem' }}>
               <button onClick={() => setModal(null)} style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={submit} style={{ padding: '0.5rem 1.2rem', borderRadius: '8px', border: 'none', background: '#ea580c', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>
-                {modal === 'new' ? 'Agregar' : 'Guardar cambios'}
+              <button onClick={submit} disabled={saving} style={{ padding: '0.5rem 1.2rem', borderRadius: '8px', border: 'none', background: saving ? '#fdba74' : '#ea580c', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: saving ? 'default' : 'pointer' }}>
+                {saving ? 'Guardando…' : (modal === 'new' ? 'Agregar' : 'Guardar cambios')}
               </button>
             </div>
           </div>

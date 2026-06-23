@@ -1,20 +1,19 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@/auth'
 import { d1Exec } from '@/lib/d1'
+import { requireWrite } from '@/lib/perms'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const FIELDS = [
   'num', 'origen', 'destino', 'contenedores', 'modo', 'bl', 'carrier', 'etd', 'eta', 'status',
-  'sea_freight_usd', 'other_fees_usd', 'discount_usd', 'total_usd', 'suppliers',
-  'amount_due_usd', 'amount_rec_usd', 'balance_usd', 'payment_date', 'notes', 'agente',
+  'sea_freight_usd', 'other_fees_rmb', 'tc_rmb', 'other_fees_usd', 'discount_usd', 'total_usd', 'suppliers',
+  'amount_due_usd', 'amount_rec_usd', 'balance_usd', 'payment_date', 'notes', 'agente', 'operation_id',
 ]
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if ((session?.user as any)?.role === 'viewer') return NextResponse.json({ error: 'Tu usuario es de solo lectura' }, { status: 403 })
+  const g = await requireWrite('tracking')
+  if (!g.ok) return g.res
   const { id } = await params
   const body = await request.json()
 
@@ -28,9 +27,8 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 }
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if ((session?.user as any)?.role === 'viewer') return NextResponse.json({ error: 'Tu usuario es de solo lectura' }, { status: 403 })
+  const g = await requireWrite('tracking')
+  if (!g.ok) return g.res
   const { id } = await params
   await d1Exec(`DELETE FROM shipments WHERE id = ?`, [id])
   return NextResponse.json({ ok: true })

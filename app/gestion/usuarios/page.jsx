@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { gToast } from '../toast'
 
 const CARD = { background: '#fff', borderRadius: 10, border: '1px solid #e8ecf1', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }
 const INP = { width: '100%', padding: '0.55rem 0.7rem', border: '1px solid #e2e8f0', borderRadius: 7, fontSize: '16px', color: '#0f172a', background: '#fff', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }
@@ -61,17 +62,24 @@ export default function UsuariosPage() {
       } else {
         r = await fetch(`/api/db/users/${modal.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       }
-      if (!r.ok) { setError((await r.json()).error || 'Error al guardar'); return }
+      if (!r.ok) { setError((await r.json().catch(() => ({}))).error || 'Error al guardar'); return }
       await load()
       setModal(null)
+      gToast.success(modal === 'new' ? 'Usuario creado.' : 'Usuario actualizado.')
+    } catch {
+      setError('Error de conexión. Intentá de nuevo.')
     } finally { setSaving(false) }
   }
 
   const del = async (id) => {
-    const r = await fetch(`/api/db/users/${id}`, { method: 'DELETE' })
-    if (!r.ok) { alert((await r.json()).error || 'No se pudo eliminar') }
-    else await load()
-    setConfirmDel(null)
+    try {
+      const r = await fetch(`/api/db/users/${id}`, { method: 'DELETE' })
+      if (!r.ok) { gToast.error((await r.json().catch(() => ({}))).error || 'No se pudo eliminar el usuario.'); return }
+      await load()
+      gToast.success('Usuario eliminado.')
+    } catch {
+      gToast.error('Error de conexión. Intentá de nuevo.')
+    } finally { setConfirmDel(null) }
   }
 
   return (
@@ -144,7 +152,7 @@ export default function UsuariosPage() {
                         )}
                       </td>
                       <td style={{ padding: '0.7rem', textAlign: 'right' }} onClick={e => e.stopPropagation()}>
-                        <button onClick={() => setConfirmDel(u)} style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #fee2e2', background: '#fff', color: '#dc2626', fontSize: '0.9rem', cursor: 'pointer' }}>×</button>
+                        <button onClick={() => setConfirmDel(u)} aria-label={`Eliminar usuario ${u.name || u.username}`} title="Eliminar" style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #fee2e2', background: '#fff', color: '#dc2626', fontSize: '0.9rem', cursor: 'pointer' }}>×</button>
                       </td>
                     </tr>
                   )
@@ -161,7 +169,7 @@ export default function UsuariosPage() {
           <div style={{ ...CARD, width: '100%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto', padding: '1.5rem', boxShadow: '0 24px 64px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
               <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>{modal === 'new' ? 'Nuevo usuario' : `Editar ${form.name}`}</h3>
-              <button onClick={() => setModal(null)} style={{ background: 'none', border: 'none', fontSize: '1.4rem', color: '#94a3b8', cursor: 'pointer' }}>×</button>
+              <button onClick={() => setModal(null)} aria-label="Cerrar" style={{ background: 'none', border: 'none', fontSize: '1.4rem', color: '#94a3b8', cursor: 'pointer' }}>×</button>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>

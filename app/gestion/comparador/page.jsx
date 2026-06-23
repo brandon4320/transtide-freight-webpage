@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
+import { gToast } from '../toast';
 
 const CARD = { background: '#fff', borderRadius: '12px', padding: '1.25rem', boxShadow: '0 4px 20px rgba(0,0,0,0.04)', border: '1px solid #e8ecf1' };
 const INP  = { width: '100%', padding: '0.55rem 0.75rem', border: '1px solid #e8ecf1', borderRadius: '8px', fontSize: '16px', color: '#0f172a', background: '#fff', outline: 'none', boxSizing: 'border-box' };
@@ -126,9 +127,10 @@ export default function ComparadorPage() {
       const created = await r.json();
       setNewModal(false); setNewForm({ nombre: '', descripcion: '' });
       setCompras(prev => [created, ...prev]);
+      gToast.success('Proyecto creado.');
       openDetail(created.id);
     } catch (e) {
-      alert(e.message || 'Error al crear');
+      gToast.error(e.message || 'Error al crear el proyecto.');
     } finally {
       setSavingNew(false);
     }
@@ -139,8 +141,9 @@ export default function ComparadorPage() {
       const r = await fetch(`/api/db/compras/${id}`, { method: 'DELETE' });
       if (!r.ok) throw new Error('No se pudo eliminar');
       setCompras(prev => prev.filter(c => c.id !== id));
+      gToast.success('Proyecto eliminado.');
     } catch (e) {
-      alert(e.message || 'Error al eliminar');
+      gToast.error(e.message || 'Error al eliminar el proyecto.');
     } finally {
       setConfirmDel(null);
     }
@@ -163,7 +166,7 @@ export default function ComparadorPage() {
       if (!r.ok) throw new Error('No se pudo guardar');
       setDetail(d => d ? { ...d, ...patch } : d);
     } catch (e) {
-      alert(e.message || 'Error al guardar');
+      gToast.error(e.message || 'Error al guardar.');
       loadDetail(detail.id);
     } finally {
       setSavingHeader(false);
@@ -181,21 +184,27 @@ export default function ComparadorPage() {
     setSavingProv(true);
     const payload = {}; for (const f of PROV_FIELDS) payload[f] = provForm[f];
     try {
-      let r;
       if (provModal === 'new') {
-        r = await fetch(`/api/db/compras/${detail.id}/proveedores`, {
+        const r = await fetch(`/api/db/compras/${detail.id}/proveedores`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
         });
+        if (!r.ok) throw new Error('No se pudo guardar el proveedor');
+        // Update optimista con la fila devuelta (evita recargar todo el proyecto).
+        const created = await r.json().catch(() => null);
+        if (created && created.id) setDetail(d => d ? { ...d, proveedores: [...(d.proveedores || []), created] } : d);
+        else await loadDetail(detail.id);
+        gToast.success('Proveedor agregado.');
       } else {
-        r = await fetch(`/api/db/compras/${detail.id}/proveedores/${provModal.id}`, {
+        const r = await fetch(`/api/db/compras/${detail.id}/proveedores/${provModal.id}`, {
           method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
         });
+        if (!r.ok) throw new Error('No se pudo guardar el proveedor');
+        setDetail(d => d ? { ...d, proveedores: (d.proveedores || []).map(p => p.id === provModal.id ? { ...p, ...payload } : p) } : d);
+        gToast.success('Proveedor actualizado.');
       }
-      if (!r.ok) throw new Error('No se pudo guardar el proveedor');
-      await loadDetail(detail.id);
       setProvModal(null);
     } catch (e) {
-      alert(e.message || 'Error al guardar el proveedor');
+      gToast.error(e.message || 'Error al guardar el proveedor.');
     } finally {
       setSavingProv(false);
     }
@@ -210,9 +219,11 @@ export default function ComparadorPage() {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
       });
       if (!r.ok) throw new Error('No se pudo elegir el proveedor');
+      // Tiene efecto cascada server-side (pone elegido=0 al resto): recargamos para reflejarlo.
       await loadDetail(detail.id);
+      gToast.success(`Elegiste a ${p.nombre || 'el proveedor'}.`);
     } catch (e) {
-      alert(e.message || 'Error');
+      gToast.error(e.message || 'No se pudo elegir el proveedor.');
     }
   };
 
@@ -221,9 +232,14 @@ export default function ComparadorPage() {
     try {
       const r = await fetch(`/api/db/compras/${detail.id}/proveedores/${provId}`, { method: 'DELETE' });
       if (!r.ok) throw new Error('No se pudo eliminar');
-      await loadDetail(detail.id);
+      setDetail(d => d ? {
+        ...d,
+        proveedores: (d.proveedores || []).filter(p => p.id !== provId),
+        docs: (d.docs || []).filter(doc => doc.proveedor_id !== provId),
+      } : d);
+      gToast.success('Proveedor eliminado.');
     } catch (e) {
-      alert(e.message || 'Error al eliminar');
+      gToast.error(e.message || 'Error al eliminar el proveedor.');
     } finally {
       setConfirmProvDel(null);
     }
@@ -279,6 +295,7 @@ export default function ComparadorPage() {
       if (!r.ok) throw new Error(j.error || 'No se pudo subir el archivo');
       setDocFile(null);
       await loadDetail(detail.id);
+      gToast.success('Documento subido.');
     } catch (e) {
       setDocErr(e.message || 'Error al subir');
     } finally {
@@ -291,9 +308,10 @@ export default function ComparadorPage() {
     try {
       const r = await fetch(`/api/db/compras/${detail.id}/docs/${docId}`, { method: 'DELETE' });
       if (!r.ok) throw new Error('No se pudo eliminar');
-      await loadDetail(detail.id);
+      setDetail(d => d ? { ...d, docs: (d.docs || []).filter(doc => doc.id !== docId) } : d);
+      gToast.success('Documento eliminado.');
     } catch (e) {
-      alert(e.message || 'Error al eliminar documento');
+      gToast.error(e.message || 'Error al eliminar el documento.');
     }
   };
 
@@ -306,13 +324,11 @@ export default function ComparadorPage() {
       const j = await r.json().catch(() => ({}));
       if (!r.ok || j.error) throw new Error(j.error || 'No se pudo convertir');
       const opId = j.operationId;
-      if (opId && confirm('✓ Operación creada. ¿Ir ahora?')) {
-        window.location.href = '/gestion/operaciones?op=' + opId;
-        return;
-      }
+      gToast.success(j.alreadyConverted ? 'Ya existía la operación. Abriéndola…' : 'Operación creada. Abriéndola…');
+      if (opId) { window.location.href = '/gestion/operaciones?op=' + opId; return; }
       await loadDetail(detail.id);
     } catch (e) {
-      alert(e.message || 'Error al convertir');
+      gToast.error(e.message || 'Error al convertir.');
     } finally {
       setConverting(false);
     }
@@ -381,7 +397,7 @@ export default function ComparadorPage() {
                     {c.created_by && <span>{c.created_by}</span>}
                   </div>
                 </div>
-                <button onClick={(e) => { e.stopPropagation(); setConfirmDel(c.id); }} title="Eliminar" style={{ padding: '0.3rem 0.6rem', borderRadius: '7px', border: '1px solid #fee2e2', background: '#fff', color: '#dc2626', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>×</button>
+                <button onClick={(e) => { e.stopPropagation(); setConfirmDel(c.id); }} aria-label={`Eliminar proyecto ${c.nombre || ''}`} title="Eliminar" style={{ padding: '0.3rem 0.6rem', borderRadius: '7px', border: '1px solid #fee2e2', background: '#fff', color: '#dc2626', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>×</button>
               </div>
             );
           })}
@@ -540,8 +556,8 @@ function DetailView(props) {
                             )}
                           </td>
                           <td style={{ ...txtCell, textAlign: 'right' }}>
-                            <button onClick={() => onEditProv(p)} style={{ padding: '0.25rem 0.55rem', borderRadius: '6px', border: '1px solid #e8ecf1', background: '#fff', color: '#64748b', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', marginRight: '0.35rem' }}>Editar</button>
-                            <button onClick={() => onAskDelProv(p.id)} style={{ padding: '0.25rem 0.5rem', borderRadius: '6px', border: '1px solid #fee2e2', background: '#fff', color: '#dc2626', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}>×</button>
+                            <button onClick={() => onEditProv(p)} aria-label={`Editar ${p.nombre || 'proveedor'}`} style={{ padding: '0.25rem 0.55rem', borderRadius: '6px', border: '1px solid #e8ecf1', background: '#fff', color: '#64748b', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', marginRight: '0.35rem' }}>Editar</button>
+                            <button onClick={() => onAskDelProv(p.id)} aria-label={`Eliminar ${p.nombre || 'proveedor'}`} title="Eliminar" style={{ padding: '0.25rem 0.5rem', borderRadius: '6px', border: '1px solid #fee2e2', background: '#fff', color: '#dc2626', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}>×</button>
                           </td>
                         </tr>
                       );
@@ -682,7 +698,7 @@ function ProvModal({ mode, form, setPF, onClose, onSave, saving, aiState, onAiFi
                     <span style={{ flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#0f172a' }}>{d.filename}</span>
                     <span style={{ color: '#94a3b8', flexShrink: 0 }}>{fmtSize(d.size)}</span>
                     <a href={`/api/db/compras/${compraId}/docs/${d.id}`} target="_blank" rel="noopener noreferrer" style={{ color: '#ea580c', fontWeight: 700, textDecoration: 'none', flexShrink: 0 }}>Ver</a>
-                    <button onClick={() => onDeleteDoc(d.id)} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 700, flexShrink: 0 }}>×</button>
+                    <button onClick={() => onDeleteDoc(d.id)} aria-label={`Eliminar documento ${d.filename || ''}`} title="Eliminar" style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 700, flexShrink: 0 }}>×</button>
                   </div>
                 ))}
               </div>
@@ -736,7 +752,7 @@ function ModalHead({ title, onClose }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.1rem' }}>
       <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a' }}>{title}</h3>
-      <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '1.2rem' }}>×</button>
+      <button onClick={onClose} aria-label="Cerrar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '1.2rem' }}>×</button>
     </div>
   );
 }

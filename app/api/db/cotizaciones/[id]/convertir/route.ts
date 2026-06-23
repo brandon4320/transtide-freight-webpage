@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@/auth'
 import { d1Query, d1Exec } from '@/lib/d1'
-import { getSessionInfo, canEdit } from '@/lib/perms'
+import { requireWrite } from '@/lib/perms'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -10,9 +9,8 @@ export const dynamic = 'force-dynamic'
 const CONT_LABEL: Record<string, string> = { '20': '20 Pies', '40hq': '40HQ', 'fr': 'Flat Rack' }
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSessionInfo()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!canEdit(session)) return NextResponse.json({ error: 'Tu usuario es de solo lectura' }, { status: 403 })
+  const g = await requireWrite('cotizador')
+  if (!g.ok) return g.res
 
   const { id } = await params
   const rows = await d1Query<any>(`SELECT * FROM cotizaciones WHERE id = ?`, [id])
@@ -38,11 +36,11 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const opId = 'op-' + Date.now()
   const nombre = (q.nombre || cliente).toString()
 
-  // 1) Crear la operación
+  // 1) Crear la operación (guardando el precio cotizado al cliente + el vínculo a la cotización)
   await d1Exec(
-    `INSERT INTO operations (id, nombre, contenedor, bl, eta, m3, estado, fecha, puerto_origen, created_at, updated_at)
-     VALUES (?, ?, ?, '', '', ?, 'Consolidando', ?, '', datetime('now'), datetime('now'))`,
-    [opId, nombre, contenedor, m3, new Date().toLocaleDateString('es-AR')]
+    `INSERT INTO operations (id, nombre, contenedor, bl, eta, m3, estado, fecha, puerto_origen, cotizacion_id, total_cotizado_usd, created_at, updated_at)
+     VALUES (?, ?, ?, '', '', ?, 'Consolidando', ?, '', ?, ?, datetime('now'), datetime('now'))`,
+    [opId, nombre, contenedor, m3, new Date().toLocaleDateString('es-AR'), id, q.total_usd || null]
   )
 
   // 2) Buscar si el cliente existe en la tabla clientes (para vincular)

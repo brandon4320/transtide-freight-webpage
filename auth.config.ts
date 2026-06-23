@@ -21,9 +21,12 @@ function sectionForPath(pathname: string): string | null {
   return null
 }
 
-// Auto-reparación de tokens viejos: si el JWT no tiene role/sections (sesión
-// creada antes de la feature de roles), los buscamos en la DB por username.
-async function fetchUserPerms(username: string): Promise<{ role: string; sections: string } | null> {
+// Revalidación de permisos contra D1 (fuente de verdad). Distingue 3 casos:
+//  - null         → no se pudo verificar (DB caída / sin credenciales): fail-open, mantener token
+//  - {found:false}→ el usuario ya no existe: invalidar sesión
+//  - {found:true} → devuelve role/sections/active actuales
+type PermsResult = { found: boolean; role: string; sections: string; active: number }
+async function fetchUserPerms(username: string): Promise<PermsResult | null> {
   const acc = process.env.CF_ACCOUNT_ID
   const db = process.env.CF_D1_DATABASE_ID
   const token = process.env.CF_D1_API_TOKEN
@@ -34,19 +37,27 @@ async function fetchUserPerms(username: string): Promise<{ role: string; section
       {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sql: 'SELECT role, sections FROM users WHERE lower(username) = ? LIMIT 1', params: [username.toLowerCase()] }),
+        body: JSON.stringify({ sql: 'SELECT role, sections, active FROM users WHERE lower(username) = ? LIMIT 1', params: [username.toLowerCase()] }),
         cache: 'no-store',
       }
     )
     if (!res.ok) return null
     const json = await res.json()
-    const row = json?.result?.[0]?.results?.[0]
-    if (!row) return null
-    return { role: row.role || 'editor', sections: row.sections || '' }
+    // D1 puede responder HTTP 200 con success:false ante errores transitorios de query.
+    // Tratarlo como "no verificable" (fail-open) y NO como usuario inexistente.
+    if (!json?.success) return null
+    const results = json?.result?.[0]?.results
+    if (!Array.isArray(results)) return null // respuesta inesperada → fail-open, no marcar disabled
+    const row = results[0]
+    if (!row) return { found: false, role: '', sections: '', active: 0 } // results:[] real → usuario eliminado
+    return { found: true, role: row.role || 'editor', sections: row.sections || '', active: row.active == null ? 1 : Number(row.active) }
   } catch {
     return null
   }
 }
+
+// Cada cuánto re-validar el token contra la DB (revocación de rol/sección/baja).
+const REVALIDATE_MS = 5 * 60 * 1000
 
 export const authConfig = {
   pages: {
@@ -54,7 +65,9 @@ export const authConfig = {
   },
   callbacks: {
     authorized({ auth, request: { nextUrl } }) {
-      const isLoggedIn = !!auth?.user
+      // Usuario desactivado/eliminado tras la última revalidación → tratar como deslogueado.
+      const disabled = (auth?.user as any)?.disabled === true
+      const isLoggedIn = !!auth?.user && !disabled
       const path = nextUrl.pathname
       const isOnGestion = path.startsWith('/gestion')
       const isOnLogin = path === '/login'
@@ -69,8 +82,8 @@ export const authConfig = {
       const sections: string = (auth!.user as any)?.sections || ''
       const allowed = sections.split(',').map(s => s.trim()).filter(Boolean)
 
-      // Panel de usuarios: solo admin
-      if (path.startsWith('/gestion/usuarios')) {
+      // Panel de usuarios y utilidades de datos (seed/migrar): solo admin
+      if (path.startsWith('/gestion/usuarios') || path.startsWith('/gestion/seed') || path.startsWith('/gestion/migrar')) {
         if (role === 'admin') return true
         return Response.redirect(new URL('/gestion', nextUrl))
       }
@@ -91,19 +104,32 @@ export const authConfig = {
 
       return true
     },
-    async jwt({ token, user, trigger }) {
+    async jwt({ token, user }) {
       if (user) {
         token.id = user.id
         token.name = user.name
         token.username = (user as any).username
         token.role = (user as any).role || 'editor'
         token.sections = (user as any).sections || ''
-      } else if (token && token.role === undefined && token.username) {
-        // Token viejo (sin role/sections) → auto-reparar desde la DB
-        const perms = await fetchUserPerms(token.username as string)
-        if (perms) {
-          token.role = perms.role
-          token.sections = perms.sections
+        token.disabled = false
+        token.checkedAt = Date.now()
+      } else if (token && token.username) {
+        // Revalidar contra la DB: tokens legacy (sin role) o cuando venció la ventana.
+        const checkedAt = (token.checkedAt as number) || 0
+        const stale = token.role === undefined || (Date.now() - checkedAt) > REVALIDATE_MS
+        if (stale) {
+          const perms = await fetchUserPerms(token.username as string)
+          if (perms === null) {
+            // DB no disponible → fail-open: mantener permisos actuales, reintentar luego.
+          } else if (!perms.found || perms.active === 0) {
+            // Usuario eliminado o desactivado → invalidar la sesión.
+            token.disabled = true
+          } else {
+            token.role = perms.role
+            token.sections = perms.sections
+            token.disabled = false
+            token.checkedAt = Date.now()
+          }
         }
       }
       return token
@@ -115,6 +141,7 @@ export const authConfig = {
         ;(session.user as any).username = token.username
         ;(session.user as any).role = token.role
         ;(session.user as any).sections = token.sections
+        ;(session.user as any).disabled = token.disabled === true
       }
       return session
     },

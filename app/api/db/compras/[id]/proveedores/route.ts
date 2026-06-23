@@ -1,14 +1,13 @@
 import { NextResponse } from 'next/server'
 import { d1Query, d1Exec } from '@/lib/d1'
-import { getSessionInfo, canEdit } from '@/lib/perms'
+import { requireWrite } from '@/lib/perms'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const s = await getSessionInfo()
-  if (!s) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!canEdit(s)) return NextResponse.json({ error: 'Tu usuario es de solo lectura' }, { status: 403 })
+  const g = await requireWrite('comparador')
+  if (!g.ok) return g.res
 
   const { id } = await params
   const body = await request.json()

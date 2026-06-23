@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { d1Query, d1Batch } from '@/lib/d1'
+import { requireWrite } from '@/lib/perms'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -46,7 +47,7 @@ type CustomCatRow = {
   kind: string
 }
 
-type OpInfoRow = { puerto_origen: string | null }
+type OpInfoRow = { puerto_origen: string | null; total_cotizado_usd: string | null; cotizacion_id: string | null; compra_id: string | null }
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
@@ -55,7 +56,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const { id } = await params
 
   const [opInfo, gastos, provs, customCats] = await Promise.all([
-    d1Query<OpInfoRow>(`SELECT puerto_origen FROM operations WHERE id = ?`, [id]),
+    d1Query<OpInfoRow>(`SELECT puerto_origen, total_cotizado_usd, cotizacion_id, compra_id FROM operations WHERE id = ?`, [id]),
     d1Query<GastoRow>(`SELECT * FROM gastos WHERE operation_id = ? ORDER BY categoria, position ASC`, [id]),
     d1Query<ProvRow>(`SELECT * FROM proveedores_op WHERE operation_id = ? ORDER BY position ASC`, [id]),
     d1Query<CustomCatRow>(`SELECT * FROM custom_categories WHERE operation_id = ?`, [id]),
@@ -68,6 +69,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     cobrar: [],
     customGastos: customCats.map(c => ({ id: c.id, label: c.label, color: c.color, kind: c.kind })),
     puertoOrigen: opInfo[0]?.puerto_origen || '',
+    totalCotizadoUsd: opInfo[0]?.total_cotizado_usd || '',
+    cotizacionId: opInfo[0]?.cotizacion_id || '',
+    compraId: opInfo[0]?.compra_id || '',
   }
 
   // Pre-seed custom cat arrays
@@ -114,56 +118,74 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   return NextResponse.json(detail)
 }
 
+// Normaliza un valor numérico de entrada: acepta coma decimal, devuelve null si vacío.
+function num(v: any): string | null {
+  if (v === '' || v == null) return null
+  return String(v).replace(',', '.')
+}
+
+const sqlList = (arr: string[]) => arr.map(() => '?').join(', ')
+
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if ((session?.user as any)?.role === 'viewer') return NextResponse.json({ error: 'Tu usuario es de solo lectura' }, { status: 403 })
+  const g = await requireWrite('operaciones')
+  if (!g.ok) return g.res
 
   const { id } = await params
   const body = await request.json()
 
-  const statements: { sql: string; params?: any[] }[] = []
+  // Estrategia no-destructiva: primero UPSERT de todo lo nuevo (por clave estable),
+  // y RECIÉN AL FINAL borrados acotados a lo que sobró. Si algo falla a mitad, la
+  // operación queda con datos de más (viejos+nuevos), nunca vacía. (D1 HTTP no es
+  // transaccional, así que el orden importa.)
+  const upserts: { sql: string; params?: any[] }[] = []
+  const cleanup: { sql: string; params?: any[] }[] = []
 
-  // Wipe existing data for this op
-  statements.push({ sql: `DELETE FROM gastos WHERE operation_id = ?`, params: [id] })
-  statements.push({ sql: `DELETE FROM proveedores_op WHERE operation_id = ?`, params: [id] })
-  statements.push({ sql: `DELETE FROM custom_categories WHERE operation_id = ?`, params: [id] })
-
-  // Insert custom categories first
-  const customGastos: any[] = body.customGastos || []
+  // --- Custom categories ---
+  const RESERVED = new Set([...BUILTIN_CATS, 'proveedores', 'cobrar', 'customGastos', 'puertoOrigen', 'totalCotizadoUsd', 'cotizacionId', 'compraId'])
+  const customGastos: any[] = (body.customGastos || []).filter((c: any) => c && c.id && !RESERVED.has(c.id))
+  const customIds = customGastos.map(c => c.id)
   for (const c of customGastos) {
-    statements.push({
-      sql: `INSERT INTO custom_categories (id, operation_id, label, color, kind, created_at) VALUES (?, ?, ?, ?, ?, datetime('now'))`,
+    upserts.push({
+      sql: `INSERT OR REPLACE INTO custom_categories (id, operation_id, label, color, kind, created_at) VALUES (?, ?, ?, ?, ?, datetime('now'))`,
       params: [c.id, id, c.label || '', c.color || null, c.kind || 'blanco'],
     })
   }
+  // Borrar custom cats que ya no existen
+  if (customIds.length > 0) {
+    cleanup.push({
+      sql: `DELETE FROM custom_categories WHERE operation_id = ? AND id NOT IN (${sqlList(customIds)})`,
+      params: [id, ...customIds],
+    })
+  } else {
+    cleanup.push({ sql: `DELETE FROM custom_categories WHERE operation_id = ?`, params: [id] })
+  }
 
-  // Insert gastos for all categories (built-in + custom)
-  const allCats = [...BUILTIN_CATS, ...customGastos.map(c => c.id)]
+  // --- Gastos por categoría (builtin + custom) ---
+  const allCats = [...BUILTIN_CATS, ...customIds]
   for (const cat of allCats) {
     const rows: any[] = body[cat] || []
     rows.forEach((row, idx) => {
-      statements.push({
+      upserts.push({
         sql: `INSERT OR REPLACE INTO gastos (operation_id, categoria, position, descripcion, factura, usd, tc, pesos, created_at)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
-        params: [
-          id, cat, idx,
-          row.desc || null,
-          row.factura || null,
-          row.usd === '' || row.usd == null ? null : String(row.usd),
-          row.tc === '' || row.tc == null ? null : String(row.tc),
-          row.pesos === '' || row.pesos == null ? null : String(row.pesos),
-        ],
+        params: [id, cat, idx, row.desc || null, row.factura || null, num(row.usd), num(row.tc), num(row.pesos)],
       })
     })
+    // Borrar las posiciones que sobran de esta categoría
+    cleanup.push({ sql: `DELETE FROM gastos WHERE operation_id = ? AND categoria = ? AND position >= ?`, params: [id, cat, rows.length] })
   }
+  // Borrar gastos de categorías que ya no existen (custom eliminadas)
+  cleanup.push({
+    sql: `DELETE FROM gastos WHERE operation_id = ? AND categoria NOT IN (${sqlList(allCats)})`,
+    params: [id, ...allCats],
+  })
 
-  // Insert proveedores merged with cobrar
+  // --- Proveedores (mergeado con cobrar) ---
   const proveedores: any[] = body.proveedores || []
   const cobrar: any[] = body.cobrar || []
   proveedores.forEach((p, idx) => {
     const cb = cobrar[idx] || {}
-    statements.push({
+    upserts.push({
       sql: `INSERT OR REPLACE INTO proveedores_op
             (operation_id, position, nombre, tipo, cliente_id, m3, fob_usd, gastos_origen_usd, tributos_usd, tributos_tc,
              cobrar_tc, honorarios, desp_adic, cobrado, fecha_cobro, created_at)
@@ -173,27 +195,25 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         p.nombre || null,
         p.tipo || 'Cliente',
         p.clienteId || null,
-        p.m3 === '' || p.m3 == null ? null : String(p.m3),
-        p.fobUSD === '' || p.fobUSD == null ? null : String(p.fobUSD),
-        p.gastosOrigenUSD === '' || p.gastosOrigenUSD == null ? null : String(p.gastosOrigenUSD),
-        p.tributosUSD === '' || p.tributosUSD == null ? null : String(p.tributosUSD),
-        p.tributosTC === '' || p.tributosTC == null ? null : String(p.tributosTC),
-        cb.tc === '' || cb.tc == null ? null : String(cb.tc),
+        num(p.m3), num(p.fobUSD), num(p.gastosOrigenUSD), num(p.tributosUSD), num(p.tributosTC),
+        num(cb.tc),
         cb.honorarios ? 1 : 0,
-        cb.despAdic === '' || cb.despAdic == null ? null : String(cb.despAdic),
+        num(cb.despAdic),
         cb.cobrado ? 1 : 0,
         cb.fechaCobro || null,
       ],
     })
   })
+  cleanup.push({ sql: `DELETE FROM proveedores_op WHERE operation_id = ? AND position >= ?`, params: [id, proveedores.length] })
 
   // Update operation's puerto_origen + updated_at
-  statements.push({
+  upserts.push({
     sql: `UPDATE operations SET puerto_origen = ?, updated_at = datetime('now') WHERE id = ?`,
     params: [body.puertoOrigen || null, id],
   })
 
-  await d1Batch(statements)
+  // Upserts PRIMERO, borrados acotados AL FINAL.
+  await d1Batch([...upserts, ...cleanup])
 
   return NextResponse.json({ ok: true })
 }

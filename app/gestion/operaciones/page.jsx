@@ -1,6 +1,7 @@
 'use client';
 import { useState, useMemo, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { gToast } from '../toast';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 const n    = (v) => parseFloat(v) || 0;
@@ -159,21 +160,27 @@ function OperationsList({ onSelect, deepLinkId }) {
   const [statusPop, setStatusPop] = useState(null); // op.id with open status picker
   const [deepLinkDone, setDeepLinkDone] = useState(false);
 
+  const [loadError, setLoadError] = useState(false);
+
   // Load from API
+  const loadOps = useRef(null);
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    const run = async () => {
+      setLoading(true); setLoadError(false);
       try {
         const r = await fetch('/api/db/operations');
         if (!r.ok) throw new Error('failed');
         const data = await r.json();
         if (!cancelled) setOps(Array.isArray(data) ? data : []);
       } catch {
-        if (!cancelled) setOps([]);
+        if (!cancelled) { setLoadError(true); gToast.error('No se pudieron cargar las operaciones. Revisá tu conexión.'); }
       } finally {
         if (!cancelled) setLoading(false);
       }
-    })();
+    };
+    loadOps.current = run;
+    run();
     return () => { cancelled = true; };
   }, []);
 
@@ -200,38 +207,56 @@ function OperationsList({ onSelect, deepLinkId }) {
   const setEstado = async (id, estado) => {
     const op = ops.find(o => o.id === id);
     if (!op) return;
+    const prev = op.estado;
     const next = { ...op, estado };
-    setOps(ops.map(o => o.id === id ? next : o));
+    setOps(ops.map(o => o.id === id ? next : o)); // optimista
     setStatusPop(null);
     try {
-      await fetch(`/api/db/operations/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(next) });
-    } catch {}
+      const r = await fetch(`/api/db/operations/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(next) });
+      if (!r.ok) throw new Error('failed');
+      gToast.success(`Estado: ${estado}`);
+    } catch {
+      // revertir el cambio optimista y avisar (antes se tragaba el error en silencio)
+      setOps(curr => curr.map(o => o.id === id ? { ...o, estado: prev } : o));
+      gToast.error('No se pudo cambiar el estado. Intentá de nuevo.');
+    }
   };
 
   const submit = async () => {
-    if (!form.nombre.trim()) return;
-    if (modal === 'new') {
-      const id = 'op-' + Date.now();
-      const newOp = { ...form, id };
-      const r = await fetch('/api/db/operations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newOp) });
-      if (r.ok) {
+    if (!form.nombre.trim()) { gToast.error('El nombre de la operación es obligatorio.'); return; }
+    try {
+      if (modal === 'new') {
+        const id = 'op-' + Date.now();
+        const newOp = { ...form, id };
+        const r = await fetch('/api/db/operations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newOp) });
+        if (!r.ok) { gToast.error('No se pudo crear la operación.'); return; }
         const created = await r.json();
         setOps([{ ...created, m3_total: 0 }, ...ops]);
-      }
-    } else {
-      const id = modal.id;
-      const updated = { ...form, id };
-      const r = await fetch(`/api/db/operations/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) });
-      if (r.ok) {
+        gToast.success('Operación creada.');
+      } else {
+        const id = modal.id;
+        const updated = { ...form, id };
+        const r = await fetch(`/api/db/operations/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) });
+        if (!r.ok) { gToast.error('No se pudieron guardar los cambios.'); return; }
         setOps(ops.map(o => o.id === id ? { ...o, ...updated } : o));
+        gToast.success('Operación actualizada.');
       }
+      setModal(null);
+    } catch {
+      gToast.error('Error de conexión. Intentá de nuevo.');
     }
-    setModal(null);
   };
   const remove = async (id) => {
-    const r = await fetch(`/api/db/operations/${id}`, { method: 'DELETE' });
-    if (r.ok) setOps(ops.filter(o => o.id !== id));
-    setConfirm(null);
+    try {
+      const r = await fetch(`/api/db/operations/${id}`, { method: 'DELETE' });
+      if (!r.ok) { gToast.error('No se pudo eliminar la operación.'); return; }
+      setOps(ops.filter(o => o.id !== id));
+      gToast.success('Operación eliminada.');
+    } catch {
+      gToast.error('Error de conexión. Intentá de nuevo.');
+    } finally {
+      setConfirm(null);
+    }
   };
 
   const INP2 = { ...INP, padding: '0.5rem 0.75rem', boxSizing: 'border-box' };
@@ -277,6 +302,12 @@ function OperationsList({ onSelect, deepLinkId }) {
         {loading ? (
           <div style={{ textAlign: 'center', padding: '4rem 2rem', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', color: '#94a3b8', fontSize: '0.85rem' }}>
             Cargando operaciones...
+          </div>
+        ) : loadError ? (
+          <div style={{ textAlign: 'center', padding: '4rem 2rem', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+            <p style={{ fontWeight: 700, color: '#b91c1c', marginBottom: '0.4rem', fontSize: '0.95rem' }}>No se pudieron cargar las operaciones</p>
+            <p style={{ fontSize: '0.82rem', color: '#94a3b8', marginBottom: '1.25rem' }}>Puede ser un problema de conexión.</p>
+            <button onClick={() => loadOps.current && loadOps.current()} style={{ padding: '0.55rem 1.25rem', borderRadius: '50px', border: 'none', cursor: 'pointer', background: '#ea580c', color: '#fff', fontWeight: 700, fontSize: '0.82rem' }}>Reintentar</button>
           </div>
         ) : ops.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '4rem 2rem', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
@@ -374,10 +405,10 @@ function OperationsList({ onSelect, deepLinkId }) {
                   )}
                 </div>
                 {/* edit icon */}
-                <button className="edit-btn" onClick={e => openEdit(op, e)} title="Editar"
+                <button className="edit-btn" onClick={e => openEdit(op, e)} title="Editar" aria-label={`Editar operación ${op.nombre || ''}`}
                   style={{ width: '30px', height: '30px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: '0.82rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✏</button>
                 {/* delete icon */}
-                <button className="del-btn" onClick={e => askDel(op.id, e)} title="Eliminar"
+                <button className="del-btn" onClick={e => askDel(op.id, e)} title="Eliminar" aria-label={`Eliminar operación ${op.nombre || ''}`}
                   style={{ width: '30px', height: '30px', borderRadius: '8px', border: '1px solid #fee2e2', background: '#fff', color: '#dc2626', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
               </div>
             </div>
@@ -396,7 +427,7 @@ function OperationsList({ onSelect, deepLinkId }) {
           <div style={{ ...CARD, width: '100%', maxWidth: '520px', margin: '1rem', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
               <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#1e293b' }}>{modal === 'new' ? 'Nueva operación' : 'Editar operación'}</h3>
-              <button onClick={() => setModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '1.3rem', lineHeight: 1 }}>×</button>
+              <button onClick={() => setModal(null)} aria-label="Cerrar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '1.3rem', lineHeight: 1 }}>×</button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
               <div style={{ gridColumn: '1 / -1' }}>
@@ -492,6 +523,8 @@ function OperationDetail({ op, onBack }) {
   const [checklistLoaded, setChecklistLoaded] = useState(false);
   const [shipment,   setShipment]   = useState(null);
   const [shipmentLoaded, setShipmentLoaded] = useState(false);
+  const [confirmDelCat, setConfirmDelCat] = useState(null); // catId pendiente de borrar
+  const [creatingShip, setCreatingShip] = useState(false);
 
   // Load detail from API
   useEffect(() => {
@@ -562,7 +595,7 @@ function OperationDetail({ op, onBack }) {
   // create a cliente inline; returns new id or null
   const createCliente = async (nombre) => {
     const nm = (nombre || '').trim();
-    if (!nm) { alert('Ingresá un nombre para el cliente.'); return null; }
+    if (!nm) { gToast.error('Ingresá un nombre para el cliente.'); return null; }
     try {
       const r = await fetch('/api/db/clientes', {
         method: 'POST',
@@ -570,29 +603,31 @@ function OperationDetail({ op, onBack }) {
         body: JSON.stringify({ nombre: nm }),
       });
       if (!r.ok) {
-        if (r.status === 403) alert('No tenés permisos para crear clientes.');
-        else if (r.status === 409) alert('Ya existe un cliente con ese nombre.');
-        else alert('No se pudo crear el cliente. Intentá de nuevo.');
+        if (r.status === 403) gToast.error('No tenés permisos para crear clientes.');
+        else if (r.status === 409) gToast.error('Ya existe un cliente con ese nombre.');
+        else gToast.error('No se pudo crear el cliente. Intentá de nuevo.');
         return null;
       }
       const nuevo = await r.json();
-      if (!nuevo || !nuevo.id) { alert('No se pudo crear el cliente.'); return null; }
+      if (!nuevo || !nuevo.id) { gToast.error('No se pudo crear el cliente.'); return null; }
       setClientes(prev => [...prev, nuevo]);
+      gToast.success(`Cliente "${nuevo.nombre || nm}" creado.`);
       return nuevo.id;
     } catch {
-      alert('No se pudo crear el cliente. Revisá la conexión.');
+      gToast.error('No se pudo crear el cliente. Revisá la conexión.');
       return null;
     }
   };
 
-  // load matching tracking shipment (by BL)
+  // load matching tracking shipment (by BL) — filtra server-side, no baja toda la tabla
   useEffect(() => {
     let cancelled = false;
     setShipmentLoaded(false);
     setShipment(null);
+    if (!op.bl) { setShipmentLoaded(true); return; }
     (async () => {
       try {
-        const r = await fetch('/api/tracking');
+        const r = await fetch('/api/tracking?bl=' + encodeURIComponent(op.bl));
         if (!r.ok) throw new Error('failed');
         const data = await r.json();
         const list = Array.isArray(data?.shipments) ? data.shipments : [];
@@ -689,9 +724,10 @@ function OperationDetail({ op, onBack }) {
       if (!r.ok) throw new Error('failed');
       setIsDirty(false);
       setSaveFlash(true);
+      gToast.success('Operación guardada.');
       setTimeout(() => setSaveFlash(false), 2200);
     } catch (e) {
-      alert('Error al guardar. Reintentá.');
+      gToast.error('Error al guardar. Reintentá — no se perdió lo que cargaste.');
     } finally {
       savingRef.current = false;
       setSaving(false);
@@ -711,8 +747,9 @@ function OperationDetail({ op, onBack }) {
     }));
     D();
   };
-  const removeCustomCategory = (catId) => {
-    if (!confirm('¿Eliminar esta categoría? Se perderán las facturas cargadas.')) return;
+  // Abre el modal de confirmación (reemplaza el confirm() del navegador).
+  const removeCustomCategory = (catId) => setConfirmDelCat(catId);
+  const doRemoveCustomCategory = (catId) => {
     setDetail(d => {
       const next = { ...d };
       delete next[catId];
@@ -721,6 +758,26 @@ function OperationDetail({ op, onBack }) {
     });
     D();
     setEditingCat(null);
+    setConfirmDelCat(null);
+    gToast.success('Categoría eliminada.');
+  };
+
+  // Crear un embarque en Tracking ya vinculado a esta operación (prefill desde la op).
+  const crearEmbarque = async () => {
+    if (creatingShip) return;
+    setCreatingShip(true);
+    try {
+      const body = { bl: op.bl || '', contenedores: op.contenedor || '', eta: op.eta || '', agente: 'Bruce', status: 'In Transit', operation_id: op.id };
+      const r = await fetch('/api/tracking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (!r.ok) { gToast.error('No se pudo crear el embarque.'); return; }
+      const created = await r.json();
+      setShipment(created);
+      gToast.success('Embarque creado en Tracking.');
+    } catch {
+      gToast.error('Error de conexión. Intentá de nuevo.');
+    } finally {
+      setCreatingShip(false);
+    }
   };
 
   const calc = useMemo(() => {
@@ -1030,6 +1087,28 @@ function OperationDetail({ op, onBack }) {
             )}
           </div>
 
+          {/* Cotizado vs a cobrar (si la operación vino de una cotización) */}
+          {detail.totalCotizadoUsd ? (() => {
+            const cot = n(detail.totalCotizadoUsd);
+            const dif = calc.totalACobrar - cot;
+            const up = dif >= 0;
+            return (
+              <div style={CARD}>
+                <div style={{ padding: '0.75rem 0.95rem', borderBottom: '1px solid #f1f5f9' }}>
+                  <p style={{ fontSize: '0.82rem', fontWeight: 700 }}>Cotizado vs a cobrar</p>
+                </div>
+                <div style={{ padding: '0.7rem 0.95rem 0.9rem', display: 'flex', flexDirection: 'column', gap: 6, fontSize: '0.74rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#94a3b8' }}>Cotizado al cliente</span><span style={{ fontWeight: 700, color: '#475569' }}>{fmtU(cot)}</span></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#94a3b8' }}>A cobrar (calculado)</span><span style={{ fontWeight: 700, color: '#0f172a' }}>{fmtU(calc.totalACobrar)}</span></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 6, borderTop: '1px solid #f1f5f9' }}>
+                    <span style={{ color: '#94a3b8' }}>Diferencia</span>
+                    <span style={{ fontWeight: 800, color: up ? '#059669' : '#dc2626' }}>{up ? '+' : ''}{fmtU(dif)}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })() : null}
+
           {/* Seguimiento del agente (tracking) */}
           <div style={CARD}>
             <div style={{ padding: '0.75rem 0.95rem', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -1040,7 +1119,12 @@ function OperationDetail({ op, onBack }) {
               {!shipmentLoaded ? (
                 <p style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Cargando…</p>
               ) : !shipment ? (
-                <p style={{ fontSize: '0.72rem', color: '#94a3b8', lineHeight: 1.4 }}>Sin embarque vinculado en Tracking (se vincula por N° BL).</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <p style={{ fontSize: '0.72rem', color: '#94a3b8', lineHeight: 1.4 }}>Sin embarque vinculado en Tracking (se vincula por N° BL).</p>
+                  <button onClick={crearEmbarque} disabled={creatingShip} style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 5, padding: '0.35rem 0.8rem', borderRadius: 7, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1e40af', fontWeight: 700, fontSize: '0.72rem', cursor: creatingShip ? 'default' : 'pointer' }}>
+                    {creatingShip ? 'Creando…' : '+ Crear embarque en Tracking'}
+                  </button>
+                </div>
               ) : (() => {
                 const stColor = trackingStatusColor(shipment.status);
                 const bal = trackBalNum(shipment.balance_usd);
@@ -1061,6 +1145,12 @@ function OperationDetail({ op, onBack }) {
                       <div><span style={{ color: '#94a3b8' }}>Zarpe (ETD): </span><span style={{ color: '#475569', fontWeight: 600 }}>{shipment.etd || '—'}</span></div>
                       <div><span style={{ color: '#94a3b8' }}>ETA: </span><span style={{ color: '#059669', fontWeight: 600 }}>{shipment.eta || '—'}</span></div>
                     </div>
+                    {shipment.total_usd && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.72rem' }}>
+                        <span style={{ color: '#94a3b8' }}>Total al agente</span>
+                        <span style={{ color: '#475569', fontWeight: 700 }}>USD {shipment.total_usd}</span>
+                      </div>
+                    )}
                     {bal > 0 && (
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.4rem 0.55rem', background: '#fef2f2', borderRadius: 6, border: '1px solid #fecaca' }}>
                         <span style={{ fontSize: '0.68rem', color: '#b91c1c', fontWeight: 600 }}>Saldo a pagar al agente</span>
@@ -1116,6 +1206,23 @@ function OperationDetail({ op, onBack }) {
           onAdd={(data) => { addCustomCategory(data); setAddingCat(false); }}
           onClose={() => setAddingCat(false)}
         />
+      )}
+
+      {/* CONFIRM DELETE CATEGORY (reemplaza confirm() del navegador) */}
+      {confirmDelCat && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, padding: '1rem' }} onClick={() => setConfirmDelCat(null)}>
+          <div style={{ ...CARD, maxWidth: 360, textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+            <div style={{ width: 48, height: 48, borderRadius: 12, background: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+            </div>
+            <p style={{ fontWeight: 700, color: '#1e293b', marginBottom: '0.4rem' }}>¿Eliminar esta categoría?</p>
+            <p style={{ fontSize: '0.82rem', color: '#64748b', marginBottom: '1.25rem' }}>Se perderán las facturas cargadas. No se puede deshacer.</p>
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+              <button onClick={() => setConfirmDelCat(null)} style={{ padding: '0.5rem 1rem', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={() => doRemoveCustomCategory(confirmDelCat)} style={{ padding: '0.5rem 1.2rem', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>Eliminar</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Floating checklist FAB */}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { gToast } from '../toast'
 
 const CARD = { background: '#fff', borderRadius: 10, border: '1px solid #e8ecf1', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }
 const INP = { width: '100%', padding: '0.5rem 0.65rem', border: '1px solid #e2e8f0', borderRadius: 7, fontSize: '16px', color: '#0f172a', background: '#fff', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }
@@ -26,8 +27,29 @@ function statusStyle(raw) {
 const blNorm = (b) => (b || '').replace(/[\s-]/g, '').toUpperCase()
 const numUSD = (v) => { const n = parseFloat(String(v || '').replace(/\./g, '').replace(',', '.')); return isNaN(n) ? 0 : n }
 const fmtUSD = (n) => 'USD ' + Math.round(n).toLocaleString('es-AR')
+// Formatea un número calculado a string es-AR (sin separador de miles ambiguo para el parseo posterior).
+const fmtCalc = (n) => { if (!isFinite(n)) return ''; const r = Math.round(n * 100) / 100; return r.toLocaleString('es-AR', { maximumFractionDigits: 2 }) }
 
-const EMPTY = { num: '', agente: 'Bruce', origen: '', destino: '', contenedores: '', modo: '', bl: '', carrier: '', etd: '', eta: '', status: 'In Transit', sea_freight_usd: '', other_fees_usd: '', discount_usd: '', total_usd: '', suppliers: '', amount_due_usd: '', amount_rec_usd: '', balance_usd: '', payment_date: '', notes: '' }
+// Tipo de cambio RMB→USD por defecto (editable por embarque). El agente cobra parte en RMB.
+const TC_RMB_DEFAULT = 7
+const EMPTY = { num: '', agente: 'Bruce', origen: '', destino: '', contenedores: '', modo: '', bl: '', carrier: '', etd: '', eta: '', status: 'In Transit', sea_freight_usd: '', other_fees_rmb: '', tc_rmb: '', other_fees_usd: '', discount_usd: '', total_usd: '', suppliers: '', amount_due_usd: '', amount_rec_usd: '', balance_usd: '', payment_date: '', notes: '' }
+// Convierte los Other Fees en RMB a USD usando el TC del embarque (o el default).
+const rmbToUsd = (rmb, tc) => { const r = numUSD(rmb); if (!r) return 0; const t = numUSD(tc) || TC_RMB_DEFAULT; return t > 0 ? r / t : 0 }
+
+// Chip auto/manual para campos calculados.
+function CalcChip({ auto, onToggle }) {
+  return (
+    <button type="button" onClick={onToggle}
+      title={auto ? 'Calculado automáticamente — tocá para editar manual' : 'Manual — tocá para volver a automático'}
+      style={{
+        marginLeft: 6, fontSize: '0.54rem', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase',
+        padding: '0.05rem 0.4rem', borderRadius: 5, cursor: 'pointer', verticalAlign: 'middle',
+        border: `1px solid ${auto ? '#bfdbfe' : '#fed7aa'}`, background: auto ? '#eff6ff' : '#fff7ed', color: auto ? '#1e40af' : '#c2410c',
+      }}>
+      {auto ? 'auto' : 'manual'}
+    </button>
+  )
+}
 
 export default function TrackingPage() {
   const [ships, setShips] = useState([])
@@ -40,17 +62,39 @@ export default function TrackingPage() {
   const [form, setForm] = useState(EMPTY)
   const [confirmDel, setConfirmDel] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [loadError, setLoadError] = useState(false)
+  const [totalAuto, setTotalAuto] = useState(true)  // Total = flete + otros - descuento
+  const [balAuto, setBalAuto] = useState(true)       // Saldo = a pagar - pagado
 
   const load = async () => {
     setLoading(true)
+    setLoadError(false)
     try {
       const [t, o] = await Promise.all([fetch('/api/tracking'), fetch('/api/db/operations')])
+      if (!t.ok) throw new Error('tracking')
       const td = await t.json()
       setShips(td.shipments || [])
       if (o.ok) setOps(await o.json())
+    } catch {
+      setLoadError(true)
+      gToast.error('No se pudieron cargar los embarques. Revisá tu conexión.')
     } finally { setLoading(false) }
   }
   useEffect(() => { load() }, [])
+
+  // Autocálculo de Total y Saldo (a menos que el usuario los ponga en manual).
+  // Total = flete + otros (USD) + otros (RMB→USD) − descuento.
+  useEffect(() => {
+    if (modal === null || !totalAuto) return
+    const v = fmtCalc(numUSD(form.sea_freight_usd) + numUSD(form.other_fees_usd) + rmbToUsd(form.other_fees_rmb, form.tc_rmb) - numUSD(form.discount_usd))
+    setForm(p => p.total_usd === v ? p : ({ ...p, total_usd: v }))
+  }, [form.sea_freight_usd, form.other_fees_usd, form.other_fees_rmb, form.tc_rmb, form.discount_usd, totalAuto, modal])
+
+  useEffect(() => {
+    if (modal === null || !balAuto) return
+    const v = fmtCalc(numUSD(form.amount_due_usd) - numUSD(form.amount_rec_usd))
+    setForm(p => p.balance_usd === v ? p : ({ ...p, balance_usd: v }))
+  }, [form.amount_due_usd, form.amount_rec_usd, balAuto, modal])
 
   const opByBL = useMemo(() => {
     const m = {}; ops.forEach(o => { if (o.bl) m[blNorm(o.bl)] = o }); return m
@@ -77,26 +121,50 @@ export default function TrackingPage() {
     return { total: base.length, transito, pendientePago, saldoPagar }
   }, [ships, agenteFilter])
 
-  const openNew  = () => { setForm({ ...EMPTY }); setModal('new') }
-  const openEdit = (s) => { setForm({ ...EMPTY, ...s }); setModal(s) }
+  const openNew  = () => { setForm({ ...EMPTY }); setTotalAuto(true); setBalAuto(true); setModal('new') }
+  const openEdit = (s) => {
+    setForm({ ...EMPTY, ...s })
+    // Si el valor guardado coincide con el cálculo (o está vacío), queda en modo auto; si no, respetamos el manual.
+    const calcT = fmtCalc(numUSD(s.sea_freight_usd) + numUSD(s.other_fees_usd) + rmbToUsd(s.other_fees_rmb, s.tc_rmb) - numUSD(s.discount_usd))
+    const calcB = fmtCalc(numUSD(s.amount_due_usd) - numUSD(s.amount_rec_usd))
+    setTotalAuto(!s.total_usd || String(s.total_usd) === calcT)
+    setBalAuto(!s.balance_usd || String(s.balance_usd) === calcB)
+    setModal(s)
+  }
+
+  async function errMsg(r, fallback) {
+    try { const j = await r.json(); return j?.error || fallback } catch { return fallback }
+  }
 
   const save = async () => {
+    if (saving) return
     setSaving(true)
     try {
       if (modal === 'new') {
         const r = await fetch('/api/tracking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
-        if (r.ok) { const created = await r.json(); setShips([created, ...ships]) }
+        if (!r.ok) { gToast.error(await errMsg(r, 'No se pudo crear el embarque.')); return }
+        const created = await r.json(); setShips([created, ...ships])
+        gToast.success('Embarque creado.')
       } else {
         const r = await fetch(`/api/tracking/${modal.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
-        if (r.ok) setShips(ships.map(s => s.id === modal.id ? { ...s, ...form } : s))
+        if (!r.ok) { gToast.error(await errMsg(r, 'No se pudieron guardar los cambios.')); return }
+        setShips(ships.map(s => s.id === modal.id ? { ...s, ...form } : s))
+        gToast.success('Embarque actualizado.')
       }
       setModal(null)
+    } catch {
+      gToast.error('Error de conexión. Intentá de nuevo.')
     } finally { setSaving(false) }
   }
   const del = async (id) => {
-    const r = await fetch(`/api/tracking/${id}`, { method: 'DELETE' })
-    if (r.ok) setShips(ships.filter(s => s.id !== id))
-    setConfirmDel(null)
+    try {
+      const r = await fetch(`/api/tracking/${id}`, { method: 'DELETE' })
+      if (!r.ok) { gToast.error(await errMsg(r, 'No se pudo eliminar el embarque.')); return }
+      setShips(ships.filter(s => s.id !== id))
+      gToast.success('Embarque eliminado.')
+    } catch {
+      gToast.error('Error de conexión. Intentá de nuevo.')
+    } finally { setConfirmDel(null) }
   }
 
   const upd = (f, v) => setForm(p => ({ ...p, [f]: v }))
@@ -167,6 +235,12 @@ export default function TrackingPage() {
           <div style={{ width: 36, height: 36, border: '3px solid #e8ecf1', borderTopColor: '#ea580c', borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 0.8s linear infinite' }} />
           Cargando embarques…
         </div>
+      ) : loadError ? (
+        <div style={{ ...CARD, padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>
+          <p style={{ fontWeight: 600, marginBottom: '0.3rem', color: '#b91c1c' }}>No se pudieron cargar los embarques</p>
+          <p style={{ fontSize: '0.8rem', marginBottom: '1rem' }}>Puede ser un problema de conexión.</p>
+          <button onClick={load} style={{ padding: '0.5rem 1.2rem', borderRadius: 8, border: 'none', background: '#ea580c', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>Reintentar</button>
+        </div>
       ) : filtered.length === 0 ? (
         <div style={{ ...CARD, padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>Sin embarques que coincidan.</div>
       ) : (
@@ -215,7 +289,12 @@ export default function TrackingPage() {
                           <span style={{ width: 6, height: 6, borderRadius: '50%', background: st.dot }} />{s.status || '—'}
                         </span>
                       </td>
-                      <td style={{ padding: '0.55rem 0.65rem', color: '#1e293b', fontWeight: 600, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{s.total_usd ? 'USD ' + s.total_usd : '—'}</td>
+                      <td style={{ padding: '0.55rem 0.65rem', color: '#1e293b', fontWeight: 600, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                        {s.total_usd ? 'USD ' + s.total_usd : '—'}
+                        {numUSD(s.other_fees_rmb) > 0 && (
+                          <span title={`Incluye ¥${s.other_fees_rmb} RMB (≈ USD ${fmtCalc(rmbToUsd(s.other_fees_rmb, s.tc_rmb))})`} style={{ marginLeft: 5, fontSize: '0.6rem', fontWeight: 700, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 4, padding: '0.05rem 0.3rem' }}>¥</span>
+                        )}
+                      </td>
                       <td style={{ padding: '0.55rem 0.65rem', fontWeight: 700, whiteSpace: 'nowrap', color: bal > 0 ? '#dc2626' : '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>{bal > 0 ? 'USD ' + s.balance_usd : '✓'}</td>
                       <td style={{ padding: '0.55rem 0.65rem', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
                         {op ? (
@@ -229,7 +308,7 @@ export default function TrackingPage() {
                         ) : <span style={{ color: '#cbd5e1', fontSize: '0.7rem' }}>—</span>}
                       </td>
                       <td style={{ padding: '0.55rem 0.65rem' }} onClick={e => e.stopPropagation()}>
-                        <button onClick={() => setConfirmDel(s.id)} style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid #fee2e2', background: '#fff', color: '#dc2626', fontSize: '0.85rem', cursor: 'pointer' }}>×</button>
+                        <button onClick={() => setConfirmDel(s.id)} aria-label={`Eliminar embarque ${s.num || ''}`} title="Eliminar" style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid #fee2e2', background: '#fff', color: '#dc2626', fontSize: '0.85rem', cursor: 'pointer' }}>×</button>
                       </td>
                     </tr>
                   )
@@ -246,7 +325,7 @@ export default function TrackingPage() {
           <div style={{ ...CARD, width: '100%', maxWidth: 720, maxHeight: '90vh', overflowY: 'auto', padding: '1.5rem', boxShadow: '0 24px 64px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
               <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>{modal === 'new' ? 'Nuevo embarque' : `Embarque #${form.num || ''}`}</h3>
-              <button onClick={() => setModal(null)} style={{ background: 'none', border: 'none', fontSize: '1.4rem', color: '#94a3b8', cursor: 'pointer' }}>×</button>
+              <button onClick={() => setModal(null)} aria-label="Cerrar" style={{ background: 'none', border: 'none', fontSize: '1.4rem', color: '#94a3b8', cursor: 'pointer' }}>×</button>
             </div>
 
             <p style={{ fontSize: '0.62rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Logística</p>
@@ -264,8 +343,8 @@ export default function TrackingPage() {
               <div><label style={LBL}>Modo</label><input value={form.modo} onChange={e => upd('modo', e.target.value)} style={INP} placeholder="FOB / EXW" /></div>
               <div style={{ gridColumn: 'span 2' }}><label style={LBL}>B/L Number</label><input value={form.bl} onChange={e => upd('bl', e.target.value)} style={{ ...INP, fontFamily: 'ui-monospace,monospace' }} /></div>
               <div><label style={LBL}>Carrier</label><input value={form.carrier} onChange={e => upd('carrier', e.target.value)} style={INP} placeholder="MSK / COSCO" /></div>
-              <div><label style={LBL}>Zarpe (ETD)</label><input value={form.etd} onChange={e => upd('etd', e.target.value)} style={INP} placeholder="2026-04-09" /></div>
-              <div><label style={LBL}>ETA</label><input value={form.eta} onChange={e => upd('eta', e.target.value)} style={INP} placeholder="2026-06-14" /></div>
+              <div><label style={LBL}>Zarpe (ETD)</label><input type="date" value={form.etd} onChange={e => upd('etd', e.target.value)} style={INP} /></div>
+              <div><label style={LBL}>ETA</label><input type="date" value={form.eta} onChange={e => upd('eta', e.target.value)} style={INP} /></div>
               <div style={{ gridColumn: 'span 2' }}><label style={LBL}>Estado</label>
                 <select value={form.status} onChange={e => upd('status', e.target.value)} style={{ ...INP, cursor: 'pointer' }}>
                   {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
@@ -274,16 +353,32 @@ export default function TrackingPage() {
               </div>
             </div>
 
-            <p style={{ fontSize: '0.62rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Lo que pagás al agente (USD)</p>
+            <p style={{ fontSize: '0.62rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Lo que pagás al agente</p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: '1.25rem' }}>
-              <div><label style={LBL}>Sea Freight</label><input value={form.sea_freight_usd} onChange={e => upd('sea_freight_usd', e.target.value)} style={INP} /></div>
-              <div><label style={LBL}>Other Fees</label><input value={form.other_fees_usd} onChange={e => upd('other_fees_usd', e.target.value)} style={INP} /></div>
-              <div><label style={LBL}>Descuento</label><input value={form.discount_usd} onChange={e => upd('discount_usd', e.target.value)} style={INP} /></div>
-              <div><label style={LBL}>Total</label><input value={form.total_usd} onChange={e => upd('total_usd', e.target.value)} style={{ ...INP, fontWeight: 700 }} /></div>
-              <div><label style={LBL}>A pagar</label><input value={form.amount_due_usd} onChange={e => upd('amount_due_usd', e.target.value)} style={INP} /></div>
-              <div><label style={LBL}>Pagado</label><input value={form.amount_rec_usd} onChange={e => upd('amount_rec_usd', e.target.value)} style={INP} /></div>
-              <div><label style={LBL}>Saldo a pagar</label><input value={form.balance_usd} onChange={e => upd('balance_usd', e.target.value)} style={{ ...INP, color: numUSD(form.balance_usd) > 0 ? '#dc2626' : '#0f172a', fontWeight: 600 }} /></div>
-              <div><label style={LBL}>Fecha pago</label><input value={form.payment_date} onChange={e => upd('payment_date', e.target.value)} style={INP} /></div>
+              <div><label style={LBL}>Sea Freight (USD)</label><input value={form.sea_freight_usd} onChange={e => upd('sea_freight_usd', e.target.value)} inputMode="decimal" style={INP} /></div>
+              <div><label style={LBL}>Other Fees (RMB)</label><input value={form.other_fees_rmb} onChange={e => upd('other_fees_rmb', e.target.value)} inputMode="decimal" style={INP} placeholder="¥" /></div>
+              <div>
+                <label style={LBL}>TC RMB→USD</label>
+                <input value={form.tc_rmb} onChange={e => upd('tc_rmb', e.target.value)} inputMode="decimal" style={INP} placeholder={String(TC_RMB_DEFAULT)} />
+                {numUSD(form.other_fees_rmb) > 0 && <span style={{ display: 'block', fontSize: '0.6rem', color: '#0284c7', fontWeight: 600, marginTop: 2 }}>= USD {fmtCalc(rmbToUsd(form.other_fees_rmb, form.tc_rmb))}</span>}
+              </div>
+              <div><label style={LBL}>Other Fees (USD)</label><input value={form.other_fees_usd} onChange={e => upd('other_fees_usd', e.target.value)} inputMode="decimal" style={INP} /></div>
+              <div><label style={LBL}>Descuento (USD)</label><input value={form.discount_usd} onChange={e => upd('discount_usd', e.target.value)} inputMode="decimal" style={INP} /></div>
+              <div>
+                <label style={LBL}>Total (USD) <CalcChip auto={totalAuto} onToggle={() => setTotalAuto(a => !a)} /></label>
+                <input value={form.total_usd} onChange={e => { setTotalAuto(false); upd('total_usd', e.target.value) }} readOnly={totalAuto} inputMode="decimal"
+                  title={totalAuto ? 'Calculado: flete + otros USD + otros RMB convertidos − descuento' : 'Ingreso manual'}
+                  style={{ ...INP, fontWeight: 700, background: totalAuto ? '#f8fafc' : '#fff', color: totalAuto ? '#475569' : '#0f172a' }} />
+              </div>
+              <div><label style={LBL}>A pagar</label><input value={form.amount_due_usd} onChange={e => upd('amount_due_usd', e.target.value)} inputMode="decimal" style={INP} /></div>
+              <div><label style={LBL}>Pagado</label><input value={form.amount_rec_usd} onChange={e => upd('amount_rec_usd', e.target.value)} inputMode="decimal" style={INP} /></div>
+              <div>
+                <label style={LBL}>Saldo a pagar <CalcChip auto={balAuto} onToggle={() => setBalAuto(a => !a)} /></label>
+                <input value={form.balance_usd} onChange={e => { setBalAuto(false); upd('balance_usd', e.target.value) }} readOnly={balAuto} inputMode="decimal"
+                  title={balAuto ? 'Calculado: a pagar − pagado' : 'Ingreso manual'}
+                  style={{ ...INP, fontWeight: 600, background: balAuto ? '#f8fafc' : '#fff', color: numUSD(form.balance_usd) > 0 ? '#dc2626' : (balAuto ? '#475569' : '#0f172a') }} />
+              </div>
+              <div><label style={LBL}>Fecha pago</label><input type="date" value={form.payment_date} onChange={e => upd('payment_date', e.target.value)} style={INP} /></div>
             </div>
 
             <p style={{ fontSize: '0.62rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Proveedores & notas</p>

@@ -1,14 +1,13 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@/auth'
-import { d1Exec } from '@/lib/d1'
+import { d1Exec, d1Batch } from '@/lib/d1'
+import { requireWrite } from '@/lib/perms'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if ((session?.user as any)?.role === 'viewer') return NextResponse.json({ error: 'Tu usuario es de solo lectura' }, { status: 403 })
+  const g = await requireWrite('operaciones')
+  if (!g.ok) return g.res
 
   const { id } = await params
   const body = await request.json()
@@ -24,11 +23,17 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 }
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if ((session?.user as any)?.role === 'viewer') return NextResponse.json({ error: 'Tu usuario es de solo lectura' }, { status: 403 })
+  const g = await requireWrite('operaciones')
+  if (!g.ok) return g.res
 
   const { id } = await params
-  await d1Exec(`DELETE FROM operations WHERE id = ?`, [id])
+  // Borrado en cascada: limpiar las tablas hijas (D1 HTTP no aplica ON DELETE CASCADE).
+  await d1Batch([
+    { sql: `DELETE FROM gastos WHERE operation_id = ?`, params: [id] },
+    { sql: `DELETE FROM proveedores_op WHERE operation_id = ?`, params: [id] },
+    { sql: `DELETE FROM custom_categories WHERE operation_id = ?`, params: [id] },
+    { sql: `DELETE FROM checklist WHERE operation_id = ?`, params: [id] },
+    { sql: `DELETE FROM operations WHERE id = ?`, params: [id] },
+  ])
   return NextResponse.json({ ok: true })
 }
