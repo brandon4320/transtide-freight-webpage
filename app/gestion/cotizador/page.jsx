@@ -229,7 +229,8 @@ function F({ label, children, half }) {
   );
 }
 function NI({ value, onChange, placeholder = '0' }) {
-  return <input type="number" inputMode="decimal" step="any" min="0" placeholder={placeholder} value={value} onChange={e => onChange(e.target.value)} style={INP} />;
+  // onWheel→blur: evita que la ruedita del mouse cambie montos sin querer al scrollear.
+  return <input type="number" inputMode="decimal" step="any" min="0" placeholder={placeholder} value={value} onChange={e => onChange(e.target.value)} onWheel={e => e.currentTarget.blur()} style={INP} />;
 }
 function TI({ value, onChange, placeholder = '' }) {
   return <input type="text" placeholder={placeholder} value={value} onChange={e => onChange(e.target.value)} style={INP} />;
@@ -735,14 +736,14 @@ function CotizadorMaritimo() {
 
           {/* LEFT: contenedor */}
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-              <div style={{ width: '26px', height: '26px', borderRadius: '7px', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2"><rect x="2" y="7" width="20" height="15" rx="2"/><polyline points="17 2 12 7 7 2"/></svg>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.6rem' }}>
+              <div style={{ width: '20px', height: '20px', borderRadius: '6px', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2"><rect x="2" y="7" width="20" height="15" rx="2"/><polyline points="17 2 12 7 7 2"/></svg>
               </div>
-              <p style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b' }}>Contenedor</p>
+              <p style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1e293b' }}>Contenedor</p>
             </div>
 
-            <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: '10px', padding: '3px', gap: '2px', marginBottom: '0.85rem' }}>
+            <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: '10px', padding: '3px', gap: '2px' }}>
               {Object.entries(PRESETS).map(([key, p]) => (
                 <button key={key} onClick={() => setContType(key)} style={{ flex: 1, padding: '0.42rem 0.25rem', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '0.73rem', fontWeight: 700, transition: 'all 0.15s', background: contType === key ? '#2563eb' : 'transparent', color: contType === key ? '#fff' : '#64748b' }}>
                   {p.label}
@@ -750,31 +751,37 @@ function CotizadorMaritimo() {
               ))}
             </div>
 
-            <div style={{ marginBottom: '1rem' }}>
-              <label style={LBL}>M³ del contenedor</label>
-              <input type="number" inputMode="decimal" step="any" min="1" value={contM3[contType]} onChange={e => setM3(contType, e.target.value)} style={{ ...INP, width: '110px' }} />
-            </div>
-
-            <div>
-              <label style={{ ...LBL, marginBottom: '0.5rem' }}>Costos de referencia (USD)</label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                {[['Flete marítimo','flete'],['Despachante','despachante'],['Terminal','terminal'],['Naviera','naviera'],['Logística','logistica']].map(([label, key]) => (
-                  <div key={key}>
-                    <label style={{ ...LBL, fontSize: '0.62rem' }}>{label}</label>
-                    <input type="number" inputMode="decimal" step="any" min="0" value={contCosts[contType][key]} onChange={e => setCost(contType, key, e.target.value)} style={INP} />
-                  </div>
-                ))}
+            {/* m³ + costos de referencia: colapsados (el preset ya los carga; rara vez se editan) */}
+            <details className="cot-collapse">
+              <summary style={{ ...SECL, margin: '0.6rem 0 0.3rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span className="cot-chev" style={{ fontSize: '0.7rem', color: '#94a3b8' }}>▸</span> Ajustar contenedor</span>
+                <span style={{ fontSize: '0.6rem', color: '#94a3b8', textTransform: 'none', letterSpacing: 0, fontWeight: 600 }}>{PRESETS[contType]?.label} · {contM3[contType]}m³</span>
+              </summary>
+              <div style={{ marginTop: '0.4rem' }}>
+                <div style={{ marginBottom: '0.6rem' }}>
+                  <label style={LBL}>M³ del contenedor</label>
+                  <input type="number" inputMode="decimal" step="any" min="1" value={contM3[contType]} onChange={e => setM3(contType, e.target.value)} onWheel={e => e.currentTarget.blur()} style={{ ...INP, width: '110px' }} />
+                </div>
+                <label style={{ ...LBL, marginBottom: '0.4rem' }}>Costos de referencia (USD)</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                  {[['Flete marítimo','flete'],['Despachante','despachante'],['Terminal','terminal'],['Naviera','naviera'],['Logística','logistica']].map(([label, key]) => (
+                    <div key={key}>
+                      <label style={{ ...LBL, fontSize: '0.6rem' }}>{label}</label>
+                      <input type="number" inputMode="decimal" step="any" min="0" value={contCosts[contType][key]} onChange={e => setCost(contType, key, e.target.value)} onWheel={e => e.currentTarget.blur()} style={INP} />
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            </details>
           </div>
 
           {/* RIGHT: M³ mercadería + charges table */}
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-              <div style={{ width: '26px', height: '26px', borderRadius: '7px', background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.6rem' }}>
+              <div style={{ width: '20px', height: '20px', borderRadius: '6px', background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
               </div>
-              <p style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b' }}>Mi carga & prorrateo de costos</p>
+              <p style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1e293b' }}>Mi carga & prorrateo de costos</p>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1rem', marginBottom: '1rem' }}>
@@ -827,10 +834,16 @@ function CotizadorMaritimo() {
 
           {/* identification */}
           <Card style={{ padding: '1rem 1.2rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.85rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.55rem' }}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
               <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Identificación del embarque</p>
             </div>
+            {/* NCM primero: elegir una guardada autocompleta posición + las 6 alícuotas de un saque */}
+            {ncmList.length > 0 && (
+              <F label="NCM guardada (autocompleta posición y aranceles)">
+                <NcmPicker ncmList={ncmList} onPick={(nc) => applyNcm(nc, { setClasificacion, setDescripcion, setPDer, setPTas, setPIva, setPIvaA, setPGan, setPIIBB })} />
+              </F>
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '0.6rem' }}>
               <F label={mode === 'cliente' ? 'Cliente' : 'Cliente / Referencia'}>
                 <input type="text" list="clientes-list-mar" value={cliente} onChange={e => setCliente(e.target.value)} placeholder={mode === 'cliente' ? 'Nombre del cliente' : 'Referencia de la importación'} style={INP} />
@@ -845,11 +858,6 @@ function CotizadorMaritimo() {
                 </datalist>
               </F>
             </div>
-            {ncmList.length > 0 && (
-              <F label="NCM guardada (autocompleta aranceles)">
-                <NcmPicker ncmList={ncmList} onPick={(nc) => applyNcm(nc, { setClasificacion, setDescripcion, setPDer, setPTas, setPIva, setPIvaA, setPGan, setPIIBB })} />
-              </F>
-            )}
             <F label="Descripción de la mercadería"><TI value={descripcion} onChange={setDescripcion} placeholder="Ej: Máquinas cortadoras láser 1000W" /></F>
           </Card>
 
@@ -965,20 +973,21 @@ function CotizadorMaritimo() {
 
                 <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginBottom: '0.65rem' }}>¿Cuáles de estos impuestos pagás realmente vos? Afecta solo el cálculo de tus costos reales.</p>
 
-                <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '0.75rem 1rem', border: '1px solid #f1f5f9' }}>
+                <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '0.65rem 0.85rem', border: '1px solid #f1f5f9', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem 0.9rem' }}>
                   {[
                     ['IVA %', pIva, setPIva, pagaIva, setPagaIva],
                     ['IVA Adicional %', pIvaA, setPIvaA, pagaIvaA, setPagaIvaA],
                     ['Perc. Ganancias %', pGan, setPGan, pagaGan, setPagaGan],
                     ['Perc. IIBB %', pIIBB, setPIIBB, pagaIIBB, setPagaIIBB],
                   ].map(([lbl, val, setVal, paga, setPaga]) => (
-                    <div key={lbl} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.75rem', alignItems: 'end', marginBottom: '0.6rem' }}>
-                      <F label={lbl}>
-                        <input type="number" inputMode="decimal" step="any" min="0" value={val} onChange={e => setVal(e.target.value)} style={INP} />
-                      </F>
-                      <div style={{ paddingBottom: '0.75rem' }}>
-                        <PagaToggle label="¿Lo pagás?" checked={paga} onChange={setPaga} />
+                    <div key={lbl} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.5rem', alignItems: 'end' }}>
+                      <div>
+                        <label style={{ ...LBL, marginBottom: '0.12rem' }}>{lbl}</label>
+                        <input type="number" inputMode="decimal" step="any" min="0" value={val} onChange={e => setVal(e.target.value)} onWheel={e => e.currentTarget.blur()} style={INP} />
                       </div>
+                      <button onClick={() => setPaga(!paga)} title="¿Lo pagás vos? Afecta solo tus costos reales" style={{ padding: '0.38rem 0.65rem', borderRadius: '7px', border: 'none', cursor: 'pointer', fontSize: '0.66rem', fontWeight: 700, minWidth: '44px', background: paga ? '#d1fae5' : '#fee2e2', color: paga ? '#059669' : '#dc2626' }}>
+                        {paga ? 'SÍ' : 'NO'}
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -1143,37 +1152,44 @@ function CotizadorMaritimo() {
             </Card>
 
             <Card>
-              <p style={{ ...SECL, margin: '0 0 0.7rem' }}>Rentabilidad</p>
-              {[
-                ['Margen FOB', c.mFOB],
-                ['Margen Flete', c.mFlet],
-                ['Margen Aranceles', c.mAranc],
-                ['Margen Gastos Locales', c.mGas],
-                ['Honorarios', c.honorarios],
-              ].map(([lbl, val]) => {
-                const pctFob = c.fobR > 0 ? ((val / c.fobR) * 100).toFixed(1) + '%' : '';
-                const barW = c.ganTotal > 0 ? Math.max(0, Math.min(100, (val / c.ganTotal) * 100)) : 0;
-                return (
-                  <div key={lbl} style={{ marginBottom: '0.55rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.18rem' }}>
-                      <span style={{ fontSize: '0.82rem', color: '#475569' }}>{lbl}</span>
-                      <span style={{ fontSize: '0.82rem', fontWeight: 600, color: val >= 0 ? '#10b981' : '#ef4444' }}>
-                        {usd(val)} {pctFob && <span style={{ fontSize: '0.68rem', color: '#94a3b8', fontWeight: 400 }}>({pctFob})</span>}
-                      </span>
-                    </div>
-                    <div style={{ height: '3px', background: '#f1f5f9', borderRadius: '99px' }}>
-                      <div style={{ height: '100%', width: `${barW}%`, background: val >= 0 ? '#10b981' : '#ef4444', borderRadius: '99px', transition: 'width 0.3s' }} />
+              <details className="cot-collapse">
+                <summary style={{ ...SECL, margin: '0 0 0.3rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span className="cot-chev" style={{ fontSize: '0.7rem', color: '#94a3b8' }}>▸</span> Rentabilidad por concepto</span>
+                  <span style={{ fontSize: '0.78rem', fontWeight: 800, color: c.ganTotal >= 0 ? '#10b981' : '#ef4444', textTransform: 'none', letterSpacing: 0, fontVariantNumeric: 'tabular-nums' }}>{usd(c.ganTotal)}</span>
+                </summary>
+                <div style={{ marginTop: '0.4rem' }}>
+                  {[
+                    ['Margen FOB', c.mFOB],
+                    ['Margen Flete', c.mFlet],
+                    ['Margen Aranceles', c.mAranc],
+                    ['Margen Gastos Locales', c.mGas],
+                    ['Honorarios', c.honorarios],
+                  ].map(([lbl, val]) => {
+                    const pctFob = c.fobR > 0 ? ((val / c.fobR) * 100).toFixed(1) + '%' : '';
+                    const barW = c.ganTotal > 0 ? Math.max(0, Math.min(100, (val / c.ganTotal) * 100)) : 0;
+                    return (
+                      <div key={lbl} style={{ marginBottom: '0.55rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.18rem' }}>
+                          <span style={{ fontSize: '0.82rem', color: '#475569' }}>{lbl}</span>
+                          <span style={{ fontSize: '0.82rem', fontWeight: 600, color: val >= 0 ? '#10b981' : '#ef4444', fontVariantNumeric: 'tabular-nums' }}>
+                            {usd(val)} {pctFob && <span style={{ fontSize: '0.68rem', color: '#94a3b8', fontWeight: 400 }}>({pctFob})</span>}
+                          </span>
+                        </div>
+                        <div style={{ height: '3px', background: '#f1f5f9', borderRadius: '99px' }}>
+                          <div style={{ height: '100%', width: `${barW}%`, background: val >= 0 ? '#10b981' : '#ef4444', borderRadius: '99px', transition: 'width 0.3s' }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div style={{ borderTop: '2px solid #1e293b', marginTop: '0.75rem', paddingTop: '0.7rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 700 }}>Ganancia total</span>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '1.3rem', fontWeight: 800, color: c.ganTotal >= 0 ? '#10b981' : '#ef4444' }}>{usd(c.ganTotal)}</div>
+                      {c.fobR > 0 && <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{((c.ganTotal / c.fobR) * 100).toFixed(1)}% s/ FOB real</div>}
                     </div>
                   </div>
-                );
-              })}
-              <div style={{ borderTop: '2px solid #1e293b', marginTop: '0.75rem', paddingTop: '0.7rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: 700 }}>Ganancia total</span>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '1.3rem', fontWeight: 800, color: c.ganTotal >= 0 ? '#10b981' : '#ef4444' }}>{usd(c.ganTotal)}</div>
-                  {c.fobR > 0 && <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{((c.ganTotal / c.fobR) * 100).toFixed(1)}% s/ FOB real</div>}
                 </div>
-              </div>
+              </details>
             </Card>
 
             <Card>
@@ -1901,20 +1917,21 @@ function CotizadorAereo() {
 
                 <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginBottom: '0.65rem' }}>¿Cuáles de estos impuestos pagás realmente vos? Afecta solo el cálculo de tus costos reales.</p>
 
-                <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '0.75rem 1rem', border: '1px solid #f1f5f9' }}>
+                <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '0.65rem 0.85rem', border: '1px solid #f1f5f9', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem 0.9rem' }}>
                   {[
                     ['IVA %', pIva, setPIva, pagaIva, setPagaIva],
                     ['IVA Adicional %', pIvaA, setPIvaA, pagaIvaA, setPagaIvaA],
                     ['Perc. Ganancias %', pGan, setPGan, pagaGan, setPagaGan],
                     ['Perc. IIBB %', pIIBB, setPIIBB, pagaIIBB, setPagaIIBB],
                   ].map(([lbl, val, setVal, paga, setPaga]) => (
-                    <div key={lbl} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.75rem', alignItems: 'end', marginBottom: '0.6rem' }}>
-                      <F label={lbl}>
-                        <input type="number" inputMode="decimal" step="any" min="0" value={val} onChange={e => setVal(e.target.value)} style={INP} />
-                      </F>
-                      <div style={{ paddingBottom: '0.75rem' }}>
-                        <PagaToggle label="¿Lo pagás?" checked={paga} onChange={setPaga} />
+                    <div key={lbl} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.5rem', alignItems: 'end' }}>
+                      <div>
+                        <label style={{ ...LBL, marginBottom: '0.12rem' }}>{lbl}</label>
+                        <input type="number" inputMode="decimal" step="any" min="0" value={val} onChange={e => setVal(e.target.value)} onWheel={e => e.currentTarget.blur()} style={INP} />
                       </div>
+                      <button onClick={() => setPaga(!paga)} title="¿Lo pagás vos? Afecta solo tus costos reales" style={{ padding: '0.38rem 0.65rem', borderRadius: '7px', border: 'none', cursor: 'pointer', fontSize: '0.66rem', fontWeight: 700, minWidth: '44px', background: paga ? '#d1fae5' : '#fee2e2', color: paga ? '#059669' : '#dc2626' }}>
+                        {paga ? 'SÍ' : 'NO'}
+                      </button>
                     </div>
                   ))}
                 </div>
