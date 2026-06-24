@@ -12,6 +12,7 @@ const SECTION_BY_PATH: Record<string, string> = {
   '/gestion/clientes': 'clientes',
   '/gestion/cotizador': 'cotizador',
   '/gestion/comparador': 'comparador',
+  '/gestion/contactos': 'contactos',
 }
 
 function sectionForPath(pathname: string): string | null {
