@@ -216,9 +216,9 @@ const PRESETS = {
 
 // ─── small UI primitives ──────────────────────────────────────────────────────
 // Escala compacta: etiquetas e inputs más bajos, números tabulares, headers finos.
-const LBL = { display: 'block', fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', marginBottom: '0.18rem', textTransform: 'uppercase', letterSpacing: '0.05em' };
+const LBL = { display: 'block', fontSize: '0.68rem', fontWeight: 600, color: '#64748b', marginBottom: '0.2rem', letterSpacing: 0 };
 const INP = { width: '100%', padding: '0.38rem 0.6rem', border: '1px solid #e2e8f0', borderRadius: '7px', fontSize: '0.82rem', color: '#1e293b', background: '#fff', outline: 'none', fontVariantNumeric: 'tabular-nums' };
-const SECL = { fontSize: '0.62rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#94a3b8', margin: '0.6rem 0 0.4rem', paddingBottom: '0.3rem', borderBottom: '1px solid #f1f5f9' };
+const SECL = { fontSize: '0.74rem', fontWeight: 700, letterSpacing: 0, color: '#334155', margin: '0.6rem 0 0.45rem', paddingBottom: '0.3rem', borderBottom: '1px solid #f1f5f9' };
 
 function F({ label, children, half }) {
   return (
@@ -273,7 +273,7 @@ function CostStack({ segments, total, totalLabel }) {
 function SummaryChip({ label, val, color = '#1e293b', bg = '#fff', border = '#e8ecf1' }) {
   return (
     <div style={{ background: bg, border: `1px solid ${border}`, borderRadius: '9px', padding: '0.4rem 0.7rem', minWidth: 0 }}>
-      <p style={{ fontSize: '0.58rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</p>
+      <p style={{ fontSize: '0.58rem', fontWeight: 700, color: '#94a3b8', letterSpacing: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</p>
       <p style={{ fontSize: '1rem', fontWeight: 800, color, lineHeight: 1.15, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{val}</p>
     </div>
   );
@@ -834,9 +834,9 @@ function CotizadorMaritimo() {
             {/* charges table — la columna "lo que cobrás" solo aplica al cotizar para un cliente */}
             <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden' }}>
               <div className="cot-charges-header" style={{ display: 'grid', gridTemplateColumns: mode === 'cliente' ? '1fr 1fr 1.4fr' : '1fr 1.2fr', background: '#f8fafc', padding: '0.45rem 0.85rem', borderBottom: '1px solid #e2e8f0', gap: '0.5rem' }}>
-                <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Concepto</span>
-                <span className="cot-charges-prorated" style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', textAlign: 'right' }}>Tu costo prorrateado</span>
-                {mode === 'cliente' && <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', textAlign: 'right' }}>Lo que cobrás al cliente</span>}
+                <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', letterSpacing: 0 }}>Concepto</span>
+                <span className="cot-charges-prorated" style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', letterSpacing: 0, textAlign: 'right' }}>Tu costo prorrateado</span>
+                {mode === 'cliente' && <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', letterSpacing: 0, textAlign: 'right' }}>Lo que cobrás al cliente</span>}
               </div>
               {[
                 ['Flete', c.fleteR, fleteCli, setFleteCli],
@@ -862,7 +862,7 @@ function CotizadorMaritimo() {
       </Card>
 
       {/* ══ MAIN GRID ═════════════════════════════════════════════════════════ */}
-      <div className="cot-main-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 360px', gap: '1rem', alignItems: 'start' }}>
+      <div className="cot-main-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 400px', gap: '1rem', alignItems: 'start' }}>
 
         {/* ── LEFT: identificación + entradas en mosaico ──────────────────── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -871,7 +871,7 @@ function CotizadorMaritimo() {
           <Card style={{ padding: '1rem 1.2rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.55rem' }}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-              <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Identificación del embarque</p>
+              <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', letterSpacing: 0 }}>Identificación del embarque</p>
             </div>
             {/* NCM primero: elegir una guardada autocompleta posición + las 6 alícuotas de un saque */}
             {ncmList.length > 0 && (
@@ -904,7 +904,7 @@ function CotizadorMaritimo() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '1rem' }}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                  <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>FOB — Lado cliente</p>
+                  <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#92400e', letterSpacing: 0 }}>FOB — Lado cliente</p>
                 </div>
 
                 {/* Markup global: deriva TODO lo que cobrás como costo × (1+markup). Opt-in. */}
@@ -931,7 +931,6 @@ function CotizadorMaritimo() {
 
                 <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', padding: '0.6rem 0.75rem', marginBottom: '0.55rem' }}>
                   <label style={{ ...LBL, color: '#b45309' }}>FOB Cliente</label>
-                  <p style={{ fontSize: '0.66rem', color: '#d97706', marginBottom: '0.4rem' }}>Lo que cobrás por la mercadería</p>
                   <NI value={fobCliente} onChange={setFobCliente} />
                 </div>
                 <details className="cot-collapse" style={{ marginBottom: '0.75rem' }}>
@@ -940,7 +939,6 @@ function CotizadorMaritimo() {
                   </summary>
                   <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '10px', padding: '0.6rem 0.75rem' }}>
                     <NI value={fobDecCli} onChange={setFobDecCli} placeholder="= FOB cliente si no difiere" />
-                    <p style={{ fontSize: '0.62rem', color: '#d97706', marginTop: '0.3rem' }}>Base para sus aranceles y CIF</p>
                   </div>
                 </details>
 
@@ -959,12 +957,11 @@ function CotizadorMaritimo() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '1rem' }}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                  <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065f46', textTransform: 'uppercase', letterSpacing: '0.05em' }}>FOB — Lado real</p>
+                  <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065f46', letterSpacing: 0 }}>FOB — Lado real</p>
                 </div>
 
                 <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '0.6rem 0.75rem', marginBottom: '0.55rem' }}>
                   <label style={{ ...LBL, color: '#065f46' }}>FOB Real</label>
-                  <p style={{ fontSize: '0.66rem', color: '#10b981', marginBottom: '0.4rem' }}>Lo que pagaste al proveedor</p>
                   <NI value={fobReal} onChange={setFobReal} />
                 </div>
                 <details className="cot-collapse" style={{ marginBottom: '0.75rem' }}>
@@ -973,7 +970,6 @@ function CotizadorMaritimo() {
                   </summary>
                   <div style={{ background: '#f0fdf4', border: '1px solid #a7f3d0', borderRadius: '10px', padding: '0.6rem 0.75rem' }}>
                     <NI value={fobDecReal} onChange={setFobDecReal} placeholder="= FOB real si no difiere" />
-                    <p style={{ fontSize: '0.62rem', color: '#10b981', marginTop: '0.3rem' }}>Lo que declarás en aduana</p>
                   </div>
                 </details>
 
@@ -992,7 +988,7 @@ function CotizadorMaritimo() {
                 </div>
 
                 <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '0.75rem', border: '1px solid #f1f5f9' }}>
-                  <p style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.6rem' }}>Gastos locales reales prorrateados</p>
+                  <p style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', letterSpacing: 0, marginBottom: '0.6rem' }}>Gastos locales reales prorrateados</p>
                   {[['Despachante', c.desR, curCosts.despachante], ['Terminal', c.terR, curCosts.terminal], ['Naviera', c.navR, curCosts.naviera], ['Logística', c.logR, curCosts.logistica]].map(([l, v, ref]) => (
                     <div key={l} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', padding: '0.22rem 0', color: '#475569', borderBottom: '1px solid #f1f5f9' }}>
                       <span style={{ color: '#94a3b8' }}>{l} <span style={{ fontSize: '0.72rem' }}>({usd(ref)} × {c.ratio.toFixed(3)})</span></span>
@@ -1011,7 +1007,7 @@ function CotizadorMaritimo() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '1rem' }}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-                  <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#4338ca', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Configuración arancelaria</p>
+                  <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#4338ca', letterSpacing: 0 }}>Configuración arancelaria</p>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '1rem' }}>
@@ -1023,7 +1019,7 @@ function CotizadorMaritimo() {
                   </F>
                 </div>
 
-                <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginBottom: '0.65rem' }}>¿Cuáles de estos impuestos pagás realmente vos? Afecta solo el cálculo de tus costos reales.</p>
+                <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginBottom: '0.65rem' }}>Tildá los que pagás vos (afecta solo tu costo real).</p>
 
                 <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '0.65rem 0.85rem', border: '1px solid #f1f5f9', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem 0.9rem' }}>
                   {[
@@ -1063,12 +1059,12 @@ function CotizadorMaritimo() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '1rem' }}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2.5"><path d="M20 12V22H4V12"/><path d="M22 7H2v5h20V7z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>
-                  <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#5b21b6', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Honorarios & cierre</p>
+                  <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#5b21b6', letterSpacing: 0 }}>Honorarios & cierre</p>
                 </div>
 
                 {/* ── Toggle: Sociedad ── */}
                 <div style={{ marginBottom: '1rem', background: usaSociedadPropia ? '#f0fdf4' : '#eff6ff', borderRadius: '12px', padding: '0.85rem 1rem', border: `1px solid ${usaSociedadPropia ? '#bbf7d0' : '#bfdbfe'}` }}>
-                  <p style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.5rem' }}>¿Qué sociedad usa el cliente para importar?</p>
+                  <p style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', letterSpacing: 0, marginBottom: '0.5rem' }}>¿Qué sociedad usa el cliente para importar?</p>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <button
                       onClick={() => setUsaSociedadPropia(true)}
@@ -1171,7 +1167,7 @@ function CotizadorMaritimo() {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: usaSociedadPropia ? '1fr' : '1fr 1fr', gap: '0.75rem' }}>
                 <div style={{ background: '#f0fdf4', borderRadius: '12px', padding: '1rem' }}>
-                  <p style={{ fontSize: '0.68rem', fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.4rem' }}>
+                  <p style={{ fontSize: '0.68rem', fontWeight: 700, color: '#059669', letterSpacing: 0, marginBottom: '0.4rem' }}>
                     {usaSociedadPropia ? 'Precio final' : 'CON Factura'}
                   </p>
                   <p style={{ fontSize: '1.45rem', fontWeight: 800, color: '#10b981', lineHeight: 1 }}>{usd(c.precioConF)}</p>
@@ -1181,7 +1177,7 @@ function CotizadorMaritimo() {
                 </div>
                 {!usaSociedadPropia && (
                   <div style={{ background: '#fefce8', borderRadius: '12px', padding: '1rem' }}>
-                    <p style={{ fontSize: '0.68rem', fontWeight: 700, color: '#d97706', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.4rem' }}>SIN Factura</p>
+                    <p style={{ fontSize: '0.68rem', fontWeight: 700, color: '#d97706', letterSpacing: 0, marginBottom: '0.4rem' }}>SIN Factura</p>
                     <p style={{ fontSize: '1.45rem', fontWeight: 800, color: '#d97706', lineHeight: 1 }}>{usd(c.precioSinF)}</p>
                     <p style={{ fontSize: '0.7rem', color: '#fcd34d', marginTop: '0.2rem' }}>Ahorro del cliente: {usd(c.gastFac)}</p>
                   </div>
@@ -1260,8 +1256,13 @@ function CotizadorMaritimo() {
             </Card>
 
             <Card>
-              <p style={{ ...SECL, margin: '0 0 0.5rem' }}>Detalle: Real vs Cobrado al cliente</p>
-              <div className="cot-detalle-header" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', fontSize: '0.68rem', fontWeight: 700, color: '#cbd5e1', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
+              <details className="cot-collapse">
+                <summary style={{ ...SECL, margin: '0 0 0.3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span className="cot-chev" style={{ fontSize: '0.7rem', color: '#94a3b8' }}>▸</span> Detalle real vs cobrado</span>
+                  <span style={{ fontSize: '0.78rem', fontWeight: 800, color: c.ganTotal >= 0 ? '#10b981' : '#ef4444', fontVariantNumeric: 'tabular-nums' }}>{usd(c.ganTotal)}</span>
+                </summary>
+                <div style={{ marginTop: '0.4rem' }}>
+              <div className="cot-detalle-header" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', fontSize: '0.68rem', fontWeight: 700, color: '#cbd5e1', marginBottom: '0.35rem' }}>
                 <span>Concepto</span><span style={{ textAlign: 'right' }}>Costo real</span><span style={{ textAlign: 'right' }}>Cobro</span><span className="cot-detalle-margen" style={{ textAlign: 'right' }}>Margen</span>
               </div>
               {[
@@ -1295,6 +1296,8 @@ function CotizadorMaritimo() {
                 <span style={{ textAlign: 'right', color: '#2563eb' }}>{usd(c.totConC)}</span>
                 <span className="cot-detalle-margen" style={{ textAlign: 'right', color: c.ganTotal >= 0 ? '#10b981' : '#ef4444' }}>{c.ganTotal >= 0 ? '+' : ''}{usd(c.ganTotal)}</span>
               </div>
+                </div>
+              </details>
             </Card>
 
           </>)}
@@ -1310,14 +1313,14 @@ function CotizadorMaritimo() {
                 <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #f1f5f9' }}>
                   {/* Ganancia neta */}
                   <div style={{ background: '#ecfeff', border: '1px solid #a5f3fc', borderRadius: '8px', padding: '0.5rem 0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                    <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#0891b2', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ganancia neta ({pMrg}%)</span>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#0891b2', letterSpacing: 0 }}>Ganancia neta ({pMrg}%)</span>
                     <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0891b2', fontVariantNumeric: 'tabular-nums' }}>{usd(c.gananciaNeta)}</span>
                   </div>
-                  <p style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.15rem' }}>
+                  <p style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', letterSpacing: 0, marginBottom: '0.15rem' }}>
                     Precio de venta neto (sin IVA)
                   </p>
                   <p style={{ fontSize: '1.25rem', fontWeight: 800, color: '#059669', lineHeight: 1.1 }}>{usd(c.ventaNeta)}</p>
-                  <p style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0.6rem 0 0.15rem' }}>
+                  <p style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', letterSpacing: 0, margin: '0.6rem 0 0.15rem' }}>
                     Precio de venta final (con IVA {pIva}%)
                   </p>
                   <p style={{ fontSize: '1.5rem', fontWeight: 800, color: '#10b981', lineHeight: 1 }}>{usd(c.precioVentaFinal)}</p>
@@ -1355,14 +1358,14 @@ function CotizadorMaritimo() {
                   <RRow label="FOB Real" val={c.fobR} />
                   <RRow label="Flete prorrateado" val={c.fleteR} />
                   <RRow label="Seguro (1%)" val={c.segR} />
-                  <p style={{ fontSize: '0.62rem', fontWeight: 700, color: '#cbd5e1', textTransform: 'uppercase', margin: '0.5rem 0 0.25rem' }}>Aranceles pagados</p>
+                  <p style={{ fontSize: '0.62rem', fontWeight: 700, color: '#cbd5e1', margin: '0.5rem 0 0.25rem' }}>Aranceles pagados</p>
                   <RRow label={`Derechos (${pDer}%)`} val={c.derR} />
                   <RRow label={`Tasa Estadística (${pTas}%)`} val={c.tasR} />
                   <RRow label={`IVA (${pIva}%)`} val={c.ivaR} dimmed={!pagaIva} />
                   <RRow label={`IVA Adicional (${pIvaA}%)`} val={c.ivaAR} dimmed={!pagaIvaA} />
                   <RRow label={`Perc. Ganancias (${pGan}%)`} val={c.ganR} dimmed={!pagaGan} />
                   <RRow label={`Perc. IIBB (${pIIBB}%)`} val={c.iibbR} dimmed={!pagaIIBB} />
-                  <p style={{ fontSize: '0.62rem', fontWeight: 700, color: '#cbd5e1', textTransform: 'uppercase', margin: '0.5rem 0 0.25rem' }}>Gastos locales</p>
+                  <p style={{ fontSize: '0.62rem', fontWeight: 700, color: '#cbd5e1', margin: '0.5rem 0 0.25rem' }}>Gastos locales</p>
                   <RRow label="Despachante" val={c.desR} />
                   <RRow label="Terminal" val={c.terR} />
                   <RRow label="Naviera" val={c.navR} />
@@ -1389,7 +1392,7 @@ function CotizadorMaritimo() {
             {/* modal header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.2rem 1.5rem', borderBottom: '1px solid #f1f5f9', position: 'sticky', top: 0, background: '#fff', borderRadius: '20px 20px 0 0', zIndex: 10 }}>
               <div>
-                <p style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.1rem' }}>Vista previa</p>
+                <p style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', letterSpacing: 0, marginBottom: '0.1rem' }}>Vista previa</p>
                 <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#1e293b' }}>Cotización al Cliente</h3>
               </div>
               <div style={{ display: 'flex', gap: '0.6rem' }}>
@@ -1435,7 +1438,7 @@ function CotizadorMaritimo() {
 
                 {/* base importación */}
                 <div style={{ padding: '6px 12px', background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                  <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Base de la Importación</span>
+                  <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', letterSpacing: 0 }}>Base de la Importación</span>
                 </div>
                 {[
                   ['Valor de Mercadería (FOB Declarado)', usd(c.fobDC)],
@@ -1452,7 +1455,7 @@ function CotizadorMaritimo() {
 
                 {/* aranceles */}
                 <div style={{ padding: '6px 12px', background: '#f8fafc', borderBottom: '2px solid #e2e8f0', borderTop: '1px solid #e2e8f0' }}>
-                  <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Aranceles Aduaneros</span>
+                  <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', letterSpacing: 0 }}>Aranceles Aduaneros</span>
                 </div>
                 {[
                   [`Derechos de Importación (${pDer}%)`, usd(c.derC)],
@@ -1471,7 +1474,7 @@ function CotizadorMaritimo() {
                 {/* gastos locales */}
                 {(c.desC > 0 || c.terC > 0 || c.navC > 0 || c.logC > 0) && (<>
                   <div style={{ padding: '6px 12px', background: '#f8fafc', borderBottom: '2px solid #e2e8f0', borderTop: '1px solid #e2e8f0' }}>
-                    <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Gastos Locales</span>
+                    <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', letterSpacing: 0 }}>Gastos Locales</span>
                   </div>
                   {[
                     ['Despachante de Aduana', c.desC],
@@ -1487,7 +1490,7 @@ function CotizadorMaritimo() {
 
                 {/* totales */}
                 <div style={{ padding: '6px 12px', background: '#f8fafc', borderBottom: '2px solid #e2e8f0', borderTop: '1px solid #e2e8f0' }}>
-                  <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Resumen</span>
+                  <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', letterSpacing: 0 }}>Resumen</span>
                 </div>
                 {[
                   ['Costo Total CON IVA', usd(c.totConC), false, true],
@@ -1504,12 +1507,12 @@ function CotizadorMaritimo() {
               {/* final prices */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1.2rem' }}>
                 <div style={{ background: '#065f46', borderRadius: '12px', padding: '1.1rem 1.2rem' }}>
-                  <p style={{ fontSize: '0.62rem', fontWeight: 700, color: '#6ee7b7', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '6px' }}>Precio Final CON Factura</p>
+                  <p style={{ fontSize: '0.62rem', fontWeight: 700, color: '#6ee7b7', letterSpacing: 0, marginBottom: '6px' }}>Precio Final CON Factura</p>
                   <p style={{ fontSize: '1.5rem', fontWeight: 800, color: '#fff', lineHeight: 1 }}>{usd(c.precioConF)}</p>
                   <p style={{ fontSize: '0.68rem', color: '#6ee7b7', marginTop: '5px' }}>Hon. {usd(c.honorarios)} + Gs.Fac. {usd(c.gastFac)}</p>
                 </div>
                 <div style={{ background: '#78350f', borderRadius: '12px', padding: '1.1rem 1.2rem' }}>
-                  <p style={{ fontSize: '0.62rem', fontWeight: 700, color: '#fcd34d', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '6px' }}>Precio Final SIN Factura</p>
+                  <p style={{ fontSize: '0.62rem', fontWeight: 700, color: '#fcd34d', letterSpacing: 0, marginBottom: '6px' }}>Precio Final SIN Factura</p>
                   <p style={{ fontSize: '1.5rem', fontWeight: 800, color: '#fff', lineHeight: 1 }}>{usd(c.precioSinF)}</p>
                   <p style={{ fontSize: '0.68rem', color: '#fcd34d', marginTop: '5px' }}>Ahorro del cliente: {usd(c.gastFac)}</p>
                 </div>
@@ -1842,7 +1845,7 @@ function CotizadorAereo() {
             <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: '0.3rem' }}>peso bruto declarado</p>
           </div>
           <div style={{ background: chargeable > 0 ? 'linear-gradient(135deg, #f97316, #ea580c)' : '#f8fafc', border: chargeable > 0 ? 'none' : '1px solid #f1f5f9', borderRadius: '10px', padding: '0.7rem 1rem', color: chargeable > 0 ? '#fff' : '#cbd5e1', boxShadow: chargeable > 0 ? '0 2px 12px rgba(249,115,22,0.25)' : 'none', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-            <p style={{ fontSize: '0.62rem', marginBottom: '0.2rem', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700, opacity: chargeable > 0 ? 0.9 : 1 }}>Peso a tarifar (chargeable)</p>
+            <p style={{ fontSize: '0.62rem', marginBottom: '0.2rem', letterSpacing: 0, fontWeight: 700, opacity: chargeable > 0 ? 0.9 : 1 }}>Peso a tarifar (chargeable)</p>
             <p style={{ fontSize: '1.5rem', fontWeight: 800, lineHeight: 1 }}>{chargeable.toFixed(2)} kg</p>
             <p style={{ fontSize: '0.62rem', marginTop: '0.25rem', opacity: chargeable > 0 ? 0.9 : 1 }}>
               {chargeable > 0
@@ -1865,7 +1868,7 @@ function CotizadorAereo() {
           <Card style={{ padding: '1rem 1.2rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.85rem' }}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-              <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Identificación del embarque</p>
+              <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', letterSpacing: 0 }}>Identificación del embarque</p>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '0.6rem' }}>
               <F label="Cliente">
@@ -1906,7 +1909,7 @@ function CotizadorAereo() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '1rem' }}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                  <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>FOB & costos cobrados al cliente</p>
+                  <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#92400e', letterSpacing: 0 }}>FOB & costos cobrados al cliente</p>
                 </div>
 
                 <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', padding: '0.6rem 0.75rem', marginBottom: '0.55rem' }}>
@@ -1947,7 +1950,7 @@ function CotizadorAereo() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '1rem' }}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                  <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065f46', textTransform: 'uppercase', letterSpacing: '0.05em' }}>FOB & costos reales</p>
+                  <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065f46', letterSpacing: 0 }}>FOB & costos reales</p>
                 </div>
 
                 <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '0.6rem 0.75rem', marginBottom: '0.55rem' }}>
@@ -1988,7 +1991,7 @@ function CotizadorAereo() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.5rem' }}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-                  <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#4338ca', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Configuración arancelaria</p>
+                  <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#4338ca', letterSpacing: 0 }}>Configuración arancelaria</p>
                 </div>
                 <p style={{ fontSize: '0.68rem', color: '#94a3b8', marginBottom: '0.85rem', fontStyle: 'italic' }}>Misma lógica que importación marítima — CIF = FOB declarado + Flete + Seguro 1%.</p>
 
@@ -2001,7 +2004,7 @@ function CotizadorAereo() {
                   </F>
                 </div>
 
-                <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginBottom: '0.65rem' }}>¿Cuáles de estos impuestos pagás realmente vos? Afecta solo el cálculo de tus costos reales.</p>
+                <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginBottom: '0.65rem' }}>Tildá los que pagás vos (afecta solo tu costo real).</p>
 
                 <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '0.65rem 0.85rem', border: '1px solid #f1f5f9', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem 0.9rem' }}>
                   {[
@@ -2038,11 +2041,11 @@ function CotizadorAereo() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '1rem' }}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2.5"><path d="M20 12V22H4V12"/><path d="M22 7H2v5h20V7z"/><path d="M12 22V7"/></svg>
-                  <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#5b21b6', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Honorarios & cierre</p>
+                  <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#5b21b6', letterSpacing: 0 }}>Honorarios & cierre</p>
                 </div>
 
                 <div style={{ marginBottom: '1rem', background: usaSociedadPropia ? '#f0fdf4' : '#eff6ff', borderRadius: '12px', padding: '0.85rem 1rem', border: `1px solid ${usaSociedadPropia ? '#bbf7d0' : '#bfdbfe'}` }}>
-                  <p style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.5rem' }}>¿Qué sociedad usa el cliente para importar?</p>
+                  <p style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', letterSpacing: 0, marginBottom: '0.5rem' }}>¿Qué sociedad usa el cliente para importar?</p>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <button onClick={() => setUsaSociedadPropia(true)} style={{ flex: 1, padding: '0.6rem 0.75rem', borderRadius: '10px', border: `2px solid ${usaSociedadPropia ? '#059669' : '#e2e8f0'}`, cursor: 'pointer', background: usaSociedadPropia ? '#dcfce7' : '#fff', textAlign: 'left' }}>
                       <p style={{ fontSize: '0.75rem', fontWeight: 700, color: usaSociedadPropia ? '#059669' : '#64748b', marginBottom: '0.15rem' }}>{usaSociedadPropia ? '✓ ' : ''}Sociedad propia del cliente</p>
@@ -2091,13 +2094,13 @@ function CotizadorAereo() {
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: usaSociedadPropia ? '1fr' : '1fr 1fr', gap: '0.75rem' }}>
               <div style={{ background: '#f0fdf4', borderRadius: '12px', padding: '1rem' }}>
-                <p style={{ fontSize: '0.68rem', fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.4rem' }}>{usaSociedadPropia ? 'Precio final' : 'CON Factura'}</p>
+                <p style={{ fontSize: '0.68rem', fontWeight: 700, color: '#059669', letterSpacing: 0, marginBottom: '0.4rem' }}>{usaSociedadPropia ? 'Precio final' : 'CON Factura'}</p>
                 <p style={{ fontSize: '1.45rem', fontWeight: 800, color: '#10b981', lineHeight: 1 }}>{usd(c.precioConF)}</p>
                 <p style={{ fontSize: '0.7rem', color: '#6ee7b7', marginTop: '0.2rem' }}>Hon. {usd(c.honorarios)}{!usaSociedadPropia ? ` + Fac. ${usd(c.gastFac)}` : ''}</p>
               </div>
               {!usaSociedadPropia && (
                 <div style={{ background: '#fefce8', borderRadius: '12px', padding: '1rem' }}>
-                  <p style={{ fontSize: '0.68rem', fontWeight: 700, color: '#d97706', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.4rem' }}>SIN Factura</p>
+                  <p style={{ fontSize: '0.68rem', fontWeight: 700, color: '#d97706', letterSpacing: 0, marginBottom: '0.4rem' }}>SIN Factura</p>
                   <p style={{ fontSize: '1.45rem', fontWeight: 800, color: '#d97706', lineHeight: 1 }}>{usd(c.precioSinF)}</p>
                   <p style={{ fontSize: '0.7rem', color: '#fcd34d', marginTop: '0.2rem' }}>Ahorro del cliente: {usd(c.gastFac)}</p>
                 </div>
@@ -2155,7 +2158,7 @@ function CotizadorAereo() {
 
           <Card>
             <p style={{ ...SECL, margin: '0 0 0.5rem' }}>Detalle: Real vs Cobrado al cliente</p>
-            <div className="cot-detalle-header" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', fontSize: '0.68rem', fontWeight: 700, color: '#cbd5e1', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
+            <div className="cot-detalle-header" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', fontSize: '0.68rem', fontWeight: 700, color: '#cbd5e1', marginBottom: '0.35rem' }}>
               <span>Concepto</span><span style={{ textAlign: 'right' }}>Costo real</span><span style={{ textAlign: 'right' }}>Cobro</span><span className="cot-detalle-margen" style={{ textAlign: 'right' }}>Margen</span>
             </div>
             {[
@@ -2201,7 +2204,7 @@ function CotizadorAereo() {
           <div style={{ background: '#fff', borderRadius: '20px', width: '100%', maxWidth: '680px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 60px rgba(0,0,0,0.25)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.2rem 1.5rem', borderBottom: '1px solid #f1f5f9', position: 'sticky', top: 0, background: '#fff', borderRadius: '20px 20px 0 0', zIndex: 10 }}>
               <div>
-                <p style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.1rem' }}>Vista previa</p>
+                <p style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', letterSpacing: 0, marginBottom: '0.1rem' }}>Vista previa</p>
                 <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#1e293b' }}>Cotización Aérea al Cliente</h3>
               </div>
               <div style={{ display: 'flex', gap: '0.6rem' }}>
@@ -2230,7 +2233,7 @@ function CotizadorAereo() {
               </div>
 
               <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden', marginBottom: '1rem' }}>
-                <div style={{ padding: '6px 12px', background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}><span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Base de la Importación</span></div>
+                <div style={{ padding: '6px 12px', background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}><span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', letterSpacing: 0 }}>Base de la Importación</span></div>
                 {[
                   ['Valor de Mercadería (FOB Declarado)', usd(c.fobDC)],
                   [`Flete Aéreo (${chargeable.toFixed(2)} kg chargeable)`, usd(c.fleteC)],
@@ -2243,7 +2246,7 @@ function CotizadorAereo() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', borderBottom: '1px solid #e2e8f0', fontSize: '0.88rem', fontWeight: 700, color: '#2563eb', background: '#eff6ff' }}>
                   <span>CIF — Base Arancelaria</span><span>{usd(c.cifC)}</span>
                 </div>
-                <div style={{ padding: '6px 12px', background: '#f8fafc', borderBottom: '2px solid #e2e8f0', borderTop: '1px solid #e2e8f0' }}><span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Aranceles Aduaneros</span></div>
+                <div style={{ padding: '6px 12px', background: '#f8fafc', borderBottom: '2px solid #e2e8f0', borderTop: '1px solid #e2e8f0' }}><span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', letterSpacing: 0 }}>Aranceles Aduaneros</span></div>
                 {[
                   [`Derechos de Importación (${pDer}%)`, usd(c.derC)],
                   ...(pTas > 0 ? [[`Tasa Estadística (${pTas}%)`, usd(c.tasC)]] : []),
@@ -2257,7 +2260,7 @@ function CotizadorAereo() {
                   </div>
                 ))}
                 {c.gasC > 0 && (<>
-                  <div style={{ padding: '6px 12px', background: '#f8fafc', borderBottom: '2px solid #e2e8f0', borderTop: '1px solid #e2e8f0' }}><span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Gastos Aeroportuarios</span></div>
+                  <div style={{ padding: '6px 12px', background: '#f8fafc', borderBottom: '2px solid #e2e8f0', borderTop: '1px solid #e2e8f0' }}><span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', letterSpacing: 0 }}>Gastos Aeroportuarios</span></div>
                   {[['AWB', c.awbCv], ['Handling', c.handCv], ['Terminal aérea', c.terCv], ['Despachante', c.desCv], ['Transporte interno', c.traCv]].filter(([,v]) => v > 0).map(([l, v]) => (
                     <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 12px', borderBottom: '1px solid #f8fafc', fontSize: '0.83rem', color: '#374151' }}>
                       <span>{l}</span><span>{usd(v)}</span>
@@ -2268,7 +2271,7 @@ function CotizadorAereo() {
 
               {/* Honorarios & cierre — itemizado */}
               <div style={{ border: '1px solid #e9d5ff', borderRadius: '10px', overflow: 'hidden', marginBottom: '1.2rem' }}>
-                <div style={{ padding: '6px 12px', background: '#faf5ff', borderBottom: '2px solid #e9d5ff' }}><span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Servicio Transtide</span></div>
+                <div style={{ padding: '6px 12px', background: '#faf5ff', borderBottom: '2px solid #e9d5ff' }}><span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#7c3aed', letterSpacing: 0 }}>Servicio Transtide</span></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 12px', borderBottom: '1px solid #f8fafc', fontSize: '0.83rem', fontWeight: 600, color: '#1e293b' }}>
                   <span>Costo Total (mercadería + flete + aranceles + gastos)</span><span>{usd(c.totConC)}</span>
                 </div>
@@ -2284,13 +2287,13 @@ function CotizadorAereo() {
 
               <div style={{ display: 'grid', gridTemplateColumns: usaSociedadPropia ? '1fr' : '1fr 1fr', gap: '0.75rem', marginBottom: '1.2rem' }}>
                 <div style={{ background: '#065f46', borderRadius: '12px', padding: '1.1rem 1.2rem' }}>
-                  <p style={{ fontSize: '0.62rem', fontWeight: 700, color: '#6ee7b7', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '6px' }}>{usaSociedadPropia ? 'Precio Final' : 'Precio Final CON Factura'}</p>
+                  <p style={{ fontSize: '0.62rem', fontWeight: 700, color: '#6ee7b7', letterSpacing: 0, marginBottom: '6px' }}>{usaSociedadPropia ? 'Precio Final' : 'Precio Final CON Factura'}</p>
                   <p style={{ fontSize: '1.5rem', fontWeight: 800, color: '#fff', lineHeight: 1 }}>{usd(c.precioConF)}</p>
                   <p style={{ fontSize: '0.7rem', color: '#6ee7b7', marginTop: '0.2rem' }}>Hon. {usd(c.honorarios)}{!usaSociedadPropia ? ` + Fac. ${usd(c.gastFac)}` : ''}</p>
                 </div>
                 {!usaSociedadPropia && (
                   <div style={{ background: '#78350f', borderRadius: '12px', padding: '1.1rem 1.2rem' }}>
-                    <p style={{ fontSize: '0.62rem', fontWeight: 700, color: '#fcd34d', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '6px' }}>Precio Final SIN Factura</p>
+                    <p style={{ fontSize: '0.62rem', fontWeight: 700, color: '#fcd34d', letterSpacing: 0, marginBottom: '6px' }}>Precio Final SIN Factura</p>
                     <p style={{ fontSize: '1.5rem', fontWeight: 800, color: '#fff', lineHeight: 1 }}>{usd(c.precioSinF)}</p>
                   </div>
                 )}
