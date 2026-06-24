@@ -181,11 +181,11 @@ export default function GestionLayoutClient({
             </span>
           </div>
 
-          <Link href="/" className="sidebar-back">
+          <Link href="/" className="sidebar-back" title="Volver al sitio">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="15 18 9 12 15 6"/>
             </svg>
-            Volver al sitio
+            <span className="nav-label">Volver al sitio</span>
           </Link>
 
           <nav style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
@@ -198,9 +198,10 @@ export default function GestionLayoutClient({
                     href={href}
                     onClick={(e) => handleNavClick(e, href)}
                     className={`nav-item${pathname === href || pathname.startsWith(href + '/') ? ' active' : ''}`}
+                    title={label}
                   >
                     {icon}
-                    {label}
+                    <span className="nav-label">{label}</span>
                   </Link>
                 ))}
               </div>

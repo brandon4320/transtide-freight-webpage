@@ -766,8 +766,8 @@ function CotizadorMaritimo() {
       </div>
 
       {/* ══ SETUP CARD ════════════════════════════════════════════════════════ */}
-      <Card style={{ marginBottom: '0.85rem', padding: '1rem' }}>
-        <div className="cot-setup-grid" style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '1.25rem' }}>
+      <Card style={{ marginBottom: '0.8rem', padding: '0.85rem 1rem' }}>
+        <div className="cot-setup-grid" style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '1rem' }}>
 
           {/* LEFT: contenedor */}
           <div>
@@ -819,21 +819,21 @@ function CotizadorMaritimo() {
               <p style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1e293b' }}>Mi carga & prorrateo de costos</p>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1rem', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.75rem', marginBottom: '0.6rem' }}>
               <div>
                 <label style={LBL}>M³ de mi mercadería</label>
-                <input type="number" inputMode="decimal" step="any" min="0" placeholder="0" value={m3Merch} onChange={e => setM3Merch(e.target.value)} style={{ ...INP, width: '130px' }} />
+                <input type="number" inputMode="decimal" step="any" min="0" placeholder="0" value={m3Merch} onChange={e => setM3Merch(e.target.value)} style={{ ...INP, width: '120px' }} />
               </div>
-              <div style={{ background: c.ratio > 0 ? '#eff6ff' : '#f8fafc', border: `1px solid ${c.ratio > 0 ? '#bfdbfe' : '#e2e8f0'}`, borderRadius: '10px', padding: '0.45rem 0.9rem', marginBottom: '0.12rem' }}>
-                <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginBottom: '1px' }}>Ratio de prorrateo</p>
-                <p style={{ fontSize: '0.95rem', fontWeight: 800, color: c.ratio > 0 ? '#2563eb' : '#94a3b8', lineHeight: 1 }}>{c.ratio.toFixed(3)}</p>
-                <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: '1px' }}>{n(m3Merch)} / {c.curM3} m³</p>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: '0.35rem' }}>
+                <span style={{ fontSize: '0.62rem', color: '#94a3b8' }}>Ratio</span>
+                <span style={{ fontSize: '0.9rem', fontWeight: 800, color: c.ratio > 0 ? '#2563eb' : '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>{c.ratio.toFixed(3)}</span>
+                <span style={{ fontSize: '0.62rem', color: '#cbd5e1' }}>({n(m3Merch)}/{c.curM3} m³)</span>
               </div>
             </div>
 
             {/* charges table — la columna "lo que cobrás" solo aplica al cotizar para un cliente */}
             <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden' }}>
-              <div className="cot-charges-header" style={{ display: 'grid', gridTemplateColumns: mode === 'cliente' ? '1fr 1fr 1.4fr' : '1fr 1.2fr', background: '#f8fafc', padding: '0.45rem 0.85rem', borderBottom: '1px solid #e2e8f0', gap: '0.5rem' }}>
+              <div className="cot-charges-header" style={{ display: 'grid', gridTemplateColumns: mode === 'cliente' ? '1fr 1fr 1.4fr' : '1fr 1.2fr', background: '#f8fafc', padding: '0.32rem 0.85rem', borderBottom: '1px solid #e2e8f0', gap: '0.5rem' }}>
                 <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', letterSpacing: 0 }}>Concepto</span>
                 <span className="cot-charges-prorated" style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', letterSpacing: 0, textAlign: 'right' }}>Tu costo prorrateado</span>
                 {mode === 'cliente' && <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', letterSpacing: 0, textAlign: 'right' }}>Lo que cobrás al cliente</span>}
@@ -845,12 +845,12 @@ function CotizadorMaritimo() {
                 ['Naviera', c.navR, gNav, setGNav],
                 ['Logística', c.logR, gLog, setGLog],
               ].map(([label, prorated, val, setVal], i, arr) => (
-                <div key={label} className="cot-charges-row" style={{ display: 'grid', gridTemplateColumns: mode === 'cliente' ? '1fr 1fr 1.4fr' : '1fr 1.2fr', alignItems: 'center', padding: '0.48rem 0.85rem', borderBottom: i < arr.length - 1 ? '1px solid #f1f5f9' : 'none', gap: '0.5rem' }}>
-                  <span style={{ fontSize: '0.83rem', fontWeight: 600, color: '#475569' }}>{label}</span>
-                  <span className="cot-charges-prorated" style={{ fontSize: '0.83rem', color: c.ratio > 0 ? '#1e293b' : '#cbd5e1', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{usd(prorated)}</span>
+                <div key={label} className="cot-charges-row" style={{ display: 'grid', gridTemplateColumns: mode === 'cliente' ? '1fr 1fr 1.4fr' : '1fr 1.2fr', alignItems: 'center', padding: '0.22rem 0.85rem', borderBottom: i < arr.length - 1 ? '1px solid #f1f5f9' : 'none', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>{label}</span>
+                  <span className="cot-charges-prorated" style={{ fontSize: '0.8rem', color: c.ratio > 0 ? '#1e293b' : '#cbd5e1', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{usd(prorated)}</span>
                   {mode === 'cliente' && (
                     <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                      <input type="number" inputMode="decimal" step="any" min="0" placeholder="0" value={val} onChange={e => setVal(e.target.value)} style={{ ...INP, width: '130px', textAlign: 'right' }} />
+                      <input type="number" inputMode="decimal" step="any" min="0" placeholder="0" value={val} onChange={e => setVal(e.target.value)} style={{ ...INP, width: '120px', textAlign: 'right', padding: '0.22rem 0.5rem' }} />
                     </div>
                   )}
                 </div>
