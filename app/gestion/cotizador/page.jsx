@@ -868,80 +868,49 @@ function CotizadorMaritimo() {
               </F>
             </div>
             <F label="Descripción de la mercadería"><TI value={descripcion} onChange={setDescripcion} placeholder="Ej: Máquinas cortadoras láser 1000W" /></F>
+
+            {/* FOB — acá abajo de la identificación para compactar (sin markup) */}
+            <div style={{ marginTop: '0.7rem', paddingTop: '0.7rem', borderTop: '1px solid #eef2f7' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: mode === 'cliente' ? '1fr 1fr' : '1fr', gap: '0.6rem' }}>
+                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '0.55rem 0.75rem' }}>
+                  <label style={{ ...LBL, color: '#065f46' }}>FOB real (lo que pagás)</label>
+                  <NI value={fobReal} onChange={setFobReal} />
+                </div>
+                {mode === 'cliente' && (
+                  <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', padding: '0.55rem 0.75rem' }}>
+                    <label style={{ ...LBL, color: '#b45309' }}>FOB cliente (lo que cobrás)</label>
+                    <NI value={fobCliente} onChange={setFobCliente} />
+                  </div>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: '0.4rem 1.1rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                <details className="cot-collapse">
+                  <summary style={{ ...SECL, margin: 0, padding: 0, border: 'none', color: '#065f46', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span className="cot-chev" style={{ fontSize: '0.7rem' }}>▸</span> FOB declarado real (si difiere)
+                  </summary>
+                  <div style={{ marginTop: '0.35rem' }}><NI value={fobDecReal} onChange={setFobDecReal} placeholder="= FOB real si no difiere" /></div>
+                </details>
+                {mode === 'cliente' && (
+                  <details className="cot-collapse">
+                    <summary style={{ ...SECL, margin: 0, padding: 0, border: 'none', color: '#b45309', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span className="cot-chev" style={{ fontSize: '0.7rem' }}>▸</span> FOB declarado cliente (si difiere)
+                    </summary>
+                    <div style={{ marginTop: '0.35rem' }}><NI value={fobDecCli} onChange={setFobDecCli} placeholder="= FOB cliente si no difiere" /></div>
+                  </details>
+                )}
+                <details className="cot-collapse">
+                  <summary style={{ ...SECL, margin: 0, padding: 0, border: 'none', color: '#065f46', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span className="cot-chev" style={{ fontSize: '0.7rem' }}>▸</span> Flete real (si difiere del prorrateo)
+                  </summary>
+                  <div style={{ marginTop: '0.35rem' }}><NI value={fleteRealInput} onChange={setFleteRealInput} placeholder={`auto: ${usd(curCosts.flete * c.ratio)}`} /></div>
+                </details>
+              </div>
+            </div>
           </Card>
       </div>
 
           {/* secciones de entrada (FOB, aranceles, cierre) */}
           <Card style={{ padding: '0.85rem 1.1rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-
-            {/* ── FOB de la mercadería (real | cliente, unificado) ── */}
-            {(
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.55rem' }}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#0f172a" strokeWidth="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                  <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e293b', letterSpacing: 0 }}>FOB de la mercadería</p>
-                </div>
-
-                {mode === 'cliente' && (
-                  <div style={{ background: '#fffbeb', border: '1px dashed #fcd34d', borderRadius: '10px', padding: '0.5rem 0.7rem', marginBottom: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#92400e' }}>Markup</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                      <input type="number" inputMode="decimal" step="any" min="0" value={markup} onChange={e => setMarkup(e.target.value)} onWheel={e => e.currentTarget.blur()} placeholder="0" style={{ ...INP, width: 60, textAlign: 'right' }} />
-                      <span style={{ fontSize: '0.82rem', color: '#92400e', fontWeight: 700 }}>%</span>
-                    </div>
-                    <button onClick={() => {
-                      const m = 1 + (n(markup) / 100);
-                      setFobCliente(String(Math.round(n(fobReal) * m)));
-                      setFleteCli(String(Math.round(c.fleteR * m)));
-                      setGDes(String(Math.round(c.desR * m)));
-                      setGTer(String(Math.round(c.terR * m)));
-                      setGNav(String(Math.round(c.navR * m)));
-                      setGLog(String(Math.round(c.logR * m)));
-                      gToast.success(`Markup ${markup || 0}% aplicado a lo que cobrás`);
-                    }} style={{ padding: '0.38rem 0.8rem', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '0.73rem', fontWeight: 700, background: '#d97706', color: '#fff' }}>
-                      Aplicar a lo que cobrás
-                    </button>
-                    <span style={{ fontSize: '0.62rem', color: '#b45309', flex: '1 1 100%' }}>Deriva FOB + cada costo cobrado = costo × (1+markup). Editás las excepciones después.</span>
-                  </div>
-                )}
-
-                <div style={{ display: 'grid', gridTemplateColumns: mode === 'cliente' ? '1fr 1fr' : '1fr', gap: '0.6rem' }}>
-                  <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '0.6rem 0.75rem' }}>
-                    <label style={{ ...LBL, color: '#065f46' }}>FOB real (lo que pagás)</label>
-                    <NI value={fobReal} onChange={setFobReal} />
-                  </div>
-                  {mode === 'cliente' && (
-                    <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', padding: '0.6rem 0.75rem' }}>
-                      <label style={{ ...LBL, color: '#b45309' }}>FOB cliente (lo que cobrás)</label>
-                      <NI value={fobCliente} onChange={setFobCliente} />
-                    </div>
-                  )}
-                </div>
-
-                <div style={{ display: 'flex', gap: '0.4rem 1.25rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
-                  <details className="cot-collapse">
-                    <summary style={{ ...SECL, margin: 0, padding: 0, border: 'none', color: '#065f46', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span className="cot-chev" style={{ fontSize: '0.7rem' }}>▸</span> FOB declarado real (si difiere)
-                    </summary>
-                    <div style={{ marginTop: '0.35rem' }}><NI value={fobDecReal} onChange={setFobDecReal} placeholder="= FOB real si no difiere" /></div>
-                  </details>
-                  {mode === 'cliente' && (
-                    <details className="cot-collapse">
-                      <summary style={{ ...SECL, margin: 0, padding: 0, border: 'none', color: '#b45309', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span className="cot-chev" style={{ fontSize: '0.7rem' }}>▸</span> FOB declarado cliente (si difiere)
-                      </summary>
-                      <div style={{ marginTop: '0.35rem' }}><NI value={fobDecCli} onChange={setFobDecCli} placeholder="= FOB cliente si no difiere" /></div>
-                    </details>
-                  )}
-                  <details className="cot-collapse">
-                    <summary style={{ ...SECL, margin: 0, padding: 0, border: 'none', color: '#065f46', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span className="cot-chev" style={{ fontSize: '0.7rem' }}>▸</span> Flete real (si difiere del prorrateo)
-                    </summary>
-                    <div style={{ marginTop: '0.35rem' }}><NI value={fleteRealInput} onChange={setFleteRealInput} placeholder={`auto: ${usd(curCosts.flete * c.ratio)}`} /></div>
-                  </details>
-                </div>
-              </div>
-            )}
 
             {/* ── Aranceles ── */}
             {(
