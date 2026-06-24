@@ -862,9 +862,9 @@ function CotizadorMaritimo() {
       </Card>
 
       {/* ══ MAIN GRID ═════════════════════════════════════════════════════════ */}
-      <div className="cot-main-grid" style={{ display: 'grid', gridTemplateColumns: '460px 1fr', gap: '1.25rem', alignItems: 'start' }}>
+      <div className="cot-main-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 360px', gap: '1rem', alignItems: 'start' }}>
 
-        {/* ── LEFT: identification + tabs ──────────────────────────────────── */}
+        {/* ── LEFT: identificación + entradas en mosaico ──────────────────── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
 
           {/* identification */}
@@ -896,8 +896,8 @@ function CotizadorMaritimo() {
             <F label="Descripción de la mercadería"><TI value={descripcion} onChange={setDescripcion} placeholder="Ej: Máquinas cortadoras láser 1000W" /></F>
           </Card>
 
-          {/* entrada en un solo flujo, sin pestañas — todo a la vista, ordenado por prioridad */}
-          <Card style={{ padding: '0.85rem 1.1rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+          {/* entradas en mosaico 2 columnas — todo a la vista, sin scroll largo */}
+          <Card className="cot-sections-grid" style={{ padding: '0.85rem 1.1rem', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.9rem 1.1rem', alignItems: 'start' }}>
 
             {/* ── FOB — Lado cliente ── */}
             {mode === 'cliente' && (

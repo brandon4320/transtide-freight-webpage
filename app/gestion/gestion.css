@@ -395,6 +395,12 @@
     overflow: visible !important;
   }
 }
+/* Mosaico de entradas del cotizador: 2 columnas en desktop, 1 en pantallas chicas */
+@media (max-width: 720px) {
+  .cot-sections-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
 @media (max-width: 640px) {
   .cot-charges-row,
   .cot-charges-header {
