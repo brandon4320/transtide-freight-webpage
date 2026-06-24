@@ -402,6 +402,7 @@ function CotizadorMaritimo() {
   const [gTer, setGTer] = useState('');
   const [gNav, setGNav] = useState('');
   const [gLog, setGLog] = useState('');
+  const [markup, setMarkup] = useState('');               // markup % opcional para derivar lo que cobrás
 
   // ── LADO REAL ──
   const [fobReal, setFobReal] = useState('');             // lo que me costó a mí
@@ -895,24 +896,37 @@ function CotizadorMaritimo() {
             <F label="Descripción de la mercadería"><TI value={descripcion} onChange={setDescripcion} placeholder="Ej: Máquinas cortadoras láser 1000W" /></F>
           </Card>
 
-          {/* tab bar */}
-          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${tabs.length}, 1fr)`, background: '#fff', borderRadius: '12px', padding: '4px', border: '1px solid #e2e8f0', gap: '3px' }}>
-            {tabs.map(([id, label]) => (
-              <button key={id} onClick={() => setTab(id)} style={{ padding: '0.6rem 0.25rem', borderRadius: '9px', border: 'none', cursor: 'pointer', fontSize: '0.73rem', fontWeight: 700, transition: 'all 0.15s', background: tab === id ? '#2563eb' : 'transparent', color: tab === id ? '#fff' : '#94a3b8', lineHeight: 1.2 }}>
-                {label}
-              </button>
-            ))}
-          </div>
+          {/* entrada en un solo flujo, sin pestañas — todo a la vista, ordenado por prioridad */}
+          <Card style={{ padding: '0.85rem 1.1rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
 
-          {/* tab content */}
-          <Card style={{ padding: '1.25rem' }}>
-
-            {/* ── TAB: COTIZACIÓN CLIENTE ── */}
-            {tab === 'cliente_fob' && mode === 'cliente' && (
+            {/* ── FOB — Lado cliente ── */}
+            {mode === 'cliente' && (
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '1rem' }}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                   <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>FOB — Lado cliente</p>
+                </div>
+
+                {/* Markup global: deriva TODO lo que cobrás como costo × (1+markup). Opt-in. */}
+                <div style={{ background: '#fffbeb', border: '1px dashed #fcd34d', borderRadius: '10px', padding: '0.55rem 0.75rem', marginBottom: '0.65rem', display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#92400e' }}>Markup global</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                    <input type="number" inputMode="decimal" step="any" min="0" value={markup} onChange={e => setMarkup(e.target.value)} onWheel={e => e.currentTarget.blur()} placeholder="0" style={{ ...INP, width: 64, textAlign: 'right' }} />
+                    <span style={{ fontSize: '0.82rem', color: '#92400e', fontWeight: 700 }}>%</span>
+                  </div>
+                  <button onClick={() => {
+                    const m = 1 + (n(markup) / 100);
+                    setFobCliente(String(Math.round(n(fobReal) * m)));
+                    setFleteCli(String(Math.round(c.fleteR * m)));
+                    setGDes(String(Math.round(c.desR * m)));
+                    setGTer(String(Math.round(c.terR * m)));
+                    setGNav(String(Math.round(c.navR * m)));
+                    setGLog(String(Math.round(c.logR * m)));
+                    gToast.success(`Markup ${markup || 0}% aplicado a lo que cobrás`);
+                  }} style={{ padding: '0.4rem 0.85rem', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '0.74rem', fontWeight: 700, background: '#d97706', color: '#fff' }}>
+                    Aplicar a lo que cobrás
+                  </button>
+                  <span style={{ fontSize: '0.63rem', color: '#b45309', flex: '1 1 100%' }}>Llena FOB + cada costo cobrado = costo × (1+markup). Después editás cada celda para las excepciones.</span>
                 </div>
 
                 <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', padding: '0.6rem 0.75rem', marginBottom: '0.55rem' }}>
@@ -940,8 +954,8 @@ function CotizadorMaritimo() {
               </div>
             )}
 
-            {/* ── TAB: MIS COSTOS REALES ── */}
-            {tab === 'real_fob' && (
+            {/* ── FOB & costos reales ── */}
+            {(
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '1rem' }}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
@@ -992,8 +1006,8 @@ function CotizadorMaritimo() {
               </div>
             )}
 
-            {/* ── TAB: ARANCELES ── */}
-            {tab === 'aranceles' && (
+            {/* ── Aranceles ── */}
+            {(
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '1rem' }}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
@@ -1044,8 +1058,8 @@ function CotizadorMaritimo() {
               </div>
             )}
 
-            {/* ── TAB: CIERRE ── */}
-            {tab === 'cierre' && mode === 'cliente' && (
+            {/* ── Honorarios & cierre ── */}
+            {mode === 'cliente' && (
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '1rem' }}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2.5"><path d="M20 12V22H4V12"/><path d="M22 7H2v5h20V7z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>
@@ -1113,8 +1127,8 @@ function CotizadorMaritimo() {
               </div>
             )}
 
-            {/* ── TAB: PRECIO DE VENTA (personal) ── */}
-            {tab === 'venta' && mode === 'personal' && (
+            {/* ── Precio de venta (personal) ── */}
+            {mode === 'personal' && (
               <div>
                 <p style={SECL}>Precio de venta estimado</p>
                 <F label="Margen de ganancia deseado %">
