@@ -235,6 +235,40 @@ function NI({ value, onChange, placeholder = '0' }) {
 function TI({ value, onChange, placeholder = '' }) {
   return <input type="text" placeholder={placeholder} value={value} onChange={e => onChange(e.target.value)} style={INP} />;
 }
+// Cascada de composición del costo: barra 100% apilada + leyenda con valor y %.
+// Muestra de un vistazo qué domina el costo (FOB vs flete vs aranceles vs gastos).
+function CostStack({ segments, total, totalLabel }) {
+  const segs = segments.filter(s => s && s.value > 0);
+  const sum = segs.reduce((s, x) => s + x.value, 0) || 1;
+  return (
+    <div>
+      <div style={{ display: 'flex', height: 16, borderRadius: 8, overflow: 'hidden', border: '1px solid #e8ecf1', marginBottom: '0.65rem' }}>
+        {segs.map((s, i) => (
+          <div key={i} title={`${s.label}: ${usd(s.value)}`} style={{ width: `${(s.value / sum) * 100}%`, background: s.color }} />
+        ))}
+        {segs.length === 0 && <div style={{ width: '100%', background: '#f1f5f9' }} />}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.28rem' }}>
+        {segs.map((s, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.78rem' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: '#475569' }}>
+              <span style={{ width: 9, height: 9, borderRadius: 2, background: s.color, flexShrink: 0 }} />{s.label}
+            </span>
+            <span style={{ fontWeight: 600, color: '#1e293b', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+              {usd(s.value)} <span style={{ color: '#cbd5e1', fontSize: '0.66rem', fontWeight: 400 }}>{Math.round((s.value / sum) * 100)}%</span>
+            </span>
+          </div>
+        ))}
+        {total != null && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #e8ecf1', marginTop: '0.35rem', paddingTop: '0.45rem', fontWeight: 800, fontSize: '0.85rem' }}>
+            <span>{totalLabel}</span><span style={{ fontVariantNumeric: 'tabular-nums' }}>{usd(total)}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Chip del resumen pegajoso (siempre visible arriba mientras se cargan los datos).
 function SummaryChip({ label, val, color = '#1e293b', bg = '#fff', border = '#e8ecf1' }) {
   return (
@@ -1155,6 +1189,21 @@ function CotizadorMaritimo() {
               </div>
             </Card>
 
+            {/* Cascada: de qué se compone TU costo real (para comparar contra lo que cobrás) */}
+            <Card>
+              <p style={{ ...SECL, margin: '0 0 0.6rem' }}>¿De qué se compone tu costo?</p>
+              <CostStack
+                segments={[
+                  { label: 'FOB (mercadería)', value: c.fobR, color: '#378ADD' },
+                  { label: 'Flete + seguro', value: c.fleteR + c.segR, color: '#1D9E75' },
+                  { label: 'Aranceles', value: c.derR + c.tasR + c.ganR + c.iibbR, color: '#BA7517' },
+                  { label: 'Gastos locales', value: c.desR + c.terR + c.navR + c.logR, color: '#7F77DD' },
+                ]}
+                total={c.totSinR}
+                totalLabel="Tu costo real (sin IVA)"
+              />
+            </Card>
+
             <Card>
               <details className="cot-collapse">
                 <summary style={{ ...SECL, margin: '0 0 0.3rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
@@ -1265,6 +1314,21 @@ function CotizadorMaritimo() {
                 <span style={{ fontSize: '0.72rem', color: '#065f46' }}>FOB declarado · CIF declarado</span>
                 <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#059669' }}>{usd(c.fobDR)} · {usd(c.cifR)}</span>
               </div>
+            </Card>
+
+            {/* Cascada: de qué se compone el costo real (sin IVA) */}
+            <Card>
+              <p style={{ ...SECL, margin: '0 0 0.6rem' }}>¿De qué se compone tu costo?</p>
+              <CostStack
+                segments={[
+                  { label: 'FOB (mercadería)', value: c.fobR, color: '#378ADD' },
+                  { label: 'Flete + seguro', value: c.fleteR + c.segR, color: '#1D9E75' },
+                  { label: 'Aranceles', value: c.derR + c.tasR + c.ganR + c.iibbR, color: '#BA7517' },
+                  { label: 'Gastos locales', value: c.desR + c.terR + c.navR + c.logR, color: '#7F77DD' },
+                ]}
+                total={c.totSinR}
+                totalLabel="Costo real (sin IVA)"
+              />
             </Card>
 
             <Card>
