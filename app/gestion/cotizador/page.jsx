@@ -302,8 +302,8 @@ function Tab({ active, onClick, children }) {
     </button>
   );
 }
-function Card({ children, style = {} }) {
-  return <div style={{ background: '#fff', borderRadius: '16px', padding: '1.2rem', boxShadow: '0 4px 20px rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.03)', ...style }}>{children}</div>;
+function Card({ children, style = {}, className }) {
+  return <div className={className} style={{ background: '#fff', borderRadius: '16px', padding: '1.2rem', boxShadow: '0 4px 20px rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.03)', ...style }}>{children}</div>;
 }
 function RRow({ label, val, val2, diff, dimmed, bold }) {
   const s = { fontSize: bold ? '0.88rem' : '0.82rem', fontWeight: bold ? 700 : 400 };
@@ -909,8 +909,8 @@ function CotizadorMaritimo() {
           </Card>
       </div>
 
-          {/* secciones de entrada (FOB, aranceles, cierre) */}
-          <Card style={{ padding: '0.85rem 1.1rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+          {/* secciones de entrada: aranceles (izq) · honorarios/cierre (der) */}
+          <Card className="cot-sections-2col" style={{ padding: '0.85rem 1.1rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem 1.4rem', alignItems: 'start' }}>
 
             {/* ── Aranceles ── */}
             {(

@@ -448,6 +448,12 @@
     grid-template-columns: 1fr !important;
   }
 }
+/* Aranceles | Honorarios&cierre lado a lado; apilar en pantallas medianas/chicas */
+@media (max-width: 1150px) {
+  .cot-sections-2col {
+    grid-template-columns: 1fr !important;
+  }
+}
 /* Mosaico de entradas del cotizador: 2 columnas en desktop, 1 en pantallas chicas */
 @media (max-width: 720px) {
   .cot-sections-grid {
