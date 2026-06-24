@@ -881,18 +881,20 @@ function CotizadorMaritimo() {
                   <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>FOB — Lado cliente</p>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                  <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', padding: '0.75rem' }}>
-                    <label style={{ ...LBL, color: '#b45309' }}>FOB Cliente</label>
-                    <p style={{ fontSize: '0.68rem', color: '#d97706', marginBottom: '0.5rem' }}>Lo que cobrás por la mercadería</p>
-                    <NI value={fobCliente} onChange={setFobCliente} />
-                  </div>
-                  <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '10px', padding: '0.75rem' }}>
-                    <label style={{ ...LBL, color: '#b45309' }}>FOB Declarado al cliente</label>
-                    <p style={{ fontSize: '0.68rem', color: '#d97706', marginBottom: '0.5rem' }}>Base para sus aranceles y CIF</p>
-                    <NI value={fobDecCli} onChange={setFobDecCli} placeholder="= FOB cliente si no difiere" />
-                  </div>
+                <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', padding: '0.6rem 0.75rem', marginBottom: '0.55rem' }}>
+                  <label style={{ ...LBL, color: '#b45309' }}>FOB Cliente</label>
+                  <p style={{ fontSize: '0.66rem', color: '#d97706', marginBottom: '0.4rem' }}>Lo que cobrás por la mercadería</p>
+                  <NI value={fobCliente} onChange={setFobCliente} />
                 </div>
+                <details className="cot-collapse" style={{ marginBottom: '0.75rem' }}>
+                  <summary style={{ ...SECL, margin: '0 0 0.35rem', color: '#b45309', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span className="cot-chev" style={{ fontSize: '0.7rem' }}>▸</span> FOB declarado en aduana (si difiere del cobrado)
+                  </summary>
+                  <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '10px', padding: '0.6rem 0.75rem' }}>
+                    <NI value={fobDecCli} onChange={setFobDecCli} placeholder="= FOB cliente si no difiere" />
+                    <p style={{ fontSize: '0.62rem', color: '#d97706', marginTop: '0.3rem' }}>Base para sus aranceles y CIF</p>
+                  </div>
+                </details>
 
                 <div style={{ background: '#f0f7ff', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
@@ -912,18 +914,20 @@ function CotizadorMaritimo() {
                   <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065f46', textTransform: 'uppercase', letterSpacing: '0.05em' }}>FOB — Lado real</p>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                  <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '0.75rem' }}>
-                    <label style={{ ...LBL, color: '#065f46' }}>FOB Real</label>
-                    <p style={{ fontSize: '0.68rem', color: '#10b981', marginBottom: '0.5rem' }}>Lo que pagaste al proveedor</p>
-                    <NI value={fobReal} onChange={setFobReal} />
-                  </div>
-                  <div style={{ background: '#f0fdf4', border: '1px solid #a7f3d0', borderRadius: '10px', padding: '0.75rem' }}>
-                    <label style={{ ...LBL, color: '#065f46' }}>FOB Declarado real</label>
-                    <p style={{ fontSize: '0.68rem', color: '#10b981', marginBottom: '0.5rem' }}>Lo que declarás en aduana</p>
-                    <NI value={fobDecReal} onChange={setFobDecReal} placeholder="= FOB real si no difiere" />
-                  </div>
+                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '0.6rem 0.75rem', marginBottom: '0.55rem' }}>
+                  <label style={{ ...LBL, color: '#065f46' }}>FOB Real</label>
+                  <p style={{ fontSize: '0.66rem', color: '#10b981', marginBottom: '0.4rem' }}>Lo que pagaste al proveedor</p>
+                  <NI value={fobReal} onChange={setFobReal} />
                 </div>
+                <details className="cot-collapse" style={{ marginBottom: '0.75rem' }}>
+                  <summary style={{ ...SECL, margin: '0 0 0.35rem', color: '#065f46', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span className="cot-chev" style={{ fontSize: '0.7rem' }}>▸</span> FOB declarado en aduana (si difiere del pagado)
+                  </summary>
+                  <div style={{ background: '#f0fdf4', border: '1px solid #a7f3d0', borderRadius: '10px', padding: '0.6rem 0.75rem' }}>
+                    <NI value={fobDecReal} onChange={setFobDecReal} placeholder="= FOB real si no difiere" />
+                    <p style={{ fontSize: '0.62rem', color: '#10b981', marginTop: '0.3rem' }}>Lo que declarás en aduana</p>
+                  </div>
+                </details>
 
                 <div style={{ marginBottom: '0.75rem' }}>
                   <F label={`Flete real (vacío = prorrateado automático: ${usd(curCosts.flete * c.ratio)})`}>
@@ -1827,16 +1831,18 @@ function CotizadorAereo() {
                   <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>FOB & costos cobrados al cliente</p>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                  <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', padding: '0.75rem' }}>
-                    <label style={{ ...LBL, color: '#b45309' }}>FOB Cliente</label>
-                    <NI value={fobCliente} onChange={setFobCliente} />
-                  </div>
-                  <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '10px', padding: '0.75rem' }}>
-                    <label style={{ ...LBL, color: '#b45309' }}>FOB Declarado al cliente</label>
+                <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', padding: '0.6rem 0.75rem', marginBottom: '0.55rem' }}>
+                  <label style={{ ...LBL, color: '#b45309' }}>FOB Cliente</label>
+                  <NI value={fobCliente} onChange={setFobCliente} />
+                </div>
+                <details className="cot-collapse" style={{ marginBottom: '0.75rem' }}>
+                  <summary style={{ ...SECL, margin: '0 0 0.35rem', color: '#b45309', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span className="cot-chev" style={{ fontSize: '0.7rem' }}>▸</span> FOB declarado en aduana (si difiere del cobrado)
+                  </summary>
+                  <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '10px', padding: '0.6rem 0.75rem' }}>
                     <NI value={fobDecCli} onChange={setFobDecCli} placeholder="= FOB cliente si no difiere" />
                   </div>
-                </div>
+                </details>
 
                 <p style={SECL}>Línea aérea destino (cobrado al cliente)</p>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
@@ -1866,16 +1872,18 @@ function CotizadorAereo() {
                   <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065f46', textTransform: 'uppercase', letterSpacing: '0.05em' }}>FOB & costos reales</p>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                  <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '0.75rem' }}>
-                    <label style={{ ...LBL, color: '#065f46' }}>FOB Real</label>
-                    <NI value={fobReal} onChange={setFobReal} />
-                  </div>
-                  <div style={{ background: '#f0fdf4', border: '1px solid #a7f3d0', borderRadius: '10px', padding: '0.75rem' }}>
-                    <label style={{ ...LBL, color: '#065f46' }}>FOB Declarado real</label>
+                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '0.6rem 0.75rem', marginBottom: '0.55rem' }}>
+                  <label style={{ ...LBL, color: '#065f46' }}>FOB Real</label>
+                  <NI value={fobReal} onChange={setFobReal} />
+                </div>
+                <details className="cot-collapse" style={{ marginBottom: '0.75rem' }}>
+                  <summary style={{ ...SECL, margin: '0 0 0.35rem', color: '#065f46', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span className="cot-chev" style={{ fontSize: '0.7rem' }}>▸</span> FOB declarado en aduana (si difiere del pagado)
+                  </summary>
+                  <div style={{ background: '#f0fdf4', border: '1px solid #a7f3d0', borderRadius: '10px', padding: '0.6rem 0.75rem' }}>
                     <NI value={fobDecReal} onChange={setFobDecReal} placeholder="= FOB real si no difiere" />
                   </div>
-                </div>
+                </details>
 
                 <p style={SECL}>Línea aérea destino & gastos aeroportuarios (real)</p>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
