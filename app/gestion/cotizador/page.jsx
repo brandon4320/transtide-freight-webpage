@@ -215,13 +215,14 @@ const PRESETS = {
 };
 
 // ─── small UI primitives ──────────────────────────────────────────────────────
-const LBL = { display: 'block', fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', marginBottom: '0.28rem', textTransform: 'uppercase', letterSpacing: '0.05em' };
-const INP = { width: '100%', padding: '0.5rem 0.7rem', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '0.875rem', color: '#1e293b', background: '#fff', outline: 'none' };
-const SECL = { fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#cbd5e1', margin: '1rem 0 0.5rem', paddingBottom: '0.35rem', borderBottom: '1px solid #f1f5f9' };
+// Escala compacta: etiquetas e inputs más bajos, números tabulares, headers finos.
+const LBL = { display: 'block', fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', marginBottom: '0.18rem', textTransform: 'uppercase', letterSpacing: '0.05em' };
+const INP = { width: '100%', padding: '0.38rem 0.6rem', border: '1px solid #e2e8f0', borderRadius: '7px', fontSize: '0.82rem', color: '#1e293b', background: '#fff', outline: 'none', fontVariantNumeric: 'tabular-nums' };
+const SECL = { fontSize: '0.62rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#94a3b8', margin: '0.6rem 0 0.4rem', paddingBottom: '0.3rem', borderBottom: '1px solid #f1f5f9' };
 
 function F({ label, children, half }) {
   return (
-    <div style={{ marginBottom: '0.75rem', ...(half ? {} : {}) }}>
+    <div style={{ marginBottom: '0.5rem', ...(half ? {} : {}) }}>
       {label && <label style={LBL}>{label}</label>}
       {children}
     </div>
@@ -232,6 +233,15 @@ function NI({ value, onChange, placeholder = '0' }) {
 }
 function TI({ value, onChange, placeholder = '' }) {
   return <input type="text" placeholder={placeholder} value={value} onChange={e => onChange(e.target.value)} style={INP} />;
+}
+// Chip del resumen pegajoso (siempre visible arriba mientras se cargan los datos).
+function SummaryChip({ label, val, color = '#1e293b', bg = '#fff', border = '#e8ecf1' }) {
+  return (
+    <div style={{ background: bg, border: `1px solid ${border}`, borderRadius: '9px', padding: '0.4rem 0.7rem', minWidth: 0 }}>
+      <p style={{ fontSize: '0.58rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</p>
+      <p style={{ fontSize: '1rem', fontWeight: 800, color, lineHeight: 1.15, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{val}</p>
+    </div>
+  );
 }
 function PagaToggle({ label, checked, onChange }) {
   return (
@@ -704,9 +714,24 @@ function CotizadorMaritimo() {
         </div>
       </div>
 
+      {/* ══ RESUMEN PEGAJOSO ══════════════════════════════════════════════════ */}
+      <div style={{ position: 'sticky', top: 0, zIndex: 30, marginBottom: '0.85rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, background: 'rgba(248,250,252,0.94)', backdropFilter: 'blur(6px)', padding: '0.45rem', borderRadius: 12, border: '1px solid #e8ecf1' }}>
+          {mode === 'personal' ? (<>
+            <SummaryChip label="Costo real (sin IVA)" val={usd(c.totSinR)} />
+            <SummaryChip label={`Ganancia neta (${pMrg}%)`} val={usd(c.gananciaNeta)} color="#0891b2" bg="#ecfeff" border="#a5f3fc" />
+            <SummaryChip label="Precio venta final" val={usd(c.precioVentaFinal)} color="#059669" bg="#f0fdf4" border="#bbf7d0" />
+          </>) : (<>
+            <SummaryChip label="Costo real" val={usd(c.totConR)} />
+            <SummaryChip label="A cobrar al cliente" val={usd(c.totConC)} color="#2563eb" bg="#eff6ff" border="#bfdbfe" />
+            <SummaryChip label="Margen / ganancia" val={usd(c.ganTotal)} color="#059669" bg="#f0fdf4" border="#bbf7d0" />
+          </>)}
+        </div>
+      </div>
+
       {/* ══ SETUP CARD ════════════════════════════════════════════════════════ */}
-      <Card style={{ marginBottom: '1.25rem', padding: '1.5rem' }}>
-        <div className="cot-setup-grid" style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '2rem' }}>
+      <Card style={{ marginBottom: '0.85rem', padding: '1rem' }}>
+        <div className="cot-setup-grid" style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '1.25rem' }}>
 
           {/* LEFT: contenedor */}
           <div>
@@ -1223,25 +1248,32 @@ function CotizadorMaritimo() {
             </Card>
 
             <Card>
-              <p style={{ ...SECL, margin: '0 0 0.5rem' }}>Desglose de costos reales</p>
-              <RRow label="FOB Real" val={c.fobR} />
-              <RRow label="Flete prorrateado" val={c.fleteR} />
-              <RRow label="Seguro (1%)" val={c.segR} />
-              <p style={{ fontSize: '0.68rem', fontWeight: 700, color: '#cbd5e1', textTransform: 'uppercase', margin: '0.6rem 0 0.3rem' }}>Aranceles pagados</p>
-              <RRow label={`Derechos (${pDer}%)`} val={c.derR} />
-              <RRow label={`Tasa Estadística (${pTas}%)`} val={c.tasR} />
-              <RRow label={`IVA (${pIva}%)`} val={c.ivaR} dimmed={!pagaIva} />
-              <RRow label={`IVA Adicional (${pIvaA}%)`} val={c.ivaAR} dimmed={!pagaIvaA} />
-              <RRow label={`Perc. Ganancias (${pGan}%)`} val={c.ganR} dimmed={!pagaGan} />
-              <RRow label={`Perc. IIBB (${pIIBB}%)`} val={c.iibbR} dimmed={!pagaIIBB} />
-              <p style={{ fontSize: '0.68rem', fontWeight: 700, color: '#cbd5e1', textTransform: 'uppercase', margin: '0.6rem 0 0.3rem' }}>Gastos locales</p>
-              <RRow label="Despachante" val={c.desR} />
-              <RRow label="Terminal" val={c.terR} />
-              <RRow label="Naviera" val={c.navR} />
-              <RRow label="Logística Interna" val={c.logR} />
+              <details className="cot-collapse">
+                <summary style={{ ...SECL, margin: '0 0 0.3rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span className="cot-chev" style={{ fontSize: '0.7rem', color: '#94a3b8' }}>▸</span>
+                  Desglose de costos reales
+                </summary>
+                <div style={{ marginTop: '0.3rem' }}>
+                  <RRow label="FOB Real" val={c.fobR} />
+                  <RRow label="Flete prorrateado" val={c.fleteR} />
+                  <RRow label="Seguro (1%)" val={c.segR} />
+                  <p style={{ fontSize: '0.62rem', fontWeight: 700, color: '#cbd5e1', textTransform: 'uppercase', margin: '0.5rem 0 0.25rem' }}>Aranceles pagados</p>
+                  <RRow label={`Derechos (${pDer}%)`} val={c.derR} />
+                  <RRow label={`Tasa Estadística (${pTas}%)`} val={c.tasR} />
+                  <RRow label={`IVA (${pIva}%)`} val={c.ivaR} dimmed={!pagaIva} />
+                  <RRow label={`IVA Adicional (${pIvaA}%)`} val={c.ivaAR} dimmed={!pagaIvaA} />
+                  <RRow label={`Perc. Ganancias (${pGan}%)`} val={c.ganR} dimmed={!pagaGan} />
+                  <RRow label={`Perc. IIBB (${pIIBB}%)`} val={c.iibbR} dimmed={!pagaIIBB} />
+                  <p style={{ fontSize: '0.62rem', fontWeight: 700, color: '#cbd5e1', textTransform: 'uppercase', margin: '0.5rem 0 0.25rem' }}>Gastos locales</p>
+                  <RRow label="Despachante" val={c.desR} />
+                  <RRow label="Terminal" val={c.terR} />
+                  <RRow label="Naviera" val={c.navR} />
+                  <RRow label="Logística Interna" val={c.logR} />
+                </div>
+              </details>
               <div style={{ borderTop: '2px solid #1e293b', marginTop: '0.6rem', paddingTop: '0.6rem', display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ fontWeight: 700 }}>Total CON IVA</span>
-                <span style={{ fontWeight: 800, fontSize: '1rem', color: '#1e293b' }}>{usd(c.totConR)}</span>
+                <span style={{ fontWeight: 800, fontSize: '1rem', color: '#1e293b', fontVariantNumeric: 'tabular-nums' }}>{usd(c.totConR)}</span>
               </div>
             </Card>
 
@@ -1682,9 +1714,18 @@ function CotizadorAereo() {
         </div>
       </div>
 
+      {/* RESUMEN PEGAJOSO */}
+      <div style={{ position: 'sticky', top: 0, zIndex: 30, marginBottom: '0.85rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, background: 'rgba(248,250,252,0.94)', backdropFilter: 'blur(6px)', padding: '0.45rem', borderRadius: 12, border: '1px solid #e8ecf1' }}>
+          <SummaryChip label="Costo real" val={usd(c.totConR)} />
+          <SummaryChip label="A cobrar al cliente" val={usd(c.totConC)} color="#2563eb" bg="#eff6ff" border="#bfdbfe" />
+          <SummaryChip label="Margen / ganancia" val={usd(c.ganTotal)} color="#059669" bg="#f0fdf4" border="#bbf7d0" />
+        </div>
+      </div>
+
       {/* SETUP — Carga a transportar */}
-      <Card style={{ marginBottom: '1.25rem', padding: '1.25rem 1.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+      <Card style={{ marginBottom: '0.85rem', padding: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
           <div style={{ width: '26px', height: '26px', borderRadius: '7px', background: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
           </div>

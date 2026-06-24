@@ -475,3 +475,9 @@
 .gestion-root textarea:focus-visible {
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
 }
+
+/* Secciones colapsables (<details>) — oculta el marcador nativo y rota el chevron. */
+.cot-collapse > summary { list-style: none; cursor: pointer; user-select: none; }
+.cot-collapse > summary::-webkit-details-marker { display: none; }
+.cot-collapse .cot-chev { display: inline-block; transition: transform 0.15s ease; }
+.cot-collapse[open] > summary .cot-chev { transform: rotate(90deg); }
