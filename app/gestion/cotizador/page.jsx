@@ -861,11 +861,11 @@ function CotizadorMaritimo() {
         </div>
       </Card>
 
-      {/* ══ MAIN GRID ═════════════════════════════════════════════════════════ */}
-      <div className="cot-main-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 400px', gap: '1rem', alignItems: 'start' }}>
+      {/* ══ MAIN GRID — resultado ARRIBA (a lo ancho) + entradas abajo ═══════ */}
+      <div className="cot-main-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gridTemplateAreas: '"result" "inputs"', gap: '0.9rem' }}>
 
-        {/* ── LEFT: identificación + entradas en mosaico ──────────────────── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        {/* ── entradas (abajo, a todo el ancho) ──────────────────────────── */}
+        <div style={{ gridArea: 'inputs', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
 
           {/* identification */}
           <Card style={{ padding: '1rem 1.2rem' }}>
@@ -897,7 +897,7 @@ function CotizadorMaritimo() {
           </Card>
 
           {/* entradas en mosaico 2 columnas — todo a la vista, sin scroll largo */}
-          <Card className="cot-sections-grid" style={{ padding: '0.85rem 1.1rem', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.9rem 1.1rem', alignItems: 'start' }}>
+          <Card className="cot-sections-grid" style={{ padding: '0.85rem 1.1rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '0.9rem 1.3rem', alignItems: 'start' }}>
 
             {/* ── FOB — Lado cliente ── */}
             {mode === 'cliente' && (
@@ -1150,8 +1150,8 @@ function CotizadorMaritimo() {
           </Card>
         </div>
 
-        {/* ── RIGHT: sticky results ────────────────────────────────────────── */}
-        <div className="cot-right-rail" style={{ position: 'sticky', top: '1rem', maxHeight: 'calc(100vh - 110px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        {/* ── resultado ARRIBA, en banda horizontal ──────────────────────── */}
+        <div className="cot-right-rail" style={{ gridArea: 'result', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', gap: '0.85rem', alignItems: 'start' }}>
 
           {/* ══ MODO CLIENTE ════════════════════════════════════════════════ */}
           {mode === 'cliente' && (<>
