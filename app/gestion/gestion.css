@@ -219,27 +219,29 @@
     padding: 1.5rem 1.25rem;
     box-shadow: 6px 0 28px rgba(15, 23, 42, 0.10);
   }
-  .gestion-root .nav-label,
-  .gestion-root .sidebar-logo,
-  .gestion-root .nav-section-label {
-    transition: opacity 0.12s ease;
-  }
+  /* Colapsado: ocultar labels con display:none (si quedan con opacity siguen
+     ocupando ancho y empujan el ícono fuera del área visible). */
   .gestion-root .sidebar:not(:hover) .nav-label,
-  .gestion-root .sidebar:not(:hover) .sidebar-logo,
-  .gestion-root .sidebar:not(:hover) .nav-section-label {
-    opacity: 0;
+  .gestion-root .sidebar:not(:hover) .sidebar-logo {
+    display: none;
   }
   .gestion-root .sidebar:not(:hover) .nav-item,
   .gestion-root .sidebar:not(:hover) .sidebar-back {
     justify-content: center;
-    padding-left: 0.4rem;
-    padding-right: 0.4rem;
+    padding-left: 0;
+    padding-right: 0;
     gap: 0;
   }
   .gestion-root .sidebar:not(:hover) .nav-section-label {
-    margin-top: 1rem;
+    visibility: hidden;
+    margin-top: 0.8rem;
     margin-bottom: 0;
-    height: 0.6rem;
+    height: 0.5rem;
+    padding: 0;
+  }
+  .gestion-root .sidebar:not(:hover) .sidebar-back svg,
+  .gestion-root .sidebar:not(:hover) .nav-item svg {
+    flex-shrink: 0;
   }
 }
 

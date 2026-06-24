@@ -765,8 +765,12 @@ function CotizadorMaritimo() {
         </div>
       </div>
 
-      {/* ══ SETUP CARD ════════════════════════════════════════════════════════ */}
-      <Card style={{ marginBottom: '0.8rem', padding: '0.85rem 1rem' }}>
+      {/* ══ MAIN GRID — fila 1: resumen de números · fila 2: toda la carga de datos ═══ */}
+      <div className="cot-main-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gridTemplateAreas: '"result" "inputs"', gap: '0.9rem' }}>
+        <div style={{ gridArea: 'inputs', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+
+      {/* ── Contenedor + Mi carga (primera tarjeta de datos) ── */}
+      <Card style={{ padding: '0.85rem 1rem' }}>
         <div className="cot-setup-grid" style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '1rem' }}>
 
           {/* LEFT: contenedor */}
@@ -860,12 +864,6 @@ function CotizadorMaritimo() {
 
         </div>
       </Card>
-
-      {/* ══ MAIN GRID — resultado ARRIBA (a lo ancho) + entradas abajo ═══════ */}
-      <div className="cot-main-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gridTemplateAreas: '"result" "inputs"', gap: '0.9rem' }}>
-
-        {/* ── entradas (abajo, a todo el ancho) ──────────────────────────── */}
-        <div style={{ gridArea: 'inputs', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
 
           {/* identification */}
           <Card style={{ padding: '1rem 1.2rem' }}>
