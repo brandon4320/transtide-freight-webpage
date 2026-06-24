@@ -765,9 +765,9 @@ function CotizadorMaritimo() {
         </div>
       </div>
 
-      {/* ══ MAIN GRID — fila 1: resumen de números · fila 2: toda la carga de datos ═══ */}
-      <div className="cot-main-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gridTemplateAreas: '"result" "inputs"', gap: '0.9rem' }}>
-        <div style={{ gridArea: 'inputs', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+      {/* ══ MAIN GRID — 2 columnas: datos (izq) · números (der, fijo) ═══════════ */}
+      <div className="cot-main-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 360px', gap: '1rem', alignItems: 'start' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', minWidth: 0 }}>
 
       {/* ── Contenedor + Mi carga (primera tarjeta de datos) ── */}
       <Card style={{ padding: '0.85rem 1rem' }}>
@@ -894,8 +894,8 @@ function CotizadorMaritimo() {
             <F label="Descripción de la mercadería"><TI value={descripcion} onChange={setDescripcion} placeholder="Ej: Máquinas cortadoras láser 1000W" /></F>
           </Card>
 
-          {/* entradas en mosaico 2 columnas — todo a la vista, sin scroll largo */}
-          <Card className="cot-sections-grid" style={{ padding: '0.85rem 1.1rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '0.9rem 1.3rem', alignItems: 'start' }}>
+          {/* entradas (columna izquierda): una sola columna limpia */}
+          <Card style={{ padding: '0.85rem 1.1rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
 
             {/* ── FOB — Lado cliente ── */}
             {mode === 'cliente' && (
@@ -1149,7 +1149,7 @@ function CotizadorMaritimo() {
         </div>
 
         {/* ── resultado ARRIBA, en banda horizontal ──────────────────────── */}
-        <div className="cot-right-rail" style={{ gridArea: 'result', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', gap: '0.85rem', alignItems: 'start' }}>
+        <div className="cot-right-rail" style={{ position: 'sticky', top: '1rem', maxHeight: 'calc(100vh - 110px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
 
           {/* ══ MODO CLIENTE ════════════════════════════════════════════════ */}
           {mode === 'cliente' && (<>
