@@ -760,8 +760,11 @@ function CotizadorMaritimo() {
       </div>
 
       {/* ══ MAIN GRID — 2 columnas: datos (izq) · números (der, fijo) ═══════════ */}
-      <div className="cot-main-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 360px', gap: '1rem', alignItems: 'start' }}>
+      <div className="cot-main-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 400px', gap: '1.1rem', alignItems: 'start' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', minWidth: 0 }}>
+
+      {/* fila superior: Contenedor (izq, angosto) + Identificación (der) */}
+      <div className="cot-top-row" style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: '0.75rem', alignItems: 'start' }}>
 
       {/* ── Contenedor + Mi carga (primera tarjeta de datos) ── */}
       <Card style={{ padding: '0.85rem 1rem' }}>
@@ -866,8 +869,9 @@ function CotizadorMaritimo() {
             </div>
             <F label="Descripción de la mercadería"><TI value={descripcion} onChange={setDescripcion} placeholder="Ej: Máquinas cortadoras láser 1000W" /></F>
           </Card>
+      </div>
 
-          {/* entradas (columna izquierda): una sola columna limpia */}
+          {/* secciones de entrada (FOB, aranceles, cierre) */}
           <Card style={{ padding: '0.85rem 1.1rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
 
             {/* ── FOB de la mercadería (real | cliente, unificado) ── */}
@@ -1075,7 +1079,7 @@ function CotizadorMaritimo() {
           </Card>
         </div>
 
-        {/* ── resultado ARRIBA, en banda horizontal ──────────────────────── */}
+        {/* ── resultado: columna de números fija a la derecha ──────────────── */}
         <div className="cot-right-rail" style={{ position: 'sticky', top: '1rem', maxHeight: 'calc(100vh - 110px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
 
           {/* ══ MODO CLIENTE ════════════════════════════════════════════════ */}

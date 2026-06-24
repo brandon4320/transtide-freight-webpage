@@ -441,6 +441,13 @@
     overflow: visible !important;
   }
 }
+/* Fila superior (Contenedor | Identificación): apilar si no hay ancho suficiente
+   para que la tabla de costos no quede apretada en laptops chicas. */
+@media (max-width: 1150px) {
+  .cot-top-row {
+    grid-template-columns: 1fr !important;
+  }
+}
 /* Mosaico de entradas del cotizador: 2 columnas en desktop, 1 en pantallas chicas */
 @media (max-width: 720px) {
   .cot-sections-grid {
