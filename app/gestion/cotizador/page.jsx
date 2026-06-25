@@ -775,11 +775,14 @@ function CotizadorMaritimo() {
             <div style={{ flex: '1 1 300px', minWidth: 220 }}>
               <label style={LBL}>Contenedor</label>
               <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: '10px', padding: '3px', gap: '2px' }}>
-                {Object.entries(PRESETS).map(([key, p]) => (
-                  <button key={key} onClick={() => setContType(key)} style={{ flex: 1, padding: '0.42rem 0.25rem', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '0.73rem', fontWeight: 700, transition: 'all 0.15s', background: contType === key ? '#2563eb' : 'transparent', color: contType === key ? '#fff' : '#64748b' }}>
-                    {p.label}
-                  </button>
-                ))}
+                {Object.entries(PRESETS).map(([key, p]) => {
+                  const on = contType === key;
+                  return (
+                    <button key={key} onClick={() => setContType(key)} style={{ flex: 1, padding: '0.45rem 0.25rem', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '0.73rem', fontWeight: on ? 700 : 500, transition: 'all 0.15s', background: on ? '#fff' : 'transparent', color: on ? '#1d4ed8' : '#64748b', boxShadow: on ? '0 1px 2px rgba(15,23,42,0.10)' : 'none' }}>
+                      {p.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
             <div>
@@ -831,8 +834,9 @@ function CotizadorMaritimo() {
                   <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>{label}</span>
                   <span className="cot-charges-prorated" style={{ fontSize: '0.8rem', color: c.ratio > 0 ? '#1e293b' : '#cbd5e1', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{usd(prorated)}</span>
                   {mode === 'cliente' && (
-                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                      <input type="number" inputMode="decimal" step="any" min="0" placeholder="0" value={val} onChange={e => setVal(e.target.value)} style={{ ...INP, width: '120px', textAlign: 'right', padding: '0.22rem 0.5rem' }} />
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 3, marginLeft: 'auto', width: '120px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '7px', padding: '0.2rem 0.55rem' }}>
+                      <span style={{ fontSize: '0.74rem', color: '#94a3b8' }}>$</span>
+                      <input type="number" inputMode="decimal" step="any" min="0" placeholder="0" value={val} onChange={e => setVal(e.target.value)} onWheel={e => e.currentTarget.blur()} style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', textAlign: 'right', fontSize: '0.8rem', color: '#1e293b', fontVariantNumeric: 'tabular-nums', padding: 0 }} />
                     </div>
                   )}
                 </div>
@@ -938,14 +942,14 @@ function CotizadorMaritimo() {
                     ['Perc. Ganancias %', pGan, setPGan, pagaGan, setPagaGan],
                     ['Perc. IIBB %', pIIBB, setPIIBB, pagaIIBB, setPagaIIBB],
                   ].map(([lbl, val, setVal, paga, setPaga]) => (
-                    <div key={lbl} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.5rem', alignItems: 'end' }}>
-                      <div>
-                        <label style={{ ...LBL, marginBottom: '0.12rem' }}>{lbl}</label>
-                        <input type="number" inputMode="decimal" step="any" min="0" value={val} onChange={e => setVal(e.target.value)} onWheel={e => e.currentTarget.blur()} style={INP} />
-                      </div>
-                      <button onClick={() => setPaga(!paga)} title="¿Lo pagás vos? Afecta solo tus costos reales" style={{ padding: '0.38rem 0.65rem', borderRadius: '7px', border: 'none', cursor: 'pointer', fontSize: '0.66rem', fontWeight: 700, minWidth: '44px', background: paga ? '#d1fae5' : '#fee2e2', color: paga ? '#059669' : '#dc2626' }}>
+                    <div key={lbl}>
+                      <label style={{ ...LBL, marginBottom: '0.12rem' }}>{lbl}</label>
+                      <div style={{ display: 'flex', alignItems: 'stretch', border: '1px solid #e2e8f0', borderRadius: '7px', overflow: 'hidden', background: '#fff' }}>
+                        <input type="number" inputMode="decimal" step="any" min="0" value={val} onChange={e => setVal(e.target.value)} onWheel={e => e.currentTarget.blur()} style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', padding: '0.38rem 0.6rem', fontSize: '0.82rem', color: '#1e293b', fontVariantNumeric: 'tabular-nums' }} />
+                        <button onClick={() => setPaga(!paga)} title="¿Lo pagás vos? Afecta solo tus costos reales" style={{ border: 'none', borderLeft: '1px solid #e2e8f0', padding: '0 0.7rem', cursor: 'pointer', fontSize: '0.66rem', fontWeight: 700, minWidth: '42px', background: paga ? '#ecfdf5' : '#fef2f2', color: paga ? '#059669' : '#dc2626' }}>
                         {paga ? 'SÍ' : 'NO'}
-                      </button>
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1911,14 +1915,14 @@ function CotizadorAereo() {
                     ['Perc. Ganancias %', pGan, setPGan, pagaGan, setPagaGan],
                     ['Perc. IIBB %', pIIBB, setPIIBB, pagaIIBB, setPagaIIBB],
                   ].map(([lbl, val, setVal, paga, setPaga]) => (
-                    <div key={lbl} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.5rem', alignItems: 'end' }}>
-                      <div>
-                        <label style={{ ...LBL, marginBottom: '0.12rem' }}>{lbl}</label>
-                        <input type="number" inputMode="decimal" step="any" min="0" value={val} onChange={e => setVal(e.target.value)} onWheel={e => e.currentTarget.blur()} style={INP} />
-                      </div>
-                      <button onClick={() => setPaga(!paga)} title="¿Lo pagás vos? Afecta solo tus costos reales" style={{ padding: '0.38rem 0.65rem', borderRadius: '7px', border: 'none', cursor: 'pointer', fontSize: '0.66rem', fontWeight: 700, minWidth: '44px', background: paga ? '#d1fae5' : '#fee2e2', color: paga ? '#059669' : '#dc2626' }}>
+                    <div key={lbl}>
+                      <label style={{ ...LBL, marginBottom: '0.12rem' }}>{lbl}</label>
+                      <div style={{ display: 'flex', alignItems: 'stretch', border: '1px solid #e2e8f0', borderRadius: '7px', overflow: 'hidden', background: '#fff' }}>
+                        <input type="number" inputMode="decimal" step="any" min="0" value={val} onChange={e => setVal(e.target.value)} onWheel={e => e.currentTarget.blur()} style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', padding: '0.38rem 0.6rem', fontSize: '0.82rem', color: '#1e293b', fontVariantNumeric: 'tabular-nums' }} />
+                        <button onClick={() => setPaga(!paga)} title="¿Lo pagás vos? Afecta solo tus costos reales" style={{ border: 'none', borderLeft: '1px solid #e2e8f0', padding: '0 0.7rem', cursor: 'pointer', fontSize: '0.66rem', fontWeight: 700, minWidth: '42px', background: paga ? '#ecfdf5' : '#fef2f2', color: paga ? '#059669' : '#dc2626' }}>
                         {paga ? 'SÍ' : 'NO'}
-                      </button>
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
