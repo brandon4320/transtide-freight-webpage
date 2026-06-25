@@ -448,6 +448,10 @@
     grid-template-columns: 1fr !important;
   }
 }
+/* Filas del tracking: hover sutil que respeta el tinte de estado de cada fila */
+.track-row { transition: filter .12s ease; }
+.track-row:hover { filter: brightness(0.96); }
+
 /* Aranceles | Honorarios&cierre lado a lado; apilar en pantallas medianas/chicas */
 @media (max-width: 1150px) {
   .cot-sections-2col {

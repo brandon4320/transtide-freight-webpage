@@ -19,7 +19,7 @@ function statusStyle(raw) {
   if (/paid|pagad/.test(s))                return { c: '#065f46', bg: '#ecfdf5', border: '#a7f3d0', dot: '#059669' }
   if (/pending|pendiente/.test(s))         return { c: '#d97706', bg: '#fffbeb', border: '#fde68a', dot: '#d97706' }
   if (/deliver|entreg/.test(s))            return { c: '#059669', bg: '#f0fdf4', border: '#bbf7d0', dot: '#059669' }
-  if (/transit|tránsito|transito/.test(s)) return { c: '#ea580c', bg: '#fff4ee', border: '#fed7aa', dot: '#ea580c' }
+  if (/transit|tránsito|transito/.test(s)) return { c: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe', dot: '#2563eb' }
   if (/customs|aduana|arrived/.test(s))    return { c: '#0891b2', bg: '#ecfeff', border: '#a5f3fc', dot: '#0891b2' }
   return { c: '#64748b', bg: '#f1f5f9', border: '#e2e8f0', dot: '#94a3b8' }
 }
@@ -260,11 +260,9 @@ export default function TrackingPage() {
                   const op = opByBL[blNorm(s.bl)]
                   const bal = numUSD(s.balance_usd)
                   return (
-                    <tr key={s.id} style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer', background: op ? '#fafffe' : 'transparent' }}
-                      onClick={() => openEdit(s)}
-                      onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
-                      onMouseLeave={e => e.currentTarget.style.background = op ? '#fafffe' : 'transparent'}>
-                      <td style={{ padding: '0.55rem 0.65rem', color: '#94a3b8', fontWeight: 600 }}>{s.num || '—'}</td>
+                    <tr key={s.id} className="track-row" style={{ borderBottom: '1px solid #eef2f7', cursor: 'pointer', background: st.bg, transition: 'filter .12s' }}
+                      onClick={() => openEdit(s)}>
+                      <td style={{ padding: '0.55rem 0.65rem', color: '#64748b', fontWeight: 700, boxShadow: `inset 4px 0 0 ${st.dot}` }}>{s.num || '—'}</td>
                       <td style={{ padding: '0.55rem 0.65rem', whiteSpace: 'nowrap' }}>
                         {(() => { const ag = s.agente || 'Bruce'; const a = agenteStyle(ag); return (
                           <span style={{ background: a.bg, color: a.c, border: `1px solid ${a.border}`, fontSize: '0.66rem', fontWeight: 700, padding: '0.12rem 0.5rem', borderRadius: 5 }}>{ag}</span>
