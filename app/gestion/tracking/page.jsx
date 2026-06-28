@@ -5,7 +5,8 @@ import { gToast } from '../toast'
 
 const CARD = { background: '#fff', borderRadius: 10, border: '1px solid #e8ecf1', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }
 const INP = { width: '100%', padding: '0.5rem 0.65rem', border: '1px solid #e2e8f0', borderRadius: 7, fontSize: '16px', color: '#0f172a', background: '#fff', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }
-const LBL = { display: 'block', fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }
+const LBL = { display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#64748b', letterSpacing: 0, marginBottom: 5 }
+const SEC = { fontSize: '0.82rem', fontWeight: 700, color: '#0f172a', margin: '0 0 0.85rem', paddingBottom: '0.45rem', borderBottom: '1px solid #f1f5f9' }
 
 const STATUSES = ['In Transit', 'Delivered - Payment Pending', 'Delivered - Paid', 'Cancelled', 'Booked', 'Customs']
 const AGENTES = ['Bruce', 'Yachao']
@@ -36,6 +37,20 @@ const EMPTY = { num: '', agente: 'Bruce', origen: '', destino: '', contenedores:
 // Convierte los Other Fees en RMB a USD usando el TC del embarque (o el default).
 const rmbToUsd = (rmb, tc) => { const r = numUSD(rmb); if (!r) return 0; const t = numUSD(tc) || TC_RMB_DEFAULT; return t > 0 ? r / t : 0 }
 
+// ETA relativa: cuánto falta o cuánto hace que pasó (para escanear urgencias).
+function etaInfo(eta) {
+  if (!eta) return null
+  const d = new Date(eta + 'T00:00:00')
+  if (isNaN(d.getTime())) return null
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const days = Math.round((d.getTime() - today.getTime()) / 86400000)
+  if (days < 0) return { rel: `hace ${-days}d`, tone: '#94a3b8' }
+  if (days === 0) return { rel: 'hoy', tone: '#dc2626' }
+  if (days <= 7) return { rel: `en ${days}d`, tone: '#d97706' }
+  return { rel: `en ${days}d`, tone: '#94a3b8' }
+}
+const PRIMARY = '#0f172a'  // acento único (slate-900); el color de datos lo dan los estados
+
 // Chip auto/manual para campos calculados.
 function CalcChip({ auto, onToggle }) {
   return (
@@ -51,7 +66,7 @@ function CalcChip({ auto, onToggle }) {
   )
 }
 
-export default function TrackingPage() {
+export default function TrackingPage({ devShips = null } = {}) {
   const [ships, setShips] = useState([])
   const [ops, setOps] = useState([])
   const [loading, setLoading] = useState(true)
@@ -65,8 +80,11 @@ export default function TrackingPage() {
   const [loadError, setLoadError] = useState(false)
   const [totalAuto, setTotalAuto] = useState(true)  // Total = flete + otros - descuento
   const [balAuto, setBalAuto] = useState(true)       // Saldo = a pagar - pagado
+  const [sort, setSort] = useState({ key: 'num', dir: 'desc' })  // orden de la tabla
 
   const load = async () => {
+    // Inyección de datos para preview de diseño (dev): evita auth/D1.
+    if (devShips) { setShips(devShips); setOps([]); setLoading(false); return }
     setLoading(true)
     setLoadError(false)
     try {
@@ -112,6 +130,32 @@ export default function TrackingPage() {
     if (filter === 'pagado')    l = l.filter(s => /paid/i.test(s.status))
     return l
   }, [ships, query, filter, agenteFilter])
+
+  const sorted = useMemo(() => {
+    const dir = sort.dir === 'asc' ? 1 : -1
+    const key = sort.key
+    const val = (s) => {
+      if (key === 'eta' || key === 'etd') return s[key] || ''
+      if (key === 'num') return parseInt(s.num, 10) || 0
+      if (key === 'total') return numUSD(s.total_usd)
+      if (key === 'saldo') return numUSD(s.balance_usd)
+      return (s[key] || '').toString().toLowerCase()
+    }
+    return [...filtered].sort((a, b) => { const x = val(a), y = val(b); return x < y ? -1 * dir : x > y ? 1 * dir : 0 })
+  }, [filtered, sort])
+
+  const toggleSort = (key) => setSort(p => p.key === key ? { key, dir: p.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: key === 'num' || key === 'eta' ? 'desc' : 'asc' })
+
+  const TH_BASE = { fontSize: '0.58rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '0.6rem 0.7rem', borderBottom: '1px solid #e8ecf1', whiteSpace: 'nowrap', background: '#f8fafc', position: 'sticky', top: 0, zIndex: 3 }
+  const sortTh = (label, k, align = 'left') => {
+    const active = sort.key === k
+    return (
+      <th onClick={k ? () => toggleSort(k) : undefined} aria-sort={!k ? undefined : active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+        style={{ ...TH_BASE, color: active ? '#475569' : '#94a3b8', textAlign: align, cursor: k ? 'pointer' : 'default', userSelect: 'none' }}>
+        {label}{k && <span style={{ marginLeft: 4, opacity: active ? 1 : 0.3, color: '#64748b' }}>{active ? (sort.dir === 'asc' ? '↑' : '↓') : '↕'}</span>}
+      </th>
+    )
+  }
 
   const stats = useMemo(() => {
     const base = agenteFilter === 'todos' ? ships : ships.filter(s => (s.agente || 'Bruce') === agenteFilter)
@@ -177,43 +221,47 @@ export default function TrackingPage() {
           <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#1e293b', marginBottom: '0.2rem' }}>Tracking de contenedores</h2>
           <p style={{ fontSize: '0.82rem', color: '#94a3b8' }}>Costos que pagás a tu agente de carga · {ships.length} embarques</p>
         </div>
-        <button onClick={openNew} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0.55rem 1.1rem', borderRadius: 50, border: 'none', background: '#ea580c', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>
-          + Nuevo embarque
+        <button onClick={openNew} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0.55rem 1.1rem', borderRadius: 8, border: 'none', background: PRIMARY, color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Nuevo embarque
         </button>
       </div>
 
-      {/* Selector de agente */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 4 }}>Agente:</span>
-        {['todos', ...AGENTES].map(a => {
-          const sel = agenteFilter === a
-          const st = a === 'todos' ? { c: '#0f172a', bg: '#0f172a' } : agenteStyle(a)
-          return (
-            <button key={a} onClick={() => setAgenteFilter(a)} style={{
-              padding: '0.4rem 0.95rem', borderRadius: 50, cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700,
-              border: `1.5px solid ${sel ? (a === 'todos' ? '#0f172a' : st.c) : '#e2e8f0'}`,
-              background: sel ? (a === 'todos' ? '#0f172a' : st.bg) : '#fff',
-              color: sel ? (a === 'todos' ? '#fff' : st.c) : '#64748b',
-            }}>
-              {a === 'todos' ? 'Todos' : a}{a === 'Bruce' ? ' · marítimo' : a === 'Yachao' ? ' · aéreo' : ''}
-            </button>
-          )
-        })}
-      </div>
-
       {/* KPIs */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: '1rem' }} className="track-kpis">
         {[
-          { lbl: 'Total embarques', val: stats.total, color: '#1e293b' },
-          { lbl: 'En tránsito', val: stats.transito, color: '#ea580c' },
-          { lbl: 'Pendiente de pago', val: stats.pendientePago, color: '#d97706' },
-          { lbl: 'Saldo a pagar al agente', val: fmtUSD(stats.saldoPagar), color: '#dc2626' },
+          { lbl: 'Total embarques', val: stats.total, color: '#334155', dot: '#94a3b8' },
+          { lbl: 'En tránsito', val: stats.transito, color: '#2563eb', dot: '#2563eb' },
+          { lbl: 'Pendiente de pago', val: stats.pendientePago, color: '#d97706', dot: '#d97706' },
+          { lbl: 'Saldo a pagar al agente', val: fmtUSD(stats.saldoPagar), color: '#dc2626', dot: '#dc2626' },
         ].map(k => (
-          <div key={k.lbl} style={{ ...CARD, padding: '0.7rem 1rem', flex: 1, minWidth: 150 }}>
-            <p style={{ fontSize: '0.58rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>{k.lbl}</p>
-            <p style={{ fontSize: '1.15rem', fontWeight: 800, color: k.color }}>{k.val}</p>
+          <div key={k.lbl} style={{ ...CARD, padding: '0.7rem 0.95rem' }}>
+            <p style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.56rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: k.dot, flex: '0 0 auto' }} />{k.lbl}
+            </p>
+            <p style={{ fontSize: '1.3rem', fontWeight: 800, color: k.color, fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{k.val}</p>
           </div>
         ))}
+      </div>
+
+      {/* Selector de agente */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: '0.85rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2 }}>Agente</span>
+        <div style={{ display: 'flex', gap: 3, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 3 }}>
+          {['todos', ...AGENTES].map(a => {
+            const sel = agenteFilter === a
+            const st = a === 'todos' ? { c: '#fff', bg: PRIMARY } : agenteStyle(a)
+            return (
+              <button key={a} onClick={() => setAgenteFilter(a)} style={{
+                padding: '0.32rem 0.75rem', borderRadius: 6, cursor: 'pointer', fontSize: '0.74rem', fontWeight: 600, border: 'none',
+                background: sel ? (a === 'todos' ? PRIMARY : st.bg) : 'transparent',
+                color: sel ? (a === 'todos' ? '#fff' : st.c) : '#64748b',
+              }}>
+                {a === 'todos' ? 'Todos' : a}{a === 'Bruce' ? ' · marítimo' : a === 'Yachao' ? ' · aéreo' : ''}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {/* Controls */}
@@ -232,88 +280,103 @@ export default function TrackingPage() {
       {/* Table */}
       {loading ? (
         <div style={{ ...CARD, padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>
-          <div style={{ width: 36, height: 36, border: '3px solid #e8ecf1', borderTopColor: '#ea580c', borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 0.8s linear infinite' }} />
+          <div style={{ width: 36, height: 36, border: '3px solid #e8ecf1', borderTopColor: PRIMARY, borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 0.8s linear infinite' }} />
           Cargando embarques…
         </div>
       ) : loadError ? (
         <div style={{ ...CARD, padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>
           <p style={{ fontWeight: 600, marginBottom: '0.3rem', color: '#b91c1c' }}>No se pudieron cargar los embarques</p>
           <p style={{ fontSize: '0.8rem', marginBottom: '1rem' }}>Puede ser un problema de conexión.</p>
-          <button onClick={load} style={{ padding: '0.5rem 1.2rem', borderRadius: 8, border: 'none', background: '#ea580c', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>Reintentar</button>
+          <button onClick={load} style={{ padding: '0.5rem 1.2rem', borderRadius: 8, border: 'none', background: PRIMARY, color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>Reintentar</button>
         </div>
       ) : filtered.length === 0 ? (
         <div style={{ ...CARD, padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>Sin embarques que coincidan.</div>
       ) : (
-        <div style={{ ...CARD, overflow: 'hidden' }}>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
-              <thead>
-                <tr style={{ background: '#f8fafc' }}>
-                  {['#','Agente','Ruta','Cont.','Proveedores','B/L','ETA','Estado','Total','Saldo','Oper.',''].map(h => (
-                    <th key={h} style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '0.6rem 0.65rem', textAlign: 'left', borderBottom: '1px solid #e8ecf1', whiteSpace: 'nowrap' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(s => {
-                  const st = statusStyle(s.status)
-                  const op = opByBL[blNorm(s.bl)]
-                  const bal = numUSD(s.balance_usd)
-                  return (
-                    <tr key={s.id} className="track-row" style={{ borderBottom: '1px solid #eef2f7', cursor: 'pointer', background: st.bg, transition: 'filter .12s' }}
-                      onClick={() => openEdit(s)}>
-                      <td style={{ padding: '0.55rem 0.65rem', color: '#64748b', fontWeight: 700, boxShadow: `inset 4px 0 0 ${st.dot}` }}>{s.num || '—'}</td>
-                      <td style={{ padding: '0.55rem 0.65rem', whiteSpace: 'nowrap' }}>
-                        {(() => { const ag = s.agente || 'Bruce'; const a = agenteStyle(ag); return (
-                          <span style={{ background: a.bg, color: a.c, border: `1px solid ${a.border}`, fontSize: '0.66rem', fontWeight: 700, padding: '0.12rem 0.5rem', borderRadius: 5 }}>{ag}</span>
-                        )})()}
-                      </td>
-                      <td style={{ padding: '0.55rem 0.65rem', whiteSpace: 'nowrap' }}>
-                        <span style={{ fontWeight: 600, color: '#1e293b' }}>{s.origen || '—'}</span>
-                        <span style={{ color: '#cbd5e1', margin: '0 4px' }}>→</span>
+        <div style={{ ...CARD }}>
+          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.8rem' }}>
+            <thead>
+              <tr>
+                {sortTh('#', 'num')}
+                {sortTh('Embarque', 'origen')}
+                {sortTh('Cont.', null)}
+                {sortTh('ETA', 'eta')}
+                {sortTh('Estado', 'status')}
+                {sortTh('Total', 'total', 'right')}
+                {sortTh('Saldo', 'saldo', 'right')}
+                <th style={{ ...TH_BASE, width: 1 }} aria-label="Acciones"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map(s => {
+                const st = statusStyle(s.status)
+                const op = opByBL[blNorm(s.bl)]
+                const bal = numUSD(s.balance_usd)
+                const ag = s.agente || 'Bruce'; const a = agenteStyle(ag)
+                const eta = etaInfo(s.eta)
+                const TD = { padding: '0.5rem 0.7rem', borderBottom: '1px solid #eef2f7', verticalAlign: 'middle' }
+                return (
+                  <tr key={s.id} className="track-row" style={{ cursor: 'pointer', background: st.bg, transition: 'filter .12s' }} onClick={() => openEdit(s)}>
+                    <td style={{ ...TD, color: '#475569', fontWeight: 700, fontVariantNumeric: 'tabular-nums', boxShadow: `inset 4px 0 0 ${st.dot}`, whiteSpace: 'nowrap' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                        <span title={`Agente: ${ag}`} style={{ width: 7, height: 7, borderRadius: '50%', background: a.c, flex: '0 0 auto' }} />
+                        {s.num || '—'}
+                      </span>
+                    </td>
+                    <td style={{ ...TD, minWidth: 240 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, color: '#1e293b' }}>
+                        <span>{s.origen || '—'}</span>
+                        <span style={{ color: '#cbd5e1' }}>→</span>
                         <span style={{ color: '#475569' }}>{s.destino || '—'}</span>
-                        {s.carrier && <span style={{ fontSize: '0.64rem', color: '#94a3b8', marginLeft: 6 }}>· {s.carrier}</span>}
-                      </td>
-                      <td style={{ padding: '0.55rem 0.65rem', color: '#475569', whiteSpace: 'nowrap' }}>{s.contenedores || '—'}</td>
-                      <td style={{ padding: '0.55rem 0.65rem', maxWidth: 220 }}>
-                        {s.suppliers ? (
-                          <span title={s.suppliers} style={{ fontSize: '0.72rem', color: '#475569', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.suppliers}</span>
-                        ) : <span style={{ color: '#cbd5e1', fontSize: '0.72rem' }}>—</span>}
-                      </td>
-                      <td style={{ padding: '0.55rem 0.65rem', fontFamily: 'ui-monospace,monospace', fontSize: '0.72rem', color: '#475569', whiteSpace: 'nowrap' }}>{s.bl || '—'}</td>
-                      <td style={{ padding: '0.55rem 0.65rem', color: s.eta ? '#059669' : '#cbd5e1', fontWeight: 600, whiteSpace: 'nowrap' }}>{s.eta || '—'}</td>
-                      <td style={{ padding: '0.55rem 0.65rem' }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: st.bg, color: st.c, border: `1px solid ${st.border}`, fontSize: '0.66rem', fontWeight: 600, padding: '0.15rem 0.5rem', borderRadius: 5, whiteSpace: 'nowrap' }}>
-                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: st.dot }} />{s.status || '—'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '0.55rem 0.65rem', color: '#1e293b', fontWeight: 600, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
-                        {s.total_usd ? 'USD ' + s.total_usd : '—'}
-                        {numUSD(s.other_fees_rmb) > 0 && (
-                          <span title={`Incluye ¥${s.other_fees_rmb} RMB (≈ USD ${fmtCalc(rmbToUsd(s.other_fees_rmb, s.tc_rmb))})`} style={{ marginLeft: 5, fontSize: '0.6rem', fontWeight: 700, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 4, padding: '0.05rem 0.3rem' }}>¥</span>
-                        )}
-                      </td>
-                      <td style={{ padding: '0.55rem 0.65rem', fontWeight: 700, whiteSpace: 'nowrap', color: bal > 0 ? '#dc2626' : '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>{bal > 0 ? 'USD ' + s.balance_usd : '✓'}</td>
-                      <td style={{ padding: '0.55rem 0.65rem', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
-                        {op ? (
-                          <button
-                            onClick={() => { window.location.href = `/gestion/operaciones?op=${encodeURIComponent(op.id)}` }}
-                            title={`Abrir operación: ${op.nombre || ''}`}
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#059669', fontSize: '0.7rem', fontWeight: 600, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}
-                          >
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>{op.nombre?.length > 18 ? op.nombre.slice(0,18)+'…' : op.nombre}
+                        {s.carrier && <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#64748b', background: '#eef2f7', borderRadius: 4, padding: '0.05rem 0.35rem' }}>{s.carrier}</span>}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, fontSize: '0.66rem', color: '#94a3b8', maxWidth: 340 }}>
+                        {s.bl && <span style={{ fontFamily: 'ui-monospace,monospace', flex: '0 0 auto', color: '#64748b' }}>{s.bl}</span>}
+                        {s.suppliers && <span title={s.suppliers} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>· {s.suppliers}</span>}
+                      </div>
+                    </td>
+                    <td style={{ ...TD, color: '#475569', whiteSpace: 'nowrap', fontSize: '0.74rem' }}>{s.contenedores || '—'}</td>
+                    <td style={{ ...TD, whiteSpace: 'nowrap' }}>
+                      {s.eta ? (
+                        <div>
+                          <div style={{ color: '#334155', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{s.eta}</div>
+                          {eta && <div style={{ fontSize: '0.62rem', color: eta.tone, fontWeight: 600 }}>{eta.rel}</div>}
+                        </div>
+                      ) : <span style={{ color: '#cbd5e1' }}>—</span>}
+                    </td>
+                    <td style={{ ...TD }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: '#fff', color: st.c, border: `1px solid ${st.border}`, fontSize: '0.64rem', fontWeight: 600, padding: '0.18rem 0.5rem', borderRadius: 6, whiteSpace: 'nowrap' }}>
+                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: st.dot }} />{s.status || '—'}
+                      </span>
+                    </td>
+                    <td style={{ ...TD, textAlign: 'right', color: '#0f172a', fontWeight: 700, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                      {s.total_usd ? <>USD {s.total_usd}</> : <span style={{ color: '#cbd5e1' }}>—</span>}
+                      {numUSD(s.other_fees_rmb) > 0 && (
+                        <span title={`Incluye ¥${s.other_fees_rmb} RMB (≈ USD ${fmtCalc(rmbToUsd(s.other_fees_rmb, s.tc_rmb))})`} style={{ marginLeft: 5, fontSize: '0.58rem', fontWeight: 700, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 4, padding: '0.05rem 0.3rem' }}>¥</span>
+                      )}
+                    </td>
+                    <td style={{ ...TD, textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', color: bal > 0 ? '#dc2626' : '#16a34a' }}>
+                      {bal > 0 ? <>USD {s.balance_usd}</> : '✓'}
+                    </td>
+                    <td style={{ ...TD, textAlign: 'right', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
+                      <div className="track-actions" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        {op && (
+                          <button onClick={() => { window.location.href = `/gestion/operaciones?op=${encodeURIComponent(op.id)}` }} title={`Operación: ${op.nombre || ''}`} aria-label="Abrir operación" style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #bbf7d0', background: '#f0fdf4', color: '#059669', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 18l6-6-6-6"/></svg>
                           </button>
-                        ) : <span style={{ color: '#cbd5e1', fontSize: '0.7rem' }}>—</span>}
-                      </td>
-                      <td style={{ padding: '0.55rem 0.65rem' }} onClick={e => e.stopPropagation()}>
-                        <button onClick={() => setConfirmDel(s.id)} aria-label={`Eliminar embarque ${s.num || ''}`} title="Eliminar" style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid #fee2e2', background: '#fff', color: '#dc2626', fontSize: '0.85rem', cursor: 'pointer' }}>×</button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+                        )}
+                        <button onClick={() => openEdit(s)} title="Editar" aria-label={`Editar embarque ${s.num || ''}`} style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                        </button>
+                        <button onClick={() => setConfirmDel(s.id)} title="Eliminar" aria-label={`Eliminar embarque ${s.num || ''}`} style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #fee2e2', background: '#fff', color: '#dc2626', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
@@ -322,11 +385,18 @@ export default function TrackingPage() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }} onClick={() => setModal(null)}>
           <div style={{ ...CARD, width: '100%', maxWidth: 720, maxHeight: '90vh', overflowY: 'auto', padding: '1.5rem', boxShadow: '0 24px 64px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-              <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>{modal === 'new' ? 'Nuevo embarque' : `Embarque #${form.num || ''}`}</h3>
-              <button onClick={() => setModal(null)} aria-label="Cerrar" style={{ background: 'none', border: 'none', fontSize: '1.4rem', color: '#94a3b8', cursor: 'pointer' }}>×</button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>{modal === 'new' ? 'Nuevo embarque' : `Embarque #${form.num || ''}`}</h3>
+                {modal !== 'new' && form.status && (() => { const st = statusStyle(form.status); return (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: '#fff', color: st.c, border: `1px solid ${st.border}`, fontSize: '0.64rem', fontWeight: 600, padding: '0.18rem 0.5rem', borderRadius: 6 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: st.dot }} />{form.status}
+                  </span>
+                )})()}
+              </div>
+              <button onClick={() => setModal(null)} aria-label="Cerrar" style={{ background: 'none', border: 'none', fontSize: '1.4rem', color: '#94a3b8', cursor: 'pointer', lineHeight: 1 }}>×</button>
             </div>
 
-            <p style={{ fontSize: '0.62rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Logística</p>
+            <p style={SEC}>Logística</p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: '1.25rem' }}>
               <div><label style={LBL}>N°</label><input value={form.num} onChange={e => upd('num', e.target.value)} style={INP} /></div>
               <div><label style={LBL}>Agente de carga</label>
@@ -351,7 +421,17 @@ export default function TrackingPage() {
               </div>
             </div>
 
-            <p style={{ fontSize: '0.62rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Lo que pagás al agente</p>
+            <p style={SEC}>Costos del agente</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+              <div style={{ background: '#f8fafc', border: '1px solid #e8ecf1', borderRadius: 8, padding: '0.6rem 0.85rem' }}>
+                <p style={{ fontSize: '0.62rem', color: '#94a3b8', fontWeight: 600, marginBottom: 2 }}>Total a pagar al agente</p>
+                <p style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>USD {form.total_usd || '0'}</p>
+              </div>
+              <div style={{ background: numUSD(form.balance_usd) > 0 ? '#fef2f2' : '#f0fdf4', border: `1px solid ${numUSD(form.balance_usd) > 0 ? '#fecaca' : '#bbf7d0'}`, borderRadius: 8, padding: '0.6rem 0.85rem' }}>
+                <p style={{ fontSize: '0.62rem', color: '#94a3b8', fontWeight: 600, marginBottom: 2 }}>Saldo pendiente</p>
+                <p style={{ fontSize: '1.2rem', fontWeight: 800, color: numUSD(form.balance_usd) > 0 ? '#dc2626' : '#16a34a', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{numUSD(form.balance_usd) > 0 ? `USD ${form.balance_usd}` : 'Saldado ✓'}</p>
+              </div>
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: '1.25rem' }}>
               <div><label style={LBL}>Sea Freight (USD)</label><input value={form.sea_freight_usd} onChange={e => upd('sea_freight_usd', e.target.value)} inputMode="decimal" style={INP} /></div>
               <div><label style={LBL}>Other Fees (RMB)</label><input value={form.other_fees_rmb} onChange={e => upd('other_fees_rmb', e.target.value)} inputMode="decimal" style={INP} placeholder="¥" /></div>
@@ -379,7 +459,7 @@ export default function TrackingPage() {
               <div><label style={LBL}>Fecha pago</label><input type="date" value={form.payment_date} onChange={e => upd('payment_date', e.target.value)} style={INP} /></div>
             </div>
 
-            <p style={{ fontSize: '0.62rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Proveedores & notas</p>
+            <p style={SEC}>Proveedores y notas</p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: '1.5rem' }}>
               <div><label style={LBL}>Proveedores</label><textarea value={form.suppliers} onChange={e => upd('suppliers', e.target.value)} style={{ ...INP, minHeight: 56, resize: 'vertical' }} /></div>
               <div><label style={LBL}>Notas</label><textarea value={form.notes} onChange={e => upd('notes', e.target.value)} style={{ ...INP, minHeight: 56, resize: 'vertical' }} /></div>

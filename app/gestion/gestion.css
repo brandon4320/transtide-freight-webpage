@@ -451,6 +451,20 @@
 /* Filas del tracking: hover sutil que respeta el tinte de estado de cada fila */
 .track-row { transition: filter .12s ease; }
 .track-row:hover { filter: brightness(0.96); }
+/* Acciones por fila: ocultas hasta hover/focus en desktop; siempre visibles en touch */
+.track-actions { opacity: 0; transition: opacity .12s ease; }
+.track-row:hover .track-actions,
+.track-row:focus-within .track-actions { opacity: 1; }
+@media (hover: none) { .track-actions { opacity: 1; } }
+/* KPIs del tracking: 4 → 2 columnas en pantallas medianas/chicas */
+@media (max-width: 720px) { .track-kpis { grid-template-columns: 1fr 1fr !important; } }
+/* Focus ring consistente en formularios de gestión (accesibilidad + pulido) */
+.gestion-root input:focus,
+.gestion-root select:focus,
+.gestion-root textarea:focus {
+  border-color: #94a3b8 !important;
+  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.07);
+}
 
 /* Aranceles | Honorarios&cierre lado a lado; apilar en pantallas medianas/chicas */
 @media (max-width: 1150px) {
