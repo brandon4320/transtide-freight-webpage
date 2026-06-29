@@ -422,41 +422,53 @@ export default function TrackingPage({ devShips = null } = {}) {
             </div>
 
             <p style={SEC}>Costos del agente</p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-              <div style={{ background: '#f8fafc', border: '1px solid #e8ecf1', borderRadius: 8, padding: '0.6rem 0.85rem' }}>
-                <p style={{ fontSize: '0.62rem', color: '#94a3b8', fontWeight: 600, marginBottom: 2 }}>Total a pagar al agente</p>
-                <p style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>USD {form.total_usd || '0'}</p>
+            <div className="track-cost-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: '1.25rem' }}>
+
+              {/* Panel 1 — build-up del costo → Total */}
+              <div style={{ background: '#fff', border: '1px solid #e8ecf1', borderRadius: 10, padding: '0.9rem 1rem' }}>
+                <p style={{ fontSize: '0.74rem', fontWeight: 700, color: '#334155', marginBottom: '0.75rem' }}>Lo que pagás al agente</p>
+                <div><label style={LBL}>Flete marítimo (USD)</label><input value={form.sea_freight_usd} onChange={e => upd('sea_freight_usd', e.target.value)} inputMode="decimal" style={{ ...INP, marginBottom: '0.6rem' }} placeholder="0" /></div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 8 }}>
+                  <div><label style={LBL}>Otros fees (RMB)</label><input value={form.other_fees_rmb} onChange={e => upd('other_fees_rmb', e.target.value)} inputMode="decimal" style={INP} placeholder="¥ 0" /></div>
+                  <div><label style={LBL}>TC RMB→USD</label><input value={form.tc_rmb} onChange={e => upd('tc_rmb', e.target.value)} inputMode="decimal" style={INP} placeholder={String(TC_RMB_DEFAULT)} /></div>
+                </div>
+                {numUSD(form.other_fees_rmb) > 0
+                  ? <p style={{ fontSize: '0.64rem', color: '#0284c7', fontWeight: 600, margin: '3px 0 0.6rem' }}>≈ USD {fmtCalc(rmbToUsd(form.other_fees_rmb, form.tc_rmb))} convertidos</p>
+                  : <div style={{ height: '0.6rem' }} />}
+                <div><label style={LBL}>Otros fees (USD)</label><input value={form.other_fees_usd} onChange={e => upd('other_fees_usd', e.target.value)} inputMode="decimal" style={{ ...INP, marginBottom: '0.6rem' }} placeholder="0" /></div>
+                <div><label style={LBL}>Descuento (USD)</label><input value={form.discount_usd} onChange={e => upd('discount_usd', e.target.value)} inputMode="decimal" style={INP} placeholder="0" /></div>
+                <div style={{ borderTop: '1px solid #f1f5f9', margin: '0.85rem 0 0.65rem' }} />
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0f172a', display: 'inline-flex', alignItems: 'center' }}>Total <CalcChip auto={totalAuto} onToggle={() => setTotalAuto(a => !a)} /></label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 600 }}>USD</span>
+                    <input value={form.total_usd} onChange={e => { setTotalAuto(false); upd('total_usd', e.target.value) }} readOnly={totalAuto} inputMode="decimal"
+                      title={totalAuto ? 'Calculado: flete + otros USD + otros RMB convertidos − descuento' : 'Ingreso manual'}
+                      style={{ ...INP, width: 130, textAlign: 'right', fontWeight: 800, fontSize: '0.95rem', fontVariantNumeric: 'tabular-nums', background: totalAuto ? '#f8fafc' : '#fff', color: totalAuto ? '#334155' : '#0f172a' }} />
+                  </div>
+                </div>
               </div>
-              <div style={{ background: numUSD(form.balance_usd) > 0 ? '#fef2f2' : '#f0fdf4', border: `1px solid ${numUSD(form.balance_usd) > 0 ? '#fecaca' : '#bbf7d0'}`, borderRadius: 8, padding: '0.6rem 0.85rem' }}>
-                <p style={{ fontSize: '0.62rem', color: '#94a3b8', fontWeight: 600, marginBottom: 2 }}>Saldo pendiente</p>
-                <p style={{ fontSize: '1.2rem', fontWeight: 800, color: numUSD(form.balance_usd) > 0 ? '#dc2626' : '#16a34a', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{numUSD(form.balance_usd) > 0 ? `USD ${form.balance_usd}` : 'Saldado ✓'}</p>
+
+              {/* Panel 2 — pago al agente → Saldo */}
+              <div style={{ background: '#fff', border: '1px solid #e8ecf1', borderRadius: 10, padding: '0.9rem 1rem' }}>
+                <p style={{ fontSize: '0.74rem', fontWeight: 700, color: '#334155', marginBottom: '0.75rem' }}>Pago al agente</p>
+                <div><label style={LBL}>A pagar (USD)</label><input value={form.amount_due_usd} onChange={e => upd('amount_due_usd', e.target.value)} inputMode="decimal" style={{ ...INP, marginBottom: '0.6rem' }} placeholder="0" /></div>
+                <div><label style={LBL}>Pagado (USD)</label><input value={form.amount_rec_usd} onChange={e => upd('amount_rec_usd', e.target.value)} inputMode="decimal" style={INP} placeholder="0" /></div>
+                <div style={{ borderTop: '1px solid #f1f5f9', margin: '0.85rem 0 0.65rem' }} />
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0f172a', display: 'inline-flex', alignItems: 'center' }}>Saldo <CalcChip auto={balAuto} onToggle={() => setBalAuto(a => !a)} /></label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 600 }}>USD</span>
+                    <input value={form.balance_usd} onChange={e => { setBalAuto(false); upd('balance_usd', e.target.value) }} readOnly={balAuto} inputMode="decimal"
+                      title={balAuto ? 'Calculado: a pagar − pagado' : 'Ingreso manual'}
+                      style={{ ...INP, width: 130, textAlign: 'right', fontWeight: 800, fontSize: '0.95rem', fontVariantNumeric: 'tabular-nums', background: balAuto ? '#f8fafc' : '#fff', color: numUSD(form.balance_usd) > 0 ? '#dc2626' : (balAuto ? '#334155' : '#0f172a') }} />
+                  </div>
+                </div>
+                {numUSD(form.balance_usd) <= 0 && numUSD(form.amount_due_usd) > 0
+                  ? <p style={{ fontSize: '0.66rem', color: '#16a34a', fontWeight: 700, margin: '0.5rem 0 0' }}>✓ Saldado</p>
+                  : null}
+                <div style={{ marginTop: '0.7rem' }}><label style={LBL}>Fecha de pago</label><input type="date" value={form.payment_date} onChange={e => upd('payment_date', e.target.value)} style={INP} /></div>
               </div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: '1.25rem' }}>
-              <div><label style={LBL}>Sea Freight (USD)</label><input value={form.sea_freight_usd} onChange={e => upd('sea_freight_usd', e.target.value)} inputMode="decimal" style={INP} /></div>
-              <div><label style={LBL}>Other Fees (RMB)</label><input value={form.other_fees_rmb} onChange={e => upd('other_fees_rmb', e.target.value)} inputMode="decimal" style={INP} placeholder="¥" /></div>
-              <div>
-                <label style={LBL}>TC RMB→USD</label>
-                <input value={form.tc_rmb} onChange={e => upd('tc_rmb', e.target.value)} inputMode="decimal" style={INP} placeholder={String(TC_RMB_DEFAULT)} />
-                {numUSD(form.other_fees_rmb) > 0 && <span style={{ display: 'block', fontSize: '0.6rem', color: '#0284c7', fontWeight: 600, marginTop: 2 }}>= USD {fmtCalc(rmbToUsd(form.other_fees_rmb, form.tc_rmb))}</span>}
-              </div>
-              <div><label style={LBL}>Other Fees (USD)</label><input value={form.other_fees_usd} onChange={e => upd('other_fees_usd', e.target.value)} inputMode="decimal" style={INP} /></div>
-              <div><label style={LBL}>Descuento (USD)</label><input value={form.discount_usd} onChange={e => upd('discount_usd', e.target.value)} inputMode="decimal" style={INP} /></div>
-              <div>
-                <label style={LBL}>Total (USD) <CalcChip auto={totalAuto} onToggle={() => setTotalAuto(a => !a)} /></label>
-                <input value={form.total_usd} onChange={e => { setTotalAuto(false); upd('total_usd', e.target.value) }} readOnly={totalAuto} inputMode="decimal"
-                  title={totalAuto ? 'Calculado: flete + otros USD + otros RMB convertidos − descuento' : 'Ingreso manual'}
-                  style={{ ...INP, fontWeight: 700, background: totalAuto ? '#f8fafc' : '#fff', color: totalAuto ? '#475569' : '#0f172a' }} />
-              </div>
-              <div><label style={LBL}>A pagar</label><input value={form.amount_due_usd} onChange={e => upd('amount_due_usd', e.target.value)} inputMode="decimal" style={INP} /></div>
-              <div><label style={LBL}>Pagado</label><input value={form.amount_rec_usd} onChange={e => upd('amount_rec_usd', e.target.value)} inputMode="decimal" style={INP} /></div>
-              <div>
-                <label style={LBL}>Saldo a pagar <CalcChip auto={balAuto} onToggle={() => setBalAuto(a => !a)} /></label>
-                <input value={form.balance_usd} onChange={e => { setBalAuto(false); upd('balance_usd', e.target.value) }} readOnly={balAuto} inputMode="decimal"
-                  title={balAuto ? 'Calculado: a pagar − pagado' : 'Ingreso manual'}
-                  style={{ ...INP, fontWeight: 600, background: balAuto ? '#f8fafc' : '#fff', color: numUSD(form.balance_usd) > 0 ? '#dc2626' : (balAuto ? '#475569' : '#0f172a') }} />
-              </div>
-              <div><label style={LBL}>Fecha pago</label><input type="date" value={form.payment_date} onChange={e => upd('payment_date', e.target.value)} style={INP} /></div>
             </div>
 
             <p style={SEC}>Proveedores y notas</p>

@@ -458,6 +458,8 @@
 @media (hover: none) { .track-actions { opacity: 1; } }
 /* KPIs del tracking: 4 → 2 columnas en pantallas medianas/chicas */
 @media (max-width: 720px) { .track-kpis { grid-template-columns: 1fr 1fr !important; } }
+/* Paneles de costo del modal: apilar en modal angosto */
+@media (max-width: 600px) { .track-cost-grid { grid-template-columns: 1fr !important; } }
 /* Focus ring consistente en formularios de gestión (accesibilidad + pulido) */
 .gestion-root input:focus,
 .gestion-root select:focus,
