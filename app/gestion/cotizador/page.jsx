@@ -86,26 +86,31 @@ const ESTADOS = [
 const estadoMeta = (id) => ESTADOS.find(e => e.id === id) || ESTADOS[0];
 
 // ─── save-quote modal (shared) ──────────────────────────────────────────────────
-function SaveQuoteModal({ modo, defaultCliente, getPayload, ncmPayload = null, onClose }) {
-  const [nombre, setNombre]   = useState(defaultCliente || '');
-  const [cliente, setCliente] = useState(defaultCliente || '');
-  const [estado, setEstado]   = useState('borrador');
-  const [notas, setNotas]     = useState('');
+function SaveQuoteModal({ modo, defaultCliente, getPayload, ncmPayload = null, loadedQuote = null, onSaved, onClose }) {
+  const [nombre, setNombre]   = useState(loadedQuote?.nombre || defaultCliente || '');
+  const [cliente, setCliente] = useState(loadedQuote?.cliente || defaultCliente || '');
+  const [estado, setEstado]   = useState(loadedQuote?.estado || 'borrador');
+  const [notas, setNotas]     = useState(loadedQuote?.notas || '');
   const [saving, setSaving]   = useState(false);
-  const [done, setDone]       = useState(false);
+  const [done, setDone]       = useState('');   // '' | 'nueva' | 'actualizada'
   const [err, setErr]         = useState('');
 
-  const save = async () => {
+  // asNew=true → siempre crea (POST). asNew=false → actualiza la cargada si existe (PUT).
+  const save = async (asNew) => {
     if (!nombre.trim()) { setErr('La referencia es obligatoria.'); return; }
     setSaving(true); setErr('');
     try {
       const extra = getPayload();
-      const res = await fetch('/api/db/cotizaciones', {
-        method: 'POST',
+      const body = { nombre: nombre.trim(), cliente: cliente.trim(), estado, notas, modo, ...extra };
+      const updating = !asNew && loadedQuote?.id;
+      const res = await fetch(updating ? `/api/db/cotizaciones/${loadedQuote.id}` : '/api/db/cotizaciones', {
+        method: updating ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombre: nombre.trim(), cliente: cliente.trim(), estado, notas, modo, ...extra }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error('Error al guardar');
+      const j = await res.json().catch(() => ({}));
+      const savedId = updating ? loadedQuote.id : (j.id || null);
       // Best-effort: upsert la NCM a la biblioteca. Nunca bloquea el guardado.
       if (ncmPayload) {
         try {
@@ -119,7 +124,9 @@ function SaveQuoteModal({ modo, defaultCliente, getPayload, ncmPayload = null, o
           }
         } catch {}
       }
-      setDone(true);
+      // Enlaza el editor a la cotización guardada para que el próximo "Guardar" la actualice.
+      if (onSaved && savedId) onSaved({ id: savedId, nombre: nombre.trim(), cliente: cliente.trim(), estado, notas });
+      setDone(updating ? 'actualizada' : 'nueva');
       setTimeout(onClose, 900);
     } catch (e) {
       setErr(e.message || 'Error al guardar');
@@ -131,13 +138,16 @@ function SaveQuoteModal({ modo, defaultCliente, getPayload, ncmPayload = null, o
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}>
       <div style={{ background: '#fff', borderRadius: '18px', width: '100%', maxWidth: '440px', boxShadow: '0 25px 60px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.1rem 1.4rem', borderBottom: '1px solid #f1f5f9' }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#1e293b' }}>Guardar cotización</h3>
+          <div>
+            <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#1e293b' }}>Guardar cotización</h3>
+            {loadedQuote?.id && <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: 2 }}>Editando «{loadedQuote.nombre}»</p>}
+          </div>
           <button onClick={onClose} aria-label="Cerrar" style={{ width: '32px', height: '32px', borderRadius: '50%', border: 'none', cursor: 'pointer', background: '#f1f5f9', color: '#64748b', fontSize: '1.1rem' }}>×</button>
         </div>
         {done ? (
           <div style={{ padding: '2.5rem 1.4rem', textAlign: 'center' }}>
             <div style={{ fontSize: '2rem' }}>✓</div>
-            <p style={{ fontSize: '0.95rem', fontWeight: 700, color: '#059669', marginTop: '0.4rem' }}>Guardada</p>
+            <p style={{ fontSize: '0.95rem', fontWeight: 700, color: '#059669', marginTop: '0.4rem' }}>{done === 'actualizada' ? 'Actualizada' : 'Guardada'}</p>
           </div>
         ) : (
           <div style={{ padding: '1.3rem 1.4rem' }}>
@@ -152,9 +162,16 @@ function SaveQuoteModal({ modo, defaultCliente, getPayload, ncmPayload = null, o
               <textarea value={notas} onChange={e => setNotas(e.target.value)} placeholder="Opcional" rows={3} style={{ ...INP, resize: 'vertical', fontFamily: 'inherit' }} />
             </F>
             {err && <p style={{ fontSize: '0.78rem', color: '#dc2626', marginBottom: '0.6rem' }}>{err}</p>}
-            <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap' }}>
               <button onClick={onClose} style={{ padding: '0.55rem 1.1rem', borderRadius: '10px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={save} disabled={saving} style={{ padding: '0.55rem 1.3rem', borderRadius: '10px', border: 'none', background: saving ? '#94a3b8' : '#2563eb', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: saving ? 'default' : 'pointer', boxShadow: '0 2px 10px rgba(37,99,235,0.3)' }}>{saving ? 'Guardando…' : 'Guardar'}</button>
+              {loadedQuote?.id ? (
+                <>
+                  <button onClick={() => save(true)} disabled={saving} title="Crea una cotización nueva sin tocar la anterior" style={{ padding: '0.55rem 1.1rem', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#fff', color: '#334155', fontWeight: 700, fontSize: '0.82rem', cursor: saving ? 'default' : 'pointer' }}>{saving ? 'Guardando…' : 'Guardar como nueva'}</button>
+                  <button onClick={() => save(false)} disabled={saving} title={`Sobrescribe «${loadedQuote.nombre}»`} style={{ padding: '0.55rem 1.3rem', borderRadius: '10px', border: 'none', background: saving ? '#94a3b8' : '#2563eb', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: saving ? 'default' : 'pointer', boxShadow: '0 2px 10px rgba(37,99,235,0.3)' }}>{saving ? 'Guardando…' : 'Actualizar la anterior'}</button>
+                </>
+              ) : (
+                <button onClick={() => save(true)} disabled={saving} style={{ padding: '0.55rem 1.3rem', borderRadius: '10px', border: 'none', background: saving ? '#94a3b8' : '#2563eb', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: saving ? 'default' : 'pointer', boxShadow: '0 2px 10px rgba(37,99,235,0.3)' }}>{saving ? 'Guardando…' : 'Guardar'}</button>
+              )}
             </div>
           </div>
         )}
@@ -429,6 +446,8 @@ function CotizadorMaritimo() {
   // ── UI ──
   const [showClienteView, setShowClienteView] = useState(false);
   const [showSave, setShowSave] = useState(false);
+  // Cotización cargada desde "guardadas" (para poder actualizarla en vez de duplicar).
+  const [loadedQuote, setLoadedQuote] = useState(null);
 
   // ── serialize / restore (saved quotes) ──
   const serialize = () => ({
@@ -443,6 +462,7 @@ function CotizadorMaritimo() {
   useEffect(() => {
     const handler = (e) => {
       if (!e.detail || e.detail.mode !== 'maritimo') return;
+      setLoadedQuote(e.detail.meta || null);
       const d = e.detail.data || {};
       if (d.mode === 'cliente' || d.mode === 'personal') {
         setMode(d.mode);
@@ -488,6 +508,7 @@ function CotizadorMaritimo() {
   useEffect(() => {
     const handler = (e) => {
       if (!e.detail || e.detail.mode !== 'maritimo') return;
+      setLoadedQuote(e.detail.meta || null);
       const d = e.detail.data || {};
       if (d.proveedor) setCliente(d.proveedor);
       const desc = [
@@ -1442,6 +1463,8 @@ function CotizadorMaritimo() {
             data: serialize(),
           })}
           ncmPayload={() => clasificacion.trim() ? ({ codigo: clasificacion.trim(), producto: descripcion, der: String(pDer), tasa: String(pTas), iva: String(pIva), iva_adic: String(pIvaA), ganancias: String(pGan), iibb: String(pIIBB) }) : null}
+          loadedQuote={loadedQuote}
+          onSaved={setLoadedQuote}
           onClose={() => setShowSave(false)}
         />
       )}
@@ -1526,6 +1549,8 @@ function CotizadorAereo() {
   const [tab, setTab] = useState('cliente_fob');
   const [showClienteView, setShowClienteView] = useState(false);
   const [showSave, setShowSave] = useState(false);
+  // Cotización cargada desde "guardadas" (para poder actualizarla en vez de duplicar).
+  const [loadedQuote, setLoadedQuote] = useState(null);
 
   // ── serialize / restore (saved quotes) ──
   const serialize = () => ({
@@ -1539,6 +1564,7 @@ function CotizadorAereo() {
   useEffect(() => {
     const handler = (e) => {
       if (!e.detail || e.detail.mode !== 'aereo') return;
+      setLoadedQuote(e.detail.meta || null);
       const d = e.detail.data || {};
       if (d.cliente !== undefined) setCliente(d.cliente);
       if (d.descripcion !== undefined) setDescripcion(d.descripcion);
@@ -1584,6 +1610,7 @@ function CotizadorAereo() {
   useEffect(() => {
     const handler = (e) => {
       if (!e.detail || e.detail.mode !== 'aereo') return;
+      setLoadedQuote(e.detail.meta || null);
       const d = e.detail.data || {};
       if (d.proveedor) setCliente(d.proveedor);
       const desc = [
@@ -2221,6 +2248,8 @@ function CotizadorAereo() {
             data: serialize(),
           })}
           ncmPayload={() => clasificacion.trim() ? ({ codigo: clasificacion.trim(), producto: descripcion, der: String(pDer), tasa: String(pTas), iva: String(pIva), iva_adic: String(pIvaA), ganancias: String(pGan), iibb: String(pIIBB) }) : null}
+          loadedQuote={loadedQuote}
+          onSaved={setLoadedQuote}
           onClose={() => setShowSave(false)}
         />
       )}
@@ -2262,7 +2291,7 @@ function SavedQuotesPanel({ onClose, onReactivate }) {
       if (!res.ok) throw new Error('Error al abrir');
       const full = await res.json();
       const data = full.data || {};
-      onReactivate(q.modo, data);
+      onReactivate(q.modo, data, { id: q.id, nombre: q.nombre, cliente: q.cliente, estado: q.estado, notas: full.notas || '' });
     } catch (e) {
       gToast.error(e.message || 'Error al abrir la cotización');
       setBusyId(null);
@@ -2670,13 +2699,13 @@ function CotizadorInner() {
     setImportOpen(false);
   };
 
-  const handleReactivate = (targetMode, data) => {
+  const handleReactivate = (targetMode, data, meta = null) => {
     const m = targetMode === 'aereo' ? 'aereo' : 'maritimo';
     setMode(m);
     setSavedOpen(false);
     setTimeout(() => {
       window.dispatchEvent(
-        new CustomEvent('cotizador:load', { detail: { mode: m, data } })
+        new CustomEvent('cotizador:load', { detail: { mode: m, data, meta } })
       );
     }, 0);
   };
