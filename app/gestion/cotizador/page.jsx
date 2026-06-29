@@ -942,9 +942,9 @@ function CotizadorMaritimo() {
                     ['Perc. Ganancias %', pGan, setPGan, pagaGan, setPagaGan],
                     ['Perc. IIBB %', pIIBB, setPIIBB, pagaIIBB, setPagaIIBB],
                   ].map(([lbl, val, setVal, paga, setPaga]) => (
-                    <div key={lbl}>
+                    <div key={lbl} style={{ minWidth: 0 }}>
                       <label style={{ ...LBL, marginBottom: '0.12rem' }}>{lbl}</label>
-                      <div style={{ display: 'flex', alignItems: 'stretch', border: '1px solid #e2e8f0', borderRadius: '7px', overflow: 'hidden', background: '#fff' }}>
+                      <div style={{ display: 'flex', alignItems: 'stretch', border: '1px solid #e2e8f0', borderRadius: '7px', overflow: 'hidden', background: '#fff', maxWidth: '100%' }}>
                         <input type="number" inputMode="decimal" step="any" min="0" value={val} onChange={e => setVal(e.target.value)} onWheel={e => e.currentTarget.blur()} style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', padding: '0.38rem 0.6rem', fontSize: '0.82rem', color: '#1e293b', fontVariantNumeric: 'tabular-nums' }} />
                         <button onClick={() => setPaga(!paga)} title="¿Lo pagás vos? Afecta solo tus costos reales" style={{ border: 'none', borderLeft: '1px solid #e2e8f0', padding: '0 0.7rem', cursor: 'pointer', fontSize: '0.66rem', fontWeight: 700, minWidth: '42px', background: paga ? '#ecfdf5' : '#fef2f2', color: paga ? '#059669' : '#dc2626' }}>
                         {paga ? 'SÍ' : 'NO'}
@@ -1915,9 +1915,9 @@ function CotizadorAereo() {
                     ['Perc. Ganancias %', pGan, setPGan, pagaGan, setPagaGan],
                     ['Perc. IIBB %', pIIBB, setPIIBB, pagaIIBB, setPagaIIBB],
                   ].map(([lbl, val, setVal, paga, setPaga]) => (
-                    <div key={lbl}>
+                    <div key={lbl} style={{ minWidth: 0 }}>
                       <label style={{ ...LBL, marginBottom: '0.12rem' }}>{lbl}</label>
-                      <div style={{ display: 'flex', alignItems: 'stretch', border: '1px solid #e2e8f0', borderRadius: '7px', overflow: 'hidden', background: '#fff' }}>
+                      <div style={{ display: 'flex', alignItems: 'stretch', border: '1px solid #e2e8f0', borderRadius: '7px', overflow: 'hidden', background: '#fff', maxWidth: '100%' }}>
                         <input type="number" inputMode="decimal" step="any" min="0" value={val} onChange={e => setVal(e.target.value)} onWheel={e => e.currentTarget.blur()} style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', padding: '0.38rem 0.6rem', fontSize: '0.82rem', color: '#1e293b', fontVariantNumeric: 'tabular-nums' }} />
                         <button onClick={() => setPaga(!paga)} title="¿Lo pagás vos? Afecta solo tus costos reales" style={{ border: 'none', borderLeft: '1px solid #e2e8f0', padding: '0 0.7rem', cursor: 'pointer', fontSize: '0.66rem', fontWeight: 700, minWidth: '42px', background: paga ? '#ecfdf5' : '#fef2f2', color: paga ? '#059669' : '#dc2626' }}>
                         {paga ? 'SÍ' : 'NO'}
