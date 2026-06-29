@@ -2265,6 +2265,7 @@ function SavedQuotesPanel({ onClose, onReactivate }) {
   const [err, setErr]         = useState('');
   const [filter, setFilter]   = useState('todas');
   const [search, setSearch]   = useState('');
+  const [agrupar, setAgrupar] = useState('estado'); // estado | cliente | fecha | valor
   const [busyId, setBusyId]   = useState(null);
   const [confirmConv, setConfirmConv] = useState(null); // cotización a convertir
   const [confirmDel, setConfirmDel]   = useState(null); // cotización a eliminar
@@ -2365,6 +2366,21 @@ function SavedQuotesPanel({ onClose, onReactivate }) {
     return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
   };
 
+  // Agrupación / orden de la lista para poder trabajar (no todo apilado suelto).
+  const byDateDesc = (a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0);
+  let groups;
+  if (agrupar === 'cliente') {
+    const m = {};
+    visible.forEach(q => { const k = ((q.cliente || '').trim()) || 'Sin cliente'; (m[k] = m[k] || []).push(q); });
+    groups = Object.keys(m).sort((a, b) => a.localeCompare(b, 'es')).map(k => ({ key: k, label: k, count: m[k].length, items: m[k].sort(byDateDesc) }));
+  } else if (agrupar === 'valor') {
+    groups = [{ key: 'all', items: [...visible].sort((a, b) => Number(b.total_usd || 0) - Number(a.total_usd || 0)) }];
+  } else if (agrupar === 'fecha') {
+    groups = [{ key: 'all', items: [...visible].sort(byDateDesc) }];
+  } else { // estado (default): en orden de pipeline
+    groups = ESTADOS.map(e => ({ key: e.id, label: e.label, dot: e.fg, count: 0, items: visible.filter(q => q.estado === e.id).sort(byDateDesc) })).filter(g => g.items.length);
+  }
+
   return (
     <>
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', zIndex: 1050, display: 'flex', alignItems: 'stretch', justifyContent: 'flex-end' }}>
@@ -2391,51 +2407,71 @@ function SavedQuotesPanel({ onClose, onReactivate }) {
               );
             })}
           </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.7rem' }}>
+            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Agrupar por</span>
+            <select value={agrupar} onChange={e => setAgrupar(e.target.value)} style={{ padding: '0.32rem 0.6rem', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.76rem', fontWeight: 600, color: '#334155', background: '#fff', cursor: 'pointer' }}>
+              <option value="estado">Estado</option>
+              <option value="cliente">Cliente</option>
+              <option value="fecha">Más recientes</option>
+              <option value="valor">Mayor valor</option>
+            </select>
+          </div>
         </div>
 
         {/* list */}
-        <div style={{ padding: '1rem 1.4rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', flex: 1 }}>
+        <div style={{ padding: '1rem 1.4rem', display: 'flex', flexDirection: 'column', gap: '1.1rem', flex: 1 }}>
           {loading && <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Cargando…</p>}
           {err && <p style={{ color: '#dc2626', fontSize: '0.85rem' }}>{err}</p>}
           {!loading && !err && visible.length === 0 && <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>No hay cotizaciones que coincidan.</p>}
-          {visible.map(q => {
-            const em = estadoMeta(q.estado);
-            const busy = busyId === q.id;
-            return (
-              <div key={q.id} style={{ background: '#fff', borderRadius: '12px', padding: '0.9rem 1rem', border: '1px solid #e2e8f0', opacity: busy ? 0.6 : 1 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem', marginBottom: '0.45rem' }}>
-                  <div style={{ minWidth: 0 }}>
-                    <p style={{ fontSize: '0.92rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.nombre}</p>
-                    {q.cliente && <p style={{ fontSize: '0.76rem', color: '#64748b' }}>{q.cliente}</p>}
-                  </div>
-                  <span style={{ flexShrink: 0, fontSize: '0.7rem', fontWeight: 700, padding: '0.18rem 0.6rem', borderRadius: '50px', color: em.fg, background: em.bg }}>{em.label}</span>
+          {!loading && !err && groups.map(g => (
+            <div key={g.key}>
+              {g.label && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, margin: '0 0 0.55rem 0.1rem' }}>
+                  {g.dot && <span style={{ width: 8, height: 8, borderRadius: '50%', background: g.dot, flex: '0 0 auto' }} />}
+                  <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{g.label}</span>
+                  <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#fff', background: '#94a3b8', borderRadius: '50px', padding: '0.05rem 0.45rem' }}>{g.items.length}</span>
                 </div>
-                {q.resumen && <p style={{ fontSize: '0.74rem', color: '#94a3b8', marginBottom: '0.5rem' }}>{q.resumen}</p>}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', fontSize: '0.72rem', color: '#94a3b8', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
-                  <span>{q.modo === 'aereo' ? '✈️ Aéreo' : '🚢 Marítimo'}</span>
-                  {q.total_usd && <span style={{ fontWeight: 700, color: '#059669' }}>USD {Number(q.total_usd).toLocaleString('es-AR')}</span>}
-                  <span>{fmtDate(q.updated_at || q.created_at)}</span>
-                  {q.created_by && <span>· {q.created_by}</span>}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  <button onClick={() => reactivate(q)} disabled={busy} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.9rem', borderRadius: '8px', border: 'none', cursor: busy ? 'default' : 'pointer', fontSize: '0.76rem', fontWeight: 700, background: '#2563eb', color: '#fff' }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-                    Reactivar
-                  </button>
-                  <button onClick={() => convertir(q)} disabled={busy} title={q.operation_id ? 'Ya convertida — ir a la operación' : 'Crear operación desde esta cotización'} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.9rem', borderRadius: '8px', border: 'none', cursor: busy ? 'default' : 'pointer', fontSize: '0.76rem', fontWeight: 700, background: q.operation_id ? '#f0fdf4' : '#059669', color: q.operation_id ? '#16a34a' : '#fff' }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polygon points="3 6 12 2 21 6 21 16 12 20 3 16 3 6"/><line x1="12" y1="22" x2="12" y2="12"/></svg>
-                    {q.operation_id ? 'Ver operación' : 'Convertir en operación'}
-                  </button>
-                  <select value={q.estado} onChange={e => changeEstado(q, e.target.value)} disabled={busy} style={{ padding: '0.4rem 0.5rem', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.74rem', color: '#334155', background: '#fff', cursor: 'pointer' }}>
-                    {ESTADOS.map(e => <option key={e.id} value={e.id}>{e.label}</option>)}
-                  </select>
-                  <button onClick={() => remove(q)} disabled={busy} style={{ marginLeft: 'auto', padding: '0.4rem 0.7rem', borderRadius: '8px', border: '1px solid #fecaca', cursor: busy ? 'default' : 'pointer', fontSize: '0.76rem', fontWeight: 700, background: '#fff', color: '#dc2626' }}>
-                    Eliminar
-                  </button>
-                </div>
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {g.items.map(q => {
+                  const em = estadoMeta(q.estado);
+                  const busy = busyId === q.id;
+                  return (
+                    <div key={q.id} style={{ background: '#fff', borderRadius: '10px', padding: '0.65rem 0.8rem', border: '1px solid #e2e8f0', borderLeft: `3px solid ${em.fg}`, opacity: busy ? 0.6 : 1 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.6rem' }}>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <p style={{ fontSize: '0.86rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.nombre}</p>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.68rem', color: '#94a3b8', marginTop: 1, flexWrap: 'wrap' }}>
+                            {q.cliente && <span style={{ color: '#64748b' }}>{q.cliente}</span>}
+                            <span>{q.modo === 'aereo' ? '✈️' : '🚢'}</span>
+                            {q.total_usd && <span style={{ fontWeight: 700, color: '#059669', fontVariantNumeric: 'tabular-nums' }}>USD {Number(q.total_usd).toLocaleString('es-AR')}</span>}
+                            <span>· {fmtDate(q.updated_at || q.created_at)}</span>
+                          </div>
+                        </div>
+                        <select value={q.estado} onChange={e => changeEstado(q, e.target.value)} disabled={busy} title="Cambiar estado" style={{ flexShrink: 0, padding: '0.28rem 0.45rem', borderRadius: '7px', border: `1px solid ${em.bg}`, fontSize: '0.7rem', fontWeight: 700, color: em.fg, background: em.bg, cursor: 'pointer' }}>
+                          {ESTADOS.map(e => <option key={e.id} value={e.id} style={{ color: '#334155', background: '#fff' }}>{e.label}</option>)}
+                        </select>
+                      </div>
+                      {q.resumen && <p style={{ fontSize: '0.68rem', color: '#cbd5e1', margin: '0.3rem 0 0' }}>{q.resumen}</p>}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.55rem' }}>
+                        <button onClick={() => reactivate(q)} disabled={busy} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '0.32rem 0.7rem', borderRadius: '7px', border: 'none', cursor: busy ? 'default' : 'pointer', fontSize: '0.72rem', fontWeight: 700, background: '#2563eb', color: '#fff' }}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                          Reactivar
+                        </button>
+                        <button onClick={() => convertir(q)} disabled={busy} title={q.operation_id ? 'Ya convertida — ir a la operación' : 'Crear operación desde esta cotización'} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '0.32rem 0.7rem', borderRadius: '7px', border: 'none', cursor: busy ? 'default' : 'pointer', fontSize: '0.72rem', fontWeight: 700, background: q.operation_id ? '#f0fdf4' : '#059669', color: q.operation_id ? '#16a34a' : '#fff' }}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polygon points="3 6 12 2 21 6 21 16 12 20 3 16 3 6"/><line x1="12" y1="22" x2="12" y2="12"/></svg>
+                          {q.operation_id ? 'Ver operación' : 'Convertir'}
+                        </button>
+                        <button onClick={() => remove(q)} disabled={busy} aria-label="Eliminar" title="Eliminar" style={{ marginLeft: 'auto', width: 30, height: 30, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '7px', border: '1px solid #fecaca', cursor: busy ? 'default' : 'pointer', background: '#fff', color: '#dc2626' }}>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       </div>
     </div>
