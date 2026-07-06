@@ -798,6 +798,15 @@ function OperationDetail({ op, onBack }) {
     const totalGastos = enBlanco + cash;
     const totalM3 = proveedores.reduce((s, p) => s + n(p.m3), 0);
 
+    // TC de la operación: primer TC disponible entre todos los proveedores (cobro o VEP).
+    // Permite calcular "a cobrar" de proveedores SIN VEP propio (cuando el VEP se
+    // agrupa en uno solo), sin obligar a cargar TC en cada fila.
+    const fallbackTC = proveedores.reduce((tc, p, i) => {
+      if (tc > 0) return tc;
+      const cb = cobrar[i] || {};
+      return n(cb.tc) > 0 ? n(cb.tc) : (n(p.tributosTC) > 0 ? n(p.tributosTC) : 0);
+    }, 0);
+
     const perProv = proveedores.map((p, i) => {
       const clienteNombre = p.clienteId ? clientes.find(c => c.id === p.clienteId)?.nombre || '' : '';
       const ratio = totalM3 > 0 ? n(p.m3) / totalM3 : 0;
@@ -807,13 +816,15 @@ function OperationDetail({ op, onBack }) {
       const vepPesos = Math.round(n(p.tributosUSD) * n(p.tributosTC));
       const costoFinal = prorPesos + vepPesos;
       const cb = cobrar[i] || { tc: 0, honorarios: false, despAdic: 0 };
-      const tcUsed = n(cb.tc) > 0 ? n(cb.tc) : n(p.tributosTC);
+      const tcOwn = n(cb.tc) > 0 ? n(cb.tc) : n(p.tributosTC);
+      const tcUsed = tcOwn > 0 ? tcOwn : fallbackTC;
+      const tcInherited = tcOwn <= 0 && fallbackTC > 0;
       const gastosUSD = tcUsed > 0 ? Math.round((costoFinal / tcUsed) * 100) / 100 : 0;
       const cashUSD   = tcUsed > 0 ? Math.round((prorCashPesos / tcUsed) * 100) / 100 : 0;
       const origenUSD = n(p.gastosOrigenUSD);
       const honorarios = cb.honorarios ? Math.round((gastosUSD + origenUSD) * 0.04 * 100) / 100 : 0;
       const totalUSD = Math.round((gastosUSD + origenUSD + honorarios + n(cb.despAdic)) * 100) / 100;
-      return { ...p, clienteNombre, ratio, prorPesos, prorBlancoPesos, prorCashPesos, cashUSD, vepPesos, costoFinal, tcUsed, gastosUSD, origenUSD, honorarios, totalUSD, cb, idx: i };
+      return { ...p, clienteNombre, ratio, prorPesos, prorBlancoPesos, prorCashPesos, cashUSD, vepPesos, costoFinal, tcUsed, tcInherited, gastosUSD, origenUSD, honorarios, totalUSD, cb, idx: i };
     });
     return {
       tNav, tTerm, tAdu, tTra, tDes, tAdm, tFlt, customBlanco, customCash,
@@ -965,8 +976,34 @@ function OperationDetail({ op, onBack }) {
                 </tr>
               </thead>
               <tbody>
-                {calc.perProv.map((p, i) => {
-                  const isExp = expanded === i;
+                {(() => {
+                  // Agrupar por cliente (mismo criterio que el chip "Tipo"), en orden de aparición.
+                  const groups = [];
+                  calc.perProv.forEach(p => {
+                    const key = p.tipo === 'Propio' ? 'Propio' : (p.clienteNombre || 'Cliente s/asignar');
+                    let g = groups.find(x => x.key === key);
+                    if (!g) { g = { key, items: [] }; groups.push(g); }
+                    g.items.push(p);
+                  });
+                  const multi = groups.length > 1;
+                  return groups.map(g => (
+                    <FRow key={'grp-' + g.key}>
+                      {multi && (
+                        <tr style={{ background: '#eef2f7', borderBottom: '1px solid #e2e8f0' }}>
+                          <td colSpan={2} style={{ padding: '0.45rem 0.7rem', fontSize: '0.64rem', fontWeight: 800, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            {g.key} <span style={{ fontWeight: 600, color: '#94a3b8', textTransform: 'none', letterSpacing: 0 }}>· {g.items.length} proveedor{g.items.length === 1 ? '' : 'es'}</span>
+                          </td>
+                          <td style={{ padding: '0.45rem 0.7rem', textAlign: 'right', fontSize: '0.7rem', fontWeight: 700, color: '#64748b', fontVariantNumeric: 'tabular-nums' }}>{g.items.reduce((s, x) => s + n(x.m3), 0).toFixed(2)}</td>
+                          <td style={{ padding: '0.45rem 0.7rem', textAlign: 'right', fontSize: '0.7rem', fontWeight: 700, color: '#64748b', fontVariantNumeric: 'tabular-nums' }}>{fmtUcompact(g.items.reduce((s, x) => s + n(x.fobUSD), 0))}</td>
+                          <td style={{ padding: '0.45rem 0.7rem', textAlign: 'right', fontSize: '0.7rem', fontWeight: 700, color: '#64748b', fontVariantNumeric: 'tabular-nums' }}>{fmtP(g.items.reduce((s, x) => s + x.costoFinal, 0))}</td>
+                          <td />
+                          <td style={{ padding: '0.45rem 0.7rem', textAlign: 'right', fontSize: '0.76rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>{fmtUcompact(g.items.reduce((s, x) => s + x.totalUSD, 0))}</td>
+                          <td colSpan={2} style={{ padding: '0.45rem 0.7rem', fontSize: '0.64rem', color: '#94a3b8', whiteSpace: 'nowrap' }}>{g.items.filter(x => x.cb.cobrado).length}/{g.items.length} cobrados</td>
+                        </tr>
+                      )}
+                      {g.items.map(p => {
+                        const i = p.idx;
+                        const isExp = expanded === i;
                   const isCobrado = p.cb.cobrado;
                   return (
                     <FRow key={p.id || i}>
@@ -984,7 +1021,11 @@ function OperationDetail({ op, onBack }) {
                         <td style={{ padding: '0.7rem', textAlign: 'right', color: '#475569', fontVariantNumeric: 'tabular-nums' }}>{p.m3 || '—'}</td>
                         <td style={{ padding: '0.7rem', textAlign: 'right', color: '#475569', fontVariantNumeric: 'tabular-nums' }}>{n(p.fobUSD) > 0 ? fmtUcompact(n(p.fobUSD)) : '—'}</td>
                         <td style={{ padding: '0.7rem', textAlign: 'right', color: '#1e293b', fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>{p.costoFinal > 0 ? fmtP(p.costoFinal) : '—'}</td>
-                        <td style={{ padding: '0.7rem', textAlign: 'right', color: '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>{p.tcUsed || '—'}</td>
+                        <td style={{ padding: '0.7rem', textAlign: 'right', color: '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>
+                          {p.tcUsed
+                            ? <span title={p.tcInherited ? 'TC heredado de la operación (este proveedor no tiene VEP/TC propio)' : undefined} style={p.tcInherited ? { fontStyle: 'italic', color: '#cbd5e1' } : undefined}>{p.tcUsed}{p.tcInherited ? '*' : ''}</span>
+                            : '—'}
+                        </td>
                         <td style={{ padding: '0.7rem', textAlign: 'right', fontWeight: 700, color: '#1e293b', fontVariantNumeric: 'tabular-nums' }}>{p.totalUSD > 0 ? fmtUcompact(p.totalUSD) : '—'}</td>
                         <td style={{ padding: '0.7rem' }}>
                           {isCobrado ? (
@@ -1021,7 +1062,10 @@ function OperationDetail({ op, onBack }) {
                       )}
                     </FRow>
                   );
-                })}
+                      })}
+                    </FRow>
+                  ));
+                })()}
               </tbody>
               <tfoot>
                 <tr style={{ background: '#f1f5f9', borderTop: '2px solid #e8ecf1' }}>
@@ -1663,7 +1707,7 @@ function ExpandedDetail({ p, clientes, onCreateCliente, onUpdProveedor, onUpdCob
               <div>
                 <p style={LBL_E}>T.C. cobro</p>
                 <input type="number" inputMode="decimal" step="any" value={p.cb.tc || ''} onChange={e => onUpdCobrar('tc', e.target.value)} placeholder={p.tributosTC ? `${p.tributosTC} auto` : '—'} style={{ ...INP_E, textAlign: 'right' }} />
-                <p style={HINT}>vacío = usa el del VEP</p>
+                <p style={HINT}>vacío = usa el del VEP o el TC de la operación</p>
               </div>
               <div>
                 <p style={LBL_E}>Desp. adic. USD</p>
