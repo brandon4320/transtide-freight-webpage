@@ -468,6 +468,23 @@
   box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.07);
 }
 
+/* Estado de cuenta (operaciones): al imprimir con el modal abierto, sale SOLO la hoja */
+@media print {
+  body.estado-print * { visibility: hidden !important; }
+  body.estado-print .estado-cuenta-sheet,
+  body.estado-print .estado-cuenta-sheet * { visibility: visible !important; }
+  body.estado-print .estado-cuenta-sheet {
+    position: fixed !important;
+    inset: 0 !important;
+    max-width: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+  body.estado-print .no-print { display: none !important; }
+}
+
 /* Aranceles | Honorarios&cierre lado a lado; apilar en pantallas medianas/chicas */
 @media (max-width: 1150px) {
   .cot-sections-2col {

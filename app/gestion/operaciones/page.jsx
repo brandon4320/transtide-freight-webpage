@@ -512,6 +512,7 @@ function OperationDetail({ op, onBack }) {
   const [showChecklist, setShowChecklist] = useState(false);
   const [costosOpen, setCostosOpen] = useState(true);
   const [editingCat, setEditingCat] = useState(null);
+  const [estadoCuenta, setEstadoCuenta] = useState(null); // grupo de cliente para el resumen imprimible
   const [addingCat,  setAddingCat]  = useState(false);
   const [isDirty,    setIsDirty]    = useState(false);
   const [saveFlash,  setSaveFlash]  = useState(false);
@@ -786,14 +787,31 @@ function OperationDetail({ op, onBack }) {
     const tTra = catTot(transporte).pesos, tDes = catTot(despachante).pesos, tAdm = catTot(admin).pesos;
     const tFlt = catTot(fleteIntl).pesos;
 
-    let customBlanco = 0, customCash = 0;
+    // Split por LÍNEA: cada gasto puede marcarse "sociedad" (blanco/facturado) o
+    // "vos" (cash de tu bolsillo). Sin marca, hereda el default de su categoría
+    // (flete intl → cash, el resto → sociedad). VEP Aduana es siempre sociedad.
+    // Reclasificar una línea NO cambia el costo total ni el "a cobrar" por
+    // proveedor (la suma prorrateada es la misma); solo cambia el split y lo
+    // que recuperás en cash.
+    const splitRows = (rows, defKind) => rows.reduce((a, r) => {
+      const kind = r.pagadoPor === 'cash' || r.pagadoPor === 'blanco' ? r.pagadoPor : defKind;
+      if (kind === 'cash') a.cash += rowPesos(r); else a.blanco += rowPesos(r);
+      return a;
+    }, { blanco: 0, cash: 0 });
+
+    let enBlanco = tAdu, cash = 0; // VEP siempre sociedad
+    [[naviera, 'blanco'], [terminal, 'blanco'], [transporte, 'blanco'], [despachante, 'blanco'], [admin, 'blanco'], [fleteIntl, 'cash']].forEach(([rows, def]) => {
+      const s = splitRows(rows, def); enBlanco += s.blanco; cash += s.cash;
+    });
     customGastos.forEach(cg => {
-      const t = catTot(detail[cg.id] || []).pesos;
-      if (cg.kind === 'cash') customCash += t; else customBlanco += t;
+      const s = splitRows(detail[cg.id] || [], cg.kind === 'cash' ? 'cash' : 'blanco');
+      enBlanco += s.blanco; cash += s.cash;
     });
 
-    const enBlanco = tNav + tTerm + tAdu + tTra + tDes + tAdm + customBlanco;
-    const cash     = tFlt + customCash;
+    // Líneas cargadas en USD sin T.C.: no entran al total en pesos ni al
+    // prorrateo — se avisa en el panel en vez de perderse en silencio.
+    const usdSinTC = [naviera, terminal, aduana, transporte, despachante, admin, fleteIntl, ...customGastos.map(cg => detail[cg.id] || [])]
+      .reduce((s, rows) => s + catTot(rows).usd, 0);
     const prorBase = enBlanco - tAdu + cash;
     const totalGastos = enBlanco + cash;
     const totalM3 = proveedores.reduce((s, p) => s + n(p.m3), 0);
@@ -827,7 +845,7 @@ function OperationDetail({ op, onBack }) {
       return { ...p, clienteNombre, ratio, prorPesos, prorBlancoPesos, prorCashPesos, cashUSD, vepPesos, costoFinal, tcUsed, tcInherited, gastosUSD, origenUSD, honorarios, totalUSD, cb, idx: i };
     });
     return {
-      tNav, tTerm, tAdu, tTra, tDes, tAdm, tFlt, customBlanco, customCash,
+      tNav, tTerm, tAdu, tTra, tDes, tAdm, tFlt, usdSinTC, fallbackTC,
       enBlanco, cash, prorBase, totalGastos, totalM3, perProv,
       totalACobrar:  perProv.reduce((s, p) => s + p.totalUSD, 0),
       totalCobrado:  perProv.reduce((s, p) => s + (p.cb.cobrado ? p.totalUSD : 0), 0),
@@ -871,7 +889,7 @@ function OperationDetail({ op, onBack }) {
   const customGastosList = (detail.customGastos || []).map(cg => ({
     ...cg, total: catTot(detail[cg.id] || []).pesos, rows: detail[cg.id] || [], custom: true,
   }));
-  const ALL_GASTOS = [...BUILTIN, ...customGastosList];
+  const ALL_GASTOS = [...BUILTIN, ...customGastosList].map(g => ({ ...g, usdPend: catTot(g.rows || []).usd }));
   const GASTOS_BLANCO = ALL_GASTOS.filter(g => g.kind === 'blanco');
   const GASTOS_CASH   = ALL_GASTOS.filter(g => g.kind === 'cash');
 
@@ -985,13 +1003,20 @@ function OperationDetail({ op, onBack }) {
                     if (!g) { g = { key, items: [] }; groups.push(g); }
                     g.items.push(p);
                   });
-                  const multi = groups.length > 1;
                   return groups.map(g => (
                     <FRow key={'grp-' + g.key}>
-                      {multi && (
+                      {(
                         <tr style={{ background: '#eef2f7', borderBottom: '1px solid #e2e8f0' }}>
                           <td colSpan={2} style={{ padding: '0.45rem 0.7rem', fontSize: '0.64rem', fontWeight: 800, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                            {g.key} <span style={{ fontWeight: 600, color: '#94a3b8', textTransform: 'none', letterSpacing: 0 }}>· {g.items.length} proveedor{g.items.length === 1 ? '' : 'es'}</span>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                              <span>{g.key} <span style={{ fontWeight: 600, color: '#94a3b8', textTransform: 'none', letterSpacing: 0 }}>· {g.items.length} proveedor{g.items.length === 1 ? '' : 'es'}</span></span>
+                              {g.key !== 'Propio' && (
+                                <button onClick={() => setEstadoCuenta(g)} title="Resumen limpio para enviar al cliente (captura o PDF)" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '0.16rem 0.5rem', borderRadius: 5, border: '1px solid #cbd5e1', background: '#fff', color: '#334155', fontSize: '0.6rem', fontWeight: 700, cursor: 'pointer', textTransform: 'none', letterSpacing: 0 }}>
+                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                  Estado de cuenta
+                                </button>
+                              )}
+                            </span>
                           </td>
                           <td style={{ padding: '0.45rem 0.7rem', textAlign: 'right', fontSize: '0.7rem', fontWeight: 700, color: '#64748b', fontVariantNumeric: 'tabular-nums' }}>{g.items.reduce((s, x) => s + n(x.m3), 0).toFixed(2)}</td>
                           <td style={{ padding: '0.45rem 0.7rem', textAlign: 'right', fontSize: '0.7rem', fontWeight: 700, color: '#64748b', fontVariantNumeric: 'tabular-nums' }}>{fmtUcompact(g.items.reduce((s, x) => s + n(x.fobUSD), 0))}</td>
@@ -1094,8 +1119,8 @@ function OperationDetail({ op, onBack }) {
               <div style={{ padding: '0 0.5rem 0.6rem' }}>
 
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.3rem 0.55rem 0.3rem' }}>
-                  <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>En blanco</span>
-                  <span style={{ fontSize: '0.62rem', color: '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>{fmtP(calc.enBlanco)}</span>
+                  <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Sociedad · facturado</span>
+                  <span style={{ fontSize: '0.62rem', color: '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>{fmtP(calc.enBlanco)}{calc.fallbackTC > 0 && calc.enBlanco > 0 ? ` · U$ ${Math.round(calc.enBlanco / calc.fallbackTC).toLocaleString('es-AR')}` : ''}</span>
                 </div>
                 {GASTOS_BLANCO.map(g => (
                   <CategoryBtn key={g.id} g={g} onClick={() => setEditingCat(g)} />
@@ -1104,9 +1129,9 @@ function OperationDetail({ op, onBack }) {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.85rem 0.55rem 0.3rem' }}>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.58rem', fontWeight: 700, color: '#0891b2', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                     <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="6" x2="12" y2="18"/><line x1="6" y1="12" x2="18" y2="12"/></svg>
-                    Cash propio
+                    Pagado por vos · cash
                   </span>
-                  <span style={{ fontSize: '0.62rem', color: '#0891b2', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmtP(calc.cash)}</span>
+                  <span style={{ fontSize: '0.62rem', color: '#0891b2', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmtP(calc.cash)}{calc.fallbackTC > 0 && calc.cash > 0 ? ` · U$ ${Math.round(calc.cash / calc.fallbackTC).toLocaleString('es-AR')}` : ''}</span>
                 </div>
                 <div style={{ background: '#f0f9ff', borderRadius: 6, padding: 3, border: '1px solid #e0f2fe' }}>
                   {GASTOS_CASH.map(g => (
@@ -1123,9 +1148,22 @@ function OperationDetail({ op, onBack }) {
                   <span style={{ fontSize: '0.9rem', lineHeight: 1 }}>+</span> Agregar categoría
                 </button>
 
-                <div style={{ marginTop: 10, padding: '0.65rem 0.7rem', background: '#0f172a', borderRadius: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600 }}>Total general</span>
-                  <span style={{ fontSize: '0.82rem', color: '#fff', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{fmtP(calc.totalGastos)}</span>
+                {calc.usdSinTC > 0 && (
+                  <div style={{ marginTop: 10, padding: '0.5rem 0.6rem', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, fontSize: '0.64rem', color: '#92400e', lineHeight: 1.45 }}>
+                    ⚠ <b>USD {calc.usdSinTC.toLocaleString('es-AR')}</b> cargados sin T.C. — no entran al total ni al prorrateo. Cargales el T.C. en su categoría.
+                  </div>
+                )}
+                <div style={{ marginTop: 10, padding: '0.65rem 0.7rem', background: '#0f172a', borderRadius: 6 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600 }}>Total general</span>
+                    <span style={{ fontSize: '0.82rem', color: '#fff', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{fmtP(calc.totalGastos)}</span>
+                  </div>
+                  {calc.fallbackTC > 0 && calc.totalGastos > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 3 }}>
+                      <span style={{ fontSize: '0.6rem', color: '#64748b' }}>≈ al T.C. {calc.fallbackTC}</span>
+                      <span style={{ fontSize: '0.72rem', color: '#7dd3fc', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>USD {Math.round(calc.totalGastos / calc.fallbackTC).toLocaleString('es-AR')}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1234,6 +1272,10 @@ function OperationDetail({ op, onBack }) {
       </div>
 
       {/* CATEGORY EDIT MODAL */}
+      {estadoCuenta && (
+        <EstadoCuentaModal group={estadoCuenta} op={op} onClose={() => setEstadoCuenta(null)} />
+      )}
+
       {editingCat && (
         <CategoryEditor
           cat={editingCat}
@@ -1362,6 +1404,122 @@ function OperationDetail({ op, onBack }) {
 // ─── Helper sub-components ────────────────────────────────────────────────────
 function FRow({ children }) { return <>{children}</>; }
 
+// ─── estado de cuenta por cliente (vista limpia para captura / imprimir) ────────
+function EstadoCuentaModal({ group, op, onClose }) {
+  // Mientras está abierto, imprimir la página imprime SOLO esta hoja (ver gestion.css).
+  useEffect(() => {
+    document.body.classList.add('estado-print');
+    return () => document.body.classList.remove('estado-print');
+  }, []);
+
+  const items = group.items;
+  const total   = items.reduce((s, p) => s + p.totalUSD, 0);
+  const cobrado = items.reduce((s, p) => s + (p.cb.cobrado ? p.totalUSD : 0), 0);
+  const saldo   = Math.round((total - cobrado) * 100) / 100;
+  const fobT    = items.reduce((s, p) => s + n(p.fobUSD), 0);
+  const m3T     = items.reduce((s, p) => s + n(p.m3), 0);
+  const usdF = (v) => 'USD ' + (Math.round(v * 100) / 100).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const hoy = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' });
+  const TD = { padding: '0.5rem 0.65rem', borderBottom: '1px solid #f1f5f9', fontSize: '0.78rem', fontVariantNumeric: 'tabular-nums' };
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.25rem' }}>
+      <div className="estado-cuenta-sheet" onClick={e => e.stopPropagation()} style={{ background: '#fff', width: '100%', maxWidth: 700, borderRadius: 14, boxShadow: '0 30px 80px rgba(0,0,0,0.3)', maxHeight: '92vh', overflowY: 'auto' }}>
+
+        {/* encabezado con marca */}
+        <div style={{ background: '#0f172a', color: '#fff', padding: '1.1rem 1.6rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div>
+            <p style={{ fontSize: '0.95rem', fontWeight: 800, letterSpacing: '0.04em' }}>TRANSTIDE FREIGHT</p>
+            <p style={{ fontSize: '0.62rem', color: '#94a3b8' }}>transtidefreight.com</p>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <p style={{ fontSize: '0.72rem', fontWeight: 700, color: '#7dd3fc', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Estado de cuenta</p>
+            <p style={{ fontSize: '0.62rem', color: '#94a3b8' }}>{hoy}</p>
+          </div>
+        </div>
+
+        <div style={{ padding: '1.25rem 1.6rem' }}>
+          {/* cliente + operación */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap', marginBottom: '1rem' }}>
+            <div>
+              <p style={{ fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>Cliente</p>
+              <p style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>{group.key === 'Cliente s/asignar' ? '—' : group.key}</p>
+            </div>
+            <div style={{ textAlign: 'right', fontSize: '0.68rem', color: '#64748b', lineHeight: 1.5 }}>
+              <p><b>Operación:</b> {op.nombre || '—'}</p>
+              <p>{op.contenedor ? `Contenedor ${op.contenedor}` : ''}{op.bl ? ` · B/L ${op.bl}` : ''}</p>
+            </div>
+          </div>
+
+          {/* detalle por proveedor */}
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                {[['Proveedor', 'left'], ['m³', 'right'], ['FOB USD', 'right'], ['Gastos USD', 'right'], ['Estado', 'right']].map(([h, a]) => (
+                  <th key={h} style={{ fontSize: '0.58rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '0.45rem 0.65rem', textAlign: a, borderBottom: '1px solid #e2e8f0' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {items.map(p => (
+                <tr key={p.id || p.idx}>
+                  <td style={{ ...TD, fontWeight: 600, color: '#1e293b' }}>{p.nombre || '—'}</td>
+                  <td style={{ ...TD, textAlign: 'right', color: '#64748b' }}>{p.m3 || '—'}</td>
+                  <td style={{ ...TD, textAlign: 'right', color: '#64748b' }}>{n(p.fobUSD) > 0 ? n(p.fobUSD).toLocaleString('es-AR') : '—'}</td>
+                  <td style={{ ...TD, textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>{p.totalUSD > 0 ? p.totalUSD.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
+                  <td style={{ ...TD, textAlign: 'right' }}>
+                    {p.cb.cobrado
+                      ? <span style={{ fontSize: '0.66rem', fontWeight: 700, color: '#16a34a' }}>Pagado ✓</span>
+                      : <span style={{ fontSize: '0.66rem', fontWeight: 700, color: '#d97706' }}>Pendiente</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td style={{ padding: '0.55rem 0.65rem', fontSize: '0.64rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total</td>
+                <td style={{ padding: '0.55rem 0.65rem', textAlign: 'right', fontSize: '0.78rem', fontWeight: 700, color: '#334155', fontVariantNumeric: 'tabular-nums' }}>{m3T.toFixed(2)}</td>
+                <td style={{ padding: '0.55rem 0.65rem', textAlign: 'right', fontSize: '0.78rem', fontWeight: 700, color: '#334155', fontVariantNumeric: 'tabular-nums' }}>{fobT.toLocaleString('es-AR')}</td>
+                <td style={{ padding: '0.55rem 0.65rem', textAlign: 'right', fontSize: '0.82rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>{total.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                <td />
+              </tr>
+            </tfoot>
+          </table>
+
+          {/* resumen de cobro */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginTop: '1rem' }}>
+            <div style={{ background: '#f8fafc', border: '1px solid #e8ecf1', borderRadius: 10, padding: '0.65rem 0.85rem' }}>
+              <p style={{ fontSize: '0.58rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Total gastos</p>
+              <p style={{ fontSize: '0.98rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>{usdF(total)}</p>
+            </div>
+            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '0.65rem 0.85rem' }}>
+              <p style={{ fontSize: '0.58rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Pagado</p>
+              <p style={{ fontSize: '0.98rem', fontWeight: 800, color: '#16a34a', fontVariantNumeric: 'tabular-nums' }}>{usdF(cobrado)}</p>
+            </div>
+            <div style={{ background: saldo > 0 ? '#fef2f2' : '#f0fdf4', border: `1px solid ${saldo > 0 ? '#fecaca' : '#bbf7d0'}`, borderRadius: 10, padding: '0.65rem 0.85rem' }}>
+              <p style={{ fontSize: '0.58rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Saldo pendiente</p>
+              <p style={{ fontSize: '0.98rem', fontWeight: 800, color: saldo > 0 ? '#dc2626' : '#16a34a', fontVariantNumeric: 'tabular-nums' }}>{saldo > 0 ? usdF(saldo) : 'Saldado ✓'}</p>
+            </div>
+          </div>
+
+          <p style={{ fontSize: '0.6rem', color: '#94a3b8', marginTop: '0.9rem', lineHeight: 1.5 }}>
+            Gastos de importación expresados en USD, convertidos al tipo de cambio de la operación. FOB de la mercadería informado a título de referencia.
+          </p>
+        </div>
+
+        {/* acciones (no salen en la impresión/captura) */}
+        <div className="no-print" style={{ padding: '0.9rem 1.6rem', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end', gap: 8, background: '#f8fafc', borderRadius: '0 0 14px 14px' }}>
+          <button onClick={onClose} style={{ padding: '0.5rem 1rem', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}>Cerrar</button>
+          <button onClick={() => window.print()} style={{ padding: '0.5rem 1.2rem', borderRadius: 8, border: 'none', background: '#0f172a', color: '#fff', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            Imprimir / PDF
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CategoryBtn({ g, onClick, cash }) {
   return (
     <button onClick={onClick}
@@ -1372,6 +1530,7 @@ function CategoryBtn({ g, onClick, cash }) {
         <span style={{ width: 6, height: 6, borderRadius: '50%', background: g.total > 0 ? g.color : '#e2e8f0', flexShrink: 0 }} />
         <span style={{ fontSize: '0.74rem', color: cash ? '#0c4a6e' : '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.label}</span>
         {g.custom && <span style={{ fontSize: '0.55rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', background: '#f1f5f9', padding: '0 4px', borderRadius: 3 }}>custom</span>}
+        {g.usdPend > 0 && <span title={`USD ${g.usdPend.toLocaleString('es-AR')} cargados sin T.C. — no entran al total en pesos ni al prorrateo`} style={{ fontSize: '0.55rem', fontWeight: 700, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', padding: '0 4px', borderRadius: 3, flexShrink: 0 }}>+USD s/TC</span>}
       </div>
       <span style={{ fontSize: '0.73rem', fontWeight: 600, color: g.total > 0 ? (cash ? '#0891b2' : '#1e293b') : '#cbd5e1', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{g.total > 0 ? fmtP(g.total) : '—'}</span>
     </button>
@@ -1443,6 +1602,9 @@ function CategoryEditor({ cat, rows: initRows, onChange, onClose, onDelete }) {
   const [rows, setRows] = useState(initRows.length ? initRows : [newRow()]);
   const tot = catTot(rows).pesos;
   const INP_MODAL = { width: '100%', padding: '0.4rem 0.55rem', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.78rem', color: '#1e293b', background: '#fff', outline: 'none', boxSizing: 'border-box' };
+  // Quién pagó cada línea: sociedad (facturado) o vos (cash). VEP siempre sociedad.
+  const showPagadoPor = cat.id !== 'aduana';
+  const defKind = cat.kind === 'cash' ? 'cash' : 'blanco';
 
   const updRow = (i, f, v) => setRows(rs => rs.map((r, j) => j === i ? { ...r, [f]: v } : r));
   const addRow = () => setRows(rs => [...rs, newRow()]);
@@ -1467,7 +1629,7 @@ function CategoryEditor({ cat, rows: initRows, onChange, onClose, onDelete }) {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                {['Descripción', 'N° Factura', 'USD', 'T.C.', 'Pesos', ''].map(h => (
+                {['Descripción', 'N° Factura', 'USD', 'T.C.', 'Pesos', ...(showPagadoPor ? ['Pagó'] : []), ''].map(h => (
                   <th key={h} style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '0.5rem 0.6rem 0.6rem', textAlign: h === 'USD' || h === 'T.C.' || h === 'Pesos' ? 'right' : 'left' }}>{h}</th>
                 ))}
               </tr>
@@ -1496,6 +1658,25 @@ function CategoryEditor({ cat, rows: initRows, onChange, onClose, onDelete }) {
                         <input type="number" inputMode="decimal" step="any" value={row.pesos} onChange={e => updRow(i, 'pesos', e.target.value)} style={{ ...INP_MODAL, textAlign: 'right' }} placeholder="" />
                       )}
                     </td>
+                    {showPagadoPor && (
+                      <td style={{ padding: '0.25rem 0.3rem', width: 128 }}>
+                        {(() => {
+                          const kind = row.pagadoPor === 'cash' || row.pagadoPor === 'blanco' ? row.pagadoPor : defKind;
+                          return (
+                            <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: 6, padding: 2, gap: 2 }} title="¿Quién pagó esta línea? Sociedad (facturado) o vos en efectivo. No cambia el total a cobrar, solo el split y lo que recuperás cash.">
+                              {[['blanco', 'Sociedad'], ['cash', 'Vos']].map(([v, l]) => {
+                                const on = kind === v;
+                                return (
+                                  <button key={v} onClick={() => updRow(i, 'pagadoPor', v)} style={{ flex: 1, padding: '0.24rem 0.3rem', borderRadius: 4, border: 'none', cursor: 'pointer', fontSize: '0.62rem', fontWeight: on ? 700 : 500, background: on ? '#fff' : 'transparent', color: on ? (v === 'cash' ? '#0891b2' : '#334155') : '#94a3b8', boxShadow: on ? '0 1px 2px rgba(15,23,42,0.10)' : 'none' }}>
+                                    {l}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
+                      </td>
+                    )}
                     <td style={{ padding: '0.25rem 0.3rem', width: 30 }}>
                       <button onClick={() => remRow(i)} style={{ background: 'none', border: 'none', color: '#cbd5e1', cursor: 'pointer', fontSize: '1rem' }}>×</button>
                     </td>
