@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { gToast } from '../toast'
+import FichaImportacion from '../ficha-importacion'
 
 const CARD = { background: '#fff', borderRadius: 10, border: '1px solid #e8ecf1', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }
 const INP = { width: '100%', padding: '0.5rem 0.65rem', border: '1px solid #e2e8f0', borderRadius: 7, fontSize: '16px', color: '#0f172a', background: '#fff', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }
@@ -57,6 +58,7 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
   const [honAuto, setHonAuto] = useState(true)     // total honorarios = reg + extras + otros
   const [pagAuto, setPagAuto] = useState(true)     // total pagado = transferencia + cash
   const [salAuto, setSalAuto] = useState(true)     // saldo = honorarios − pagado − comisión
+  const [ficha, setFicha] = useState(null)         // B/L abierto en la ficha integral
 
   const load = async () => {
     // Inyección para preview de diseño (dev): evita auth/D1.
@@ -251,7 +253,7 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
                 const TD = { padding: '0.5rem 0.7rem', borderBottom: '1px solid #eef2f7', verticalAlign: 'middle' }
                 const desglose = ['Regulares ' + (r.hon_regulares || '—'), r.adu_extras && 'Adu extras ' + r.adu_extras, r.otros_gastos && 'Otros ' + r.otros_gastos].filter(Boolean).join(' · ')
                 return (
-                  <tr key={r.id} className="track-row" style={{ cursor: 'pointer', background: st.bg, transition: 'filter .12s' }} onClick={() => openEdit(r)}>
+                  <tr key={r.id} className="track-row" style={{ cursor: 'pointer', background: st.bg, transition: 'filter .12s' }} onClick={() => r.bl ? setFicha(r.bl) : openEdit(r)}>
                     <td style={{ ...TD, minWidth: 220, boxShadow: `inset 4px 0 0 ${st.dot}` }}>
                       <div style={{ fontWeight: 600, color: '#1e293b' }}>{r.descripcion || '—'}</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, fontSize: '0.66rem', color: '#94a3b8' }}>
@@ -419,6 +421,8 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
           </div>
         </div>
       )}
+
+      {ficha && <FichaImportacion bl={ficha} onClose={() => setFicha(null)} onChanged={load} />}
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>

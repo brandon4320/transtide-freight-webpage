@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { gToast } from '../toast'
+import FichaImportacion from '../ficha-importacion'
 
 const CARD = { background: '#fff', borderRadius: 10, border: '1px solid #e8ecf1', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }
 const INP = { width: '100%', padding: '0.5rem 0.65rem', border: '1px solid #e2e8f0', borderRadius: 7, fontSize: '16px', color: '#0f172a', background: '#fff', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }
@@ -81,6 +82,7 @@ export default function TrackingPage({ devShips = null } = {}) {
   const [totalAuto, setTotalAuto] = useState(true)  // Total = flete + otros - descuento
   const [balAuto, setBalAuto] = useState(true)       // Saldo = a pagar - pagado
   const [sort, setSort] = useState({ key: 'num', dir: 'desc' })  // orden de la tabla
+  const [ficha, setFicha] = useState(null)   // B/L abierto en la ficha integral
 
   const load = async () => {
     // Inyección de datos para preview de diseño (dev): evita auth/D1.
@@ -315,7 +317,7 @@ export default function TrackingPage({ devShips = null } = {}) {
                 const eta = etaInfo(s.eta)
                 const TD = { padding: '0.5rem 0.7rem', borderBottom: '1px solid #eef2f7', verticalAlign: 'middle' }
                 return (
-                  <tr key={s.id} className="track-row" style={{ cursor: 'pointer', background: st.bg, transition: 'filter .12s' }} onClick={() => openEdit(s)}>
+                  <tr key={s.id} className="track-row" style={{ cursor: 'pointer', background: st.bg, transition: 'filter .12s' }} onClick={() => s.bl ? setFicha(s.bl) : openEdit(s)}>
                     <td style={{ ...TD, color: '#475569', fontWeight: 700, fontVariantNumeric: 'tabular-nums', boxShadow: `inset 4px 0 0 ${st.dot}`, whiteSpace: 'nowrap' }}>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
                         <span title={`Agente: ${ag}`} style={{ width: 7, height: 7, borderRadius: '50%', background: a.c, flex: '0 0 auto' }} />
@@ -498,6 +500,8 @@ export default function TrackingPage({ devShips = null } = {}) {
           </div>
         </div>
       )}
+
+      {ficha && <FichaImportacion bl={ficha} onClose={() => setFicha(null)} onChanged={load} />}
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
