@@ -253,7 +253,7 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
                 const TD = { padding: '0.5rem 0.7rem', borderBottom: '1px solid #eef2f7', verticalAlign: 'middle' }
                 const desglose = ['Regulares ' + (r.hon_regulares || '—'), r.adu_extras && 'Adu extras ' + r.adu_extras, r.otros_gastos && 'Otros ' + r.otros_gastos].filter(Boolean).join(' · ')
                 return (
-                  <tr key={r.id} className="track-row" style={{ cursor: 'pointer', background: st.bg, transition: 'filter .12s' }} onClick={() => r.bl ? setFicha(r.bl) : openEdit(r)}>
+                  <tr key={r.id} className="track-row" style={{ cursor: 'pointer', background: st.bg, transition: 'filter .12s' }} onClick={() => r.bl ? setFicha({ bl: r.bl, desp: r, ship: shipByBL[blNorm(r.bl)] || null }) : openEdit(r)}>
                     <td style={{ ...TD, minWidth: 220, boxShadow: `inset 4px 0 0 ${st.dot}` }}>
                       <div style={{ fontWeight: 600, color: '#1e293b' }}>{r.descripcion || '—'}</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, fontSize: '0.66rem', color: '#94a3b8' }}>
@@ -422,7 +422,7 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
         </div>
       )}
 
-      {ficha && <FichaImportacion bl={ficha} onClose={() => setFicha(null)} onChanged={load} />}
+      {ficha && <FichaImportacion bl={ficha.bl} seed={{ desp: ficha.desp, ship: ficha.ship }} onClose={() => setFicha(null)} onChanged={load} />}
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>

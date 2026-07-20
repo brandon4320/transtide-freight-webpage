@@ -31,26 +31,31 @@ const blNorm = (s: string) => String(s || '').replace(/[\s-]/g, '').toUpperCase(
 export async function GET(request: Request) {
   const s = await getSessionInfo()
   if (!s) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  await ensureTable()
 
   const url = new URL(request.url)
   const bl = url.searchParams.get('bl')
   const scope = url.searchParams.get('scope')
   const refId = url.searchParams.get('ref_id')
 
+  // La tabla se crea recién en el primer POST; si todavía no existe, el
+  // historial simplemente está vacío (sin pagar el costo de un CREATE por GET).
   let rows
-  if (bl != null) {
-    rows = await d1Query<any>(
-      `SELECT * FROM pagos_registro WHERE upper(replace(replace(bl, ' ', ''), '-', '')) = ? ORDER BY fecha DESC, id DESC`,
-      [blNorm(bl)]
-    )
-  } else if (scope && refId) {
-    rows = await d1Query<any>(
-      `SELECT * FROM pagos_registro WHERE scope = ? AND ref_id = ? ORDER BY fecha DESC, id DESC`,
-      [scope, refId]
-    )
-  } else {
-    rows = await d1Query<any>(`SELECT * FROM pagos_registro ORDER BY id DESC LIMIT 200`)
+  try {
+    if (bl != null) {
+      rows = await d1Query<any>(
+        `SELECT * FROM pagos_registro WHERE upper(replace(replace(bl, ' ', ''), '-', '')) = ? ORDER BY fecha DESC, id DESC`,
+        [blNorm(bl)]
+      )
+    } else if (scope && refId) {
+      rows = await d1Query<any>(
+        `SELECT * FROM pagos_registro WHERE scope = ? AND ref_id = ? ORDER BY fecha DESC, id DESC`,
+        [scope, refId]
+      )
+    } else {
+      rows = await d1Query<any>(`SELECT * FROM pagos_registro ORDER BY id DESC LIMIT 200`)
+    }
+  } catch {
+    rows = []
   }
   return NextResponse.json(rows)
 }

@@ -43,33 +43,41 @@ function Money({ label, value, tone = '#0f172a', sub }) {
   )
 }
 
-export default function FichaImportacion({ bl, onClose, onChanged }) {
-  const [data, setData] = useState({ ship: null, desp: null, op: null, pagos: [], loading: true })
+// fetch con timeout: una sección que no responde no puede colgar la ficha entera.
+async function fetchJSON(url, ms = 12000) {
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), ms)
+  try {
+    const r = await fetch(url, { signal: ctrl.signal })
+    if (!r.ok) return null
+    return await r.json()
+  } catch { return null } finally { clearTimeout(t) }
+}
+
+export default function FichaImportacion({ bl, seed = {}, onClose, onChanged }) {
+  // La ficha abre INSTANTÁNEA con los datos que ya tiene la fila clickeada (seed);
+  // cada sección restante carga por su cuenta y se completa cuando llega.
+  const [ship, setShip] = useState(seed.ship || null)
+  const [desp, setDesp] = useState(seed.desp || null)
+  const [op, setOp] = useState(null)
+  const [pagos, setPagos] = useState(null) // null = cargando
   const [pagoForm, setPagoForm] = useState(null) // null | {scope, fecha, monto, metodo, nota}
   const [busy, setBusy] = useState(false)
 
-  const load = async () => {
-    try {
-      const [tR, dR, oR, pR] = await Promise.all([
-        fetch('/api/tracking?bl=' + encodeURIComponent(bl)),
-        fetch('/api/db/despachante'),
-        fetch('/api/db/operations'),
-        fetch('/api/db/pagos?bl=' + encodeURIComponent(bl)),
-      ])
-      const key = blNorm(bl)
-      const ship = tR.ok ? ((await tR.json()).shipments || [])[0] || null : null
-      const desp = dR.ok ? ((await dR.json()) || []).find(r => blNorm(r.bl) === key) || null : null
-      const op = oR.ok ? ((await oR.json()) || []).find(o => blNorm(o.bl) === key) || null : null
-      const pagos = pR.ok ? await pR.json() : []
-      setData({ ship, desp, op, pagos: Array.isArray(pagos) ? pagos : [], loading: false })
-    } catch {
-      setData(d => ({ ...d, loading: false }))
-      gToast.error('No se pudo cargar la ficha completa.')
+  const key = blNorm(bl)
+  const load = (fresh = false) => {
+    // Embarque: solo si no vino en el seed (o si hay que refrescar tras un pago).
+    if (fresh || !seed.ship) {
+      fetchJSON('/api/tracking?bl=' + encodeURIComponent(bl)).then(j => { if (j) setShip((j.shipments || [])[0] || null) })
     }
+    if (fresh || !seed.desp) {
+      fetchJSON('/api/db/despachante').then(j => { if (Array.isArray(j)) setDesp(j.find(r => blNorm(r.bl) === key) || null) })
+    }
+    fetchJSON('/api/db/operations').then(j => { if (Array.isArray(j)) setOp(j.find(o => blNorm(o.bl) === key) || null) })
+    fetchJSON('/api/db/pagos?bl=' + encodeURIComponent(bl)).then(j => setPagos(Array.isArray(j) ? j : []))
   }
-  useEffect(() => { load() }, [bl])
-
-  const { ship, desp, op, pagos, loading } = data
+  useEffect(() => { load(false) }, [bl])
+  const loading = false
 
   const agTotal = num(ship?.total_usd), agSaldo = num(ship?.balance_usd)
   const deTotal = num(desp?.total_honorarios), deSaldo = num(desp?.saldo)
@@ -110,7 +118,7 @@ export default function FichaImportacion({ bl, onClose, onChanged }) {
       }
       gToast.success('Pago registrado.')
       setPagoForm(null)
-      await load()
+      load(true)
       onChanged?.()
     } catch (e) {
       gToast.error(e.message || 'Error al registrar el pago.')
@@ -129,7 +137,7 @@ export default function FichaImportacion({ bl, onClose, onChanged }) {
       })
       if (!r.ok) throw new Error('No se pudo crear el despacho')
       gToast.success('Despacho creado y vinculado por B/L.')
-      await load()
+      load(true)
       onChanged?.()
     } catch (e) {
       gToast.error(e.message || 'Error al crear el despacho.')
@@ -254,7 +262,9 @@ export default function FichaImportacion({ bl, onClose, onChanged }) {
             {/* historial de pagos */}
             <div style={{ ...CARD, padding: '0.85rem 1rem' }}>
               <p style={SECT}>Historial de pagos</p>
-              {pagos.length === 0 ? (
+              {pagos === null ? (
+                <p style={{ fontSize: '0.75rem', color: '#cbd5e1' }}>Cargando historial…</p>
+              ) : pagos.length === 0 ? (
                 <p style={{ fontSize: '0.75rem', color: '#cbd5e1' }}>Todavía no hay pagos registrados para este B/L.</p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column' }}>

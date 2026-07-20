@@ -317,7 +317,7 @@ export default function TrackingPage({ devShips = null } = {}) {
                 const eta = etaInfo(s.eta)
                 const TD = { padding: '0.5rem 0.7rem', borderBottom: '1px solid #eef2f7', verticalAlign: 'middle' }
                 return (
-                  <tr key={s.id} className="track-row" style={{ cursor: 'pointer', background: st.bg, transition: 'filter .12s' }} onClick={() => s.bl ? setFicha(s.bl) : openEdit(s)}>
+                  <tr key={s.id} className="track-row" style={{ cursor: 'pointer', background: st.bg, transition: 'filter .12s' }} onClick={() => s.bl ? setFicha({ bl: s.bl, ship: s }) : openEdit(s)}>
                     <td style={{ ...TD, color: '#475569', fontWeight: 700, fontVariantNumeric: 'tabular-nums', boxShadow: `inset 4px 0 0 ${st.dot}`, whiteSpace: 'nowrap' }}>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
                         <span title={`Agente: ${ag}`} style={{ width: 7, height: 7, borderRadius: '50%', background: a.c, flex: '0 0 auto' }} />
@@ -501,7 +501,7 @@ export default function TrackingPage({ devShips = null } = {}) {
         </div>
       )}
 
-      {ficha && <FichaImportacion bl={ficha} onClose={() => setFicha(null)} onChanged={load} />}
+      {ficha && <FichaImportacion bl={ficha.bl} seed={{ ship: ficha.ship }} onClose={() => setFicha(null)} onChanged={load} />}
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
