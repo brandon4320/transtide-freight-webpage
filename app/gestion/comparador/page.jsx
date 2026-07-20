@@ -315,6 +315,29 @@ export default function ComparadorPage() {
     }
   };
 
+  // Subida rápida desde la TABLA de comparación (sin abrir el modal de edición).
+  const [quickDocProv, setQuickDocProv] = useState(null); // provId subiendo
+  const quickDoc = async (provId, file) => {
+    if (!detail || !file || quickDocProv) return;
+    if (file.size > MAX_SIZE) { gToast.error('El archivo supera los 10MB'); return; }
+    setQuickDocProv(provId);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('tipo', 'cotizacion');
+      fd.append('proveedor_id', provId);
+      const r = await fetch(`/api/db/compras/${detail.id}/docs`, { method: 'POST', body: fd });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || 'No se pudo subir el archivo');
+      setDetail(d => d ? { ...d, docs: [...(d.docs || []), j] } : d);
+      gToast.success('Archivo adjuntado.');
+    } catch (e) {
+      gToast.error(e.message || 'Error al subir el archivo');
+    } finally {
+      setQuickDocProv(null);
+    }
+  };
+
   // ---- convertir ----
   const convertir = async () => {
     if (!detail || converting) return;
@@ -349,6 +372,7 @@ export default function ComparadorPage() {
         aiState={aiState} onAiFile={onAiFile}
         docTipo={docTipo} setDocTipo={setDocTipo} docFile={docFile} onPickDoc={onPickDoc}
         docErr={docErr} uploadingDoc={uploadingDoc} onUploadDoc={uploadDoc} onDeleteDoc={deleteDoc}
+        onQuickDoc={quickDoc} quickDocProv={quickDocProv}
         confirmProvDel={confirmProvDel} onCancelDelProv={() => setConfirmProvDel(null)} onDelProv={deleteProv}
       />
     );
@@ -447,6 +471,7 @@ function DetailView(props) {
     onNewProv, onEditProv, onElegir, onAskDelProv, onConvert, converting,
     provModal, provForm, setPF, onCloseProv, onSaveProv, savingProv,
     aiState, onAiFile, docTipo, setDocTipo, docFile, onPickDoc, docErr, uploadingDoc, onUploadDoc, onDeleteDoc,
+    onQuickDoc, quickDocProv,
     confirmProvDel, onCancelDelProv, onDelProv,
   } = props;
 
@@ -524,7 +549,7 @@ function DetailView(props) {
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                   <thead>
                     <tr style={{ background: '#f8fafc', color: '#64748b', textAlign: 'left' }}>
-                      {['Proveedor','Producto','Precio unit.','Cant./MOQ','Precio total','Lead time','Incoterm','m³','Peso','Elegido',''].map((h, i) => (
+                      {['Proveedor','Producto','Precio unit.','Cant./MOQ','Precio total','Lead time','Incoterm','m³','Peso','Docs','Elegido',''].map((h, i) => (
                         <th key={i} style={{ padding: '0.6rem 0.7rem', fontWeight: 700, fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap', borderBottom: '1px solid #e8ecf1' }}>{h}</th>
                       ))}
                     </tr>
@@ -540,7 +565,10 @@ function DetailView(props) {
                             {p.nombre || '—'}
                             {p.contacto ? <span style={{ display: 'block', fontWeight: 400, fontSize: '0.7rem', color: '#94a3b8' }}>{p.contacto}</span> : null}
                           </td>
-                          <td style={txtCell}>{p.producto || '—'}</td>
+                          <td style={{ ...txtCell, whiteSpace: 'normal', minWidth: 170, maxWidth: 260 }}>
+                            {p.producto || '—'}
+                            {p.notas ? <span title={p.notas} style={{ display: 'block', fontSize: '0.68rem', color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 250 }}>{p.notas}</span> : null}
+                          </td>
                           <td style={{ ...numCell, background: bestUnit === p.id ? goodBg : undefined, fontWeight: bestUnit === p.id ? 700 : 400 }}>{joinMoney(p.moneda, p.precio_unitario)}</td>
                           <td style={numCell}>{p.cantidad || '—'}{p.moq ? <span style={{ color: '#94a3b8' }}> / MOQ {p.moq}</span> : null}</td>
                           <td style={{ ...numCell, background: bestTotal === p.id ? goodBg : undefined, fontWeight: bestTotal === p.id ? 700 : 400, color: bestTotal === p.id ? '#059669' : undefined }}>{joinMoney(p.moneda, p.precio_total)}</td>
@@ -548,6 +576,21 @@ function DetailView(props) {
                           <td style={txtCell}>{p.incoterm || '—'}</td>
                           <td style={numCell}>{p.m3 || '—'}</td>
                           <td style={numCell}>{p.peso_kg ? `${p.peso_kg} kg` : '—'}</td>
+                          <td style={{ ...txtCell, whiteSpace: 'normal', minWidth: 120, maxWidth: 190 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                              {docs.filter(d => d.proveedor_id === p.id).map(d => (
+                                <a key={d.id} href={`/api/db/compras/${detail.id}/docs/${d.id}`} target="_blank" rel="noreferrer" title={`${d.filename} — abrir`}
+                                  style={{ display: 'inline-flex', alignItems: 'center', gap: 3, maxWidth: 130, padding: '0.12rem 0.45rem', borderRadius: 5, border: '1px solid #e0f2fe', background: '#f0f9ff', color: '#0369a1', fontSize: '0.64rem', fontWeight: 600, textDecoration: 'none' }}>
+                                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" style={{ flexShrink: 0 }}><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.filename}</span>
+                                </a>
+                              ))}
+                              <label title="Adjuntar archivo a este proveedor (cotización, ficha técnica, fotos)" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '0.12rem 0.45rem', borderRadius: 5, border: '1px dashed #cbd5e1', background: '#fff', color: quickDocProv === p.id ? '#94a3b8' : '#64748b', fontSize: '0.64rem', fontWeight: 700, cursor: quickDocProv ? 'wait' : 'pointer' }}>
+                                {quickDocProv === p.id ? 'Subiendo…' : '+ archivo'}
+                                <input type="file" disabled={!!quickDocProv} onChange={e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) onQuickDoc(p.id, f); }} style={{ display: 'none' }} />
+                              </label>
+                            </div>
+                          </td>
                           <td style={{ ...txtCell, textAlign: 'center' }}>
                             {p.elegido ? (
                               <span title="Elegido" style={{ color: '#059669', fontSize: '1rem' }}>★</span>
@@ -570,7 +613,7 @@ function DetailView(props) {
 
           {docs.length > 0 && (
             <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '0.75rem' }}>
-              {docs.length} documento{docs.length === 1 ? '' : 's'} adjunto{docs.length === 1 ? '' : 's'} · gestionalos desde "Editar" en cada proveedor
+              {docs.length} documento{docs.length === 1 ? '' : 's'} adjunto{docs.length === 1 ? '' : 's'} · clic en el chip para abrirlo · se eliminan desde "Editar"
             </p>
           )}
         </>

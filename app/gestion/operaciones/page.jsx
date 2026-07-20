@@ -841,7 +841,9 @@ function OperationDetail({ op, onBack }) {
       const cashUSD   = tcUsed > 0 ? Math.round((prorCashPesos / tcUsed) * 100) / 100 : 0;
       const origenUSD = n(p.gastosOrigenUSD);
       const honorarios = cb.honorarios ? Math.round((gastosUSD + origenUSD) * 0.04 * 100) / 100 : 0;
-      const totalUSD = Math.round((gastosUSD + origenUSD + honorarios + n(cb.despAdic)) * 100) / 100;
+      // Ganancia: monto interno que se suma al total a cobrar SIN desglosarse
+      // en la vista general ni en el estado de cuenta del cliente.
+      const totalUSD = Math.round((gastosUSD + origenUSD + honorarios + n(cb.despAdic) + n(cb.ganancia)) * 100) / 100;
       return { ...p, clienteNombre, ratio, prorPesos, prorBlancoPesos, prorCashPesos, cashUSD, vepPesos, costoFinal, tcUsed, tcInherited, gastosUSD, origenUSD, honorarios, totalUSD, cb, idx: i };
     });
     return {
@@ -1869,6 +1871,7 @@ function ExpandedDetail({ p, clientes, onCreateCliente, onUpdProveedor, onUpdCob
               {p.origenUSD > 0 && <Mini label="+ origen" val={fmtU(p.origenUSD)} />}
               {p.cb.honorarios && <Mini label="+ honor. 4%" val={fmtU(p.honorarios)} />}
               {n(p.cb.despAdic) > 0 && <Mini label="+ desp. adic." val={fmtU(n(p.cb.despAdic))} />}
+              {n(p.cb.ganancia) > 0 && <Mini label="+ tu ganancia (no se desglosa al cliente)" val={fmtU(n(p.cb.ganancia))} />}
             </div>
             {p.cashUSD > 0 && (
               <div style={{ marginTop: 8, padding: '0.5rem 0.65rem', background: '#0c4a6e', borderRadius: 5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -1895,6 +1898,12 @@ function ExpandedDetail({ p, clientes, onCreateCliente, onUpdProveedor, onUpdCob
                 <input type="number" inputMode="decimal" step="any" value={p.cb.despAdic || ''} onChange={e => onUpdCobrar('despAdic', e.target.value)} placeholder="0" style={{ ...INP_E, textAlign: 'right' }} />
                 <p style={HINT}>extras del despachante</p>
               </div>
+            </div>
+
+            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6, padding: '0.55rem 0.7rem', marginBottom: 10 }}>
+              <p style={{ ...LBL_E, color: '#065f46' }}>Tu ganancia (USD)</p>
+              <input type="number" inputMode="decimal" step="any" value={p.cb.ganancia || ''} onChange={e => onUpdCobrar('ganancia', e.target.value)} placeholder="0" style={{ ...INP_E, textAlign: 'right', fontWeight: 700, color: '#065f46' }} />
+              <p style={{ ...HINT, color: '#059669' }}>se suma al total a cobrar sin desglosarse — el cliente ve un solo monto de gastos</p>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.7rem', background: '#f8fafc', borderRadius: 6, border: '1px solid #e8ecf1' }}>
