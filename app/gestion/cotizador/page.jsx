@@ -13,51 +13,56 @@ const usd = (n) => {
 };
 const n = (v) => parseFloat(v) || 0;
 
-// Imprime/exporta a PDF un HTML sin depender de window.open (que bloquean los popup-blockers).
-// Usa un iframe oculto; cae a una pestaña nueva solo si el iframe falla.
+// Imprime/exporta a PDF un HTML SIN iframes ocultos ni window.open: los navegadores
+// modernos (Brave/Chrome/Safari) bloquean o imprimen en blanco los iframes 0x0.
+// En su lugar se monta el contenido como "hoja" dentro del propio documento y se
+// imprime la ventana principal; el CSS de gestion.css (body.cot-printing) hace que
+// en la impresión se vea SOLO la hoja. Mismo patrón que el estado de cuenta.
 function printHTML(html) {
   try {
-    // Quitar cualquier iframe de impresión anterior que haya quedado
-    const prev = document.getElementById('__print_iframe__');
-    if (prev) { try { prev.remove(); } catch {} }
+    // El HTML llega como documento completo: extraer estilos + contenido del body.
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    // Scopear reglas globales (body, *) a la hoja para no pisar la app mientras está montada.
+    const css = [...doc.querySelectorAll('style')]
+      .map(s => s.textContent || '')
+      .join('\n')
+      .replace(/(^|\})(\s*)body(\s*\{)/g, '$1$2.cot-print-sheet$3')
+      .replace(/(^|\})(\s*)\*(\s*\{)/g, '$1$2.cot-print-sheet *$3');
 
-    const iframe = document.createElement('iframe');
-    iframe.id = '__print_iframe__';
-    iframe.setAttribute('aria-hidden', 'true');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    iframe.style.visibility = 'hidden';
+    const prevSheet = document.getElementById('__print_sheet__');
+    if (prevSheet) { try { prevSheet.remove(); } catch {} }
+    const prevCss = document.getElementById('__print_sheet_css__');
+    if (prevCss) { try { prevCss.remove(); } catch {} }
 
-    let fired = false;
-    const trigger = () => {
-      if (fired) return;           // dispara EXACTAMENTE una vez
-      fired = true;
-      try {
-        const win = iframe.contentWindow;
-        win.focus();
-        win.print();
-      } catch (e) {
-        console.error('print failed', e);
-      }
-      setTimeout(() => { try { iframe.remove(); } catch {} }, 60000);
+    const styleEl = document.createElement('style');
+    styleEl.id = '__print_sheet_css__';
+    styleEl.textContent = css;
+    const sheet = document.createElement('div');
+    sheet.id = '__print_sheet__';
+    sheet.className = 'cot-print-sheet';
+    sheet.innerHTML = doc.body ? doc.body.innerHTML : html;
+
+    document.head.appendChild(styleEl);
+    document.body.appendChild(sheet);
+    document.body.classList.add('cot-printing');
+
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      document.body.classList.remove('cot-printing');
+      try { sheet.remove(); } catch {}
+      try { styleEl.remove(); } catch {}
+      window.removeEventListener('afterprint', cleanup);
     };
+    // afterprint dispara al cerrar el diálogo (también en Safari); red de seguridad a los 60s.
+    window.addEventListener('afterprint', cleanup);
+    setTimeout(cleanup, 60000);
 
-    // srcdoc dispara onload de forma confiable cuando el contenido está listo
-    iframe.srcdoc = html;
-    iframe.onload = () => setTimeout(trigger, 350); // deja asentar fuentes/estilos
-    document.body.appendChild(iframe);
-
-    // Red de seguridad: si onload no disparó en 1.5s, forzar
-    setTimeout(trigger, 1500);
+    setTimeout(() => { window.focus(); window.print(); }, 150);
   } catch (e) {
-    // Fallback: pestaña nueva
-    const w = window.open('', '_blank');
-    if (w) { w.document.write(html); w.document.close(); w.focus(); setTimeout(() => w.print(), 500); }
-    else gToast.error('El navegador bloqueó la impresión. Permití las ventanas emergentes para este sitio.');
+    console.error('print failed', e);
+    gToast.error('No se pudo abrir la impresión. Probá de nuevo o usá Cmd/Ctrl+P.');
   }
 }
 
