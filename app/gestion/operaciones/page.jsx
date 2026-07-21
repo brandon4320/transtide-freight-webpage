@@ -3,6 +3,7 @@ import { useState, useMemo, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { gToast } from '../toast';
 import { importFlowState, FlowTimeline, MiniFlow } from '../flujo-importacion';
+import { EmbarqueModal } from '../embarque-form';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 const n    = (v) => parseFloat(v) || 0;
@@ -541,6 +542,7 @@ function OperationDetail({ op, onBack }) {
   const [shipment,   setShipment]   = useState(null);
   const [shipmentLoaded, setShipmentLoaded] = useState(false);
   const [despacho, setDespacho] = useState(null);
+  const [shipModal, setShipModal] = useState(false); // editor de embarque embebido en la operación
   // Despacho de aduana vinculado por B/L — alimenta el flujo del expediente.
   useEffect(() => {
     let cancelled = false;
@@ -998,6 +1000,16 @@ function OperationDetail({ op, onBack }) {
         <FlowTimeline state={flowState} />
       </div>
 
+      {/* Editor de embarque embebido — misma fuente que Tracking (/api/tracking) */}
+      {shipModal && (
+        <EmbarqueModal
+          initial={shipment}
+          defaults={{ bl: op.bl || '', contenedores: op.contenedor || '', eta: op.eta || '', agente: 'Bruce', operation_id: op.id, suppliers: '' }}
+          onClose={() => setShipModal(false)}
+          onSaved={(sv) => { setShipModal(false); setShipment(sv); }}
+        />
+      )}
+
       {/* MAIN LAYOUT */}
       <div className="gestion-main-split" style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: '1rem', alignItems: 'start' }}>
 
@@ -1250,17 +1262,20 @@ function OperationDetail({ op, onBack }) {
           {/* Seguimiento del agente (tracking) */}
           <div style={CARD}>
             <div style={{ padding: '0.75rem 0.95rem', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <p style={{ fontSize: '0.82rem', fontWeight: 700 }}>Seguimiento del agente</p>
-              <button onClick={() => router.push('/gestion/tracking')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0284c7', fontSize: '0.7rem', fontWeight: 700, padding: 0 }}>Ver en Tracking →</button>
+              <p style={{ fontSize: '0.82rem', fontWeight: 700 }}>Embarque · agente</p>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                {shipment && <button onClick={() => setShipModal(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#059669', fontSize: '0.7rem', fontWeight: 700, padding: 0 }}>Editar</button>}
+                <button onClick={() => router.push('/gestion/tracking')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0284c7', fontSize: '0.7rem', fontWeight: 700, padding: 0 }}>Por agente →</button>
+              </div>
             </div>
             <div style={{ padding: '0.7rem 0.95rem 0.9rem' }}>
               {!shipmentLoaded ? (
                 <p style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Cargando…</p>
               ) : !shipment ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <p style={{ fontSize: '0.72rem', color: '#94a3b8', lineHeight: 1.4 }}>Sin embarque vinculado en Tracking (se vincula por N° BL).</p>
-                  <button onClick={crearEmbarque} disabled={creatingShip} style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 5, padding: '0.35rem 0.8rem', borderRadius: 7, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1e40af', fontWeight: 700, fontSize: '0.72rem', cursor: creatingShip ? 'default' : 'pointer' }}>
-                    {creatingShip ? 'Creando…' : '+ Crear embarque en Tracking'}
+                  <p style={{ fontSize: '0.72rem', color: '#94a3b8', lineHeight: 1.4 }}>Sin embarque cargado (se vincula por N° BL).</p>
+                  <button onClick={() => setShipModal(true)} style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 5, padding: '0.35rem 0.8rem', borderRadius: 7, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1e40af', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer' }}>
+                    + Cargar embarque
                   </button>
                 </div>
               ) : (() => {
