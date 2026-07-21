@@ -841,10 +841,15 @@ function OperationDetail({ op, onBack }) {
       const cashUSD   = tcUsed > 0 ? Math.round((prorCashPesos / tcUsed) * 100) / 100 : 0;
       const origenUSD = n(p.gastosOrigenUSD);
       const honorarios = cb.honorarios ? Math.round((gastosUSD + origenUSD) * 0.04 * 100) / 100 : 0;
+      // Giro de divisas al exterior: servicio cobrado al cliente cuando Brandon
+      // hace el pago al proveedor. % sobre lo girado + gasto fijo (ej. USD 45 de
+      // transferencia); un total manual pisa el cálculo. Todas las opciones.
+      const giroBase = n(cb.giroMonto) * (n(cb.giroPct) / 100) + n(cb.giroFijo);
+      const giroUSD = n(cb.giroTotal) > 0 ? n(cb.giroTotal) : Math.round(giroBase * 100) / 100;
       // Ganancia: monto interno que se suma al total a cobrar SIN desglosarse
       // en la vista general ni en el estado de cuenta del cliente.
-      const totalUSD = Math.round((gastosUSD + origenUSD + honorarios + n(cb.despAdic) + n(cb.ganancia)) * 100) / 100;
-      return { ...p, clienteNombre, ratio, prorPesos, prorBlancoPesos, prorCashPesos, cashUSD, vepPesos, costoFinal, tcUsed, tcInherited, gastosUSD, origenUSD, honorarios, totalUSD, cb, idx: i };
+      const totalUSD = Math.round((gastosUSD + origenUSD + honorarios + n(cb.despAdic) + n(cb.ganancia) + giroUSD) * 100) / 100;
+      return { ...p, clienteNombre, ratio, prorPesos, prorBlancoPesos, prorCashPesos, cashUSD, vepPesos, costoFinal, tcUsed, tcInherited, gastosUSD, origenUSD, honorarios, giroUSD, totalUSD, cb, idx: i };
     });
     return {
       tNav, tTerm, tAdu, tTra, tDes, tAdm, tFlt, usdSinTC, fallbackTC,
@@ -1065,6 +1070,9 @@ function OperationDetail({ op, onBack }) {
                               <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#d97706' }} />
                               Pendiente
                             </span>
+                          )}
+                          {!isCobrado && p.cb.exigirPago && (
+                            <span title="No entregar la mercadería hasta cancelar el saldo" style={{ display: 'block', marginTop: 3, fontSize: '0.58rem', fontWeight: 800, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 4, padding: '0.08rem 0.4rem', width: 'fit-content', whiteSpace: 'nowrap' }}>🔒 ENTREGA CONTRA PAGO</span>
                           )}
                         </td>
                         <td style={{ padding: '0.7rem', textAlign: 'right' }}>
@@ -1504,6 +1512,13 @@ function EstadoCuentaModal({ group, op, onClose }) {
             </div>
           </div>
 
+          {/* condición de entrega: visible para el cliente cuando hay candado activo */}
+          {group.items.some(x => x.cb.exigirPago && !x.cb.cobrado) && (
+            <div style={{ marginTop: 10, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '0.6rem 0.85rem' }}>
+              <p style={{ fontSize: '0.76rem', fontWeight: 700, color: '#dc2626' }}>Condición de entrega: la mercadería se entrega contra la cancelación del saldo pendiente.</p>
+            </div>
+          )}
+
           <p style={{ fontSize: '0.6rem', color: '#94a3b8', marginTop: '0.9rem', lineHeight: 1.5 }}>
             Gastos de importación expresados en USD, convertidos al tipo de cambio de la operación. FOB de la mercadería informado a título de referencia.
           </p>
@@ -1871,6 +1886,7 @@ function ExpandedDetail({ p, clientes, onCreateCliente, onUpdProveedor, onUpdCob
               {p.origenUSD > 0 && <Mini label="+ origen" val={fmtU(p.origenUSD)} />}
               {p.cb.honorarios && <Mini label="+ honor. 4%" val={fmtU(p.honorarios)} />}
               {n(p.cb.despAdic) > 0 && <Mini label="+ desp. adic." val={fmtU(n(p.cb.despAdic))} />}
+              {p.giroUSD > 0 && <Mini label="+ giro de divisas" val={fmtU(p.giroUSD)} />}
               {n(p.cb.ganancia) > 0 && <Mini label="+ tu ganancia (no se desglosa al cliente)" val={fmtU(n(p.cb.ganancia))} />}
             </div>
             {p.cashUSD > 0 && (
@@ -1898,6 +1914,30 @@ function ExpandedDetail({ p, clientes, onCreateCliente, onUpdProveedor, onUpdCob
                 <input type="number" inputMode="decimal" step="any" value={p.cb.despAdic || ''} onChange={e => onUpdCobrar('despAdic', e.target.value)} placeholder="0" style={{ ...INP_E, textAlign: 'right' }} />
                 <p style={HINT}>extras del despachante</p>
               </div>
+            </div>
+
+            {/* Giro de divisas al exterior: % sobre lo girado + fijo, o total manual */}
+            <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 6, padding: '0.55rem 0.7rem', marginBottom: 10 }}>
+              <p style={{ ...LBL_E, color: '#5b21b6', marginBottom: 6 }}>Giro de divisas al exterior</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <div>
+                  <input type="number" inputMode="decimal" step="any" value={p.cb.giroMonto || ''} onChange={e => onUpdCobrar('giroMonto', e.target.value)} placeholder="0" style={{ ...INP_E, textAlign: 'right' }} />
+                  <p style={HINT}>monto girado USD</p>
+                </div>
+                <div>
+                  <input type="number" inputMode="decimal" step="any" value={p.cb.giroPct || ''} onChange={e => onUpdCobrar('giroPct', e.target.value)} placeholder="1.5" style={{ ...INP_E, textAlign: 'right' }} />
+                  <p style={HINT}>comisión % (1.5–2)</p>
+                </div>
+                <div>
+                  <input type="number" inputMode="decimal" step="any" value={p.cb.giroFijo || ''} onChange={e => onUpdCobrar('giroFijo', e.target.value)} placeholder="45" style={{ ...INP_E, textAlign: 'right' }} />
+                  <p style={HINT}>gasto fijo USD (transferencia)</p>
+                </div>
+                <div>
+                  <input type="number" inputMode="decimal" step="any" value={p.cb.giroTotal || ''} onChange={e => onUpdCobrar('giroTotal', e.target.value)} placeholder="—" style={{ ...INP_E, textAlign: 'right' }} />
+                  <p style={HINT}>total manual (pisa el cálculo)</p>
+                </div>
+              </div>
+              {p.giroUSD > 0 && <p style={{ fontSize: '0.72rem', fontWeight: 800, color: '#5b21b6', marginTop: 6, textAlign: 'right' }}>= {fmtU(p.giroUSD)} al cliente</p>}
             </div>
 
             <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6, padding: '0.55rem 0.7rem', marginBottom: 10 }}>
@@ -1936,6 +1976,20 @@ function ExpandedDetail({ p, clientes, onCreateCliente, onUpdProveedor, onUpdCob
             </div>
             <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{p.cb.cobrado ? 'Desmarcar' : 'Marcar'}</span>
           </button>
+
+          {/* Cobro antes de la entrega: candado para clientes con historial de pagos flojos */}
+          {!p.cb.cobrado && (
+            <button onClick={() => onUpdCobrar('exigirPago', !p.cb.exigirPago)}
+              style={{ width: '100%', marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '0.55rem 0.7rem', borderRadius: 6, cursor: 'pointer', border: `1px solid ${p.cb.exigirPago ? '#fecaca' : '#e8ecf1'}`, background: p.cb.exigirPago ? '#fef2f2' : '#fff' }}>
+              <div style={{ textAlign: 'left' }}>
+                <p style={{ fontSize: '0.75rem', fontWeight: 700, color: p.cb.exigirPago ? '#dc2626' : '#374151' }}>🔒 Exigir pago antes de entregar</p>
+                <p style={{ fontSize: '0.64rem', color: p.cb.exigirPago ? '#b91c1c' : '#94a3b8', marginTop: 1 }}>
+                  {p.cb.exigirPago ? 'la mercadería NO se entrega hasta cancelar el saldo' : 'activalo si el cliente suele demorar pagos'}
+                </p>
+              </div>
+              <span style={{ fontSize: '0.62rem', fontWeight: 800, color: p.cb.exigirPago ? '#dc2626' : '#94a3b8', textTransform: 'uppercase' }}>{p.cb.exigirPago ? 'Activo' : 'Off'}</span>
+            </button>
+          )}
         </div>
 
       </div>

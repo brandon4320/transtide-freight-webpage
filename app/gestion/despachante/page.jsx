@@ -121,6 +121,25 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
     return { total: rows.length, debe, favor, sinFact }
   }, [rows])
 
+  // Alerta del flujo: despacho con saldo cuando la mercadería ya arribó
+  // (recordatorio semanal hasta saldar), mirando el ETA del embarque vinculado.
+  const alertas = useMemo(() => {
+    const out = []
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    rows.forEach(r => {
+      if (numUSD(r.saldo) <= 0) return
+      const ship = shipByBL[blNorm(r.bl)]
+      if (!ship) return
+      const eta = ship.eta ? new Date(ship.eta + 'T00:00:00') : null
+      const days = eta && !isNaN(eta.getTime()) ? Math.round((today.getTime() - eta.getTime()) / 86400000) : null
+      const arrived = /deliver|paid/i.test(ship.status || '') || (days != null && days > 0)
+      if (arrived && (days == null || days >= 7)) {
+        out.push({ bl: r.bl, desc: r.descripcion, sem: days != null ? Math.floor(days / 7) : null, monto: numUSD(r.saldo) })
+      }
+    })
+    return out
+  }, [rows, shipByBL])
+
   const openNew = () => { setForm({ ...EMPTY }); setHonAuto(true); setPagAuto(true); setSalAuto(true); setModal('new') }
   const openEdit = (r) => {
     setForm({ ...EMPTY, ...r })
@@ -186,6 +205,20 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
           Nueva importación
         </button>
       </div>
+
+      {/* Alertas del flujo */}
+      {alertas.length > 0 && (
+        <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '0.65rem 0.95rem', marginBottom: '1rem' }}>
+          <p style={{ fontSize: '0.6rem', fontWeight: 800, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>Alertas · {alertas.length}</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {alertas.slice(0, 6).map((a, i) => (
+              <button key={i} onClick={() => a.bl && setFicha(a.bl)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: '0.1rem 0', cursor: 'pointer', textAlign: 'left', fontSize: '0.78rem', color: '#78350f' }}>
+                <span>💸 <b>{a.desc}</b> — mercadería arribó{a.sem != null ? ` hace ${a.sem} semana${a.sem === 1 ? '' : 's'}` : ''}, saldo <b>{fmtUSD(a.monto)}</b> al despachante</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* KPIs */}
       <div className="track-kpis" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: '1rem' }}>

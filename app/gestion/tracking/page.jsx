@@ -10,10 +10,12 @@ const LBL = { display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#64
 const SEC = { fontSize: '0.82rem', fontWeight: 700, color: '#0f172a', margin: '0 0 0.85rem', paddingBottom: '0.45rem', borderBottom: '1px solid #f1f5f9' }
 
 const STATUSES = ['In Transit', 'Delivered - Payment Pending', 'Delivered - Paid', 'Cancelled', 'Booked', 'Customs']
-const AGENTES = ['Bruce', 'Yachao']
+const AGENTES = ['Bruce', 'Shaina', 'Yachao'] // Bruce y Shaina marítimo · Yachao aéreo
 const agenteStyle = (a) => a === 'Yachao'
   ? { c: '#0284c7', bg: '#eff6ff', border: '#bfdbfe' }
-  : { c: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' } // Bruce
+  : a === 'Shaina'
+    ? { c: '#0d9488', bg: '#f0fdfa', border: '#99f6e4' }
+    : { c: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' } // Bruce
 
 function statusStyle(raw) {
   const s = (raw || '').toLowerCase()
@@ -159,6 +161,27 @@ export default function TrackingPage({ devShips = null } = {}) {
     )
   }
 
+  // Alertas del flujo: pago al agente pendiente tras el arribo (recordatorio
+  // semanal hasta saldar) y tránsito interno a coordinar 1 semana antes del ETA.
+  const alertas = useMemo(() => {
+    const out = []
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    ships.forEach(s => {
+      if (/cancel/i.test(s.status || '')) return
+      const eta = s.eta ? new Date(s.eta + 'T00:00:00') : null
+      const days = eta && !isNaN(eta.getTime()) ? Math.round((today.getTime() - eta.getTime()) / 86400000) : null // >0 = ya pasó
+      const bal = numUSD(s.balance_usd)
+      const arrived = /deliver|paid/i.test(s.status || '') || (days != null && days > 0)
+      if (arrived && bal > 0 && (days == null || days >= 7)) {
+        out.push({ tipo: 'pago', num: s.num, bl: s.bl, sem: days != null ? Math.floor(days / 7) : null, monto: bal, agente: s.agente || 'Bruce' })
+      }
+      if (!arrived && days != null && days >= -7 && days <= 0) {
+        out.push({ tipo: 'transporte', num: s.num, bl: s.bl, dias: -days, destino: s.destino })
+      }
+    })
+    return out.sort((a, b) => (a.tipo === 'transporte' ? 0 : 1) - (b.tipo === 'transporte' ? 0 : 1))
+  }, [ships])
+
   const stats = useMemo(() => {
     const base = agenteFilter === 'todos' ? ships : ships.filter(s => (s.agente || 'Bruce') === agenteFilter)
     const transito = base.filter(s => /transit/i.test(s.status)).length
@@ -229,6 +252,27 @@ export default function TrackingPage({ devShips = null } = {}) {
         </button>
       </div>
 
+      {/* Alertas del flujo */}
+      {alertas.length > 0 && (
+        <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '0.65rem 0.95rem', marginBottom: '1rem' }}>
+          <p style={{ fontSize: '0.6rem', fontWeight: 800, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>
+            Alertas · {alertas.length}
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {alertas.slice(0, 6).map((a, i) => (
+              <button key={i} onClick={() => a.bl && setFicha(a.bl)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: '0.1rem 0', cursor: a.bl ? 'pointer' : 'default', textAlign: 'left', fontSize: '0.78rem', color: '#78350f' }}>
+                {a.tipo === 'pago' ? (
+                  <span>💸 <b>#{a.num}</b> arribó{a.sem != null ? ` hace ${a.sem} semana${a.sem === 1 ? '' : 's'}` : ''} — saldo <b>{fmtUSD(a.monto)}</b> a {a.agente}</span>
+                ) : (
+                  <span>🚚 <b>#{a.num}</b> llega {a.dias === 0 ? 'hoy' : `en ${a.dias} día${a.dias === 1 ? '' : 's'}`}{a.destino ? ` a ${a.destino}` : ''} — coordiná el transporte interno</span>
+                )}
+              </button>
+            ))}
+            {alertas.length > 6 && <p style={{ fontSize: '0.68rem', color: '#b45309' }}>+{alertas.length - 6} más</p>}
+          </div>
+        </div>
+      )}
+
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: '1rem' }} className="track-kpis">
         {[
@@ -259,7 +303,7 @@ export default function TrackingPage({ devShips = null } = {}) {
                 background: sel ? (a === 'todos' ? PRIMARY : st.bg) : 'transparent',
                 color: sel ? (a === 'todos' ? '#fff' : st.c) : '#64748b',
               }}>
-                {a === 'todos' ? 'Todos' : a}{a === 'Bruce' ? ' · marítimo' : a === 'Yachao' ? ' · aéreo' : ''}
+                {a === 'todos' ? 'Todos' : a}{a === 'Yachao' ? ' · aéreo' : a === 'todos' ? '' : ' · marítimo'}
               </button>
             )
           })}
