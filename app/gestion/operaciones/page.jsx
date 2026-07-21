@@ -2,6 +2,7 @@
 import { useState, useMemo, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { gToast } from '../toast';
+import { importFlowState, FlowTimeline, MiniFlow } from '../flujo-importacion';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 const n    = (v) => parseFloat(v) || 0;
@@ -161,6 +162,18 @@ function OperationsList({ onSelect, deepLinkId }) {
   const [deepLinkDone, setDeepLinkDone] = useState(false);
 
   const [loadError, setLoadError] = useState(false);
+
+  // Datos para el mini-pipeline de cada fila (no bloquean la lista).
+  const [flowShips, setFlowShips] = useState([]);
+  const [flowDesps, setFlowDesps] = useState([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/tracking').then(r => r.ok ? r.json() : null).then(j => { if (!cancelled && j) setFlowShips(j.shipments || []); }).catch(() => {});
+    fetch('/api/db/despachante').then(r => r.ok ? r.json() : null).then(j => { if (!cancelled && Array.isArray(j)) setFlowDesps(j); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  const flowShipByBL = useMemo(() => { const m = {}; flowShips.forEach(x => { if (x.bl) m[blNorm(x.bl)] = x; }); return m; }, [flowShips]);
+  const flowDespByBL = useMemo(() => { const m = {}; flowDesps.forEach(x => { if (x.bl) m[blNorm(x.bl)] = x; }); return m; }, [flowDesps]);
 
   // Load from API
   const loadOps = useRef(null);
@@ -364,6 +377,9 @@ function OperationsList({ onSelect, deepLinkId }) {
                 <div style={{ minWidth: 0 }}>
                   <p style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{op.nombre}</p>
                   <p style={{ fontSize: '0.68rem', color: '#94a3b8', marginTop: '1px' }}>ETA: {op.eta || op.fecha || '—'}</p>
+                  <div style={{ marginTop: 4 }}>
+                    <MiniFlow state={importFlowState({ op, ship: flowShipByBL[blNorm(op.bl)], desp: flowDespByBL[blNorm(op.bl)] })} />
+                  </div>
                 </div>
               </div>
 
@@ -524,6 +540,23 @@ function OperationDetail({ op, onBack }) {
   const [checklistLoaded, setChecklistLoaded] = useState(false);
   const [shipment,   setShipment]   = useState(null);
   const [shipmentLoaded, setShipmentLoaded] = useState(false);
+  const [despacho, setDespacho] = useState(null);
+  // Despacho de aduana vinculado por B/L — alimenta el flujo del expediente.
+  useEffect(() => {
+    let cancelled = false;
+    setDespacho(null);
+    if (!op.bl) return;
+    (async () => {
+      try {
+        const r = await fetch('/api/db/despachante');
+        if (!r.ok) return;
+        const list = await r.json();
+        const m = (Array.isArray(list) ? list : []).find(d => blNorm(d.bl) === blNorm(op.bl));
+        if (!cancelled) setDespacho(m || null);
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [op.id, op.bl]);
   const [confirmDelCat, setConfirmDelCat] = useState(null); // catId pendiente de borrar
   const [creatingShip, setCreatingShip] = useState(false);
 
@@ -861,6 +894,14 @@ function OperationDetail({ op, onBack }) {
     };
   }, [detail, clientes]);
 
+  // Flujo macro derivado de datos reales (estado op + tracking + despacho + cobranzas).
+  const flowState = useMemo(() => importFlowState({
+    op, ship: shipment, desp: despacho,
+    cobranza: { cobrados: calc.cobrados, total: calc.perProv.length },
+    giro: calc.perProv.some(pp => pp.giroUSD > 0) ? 'hecho' : undefined,
+    lockEntrega: calc.perProv.some(x => x.cb.exigirPago && !x.cb.cobrado),
+  }), [op, shipment, despacho, calc]);
+
   const totalTasks = CHECKLIST.length;
   const doneTasks  = CHECKLIST.filter(t => checked.has(t.id)).length;
   const progress   = Math.round((doneTasks / totalTasks) * 100);
@@ -950,6 +991,11 @@ function OperationDetail({ op, onBack }) {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Línea de vida de la importación — derivada, no editable */}
+      <div style={{ marginBottom: '1rem' }}>
+        <FlowTimeline state={flowState} />
       </div>
 
       {/* MAIN LAYOUT */}
