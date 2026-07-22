@@ -67,15 +67,19 @@ export default function FichaImportacion({ bl, seed = {}, onClose, onChanged }) 
   const [busy, setBusy] = useState(false)
 
   const key = blNorm(bl)
+  // Match SOLO por B/L real: sin esto, un B/L vacío matchea cualquier registro
+  // que también tenga el B/L vacío (colisión — abría el despacho equivocado).
+  const sameBL = (r) => key !== '' && r && r.bl && blNorm(r.bl) === key
   const load = (fresh = false) => {
+    if (!key) { setShip(null); setDesp(seed.desp || null); setOp(null); setPagos([]); return }
     // Embarque: solo si no vino en el seed (o si hay que refrescar tras un pago).
     if (fresh || !seed.ship) {
       fetchJSON('/api/tracking?bl=' + encodeURIComponent(bl)).then(j => { if (j) setShip((j.shipments || [])[0] || null) })
     }
     if (fresh || !seed.desp) {
-      fetchJSON('/api/db/despachante').then(j => { if (Array.isArray(j)) setDesp(j.find(r => blNorm(r.bl) === key) || null) })
+      fetchJSON('/api/db/despachante').then(j => { if (Array.isArray(j)) setDesp(j.find(sameBL) || null) })
     }
-    fetchJSON('/api/db/operations').then(j => { if (Array.isArray(j)) setOp(j.find(o => blNorm(o.bl) === key) || null) })
+    fetchJSON('/api/db/operations').then(j => { if (Array.isArray(j)) setOp(j.find(sameBL) || null) })
     fetchJSON('/api/db/pagos?bl=' + encodeURIComponent(bl)).then(j => setPagos(Array.isArray(j) ? j : []))
   }
   useEffect(() => { load(false) }, [bl])

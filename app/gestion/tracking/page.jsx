@@ -500,7 +500,13 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
         </div>
       )}
 
-      {ficha && <FichaImportacion bl={ficha.bl} seed={{ ship: ficha.ship }} onClose={() => setFicha(null)} onChanged={load} />}
+      {ficha && (() => {
+        // ficha puede venir como string (bl) o como objeto {bl, ship}. Normalizo
+        // para no pasar un bl undefined (que colisiona con registros sin B/L).
+        const fbl = typeof ficha === 'string' ? ficha : (ficha.bl || '')
+        const fship = (ficha && typeof ficha === 'object') ? ficha.ship : null
+        return <FichaImportacion bl={fbl} seed={fship ? { ship: fship } : {}} onClose={() => setFicha(null)} onChanged={load} />
+      })()}
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
