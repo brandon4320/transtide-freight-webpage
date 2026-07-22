@@ -4,6 +4,7 @@ import { Fragment, useState, useEffect, useMemo } from 'react'
 import { gToast } from '../toast'
 import FichaImportacion from '../ficha-importacion'
 import { EmbarqueModal, AGENTES } from '../embarque-form'
+import { importFlowState, MiniFlow } from '../flujo-importacion'
 
 const CARD = { background: '#fff', borderRadius: 10, border: '1px solid #e8ecf1', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }
 const INP = { width: '100%', padding: '0.5rem 0.65rem', border: '1px solid #e2e8f0', borderRadius: 7, fontSize: '16px', color: '#0f172a', background: '#fff', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }
@@ -54,7 +55,7 @@ function etaInfo(eta) {
 const PRIMARY = '#0f172a'  // acento único (slate-900); el color de datos lo dan los estados
 
 
-export default function TrackingPage({ devShips = null } = {}) {
+export default function TrackingPage({ devShips = null, devOps = null, devDesps = null } = {}) {
   const [ships, setShips] = useState([])
   const [ops, setOps] = useState([])
   const [loading, setLoading] = useState(true)
@@ -67,18 +68,20 @@ export default function TrackingPage({ devShips = null } = {}) {
   const [loadError, setLoadError] = useState(false)
   const [sort, setSort] = useState({ key: 'num', dir: 'desc' })  // orden de la tabla
   const [ficha, setFicha] = useState(null)   // B/L abierto en la ficha integral
+  const [desps, setDesps] = useState([])     // despachos (estado de aduana por fila)
 
   const load = async () => {
     // Inyección de datos para preview de diseño (dev): evita auth/D1.
-    if (devShips) { setShips(devShips); setOps([]); setLoading(false); return }
+    if (devShips) { setShips(devShips); setOps(devOps || []); setDesps(devDesps || []); setLoading(false); return }
     setLoading(true)
     setLoadError(false)
     try {
-      const [t, o] = await Promise.all([fetch('/api/tracking'), fetch('/api/db/operations')])
+      const [t, o, d] = await Promise.all([fetch('/api/tracking'), fetch('/api/db/operations'), fetch('/api/db/despachante')])
       if (!t.ok) throw new Error('tracking')
       const td = await t.json()
       setShips(td.shipments || [])
       if (o.ok) setOps(await o.json())
+      if (d.ok) { const dd = await d.json(); setDesps(Array.isArray(dd) ? dd : []) }
     } catch {
       setLoadError(true)
       gToast.error('No se pudieron cargar los embarques. Revisá tu conexión.')
@@ -86,6 +89,10 @@ export default function TrackingPage({ devShips = null } = {}) {
   }
   useEffect(() => { load() }, [])
 
+
+  const despByBL = useMemo(() => {
+    const m = {}; desps.forEach(d => { if (d.bl) m[blNorm(d.bl)] = d }); return m
+  }, [desps])
 
   const opByBL = useMemo(() => {
     const m = {}; ops.forEach(o => { if (o.bl) m[blNorm(o.bl)] = o }); return m
@@ -335,6 +342,26 @@ export default function TrackingPage({ devShips = null } = {}) {
                         {s.bl && <span style={{ fontFamily: 'ui-monospace,monospace', flex: '0 0 auto', color: '#64748b' }}>{s.bl}</span>}
                         {s.suppliers && <span title={s.suppliers} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>· {s.suppliers}</span>}
                       </div>
+                      {(() => {
+                        const d = despByBL[blNorm(s.bl)]
+                        const dSaldo = d ? numUSD(d.saldo) : 0
+                        return (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
+                            <span onClick={() => s.bl && setFicha(s.bl)} style={{ cursor: s.bl ? 'pointer' : 'default' }}>
+                              <MiniFlow state={importFlowState({ op, ship: s, desp: d })} />
+                            </span>
+                            {op && (
+                              <button onClick={() => { window.location.href = '/gestion/operaciones?op=' + encodeURIComponent(op.id) }} title={`Abrir operación: ${op.nombre || ''}`}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: '0.6rem', fontWeight: 700, color: '#1d4ed8', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 4, padding: '0.05rem 0.4rem', cursor: 'pointer', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                📦 {op.nombre || 'Operación'}
+                              </button>
+                            )}
+                            {d && (dSaldo > 0
+                              ? <span title="Saldo pendiente al despachante" style={{ fontSize: '0.6rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 4, padding: '0.05rem 0.4rem', whiteSpace: 'nowrap' }}>Aduana USD {d.saldo}</span>
+                              : <span title="Despacho sin saldo pendiente" style={{ fontSize: '0.6rem', fontWeight: 700, color: '#065f46', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 4, padding: '0.05rem 0.4rem', whiteSpace: 'nowrap' }}>Aduana ✓</span>)}
+                          </div>
+                        )
+                      })()}
                     </td>
                     <td style={{ ...TD, color: '#475569', whiteSpace: 'nowrap', fontSize: '0.74rem' }}>{s.contenedores || '—'}</td>
                     <td style={{ ...TD, whiteSpace: 'nowrap' }}>
@@ -352,9 +379,6 @@ export default function TrackingPage({ devShips = null } = {}) {
                     </td>
                     <td style={{ ...TD, textAlign: 'right', color: '#0f172a', fontWeight: 700, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
                       {s.total_usd ? <>USD {s.total_usd}</> : <span style={{ color: '#cbd5e1' }}>—</span>}
-                      {numUSD(s.other_fees_rmb) > 0 && (
-                        <span title={`Incluye ¥${s.other_fees_rmb} RMB (≈ USD ${fmtCalc(rmbToUsd(s.other_fees_rmb, s.tc_rmb))})`} style={{ marginLeft: 5, fontSize: '0.58rem', fontWeight: 700, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 4, padding: '0.05rem 0.3rem' }}>¥</span>
-                      )}
                     </td>
                     <td style={{ ...TD, textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', color: bal > 0 ? '#dc2626' : '#16a34a' }}>
                       {bal > 0 ? <>USD {s.balance_usd}</> : '✓'}
