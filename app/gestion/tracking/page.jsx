@@ -69,6 +69,8 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
   const [sort, setSort] = useState({ key: 'num', dir: 'desc' })  // orden de la tabla
   const [ficha, setFicha] = useState(null)   // B/L abierto en la ficha integral
   const [desps, setDesps] = useState([])     // despachos (estado de aduana por fila)
+  const [hechas, setHechas] = useState(() => new Set())  // akeys de alertas ya resueltas
+  const [alertsOpen, setAlertsOpen] = useState(false)
 
   const load = async () => {
     // Inyección de datos para preview de diseño (dev): evita auth/D1.
@@ -82,6 +84,7 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
       setShips(td.shipments || [])
       if (o.ok) setOps(await o.json())
       if (d.ok) { const dd = await d.json(); setDesps(Array.isArray(dd) ? dd : []) }
+      fetch('/api/db/alertas').then(x => x.ok ? x.json() : []).then(arr => { if (Array.isArray(arr)) setHechas(new Set(arr)) }).catch(() => {})
     } catch {
       setLoadError(true)
       gToast.error('No se pudieron cargar los embarques. Revisá tu conexión.')
@@ -182,8 +185,27 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
         out.push({ w: 4, tipo: 'pago', num: s.num, bl: s.bl, sem: days != null ? Math.floor(days / 7) : null, monto: bal, agente: s.agente || 'Bruce' })
       }
     })
+    out.forEach(a => { a.key = blNorm(a.bl) + '|' + a.tipo })
     return out.sort((a, b) => a.w - b.w)
   }, [ships, opByBL, despByBL])
+
+  const alertasVis = useMemo(() => alertas.filter(a => !hechas.has(a.key)), [alertas, hechas])
+
+  // Marcar/desmarcar una alerta como hecha (optimista + persistido en D1).
+  const toggleHecha = async (a, done = true) => {
+    setHechas(prev => { const n = new Set(prev); done ? n.add(a.key) : n.delete(a.key); return n })
+    try { await fetch('/api/db/alertas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ akey: a.key, undo: !done }) }) } catch {}
+  }
+
+  // Texto de cada alerta (una sola fuente para el panel).
+  const alertText = (a) => {
+    if (a.tipo === 'bl_china') return <>📄 <b>#{a.num}</b> llega {a.dias === 0 ? 'hoy' : `en ${a.dias} día${a.dias === 1 ? '' : 's'}`} — pedile a {a.agente} la liberación del B/L desde China</>
+    if (a.tipo === 'naviera') return <>⚓ <b>#{a.num}</b> llega {a.dias === 0 ? 'hoy' : `en ${a.dias} día${a.dias === 1 ? '' : 's'}`} — pagá naviera/terminal para liberar el contenedor a tiempo</>
+    if (a.tipo === 'transporte') return <>🚚 <b>#{a.num}</b> llega {a.dias === 0 ? 'hoy' : `en ${a.dias} día${a.dias === 1 ? '' : 's'}`}{a.destino ? ` a ${a.destino}` : ''} — coordiná el transporte interno</>
+    if (a.tipo === 'liberar') return <>🕐 <b>#{a.num}</b> arribó hace {a.dias} días y sigue sin liberar — riesgo de demoras/almacenaje</>
+    if (a.tipo === 'despacho') return <>📦 <b>#{a.num}</b> arribó hace {a.sem} semana{a.sem === 1 ? '' : 's'} — cargá el despacho del despachante</>
+    return <>💸 <b>#{a.num}</b> arribó{a.sem != null ? ` hace ${a.sem} semana${a.sem === 1 ? '' : 's'}` : ''} — saldo <b>{fmtUSD(a.monto)}</b> a {a.agente}</>
+  }
 
   const stats = useMemo(() => {
     const base = agenteFilter === 'todos' ? ships : ships.filter(s => (s.agente || 'Bruce') === agenteFilter)
@@ -222,34 +244,45 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
         </button>
       </div>
 
-      {/* Alertas del flujo */}
-      {alertas.length > 0 && (
-        <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '0.65rem 0.95rem', marginBottom: '1rem' }}>
-          <p style={{ fontSize: '0.6rem', fontWeight: 800, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>
-            Alertas · {alertas.length}
-          </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            {alertas.slice(0, 8).map((a, i) => (
-              <button key={i} onClick={() => a.bl && setFicha(a.bl)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: '0.1rem 0', cursor: a.bl ? 'pointer' : 'default', textAlign: 'left', fontSize: '0.78rem', color: '#78350f' }}>
-                {a.tipo === 'bl_china' ? (
-                  <span>📄 <b>#{a.num}</b> llega {a.dias === 0 ? 'hoy' : `en ${a.dias} día${a.dias === 1 ? '' : 's'}`} — pedile a {a.agente} la liberación del B/L desde China</span>
-                ) : a.tipo === 'pago' ? (
-                  <span>💸 <b>#{a.num}</b> arribó{a.sem != null ? ` hace ${a.sem} semana${a.sem === 1 ? '' : 's'}` : ''} — saldo <b>{fmtUSD(a.monto)}</b> a {a.agente}</span>
-                ) : a.tipo === 'naviera' ? (
-                  <span>⚓ <b>#{a.num}</b> llega {a.dias === 0 ? 'hoy' : `en ${a.dias} día${a.dias === 1 ? '' : 's'}`} — pagá naviera/terminal para liberar el contenedor a tiempo</span>
-                ) : a.tipo === 'liberar' ? (
-                  <span>🕐 <b>#{a.num}</b> arribó hace {a.dias} días y sigue sin liberar — riesgo de demoras/almacenaje</span>
-                ) : a.tipo === 'despacho' ? (
-                  <span>📦 <b>#{a.num}</b> arribó hace {a.sem} semana{a.sem === 1 ? '' : 's'} — cargá el despacho del despachante</span>
-                ) : (
-                  <span>🚚 <b>#{a.num}</b> llega {a.dias === 0 ? 'hoy' : `en ${a.dias} día${a.dias === 1 ? '' : 's'}`}{a.destino ? ` a ${a.destino}` : ''} — coordiná el transporte interno</span>
-                )}
-              </button>
-            ))}
-            {alertas.length > 8 && <p style={{ fontSize: '0.68rem', color: '#b45309' }}>+{alertas.length - 8} más</p>}
+      {/* Alertas del flujo — panel accionable (tachá lo hecho, tocá para actuar) */}
+      {alertasVis.length > 0 && (() => {
+        const mostrar = alertsOpen ? alertasVis : alertasVis.slice(0, 5)
+        return (
+          <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 12, marginBottom: '1rem', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.6rem 0.95rem', borderBottom: '1px solid #fde68a' }}>
+              <p style={{ fontSize: '0.62rem', fontWeight: 800, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Alertas · {alertasVis.length} pendiente{alertasVis.length === 1 ? '' : 's'}
+              </p>
+              {alertasVis.length > 5 && (
+                <button onClick={() => setAlertsOpen(o => !o)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#b45309', fontSize: '0.7rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  {alertsOpen ? 'Ver menos' : `Ver todas (${alertasVis.length})`}
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: alertsOpen ? 'rotate(180deg)' : 'none' }}><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+              )}
+            </div>
+            <div style={{ maxHeight: alertsOpen ? 340 : 'none', overflowY: alertsOpen ? 'auto' : 'visible' }}>
+              {mostrar.map((a) => (
+                <div key={a.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.5rem 0.95rem', borderBottom: '1px solid #fef3c7' }}>
+                  <button onClick={() => toggleHecha(a, true)} title="Marcar como hecho" aria-label="Marcar como hecho"
+                    style={{ flex: '0 0 auto', width: 22, height: 22, borderRadius: 6, border: '1.5px solid #d97706', background: '#fff', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#d97706' }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
+                  </button>
+                  <button onClick={() => a.bl && setFicha(a.bl)} style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'none', border: 'none', cursor: a.bl ? 'pointer' : 'default', fontSize: '0.8rem', color: '#78350f', lineHeight: 1.35, padding: 0 }}>
+                    {alertText(a)}
+                  </button>
+                  {a.bl && (
+                    <button onClick={() => setFicha(a.bl)} title={a.tipo === 'pago' ? 'Registrar pago' : a.tipo === 'despacho' ? 'Cargar despacho' : 'Abrir ficha'}
+                      style={{ flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', gap: 4, padding: '0.28rem 0.6rem', borderRadius: 6, border: '1px solid #fcd34d', background: '#fff', color: '#b45309', fontSize: '0.68rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                      {a.tipo === 'pago' ? 'Registrar pago' : a.tipo === 'despacho' ? 'Cargar despacho' : 'Abrir'}
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 18l6-6-6-6"/></svg>
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: '1rem' }} className="track-kpis">
