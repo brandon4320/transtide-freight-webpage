@@ -90,6 +90,13 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
   useEffect(() => { load() }, [])
 
 
+  // Agentes para el filtro: los conocidos + cualquier forwarder usado en embarques.
+  const agentesFiltro = useMemo(() => {
+    const set = new Set(AGENTES)
+    ships.forEach(x => { if (x.agente) set.add(x.agente) })
+    return [...set]
+  }, [ships])
+
   const despByBL = useMemo(() => {
     const m = {}; desps.forEach(d => { if (d.bl) m[blNorm(d.bl)] = d }); return m
   }, [desps])
@@ -237,7 +244,7 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
       <div style={{ display: 'flex', gap: 6, marginBottom: '0.85rem', alignItems: 'center', flexWrap: 'wrap' }}>
         <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2 }}>Agente</span>
         <div style={{ display: 'flex', gap: 3, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 3 }}>
-          {['todos', ...AGENTES].map(a => {
+          {['todos', ...agentesFiltro].map(a => {
             const sel = agenteFilter === a
             const st = a === 'todos' ? { c: '#fff', bg: PRIMARY } : agenteStyle(a)
             return (
@@ -246,7 +253,7 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
                 background: sel ? (a === 'todos' ? PRIMARY : st.bg) : 'transparent',
                 color: sel ? (a === 'todos' ? '#fff' : st.c) : '#64748b',
               }}>
-                {a === 'todos' ? 'Todos' : a}{a === 'Yachao' ? ' · aéreo' : a === 'todos' ? '' : ' · marítimo'}
+                {a === 'todos' ? 'Todos' : a}{a === 'Yachao' ? ' · aéreo' : (a === 'Bruce' || a === 'Shaina') ? ' · marítimo' : ''}
               </button>
             )
           })}

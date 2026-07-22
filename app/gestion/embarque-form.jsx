@@ -52,6 +52,17 @@ export function EmbarqueModal({ initial = null, defaults = {}, onClose, onSaved 
   const isNew = !initial
   const [form, setForm] = useState(() => ({ ...EMBARQUE_EMPTY, ...(isNew ? defaults : {}), ...(initial || {}) }))
   const [saving, setSaving] = useState(false)
+  // Navieras y forwarders desde el módulo Contactos (una sola libreta para todo).
+  const [contactos, setContactos] = useState([])
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/db/contactos').then(r => r.ok ? r.json() : null).then(j => { if (!cancelled && Array.isArray(j)) setContactos(j) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+  const navieras = contactos.filter(c => c.tipo === 'naviera')
+  const agentesContactos = contactos.filter(c => c.tipo === 'agente').map(c => c.nombre)
+  const agentesSugeridos = [...new Set([...AGENTES, ...agentesContactos])]
+  const navieraMatch = navieras.find(c => (c.nombre || '').toLowerCase() === (form.carrier || '').trim().toLowerCase())
   const [totalAuto, setTotalAuto] = useState(() => {
     if (isNew) return true
     const calcT = fmtCalc(numUSD(initial.sea_freight_usd) + numUSD(initial.other_fees_usd) + rmbToUsd(initial.other_fees_rmb, initial.tc_rmb) - numUSD(initial.discount_usd))
@@ -119,17 +130,34 @@ export function EmbarqueModal({ initial = null, defaults = {}, onClose, onSaved 
         <div className="track-cost-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: '1.25rem' }}>
           <div><label style={LBL}>N°</label><input value={form.num} onChange={e => upd('num', e.target.value)} style={INP} /></div>
           <div><label style={LBL}>Agente de carga</label>
-            <select value={form.agente || 'Bruce'} onChange={e => upd('agente', e.target.value)} style={{ ...INP, cursor: 'pointer' }}>
-              {AGENTES.map(a => <option key={a} value={a}>{a}{a === 'Yachao' ? ' (aéreo)' : ' (marítimo)'}</option>)}
-              {form.agente && !AGENTES.includes(form.agente) && <option value={form.agente}>{form.agente}</option>}
-            </select>
+            <input list="agentes-datalist" value={form.agente} onChange={e => upd('agente', e.target.value)} style={INP} placeholder="Bruce, Global Trade…" />
+            <datalist id="agentes-datalist">
+              {agentesSugeridos.map(a => <option key={a} value={a} />)}
+            </datalist>
           </div>
           <div><label style={LBL}>Origen</label><input value={form.origen} onChange={e => upd('origen', e.target.value)} style={INP} /></div>
           <div><label style={LBL}>Destino</label><input value={form.destino} onChange={e => upd('destino', e.target.value)} style={INP} /></div>
           <div><label style={LBL}>Contenedores</label><input value={form.contenedores} onChange={e => upd('contenedores', e.target.value)} style={INP} placeholder="1×40HQ o 3×40HQ" /></div>
           <div><label style={LBL}>Modo</label><input value={form.modo} onChange={e => upd('modo', e.target.value)} style={INP} placeholder="FOB / EXW" /></div>
           <div style={{ gridColumn: 'span 2' }}><label style={LBL}>B/L Number</label><input value={form.bl} onChange={e => upd('bl', e.target.value)} style={{ ...INP, fontFamily: 'ui-monospace,monospace' }} /></div>
-          <div><label style={LBL}>Carrier</label><input value={form.carrier} onChange={e => upd('carrier', e.target.value)} style={INP} placeholder="MSK / COSCO" /></div>
+          <div style={{ gridColumn: 'span 2' }}><label style={LBL}>Carrier / naviera</label>
+            <input list="navieras-datalist" value={form.carrier} onChange={e => upd('carrier', e.target.value)} style={INP} placeholder="MSK / COSCO / CMA CGM…" />
+            <datalist id="navieras-datalist">
+              {navieras.map(c => <option key={c.id} value={c.nombre} />)}
+            </datalist>
+            {navieraMatch ? (
+              <p style={{ fontSize: '0.62rem', color: '#475569', marginTop: 3, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }} title={navieraMatch.observaciones || ''}>
+                {navieraMatch.telefono && <a href={'tel:' + navieraMatch.telefono} style={{ color: '#0284c7', fontWeight: 600 }}>📞 {navieraMatch.telefono}</a>}
+                {navieraMatch.email && <a href={'mailto:' + navieraMatch.email} style={{ color: '#0284c7', fontWeight: 600 }}>✉️ {navieraMatch.email}</a>}
+                {navieraMatch.contacto && <span style={{ color: '#64748b' }}>{navieraMatch.contacto}</span>}
+                {!navieraMatch.telefono && !navieraMatch.email && !navieraMatch.contacto && <a href="/gestion/contactos" style={{ color: '#94a3b8' }}>sin datos — completar en Contactos →</a>}
+              </p>
+            ) : (form.carrier || '').trim() ? (
+              <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 3 }}>
+                naviera no está en <a href="/gestion/contactos" style={{ color: '#0284c7', fontWeight: 600 }}>Contactos</a> — sumala para tener tel/mail a mano
+              </p>
+            ) : null}
+          </div>
           <div><label style={LBL}>Zarpe (ETD)</label><input type="date" value={form.etd} onChange={e => upd('etd', e.target.value)} style={INP} /></div>
           <div><label style={LBL}>ETA</label><input type="date" value={form.eta} onChange={e => upd('eta', e.target.value)} style={INP} /></div>
           <div style={{ gridColumn: 'span 2' }}><label style={LBL}>Estado</label>
