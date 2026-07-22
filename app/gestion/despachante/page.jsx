@@ -59,6 +59,10 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
   const [pagAuto, setPagAuto] = useState(true)     // total pagado = transferencia + cash
   const [salAuto, setSalAuto] = useState(true)     // saldo = honorarios − pagado − comisión
   const [ficha, setFicha] = useState(null)         // B/L abierto en la ficha integral
+  const [pagoModal, setPagoModal] = useState(null) // registro de pago (cuenta corriente)
+  const [pagoBusy, setPagoBusy] = useState(false)
+  const [expandId, setExpandId] = useState(null)   // fila expandida (historial de pagos)
+  const [histPagos, setHistPagos] = useState({})   // { [rowId]: [pagos] }
 
   const load = async () => {
     // Inyección para preview de diseño (dev): evita auth/D1.
@@ -118,7 +122,13 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
     const debe = rows.reduce((a, r) => a + Math.max(0, numUSD(r.saldo)), 0)
     const favor = rows.reduce((a, r) => a + Math.max(0, -numUSD(r.saldo)), 0)
     const sinFact = rows.filter(r => !r.facturado && numUSD(r.total_honorarios) > 0).length
-    return { total: rows.length, debe, favor, sinFact }
+    // Cuenta corriente con el despachante: cargos (honorarios − tu comisión) − pagos.
+    const totalHon = rows.reduce((a, r) => a + numUSD(r.total_honorarios), 0)
+    const totalCom = rows.reduce((a, r) => a + numUSD(r.comision), 0)
+    const totalPag = rows.reduce((a, r) => a + numUSD(r.total_pagado), 0)
+    const neto = debe - favor  // > 0 le debés · < 0 a tu favor
+    const saldadas = rows.filter(r => numUSD(r.saldo) === 0 && numUSD(r.total_honorarios) > 0).length
+    return { total: rows.length, debe, favor, sinFact, totalHon, totalCom, totalPag, neto, saldadas }
   }, [rows])
 
   // Alerta del flujo: despacho con saldo cuando la mercadería ya arribó
@@ -190,6 +200,52 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
 
   const upd = (f, v) => setForm(p => ({ ...p, [f]: v }))
 
+  const hoy = () => new Date().toISOString().slice(0, 10)
+
+  // Registrar un pago al despachante como EVENTO (ledger) y actualizar el saldo
+  // de esa importación. No se edita una celda "pagado": queda historial.
+  const savePagoDesp = async () => {
+    const f = pagoModal
+    if (!f || pagoBusy) return
+    if (numUSD(f.monto) <= 0) { gToast.error('Cargá el monto.'); return }
+    setPagoBusy(true)
+    try {
+      const r = f.row
+      await fetch('/api/db/pagos', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scope: 'despachante', ref_id: String(r.id), bl: r.bl || '', fecha: f.fecha, monto: f.monto, metodo: f.metodo, nota: f.nota }),
+      }).catch(() => {})
+      const cash = numUSD(r.pago_cash) + (f.metodo === 'cash' ? numUSD(f.monto) : 0)
+      const transf = numUSD(r.pago_transferencia) + (f.metodo === 'cash' ? 0 : numUSD(f.monto))
+      const pagado = cash + transf
+      const saldo = numUSD(r.total_honorarios) - pagado - numUSD(r.comision)
+      const res = await fetch(`/api/db/despachante/${r.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...r, pago_cash: fmtCalc(cash), pago_transferencia: fmtCalc(transf), total_pagado: fmtCalc(pagado), saldo: fmtCalc(saldo), fecha_pago: f.fecha }),
+      })
+      if (!res.ok) throw new Error(await errMsg(res, 'No se pudo registrar el pago'))
+      gToast.success('Pago registrado.')
+      setPagoModal(null)
+      setHistPagos(h => { const n = { ...h }; delete n[r.id]; return n })  // invalida el historial cacheado
+      load()
+    } catch (e) {
+      gToast.error(e.message || 'Error al registrar el pago.')
+    } finally { setPagoBusy(false) }
+  }
+
+  // Historial de pagos de una importación (se trae al expandir).
+  const toggleHist = async (r) => {
+    if (expandId === r.id) { setExpandId(null); return }
+    setExpandId(r.id)
+    if (!histPagos[r.id]) {
+      try {
+        const res = await fetch(`/api/db/pagos?scope=despachante&ref_id=${encodeURIComponent(r.id)}`)
+        const j = res.ok ? await res.json() : []
+        setHistPagos(h => ({ ...h, [r.id]: Array.isArray(j) ? j : [] }))
+      } catch { setHistPagos(h => ({ ...h, [r.id]: [] })) }
+    }
+  }
+
   const TH = { fontSize: '0.58rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '0.6rem 0.7rem', borderBottom: '1px solid #e8ecf1', whiteSpace: 'nowrap', background: '#f8fafc', position: 'sticky', top: 0, zIndex: 3, textAlign: 'left' }
 
   return (
@@ -220,21 +276,37 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
         </div>
       )}
 
-      {/* KPIs */}
-      <div className="track-kpis" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: '1rem' }}>
-        {[
-          { lbl: 'Importaciones', val: stats.total, color: '#334155', dot: '#94a3b8' },
-          { lbl: 'Le debés al despachante', val: fmtUSD(stats.debe), color: stats.debe > 0 ? '#dc2626' : '#334155', dot: '#dc2626' },
-          { lbl: 'Saldo a tu favor', val: fmtUSD(stats.favor), color: stats.favor > 0 ? '#b45309' : '#334155', dot: '#d97706' },
-          { lbl: 'Sin facturar', val: stats.sinFact, color: stats.sinFact > 0 ? '#2563eb' : '#334155', dot: '#2563eb' },
-        ].map(k => (
-          <div key={k.lbl} style={{ ...CARD, padding: '0.7rem 0.95rem' }}>
-            <p style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.56rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: k.dot, flex: '0 0 auto' }} />{k.lbl}
-            </p>
-            <p style={{ fontSize: '1.3rem', fontWeight: 800, color: k.color, fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{k.val}</p>
+      {/* Cuenta corriente con el despachante — la posición NETA, no una grilla de celdas */}
+      <div className="desp-cuenta" style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 12, marginBottom: '1rem' }}>
+        <div style={{ ...CARD, padding: '1rem 1.15rem' }}>
+          <p style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Cuenta con el despachante</p>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+            <p style={{ fontSize: '1.9rem', fontWeight: 900, fontVariantNumeric: 'tabular-nums', lineHeight: 1, color: stats.neto > 0 ? '#dc2626' : stats.neto < 0 ? '#b45309' : '#16a34a' }}>{fmtUSD(Math.abs(stats.neto))}</p>
+            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: stats.neto > 0 ? '#dc2626' : stats.neto < 0 ? '#b45309' : '#16a34a' }}>
+              {stats.neto > 0 ? 'le debés (neto)' : stats.neto < 0 ? 'a tu favor (neto)' : 'todo saldado ✓'}
+            </span>
           </div>
-        ))}
+          <div style={{ display: 'flex', gap: 18, marginTop: 12, flexWrap: 'wrap', fontSize: '0.74rem' }}>
+            <span><span style={{ color: '#94a3b8' }}>Honorarios</span> <b style={{ color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(stats.totalHon)}</b></span>
+            {stats.totalCom > 0 && <span><span style={{ color: '#94a3b8' }}>− tu comisión</span> <b style={{ color: '#7c3aed', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(stats.totalCom)}</b></span>}
+            <span><span style={{ color: '#94a3b8' }}>− pagado</span> <b style={{ color: '#334155', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(stats.totalPag)}</b></span>
+          </div>
+          {stats.debe > 0 && stats.favor > 0 && (
+            <p style={{ fontSize: '0.66rem', color: '#94a3b8', marginTop: 8 }}>Debés {fmtUSD(stats.debe)} en unas · {fmtUSD(stats.favor)} a favor en otras → se compensan.</p>
+          )}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ ...CARD, padding: '0.75rem 0.95rem' }}>
+            <p style={{ fontSize: '0.56rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Importaciones</p>
+            <p style={{ fontSize: '1.35rem', fontWeight: 800, color: '#334155', lineHeight: 1 }}>{stats.total}</p>
+            <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 3 }}>{stats.saldadas} saldadas</p>
+          </div>
+          <div style={{ ...CARD, padding: '0.75rem 0.95rem' }}>
+            <p style={{ fontSize: '0.56rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Sin facturar</p>
+            <p style={{ fontSize: '1.35rem', fontWeight: 800, color: stats.sinFact > 0 ? '#2563eb' : '#334155', lineHeight: 1 }}>{stats.sinFact}</p>
+            <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 3 }}>pedir factura</p>
+          </div>
+        </div>
       </div>
 
       {/* Controls */}
@@ -264,76 +336,115 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
       ) : filtered.length === 0 ? (
         <div style={{ ...CARD, padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>Sin registros que coincidan.</div>
       ) : (
-        <div style={{ ...CARD }}>
-          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.8rem' }}>
-            <thead>
-              <tr>
-                <th style={TH}>Importación</th>
-                <th style={TH}>Estado</th>
-                <th style={{ ...TH, textAlign: 'right' }}>Honorarios</th>
-                <th style={{ ...TH, textAlign: 'right' }}>Pagado</th>
-                <th style={{ ...TH, textAlign: 'right' }}>Comisión</th>
-                <th style={TH}>Fact.</th>
-                <th style={{ ...TH, textAlign: 'right' }}>Saldo</th>
-                <th style={{ ...TH, width: 1 }} aria-label="Acciones"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(r => {
-                const saldo = numUSD(r.saldo)
-                const st = saldoStyle(saldo, numUSD(r.total_honorarios))
-                const ship = shipByBL[blNorm(r.bl)]
-                const TD = { padding: '0.5rem 0.7rem', borderBottom: '1px solid #eef2f7', verticalAlign: 'middle' }
-                const desglose = ['Regulares ' + (r.hon_regulares || '—'), r.adu_extras && 'Adu extras ' + r.adu_extras, r.otros_gastos && 'Otros ' + r.otros_gastos].filter(Boolean).join(' · ')
-                return (
-                  <tr key={r.id} className="track-row" style={{ cursor: 'pointer', background: st.bg, transition: 'filter .12s' }} onClick={() => r.bl ? setFicha({ bl: r.bl, desp: r, ship: shipByBL[blNorm(r.bl)] || null }) : openEdit(r)}>
-                    <td style={{ ...TD, minWidth: 220, boxShadow: `inset 4px 0 0 ${st.dot}` }}>
-                      <div style={{ fontWeight: 600, color: '#1e293b' }}>{r.descripcion || '—'}</div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, fontSize: '0.66rem', color: '#94a3b8' }}>
-                        {r.bl && <span style={{ fontFamily: 'ui-monospace,monospace', color: '#64748b' }}>{r.bl}</span>}
-                        {ship && (
-                          <button onClick={e => { e.stopPropagation(); window.location.href = '/gestion/tracking' }} title={`Embarque #${ship.num} · ${ship.origen} → ${ship.destino}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: '0.6rem', fontWeight: 700, color: '#1d4ed8', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 4, padding: '0.03rem 0.35rem', cursor: 'pointer' }}>
-                            🚢 #{ship.num}
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                    <td style={{ ...TD, whiteSpace: 'nowrap' }}>
-                      <span style={{ fontSize: '0.64rem', fontWeight: 600, padding: '0.18rem 0.5rem', borderRadius: 6, border: '1px solid', color: r.estado === 'Terminada' ? '#065f46' : '#1d4ed8', borderColor: r.estado === 'Terminada' ? '#a7f3d0' : '#bfdbfe', background: '#fff' }}>{r.estado || '—'}</span>
-                    </td>
-                    <td title={desglose} style={{ ...TD, textAlign: 'right', fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
-                      {r.total_honorarios ? 'USD ' + r.total_honorarios : <span style={{ color: '#cbd5e1' }}>—</span>}
-                    </td>
-                    <td style={{ ...TD, textAlign: 'right', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
-                      <div style={{ color: '#334155', fontWeight: 600 }}>{r.total_pagado ? 'USD ' + r.total_pagado : <span style={{ color: '#cbd5e1' }}>—</span>}</div>
-                      {r.fecha_pago && <div style={{ fontSize: '0.62rem', color: '#94a3b8' }}>{r.fecha_pago}</div>}
-                    </td>
-                    <td style={{ ...TD, textAlign: 'right', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', color: numUSD(r.comision) > 0 ? '#7c3aed' : '#cbd5e1', fontWeight: 600 }}>
-                      {numUSD(r.comision) > 0 ? 'USD ' + r.comision : '—'}
-                    </td>
-                    <td style={{ ...TD, whiteSpace: 'nowrap' }}>
-                      {r.facturado
-                        ? <span style={{ fontSize: '0.64rem', fontWeight: 700, color: '#065f46', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 5, padding: '0.14rem 0.45rem' }}>Sí{r.factura_nro ? ` · ${r.factura_nro}` : ''}</span>
-                        : <span style={{ fontSize: '0.64rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 5, padding: '0.14rem 0.45rem' }}>No</span>}
-                    </td>
-                    <td style={{ ...TD, textAlign: 'right', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: st.c }}>
-                      {saldo !== 0 ? (saldo < 0 ? `USD ${fmtCalc(Math.abs(saldo))} a favor` : 'USD ' + r.saldo) : (numUSD(r.total_honorarios) > 0 ? '✓' : '—')}
-                    </td>
-                    <td style={{ ...TD, textAlign: 'right', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
-                      <div className="track-actions" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                        <button onClick={() => openEdit(r)} title="Editar" aria-label="Editar" style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                        </button>
-                        <button onClick={() => setConfirmDel(r.id)} title="Eliminar" aria-label="Eliminar" style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #fee2e2', background: '#fff', color: '#dc2626', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
+          {(() => {
+            const GRUPOS = [
+              { key: 'debe',    label: 'Le debés al despachante', dot: '#dc2626', test: r => numUSD(r.saldo) > 0 },
+              { key: 'favor',   label: 'A tu favor (compensar)',  dot: '#d97706', test: r => numUSD(r.saldo) < 0 },
+              { key: 'saldado', label: 'Saldadas',                dot: '#16a34a', test: r => numUSD(r.saldo) === 0 && numUSD(r.total_honorarios) > 0 },
+              { key: 'curso',   label: 'En curso / sin honorarios', dot: '#94a3b8', test: r => numUSD(r.total_honorarios) === 0 },
+            ]
+            return GRUPOS.map(g => {
+              const items = filtered.filter(g.test)
+              if (!items.length) return null
+              const sub = items.reduce((a, r) => a + numUSD(r.saldo), 0)
+              return (
+                <div key={g.key}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 0.55rem 0.1rem' }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: g.dot, flex: '0 0 auto' }} />
+                    <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{g.label}</span>
+                    <span style={{ fontSize: '0.64rem', fontWeight: 700, color: '#fff', background: '#94a3b8', borderRadius: 50, padding: '0.05rem 0.45rem' }}>{items.length}</span>
+                    {g.key !== 'curso' && Math.abs(sub) > 0 && <span style={{ marginLeft: 'auto', fontSize: '0.72rem', fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: g.dot }}>{fmtUSD(Math.abs(sub))}{g.key === 'favor' ? ' a favor' : ''}</span>}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {items.map(r => {
+                      const saldo = numUSD(r.saldo)
+                      const st = saldoStyle(saldo, numUSD(r.total_honorarios))
+                      const ship = shipByBL[blNorm(r.bl)]
+                      const hon = numUSD(r.total_honorarios), pag = numUSD(r.total_pagado), com = numUSD(r.comision)
+                      const objetivo = hon - com
+                      const pct = objetivo > 0 ? Math.max(0, Math.min(1, pag / objetivo)) : (pag > 0 ? 1 : 0)
+                      const exp = expandId === r.id
+                      const hist = histPagos[r.id]
+                      return (
+                        <div key={r.id} style={{ ...CARD, borderLeft: `3px solid ${st.dot}`, padding: '0.75rem 0.9rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                            <div onClick={() => r.bl ? setFicha({ bl: r.bl, desp: r, ship }) : openEdit(r)} style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                <span style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.9rem' }}>{r.descripcion || '— sin descripción —'}</span>
+                                <span style={{ fontSize: '0.6rem', fontWeight: 700, padding: '0.12rem 0.45rem', borderRadius: 5, border: '1px solid', color: r.estado === 'Terminada' ? '#065f46' : '#1d4ed8', borderColor: r.estado === 'Terminada' ? '#a7f3d0' : '#bfdbfe', background: '#fff' }}>{r.estado || '—'}</span>
+                                {r.facturado
+                                  ? <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#065f46', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 5, padding: '0.12rem 0.45rem' }}>Facturado{r.factura_nro ? ` · ${r.factura_nro}` : ''}</span>
+                                  : hon > 0 ? <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 5, padding: '0.12rem 0.45rem' }}>Sin facturar</span> : null}
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, fontSize: '0.66rem', color: '#94a3b8' }}>
+                                {r.bl && <span style={{ fontFamily: 'ui-monospace,monospace', color: '#64748b' }}>{r.bl}</span>}
+                                {ship && <span onClick={e => { e.stopPropagation(); window.location.href = '/gestion/tracking' }} style={{ fontSize: '0.58rem', fontWeight: 700, color: '#1d4ed8', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 4, padding: '0.03rem 0.35rem', cursor: 'pointer' }}>🚢 #{ship.num}</span>}
+                              </div>
+                            </div>
+                            <div style={{ textAlign: 'right', flex: '0 0 auto' }}>
+                              <p style={{ fontSize: '0.58rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{saldo > 0 ? 'Debés' : saldo < 0 ? 'A favor' : 'Saldo'}</p>
+                              <p style={{ fontSize: '1.05rem', fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: st.c, lineHeight: 1.1 }}>{saldo !== 0 ? fmtUSD(Math.abs(saldo)) : (hon > 0 ? '✓' : '—')}</p>
+                            </div>
+                          </div>
+
+                          {hon > 0 && (
+                            <div style={{ marginTop: 9 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: '#64748b', marginBottom: 4 }}>
+                                <span>Honorarios <b style={{ color: '#0f172a' }}>{fmtUSD(hon)}</b>{com > 0 && <> · − comisión <b style={{ color: '#7c3aed' }}>{fmtUSD(com)}</b></>}</span>
+                                <span>Pagado <b style={{ color: '#334155' }}>{fmtUSD(pag)}</b> de {fmtUSD(objetivo)}</span>
+                              </div>
+                              <div style={{ height: 6, background: '#f1f5f9', borderRadius: 4, overflow: 'hidden' }}>
+                                <div style={{ height: '100%', width: `${Math.round(pct * 100)}%`, background: saldo > 0 ? '#f59e0b' : '#16a34a', borderRadius: 4, transition: 'width .2s' }} />
+                              </div>
+                            </div>
+                          )}
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
+                            {saldo > 0 && (
+                              <button onClick={() => setPagoModal({ row: r, fecha: hoy(), monto: fmtCalc(saldo), metodo: 'transferencia', nota: '' })} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '0.34rem 0.75rem', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, background: PRIMARY, color: '#fff' }}>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                Registrar pago
+                              </button>
+                            )}
+                            <button onClick={() => toggleHist(r)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '0.34rem 0.7rem', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer' }}>
+                              Historial{Array.isArray(hist) ? ` (${hist.length})` : ''}
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: exp ? 'rotate(180deg)' : 'none' }}><polyline points="6 9 12 15 18 9"/></svg>
+                            </button>
+                            <div style={{ marginLeft: 'auto', display: 'inline-flex', gap: 4 }}>
+                              <button onClick={() => openEdit(r)} title="Editar" aria-label="Editar" style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                              </button>
+                              <button onClick={() => setConfirmDel(r.id)} title="Eliminar" aria-label="Eliminar" style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #fee2e2', background: '#fff', color: '#dc2626', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+                              </button>
+                            </div>
+                          </div>
+
+                          {exp && (
+                            <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid #f1f5f9' }}>
+                              {!Array.isArray(hist) ? (
+                                <p style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Cargando…</p>
+                              ) : hist.length === 0 ? (
+                                <p style={{ fontSize: '0.72rem', color: '#cbd5e1' }}>Sin pagos registrados. Los pagos que registres acá quedan como historial.</p>
+                              ) : hist.map(pg => (
+                                <div key={pg.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.28rem 0', fontSize: '0.74rem' }}>
+                                  <span style={{ color: '#64748b', fontVariantNumeric: 'tabular-nums' }}>{pg.fecha || '—'}</span>
+                                  <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#475569', background: '#f1f5f9', borderRadius: 4, padding: '0.05rem 0.4rem' }}>{pg.metodo === 'cash' ? 'Efectivo' : 'Transferencia'}</span>
+                                  {pg.nota && <span style={{ color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pg.nota}</span>}
+                                  <span style={{ marginLeft: 'auto', fontWeight: 700, color: '#16a34a', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(numUSD(pg.monto))}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })
+          })()}
         </div>
       )}
 
@@ -450,6 +561,34 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
               <button onClick={() => setConfirmDel(null)} style={{ padding: '0.5rem 1rem', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer' }}>Cancelar</button>
               <button onClick={() => del(confirmDel)} style={{ padding: '0.5rem 1.2rem', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>Eliminar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Registrar pago (cuenta corriente): evento en el ledger + actualiza el saldo */}
+      {pagoModal && (
+        <div onClick={e => { if (e.target === e.currentTarget) setPagoModal(null) }} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div style={{ ...CARD, width: '100%', maxWidth: 380, padding: '1.25rem' }}>
+            <p style={{ fontWeight: 800, color: '#0f172a', marginBottom: 3, fontSize: '0.95rem' }}>Registrar pago al despachante</p>
+            <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginBottom: 12 }}>{pagoModal.row.descripcion} · saldo {fmtUSD(numUSD(pagoModal.row.saldo))}</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+              <div><label style={LBL}>Fecha</label><input type="date" value={pagoModal.fecha} onChange={e => setPagoModal(f => ({ ...f, fecha: e.target.value }))} style={INP} /></div>
+              <div><label style={LBL}>Monto (USD)</label><input inputMode="decimal" value={pagoModal.monto} onChange={e => setPagoModal(f => ({ ...f, monto: e.target.value }))} style={INP} placeholder="0" /></div>
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <label style={LBL}>Método</label>
+              <div style={{ display: 'flex', gap: 3, background: '#f1f5f9', borderRadius: 8, padding: 3 }}>
+                {[['transferencia', 'Transferencia'], ['cash', 'Efectivo']].map(([v, l]) => {
+                  const on = pagoModal.metodo === v
+                  return <button key={v} onClick={() => setPagoModal(f => ({ ...f, metodo: v }))} style={{ flex: 1, padding: '0.35rem', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: '0.76rem', fontWeight: on ? 700 : 500, background: on ? '#fff' : 'transparent', color: on ? '#0f172a' : '#64748b', boxShadow: on ? '0 1px 2px rgba(15,23,42,0.1)' : 'none' }}>{l}</button>
+                })}
+              </div>
+            </div>
+            <div style={{ marginBottom: 14 }}><label style={LBL}>Nota (opcional)</label><input value={pagoModal.nota} onChange={e => setPagoModal(f => ({ ...f, nota: e.target.value }))} style={INP} placeholder="Ej: adelanto 50%" /></div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setPagoModal(null)} style={{ padding: '0.5rem 1rem', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={savePagoDesp} disabled={pagoBusy} style={{ padding: '0.5rem 1.1rem', borderRadius: 8, border: 'none', background: '#059669', color: '#fff', fontWeight: 700, fontSize: '0.8rem', cursor: pagoBusy ? 'wait' : 'pointer' }}>{pagoBusy ? 'Guardando…' : 'Registrar'}</button>
             </div>
           </div>
         </div>
