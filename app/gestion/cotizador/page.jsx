@@ -2428,6 +2428,25 @@ function SavedQuotesPanel({ onClose, onReactivate }) {
           {loading && <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Cargando…</p>}
           {err && <p style={{ color: '#dc2626', fontSize: '0.85rem' }}>{err}</p>}
           {!loading && !err && visible.length === 0 && <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>No hay cotizaciones que coincidan.</p>}
+          {/* Alertas de seguimiento: cotizaciones frías y aprobadas sin convertir */}
+          {!loading && !err && (() => {
+            const now = Date.now()
+            const dias = (v) => { const d = new Date(v || 0); return isNaN(d.getTime()) ? 0 : Math.floor((now - d.getTime()) / 86400000) }
+            const frias = quotes.filter(q => ['enviada', 'negociacion'].includes(q.estado) && dias(q.updated_at || q.created_at) >= 5)
+            const sinConv = quotes.filter(q => q.estado === 'aprobada' && !q.operation_id)
+            if (!frias.length && !sinConv.length) return null
+            return (
+              <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '0.6rem 0.85rem' }}>
+                <p style={{ fontSize: '0.6rem', fontWeight: 800, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Seguimiento</p>
+                {sinConv.slice(0, 3).map(q => (
+                  <p key={q.id} style={{ fontSize: '0.76rem', color: '#78350f', padding: '0.08rem 0' }}>⏳ <b>{q.nombre}</b> está aprobada — convertila en operación</p>
+                ))}
+                {frias.slice(0, 4).map(q => (
+                  <p key={q.id} style={{ fontSize: '0.76rem', color: '#78350f', padding: '0.08rem 0' }}>📨 <b>{q.nombre}</b> sin respuesta hace {dias(q.updated_at || q.created_at)} días — hacé follow-up{q.cliente ? ` a ${q.cliente}` : ''}</p>
+                ))}
+              </div>
+            )
+          })()}
           {!loading && !err && groups.map(g => (
             <div key={g.key}>
               {g.label && (

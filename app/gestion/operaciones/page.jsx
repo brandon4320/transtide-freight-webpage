@@ -36,6 +36,7 @@ const CHECKLIST = [
   { id: 'alta',  fase: 1, label: 'Alta del contenedor en terminal de arribo (TRP u otra)' },
   { id: 'bl',    fase: 1, label: 'Recepción del BL original / telex release confirmado' },
   { id: 'inv',   fase: 1, label: 'Solicitar invoice + packing list definitivos al proveedor' },
+  { id: 'carpeta', fase: 1, label: 'Mandar carpeta al despachante (empezar a armar el despacho)' },
   // Fase 2 — Documentación y Aduana
   { id: 'legajo',fase: 2, label: 'Armado del legajo con despachante (invoice, BL, packing, etc.)' },
   { id: 'fnav',  fase: 2, label: 'Recepción, pago y aviso de factura naviera' },
@@ -336,6 +337,27 @@ function OperationsList({ onSelect, deepLinkId }) {
           </div>
         ) : (
         <>
+        {/* Alertas: entregadas hace 1+ semana que siguen sin liquidar */}
+        {(() => {
+          const today = new Date(); today.setHours(0, 0, 0, 0)
+          const viejas = ops.filter(o => {
+            if (o.estado !== 'Entregado') return false
+            const d = o.eta ? new Date(o.eta + 'T00:00:00') : null
+            return d && !isNaN(d.getTime()) && (today.getTime() - d.getTime()) / 86400000 >= 7
+          })
+          if (!viejas.length) return null
+          return (
+            <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '0.65rem 0.95rem', marginBottom: '0.85rem' }}>
+              <p style={{ fontSize: '0.6rem', fontWeight: 800, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>Cobranzas · {viejas.length}</p>
+              {viejas.slice(0, 5).map(o => (
+                <button key={o.id} onClick={() => onSelect(o)} style={{ display: 'block', background: 'none', border: 'none', padding: '0.1rem 0', cursor: 'pointer', textAlign: 'left', fontSize: '0.78rem', color: '#78350f' }}>
+                  💰 <b>{o.nombre}</b> entregada y sin liquidar — revisá cobros pendientes
+                </button>
+              ))}
+            </div>
+          )
+        })()}
+
         {/* column headers */}
         <div className="ops-list-headers" style={{ display: 'grid', gridTemplateColumns: '3fr 1.6fr 1.4fr 1fr auto', gap: '0.5rem', padding: '0 1.25rem 0.55rem 5.25rem', alignItems: 'center' }}>
           {['Operación', 'N° BL', 'Contenedor / M³', 'ETA', ''].map(h => (
@@ -998,6 +1020,12 @@ function OperationDetail({ op, onBack }) {
       {/* Línea de vida de la importación — derivada, no editable */}
       <div style={{ marginBottom: '1rem' }}>
         <FlowTimeline state={flowState} />
+        {flowState.lockEntrega && ['Listo p/ retiro', 'En tránsito local'].includes(op.estado) && (
+          <div style={{ marginTop: 8, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '0.6rem 0.95rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: '1rem' }}>🔒</span>
+            <p style={{ fontSize: '0.78rem', fontWeight: 700, color: '#dc2626' }}>NO ENTREGAR — hay clientes con pago exigido antes de la entrega y saldo pendiente.</p>
+          </div>
+        )}
       </div>
 
       {/* Editor de embarque embebido — misma fuente que Tracking (/api/tracking) */}

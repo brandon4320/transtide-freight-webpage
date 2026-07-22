@@ -144,8 +144,9 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
     )
   }
 
-  // Alertas del flujo: pago al agente pendiente tras el arribo (recordatorio
-  // semanal hasta saldar) y tránsito interno a coordinar 1 semana antes del ETA.
+  // Alertas del flujo (todas derivadas; los días son ajustables acá):
+  //  naviera D-5 · transporte D-7 · sin liberar +5d · despacho sin cargar +7d ·
+  //  pago agente semanal post-arribo.
   const alertas = useMemo(() => {
     const out = []
     const today = new Date(); today.setHours(0, 0, 0, 0)
@@ -154,16 +155,30 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
       const eta = s.eta ? new Date(s.eta + 'T00:00:00') : null
       const days = eta && !isNaN(eta.getTime()) ? Math.round((today.getTime() - eta.getTime()) / 86400000) : null // >0 = ya pasó
       const bal = numUSD(s.balance_usd)
-      const arrived = /deliver|paid/i.test(s.status || '') || (days != null && days > 0)
-      if (arrived && bal > 0 && (days == null || days >= 7)) {
-        out.push({ tipo: 'pago', num: s.num, bl: s.bl, sem: days != null ? Math.floor(days / 7) : null, monto: bal, agente: s.agente || 'Bruce' })
+      const entregada = /deliver|paid/i.test(s.status || '')
+      const arrived = entregada || (days != null && days > 0)
+      const op = opByBL[blNorm(s.bl)]
+      const liberada = entregada || (op && ['Listo p/ retiro', 'En tránsito local', 'Entregado', 'Liquidado'].includes(op.estado))
+      const desp = despByBL[blNorm(s.bl)]
+
+      if (!arrived && days != null && days >= -5 && days <= 0 && !liberada) {
+        out.push({ w: 0, tipo: 'naviera', num: s.num, bl: s.bl, dias: -days })
       }
       if (!arrived && days != null && days >= -7 && days <= 0) {
-        out.push({ tipo: 'transporte', num: s.num, bl: s.bl, dias: -days, destino: s.destino })
+        out.push({ w: 1, tipo: 'transporte', num: s.num, bl: s.bl, dias: -days, destino: s.destino })
+      }
+      if (arrived && days != null && days >= 5 && !liberada) {
+        out.push({ w: 2, tipo: 'liberar', num: s.num, bl: s.bl, dias: days })
+      }
+      if (arrived && days != null && days >= 7 && !desp) {
+        out.push({ w: 3, tipo: 'despacho', num: s.num, bl: s.bl, sem: Math.floor(days / 7) })
+      }
+      if (arrived && bal > 0 && (days == null || days >= 7)) {
+        out.push({ w: 4, tipo: 'pago', num: s.num, bl: s.bl, sem: days != null ? Math.floor(days / 7) : null, monto: bal, agente: s.agente || 'Bruce' })
       }
     })
-    return out.sort((a, b) => (a.tipo === 'transporte' ? 0 : 1) - (b.tipo === 'transporte' ? 0 : 1))
-  }, [ships])
+    return out.sort((a, b) => a.w - b.w)
+  }, [ships, opByBL, despByBL])
 
   const stats = useMemo(() => {
     const base = agenteFilter === 'todos' ? ships : ships.filter(s => (s.agente || 'Bruce') === agenteFilter)
@@ -209,16 +224,22 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
             Alertas · {alertas.length}
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            {alertas.slice(0, 6).map((a, i) => (
+            {alertas.slice(0, 8).map((a, i) => (
               <button key={i} onClick={() => a.bl && setFicha(a.bl)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: '0.1rem 0', cursor: a.bl ? 'pointer' : 'default', textAlign: 'left', fontSize: '0.78rem', color: '#78350f' }}>
                 {a.tipo === 'pago' ? (
                   <span>💸 <b>#{a.num}</b> arribó{a.sem != null ? ` hace ${a.sem} semana${a.sem === 1 ? '' : 's'}` : ''} — saldo <b>{fmtUSD(a.monto)}</b> a {a.agente}</span>
+                ) : a.tipo === 'naviera' ? (
+                  <span>⚓ <b>#{a.num}</b> llega {a.dias === 0 ? 'hoy' : `en ${a.dias} día${a.dias === 1 ? '' : 's'}`} — pagá naviera/terminal para liberar el contenedor a tiempo</span>
+                ) : a.tipo === 'liberar' ? (
+                  <span>🕐 <b>#{a.num}</b> arribó hace {a.dias} días y sigue sin liberar — riesgo de demoras/almacenaje</span>
+                ) : a.tipo === 'despacho' ? (
+                  <span>📦 <b>#{a.num}</b> arribó hace {a.sem} semana{a.sem === 1 ? '' : 's'} — cargá el despacho del despachante</span>
                 ) : (
                   <span>🚚 <b>#{a.num}</b> llega {a.dias === 0 ? 'hoy' : `en ${a.dias} día${a.dias === 1 ? '' : 's'}`}{a.destino ? ` a ${a.destino}` : ''} — coordiná el transporte interno</span>
                 )}
               </button>
             ))}
-            {alertas.length > 6 && <p style={{ fontSize: '0.68rem', color: '#b45309' }}>+{alertas.length - 6} más</p>}
+            {alertas.length > 8 && <p style={{ fontSize: '0.68rem', color: '#b45309' }}>+{alertas.length - 8} más</p>}
           </div>
         </div>
       )}
