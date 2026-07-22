@@ -161,6 +161,11 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
       const liberada = entregada || (op && ['Listo p/ retiro', 'En tránsito local', 'Entregado', 'Liquidado'].includes(op.estado))
       const desp = despByBL[blNorm(s.bl)]
 
+      // Agentes de China (Bruce/Shaina marítimo, Yachao aéreo): pedir la
+      // liberación del BL desde origen ~1 semana antes del arribo.
+      if (!arrived && AGENTES.includes(s.agente) && days != null && days >= -7 && days <= 0 && !liberada) {
+        out.push({ w: -1, tipo: 'bl_china', num: s.num, bl: s.bl, dias: -days, agente: s.agente })
+      }
       if (!arrived && days != null && days >= -5 && days <= 0 && !liberada) {
         out.push({ w: 0, tipo: 'naviera', num: s.num, bl: s.bl, dias: -days })
       }
@@ -226,7 +231,9 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
             {alertas.slice(0, 8).map((a, i) => (
               <button key={i} onClick={() => a.bl && setFicha(a.bl)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: '0.1rem 0', cursor: a.bl ? 'pointer' : 'default', textAlign: 'left', fontSize: '0.78rem', color: '#78350f' }}>
-                {a.tipo === 'pago' ? (
+                {a.tipo === 'bl_china' ? (
+                  <span>📄 <b>#{a.num}</b> llega {a.dias === 0 ? 'hoy' : `en ${a.dias} día${a.dias === 1 ? '' : 's'}`} — pedile a {a.agente} la liberación del B/L desde China</span>
+                ) : a.tipo === 'pago' ? (
                   <span>💸 <b>#{a.num}</b> arribó{a.sem != null ? ` hace ${a.sem} semana${a.sem === 1 ? '' : 's'}` : ''} — saldo <b>{fmtUSD(a.monto)}</b> a {a.agente}</span>
                 ) : a.tipo === 'naviera' ? (
                   <span>⚓ <b>#{a.num}</b> llega {a.dias === 0 ? 'hoy' : `en ${a.dias} día${a.dias === 1 ? '' : 's'}`} — pagá naviera/terminal para liberar el contenedor a tiempo</span>
