@@ -452,7 +452,7 @@
 .track-row { transition: filter .12s ease; }
 .track-row:hover { filter: brightness(0.96); }
 /* Acciones por fila: ocultas hasta hover/focus en desktop; siempre visibles en touch */
-.track-actions { opacity: 0; transition: opacity .12s ease; }
+.track-actions { opacity: 1; }
 .track-row:hover .track-actions,
 .track-row:focus-within .track-actions { opacity: 1; }
 @media (hover: none) { .track-actions { opacity: 1; } }

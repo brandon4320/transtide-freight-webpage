@@ -9,6 +9,7 @@
 
 import { useState, useEffect } from 'react'
 import { gToast } from './toast'
+import { EmbarqueModal } from './embarque-form'
 
 const blNorm = (b) => (b || '').replace(/[\s-]/g, '').toUpperCase()
 const num = (v) => { const x = parseFloat(String(v || '').replace(/\./g, '').replace(',', '.')); return isNaN(x) ? 0 : x }
@@ -62,6 +63,7 @@ export default function FichaImportacion({ bl, seed = {}, onClose, onChanged }) 
   const [op, setOp] = useState(null)
   const [pagos, setPagos] = useState(null) // null = cargando
   const [pagoForm, setPagoForm] = useState(null) // null | {scope, fecha, monto, metodo, nota}
+  const [editShip, setEditShip] = useState(false) // editor de embarque abierto desde la ficha
   const [busy, setBusy] = useState(false)
 
   const key = blNorm(bl)
@@ -202,7 +204,10 @@ export default function FichaImportacion({ bl, seed = {}, onClose, onChanged }) 
                   </div>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     {agSaldo > 0 && <BtnPago scope="agente" />}
-                    <LinkBtn href="/gestion/tracking">Abrir en Tracking</LinkBtn>
+                    <button onClick={() => setEditShip(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '0.35rem 0.75rem', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, background: '#059669', color: '#fff' }}>
+                      ✎ Editar embarque
+                    </button>
+                    <LinkBtn href="/gestion/tracking">Ver por agente</LinkBtn>
                   </div>
                 </>
               ) : (
@@ -280,6 +285,15 @@ export default function FichaImportacion({ bl, seed = {}, onClose, onChanged }) 
               )}
             </div>
           </div>
+        )}
+
+        {/* editor de embarque — el mismo formulario compartido, sin salir de la ficha */}
+        {editShip && ship && (
+          <EmbarqueModal
+            initial={ship}
+            onClose={() => setEditShip(false)}
+            onSaved={(sv) => { setEditShip(false); setShip(sv); load(true); onChanged?.() }}
+          />
         )}
 
         {/* mini-modal: registrar pago */}
