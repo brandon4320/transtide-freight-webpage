@@ -211,7 +211,7 @@ export default function FichaImportacion({ bl, seed = {}, onClose, onChanged }) 
                     <button onClick={() => setEditShip(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '0.35rem 0.75rem', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, background: '#059669', color: '#fff' }}>
                       ✎ Editar embarque
                     </button>
-                    <LinkBtn href="/gestion/tracking">Ver por agente</LinkBtn>
+                    <LinkBtn href="/gestion/tracking">Forwarding</LinkBtn>
                   </div>
                 </>
               ) : (

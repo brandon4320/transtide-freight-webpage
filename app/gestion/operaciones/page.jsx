@@ -400,8 +400,23 @@ function OperationsList({ onSelect, deepLinkId }) {
                 <div style={{ minWidth: 0 }}>
                   <p style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{op.nombre}</p>
                   <p style={{ fontSize: '0.68rem', color: '#94a3b8', marginTop: '1px' }}>ETA: {op.eta || op.fecha || '—'}</p>
-                  <div style={{ marginTop: 4 }}>
+                  <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <MiniFlow state={importFlowState({ op, ship: flowShipByBL[blNorm(op.bl)], desp: flowDespByBL[blNorm(op.bl)] })} />
+                    {(() => {
+                      // Embarque unificado en la fila: estado + saldo al forwarder
+                      const sh = flowShipByBL[blNorm(op.bl)]
+                      if (!sh) return null
+                      const shBal = trackBalNum(sh.balance_usd)
+                      const stc = trackingStatusColor(sh.status)
+                      return (
+                        <>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.58rem', fontWeight: 700, color: stc, border: `1px solid ${stc}40`, background: `${stc}12`, borderRadius: 4, padding: '0.05rem 0.4rem', whiteSpace: 'nowrap' }}>
+                            <span style={{ width: 5, height: 5, borderRadius: '50%', background: stc }} />{sh.agente || 'Bruce'} · {sh.status || '—'}
+                          </span>
+                          {shBal > 0 && <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 4, padding: '0.05rem 0.4rem', whiteSpace: 'nowrap' }}>Forwarder USD {sh.balance_usd}</span>}
+                        </>
+                      )
+                    })()}
                   </div>
                 </div>
               </div>
@@ -1293,7 +1308,7 @@ function OperationDetail({ op, onBack }) {
               <p style={{ fontSize: '0.82rem', fontWeight: 700 }}>Embarque · agente</p>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                 {shipment && <button onClick={() => setShipModal(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#059669', fontSize: '0.7rem', fontWeight: 700, padding: 0 }}>Editar</button>}
-                <button onClick={() => router.push('/gestion/tracking')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0284c7', fontSize: '0.7rem', fontWeight: 700, padding: 0 }}>Por agente →</button>
+                <button onClick={() => router.push('/gestion/tracking')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0284c7', fontSize: '0.7rem', fontWeight: 700, padding: 0 }}>Forwarding →</button>
               </div>
             </div>
             <div style={{ padding: '0.7rem 0.95rem 0.9rem' }}>

@@ -71,6 +71,10 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
   const [desps, setDesps] = useState([])     // despachos (estado de aduana por fila)
   const [hechas, setHechas] = useState(() => new Set())  // akeys de alertas ya resueltas
   const [alertsOpen, setAlertsOpen] = useState(false)
+  const [pagoModal, setPagoModal] = useState(null) // registrar pago al forwarder
+  const [pagoBusy, setPagoBusy] = useState(false)
+  const [expandId, setExpandId] = useState(null)   // embarque con historial abierto
+  const [histPagos, setHistPagos] = useState({})
 
   const load = async () => {
     // Inyección de datos para preview de diseño (dev): evita auth/D1.
@@ -215,6 +219,48 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
     return { total: base.length, transito, pendientePago, saldoPagar }
   }, [ships, agenteFilter])
 
+  const hoyStr = () => new Date().toISOString().slice(0, 10)
+
+  // Registrar pago al forwarder como EVENTO (ledger) + actualizar el saldo del embarque.
+  const savePagoAgente = async () => {
+    const f = pagoModal
+    if (!f || pagoBusy) return
+    if (numUSD(f.monto) <= 0) { gToast.error('Cargá el monto.'); return }
+    setPagoBusy(true)
+    try {
+      const sh = f.ship
+      await fetch('/api/db/pagos', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scope: 'agente', ref_id: String(sh.id), bl: sh.bl || '', fecha: f.fecha, monto: f.monto, metodo: f.metodo, nota: f.nota }),
+      }).catch(() => {})
+      const rec = numUSD(sh.amount_rec_usd) + numUSD(f.monto)
+      const bal = numUSD(sh.amount_due_usd) - rec
+      const res = await fetch(`/api/tracking/${sh.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...sh, amount_rec_usd: fmtCalc(rec), balance_usd: fmtCalc(bal), payment_date: f.fecha }),
+      })
+      if (!res.ok) throw new Error('No se pudo registrar el pago')
+      gToast.success('Pago registrado.')
+      setPagoModal(null)
+      setHistPagos(h => { const n = { ...h }; delete n[sh.id]; return n })
+      load()
+    } catch (e) {
+      gToast.error(e.message || 'Error al registrar el pago.')
+    } finally { setPagoBusy(false) }
+  }
+
+  const toggleHist = async (sh) => {
+    if (expandId === sh.id) { setExpandId(null); return }
+    setExpandId(sh.id)
+    if (!histPagos[sh.id]) {
+      try {
+        const res = await fetch(`/api/db/pagos?scope=agente&ref_id=${encodeURIComponent(sh.id)}`)
+        const j = res.ok ? await res.json() : []
+        setHistPagos(h => ({ ...h, [sh.id]: Array.isArray(j) ? j : [] }))
+      } catch { setHistPagos(h => ({ ...h, [sh.id]: [] })) }
+    }
+  }
+
   const openNew  = () => setModal('new')
   const openEdit = (s) => setModal(s)
 
@@ -235,8 +281,8 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#1e293b', marginBottom: '0.2rem' }}>Tracking de contenedores</h2>
-          <p style={{ fontSize: '0.82rem', color: '#94a3b8' }}>Resumen por agente — la carga de datos vive en cada operación · {ships.length} embarques</p>
+          <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#1e293b', marginBottom: '0.2rem' }}>Forwarding</h2>
+          <p style={{ fontSize: '0.82rem', color: '#94a3b8' }}>Cuenta corriente con tus agentes de carga — la carga vive en cada operación · {ships.length} embarques</p>
         </div>
         <button onClick={openNew} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0.55rem 1.1rem', borderRadius: 8, border: 'none', background: PRIMARY, color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -284,22 +330,45 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
         )
       })()}
 
-      {/* KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: '1rem' }} className="track-kpis">
-        {[
-          { lbl: 'Total embarques', val: stats.total, color: '#334155', dot: '#94a3b8' },
-          { lbl: 'En tránsito', val: stats.transito, color: '#2563eb', dot: '#2563eb' },
-          { lbl: 'Pendiente de pago', val: stats.pendientePago, color: '#d97706', dot: '#d97706' },
-          { lbl: 'Saldo a pagar al agente', val: fmtUSD(stats.saldoPagar), color: '#dc2626', dot: '#dc2626' },
-        ].map(k => (
-          <div key={k.lbl} style={{ ...CARD, padding: '0.7rem 0.95rem' }}>
-            <p style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.56rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: k.dot, flex: '0 0 auto' }} />{k.lbl}
-            </p>
-            <p style={{ fontSize: '1.3rem', fontWeight: 800, color: k.color, fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{k.val}</p>
+      {/* Cuenta corriente con los forwarders — posición neta, no celdas */}
+      {(() => {
+        const base = agenteFilter === 'todos' ? ships : ships.filter(x => (x.agente || 'Bruce') === agenteFilter)
+        const debe = base.reduce((a, x) => a + Math.max(0, numUSD(x.balance_usd)), 0)
+        const favor = base.reduce((a, x) => a + Math.max(0, -numUSD(x.balance_usd)), 0)
+        const neto = debe - favor
+        const due = base.reduce((a, x) => a + numUSD(x.amount_due_usd), 0)
+        const pag = base.reduce((a, x) => a + numUSD(x.amount_rec_usd), 0)
+        const transito = base.filter(x => /transit/i.test(x.status || '')).length
+        return (
+          <div className="desp-cuenta" style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 12, marginBottom: '1rem' }}>
+            <div style={{ ...CARD, padding: '1rem 1.15rem' }}>
+              <p style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
+                Cuenta con {agenteFilter === 'todos' ? 'tus forwarders' : agenteFilter}
+              </p>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+                <p style={{ fontSize: '1.9rem', fontWeight: 900, fontVariantNumeric: 'tabular-nums', lineHeight: 1, color: neto > 0 ? '#dc2626' : neto < 0 ? '#b45309' : '#16a34a' }}>{fmtUSD(Math.abs(neto))}</p>
+                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: neto > 0 ? '#dc2626' : neto < 0 ? '#b45309' : '#16a34a' }}>
+                  {neto > 0 ? 'les debés (neto)' : neto < 0 ? 'a tu favor (neto)' : 'todo saldado ✓'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: 18, marginTop: 12, flexWrap: 'wrap', fontSize: '0.74rem' }}>
+                <span><span style={{ color: '#94a3b8' }}>A pagar</span> <b style={{ color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(due)}</b></span>
+                <span><span style={{ color: '#94a3b8' }}>− pagado</span> <b style={{ color: '#334155', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(pag)}</b></span>
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ ...CARD, padding: '0.75rem 0.95rem' }}>
+                <p style={{ fontSize: '0.56rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Embarques</p>
+                <p style={{ fontSize: '1.35rem', fontWeight: 800, color: '#334155', lineHeight: 1 }}>{base.length}</p>
+              </div>
+              <div style={{ ...CARD, padding: '0.75rem 0.95rem' }}>
+                <p style={{ fontSize: '0.56rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>En tránsito</p>
+                <p style={{ fontSize: '1.35rem', fontWeight: 800, color: '#2563eb', lineHeight: 1 }}>{transito}</p>
+              </div>
+            </div>
           </div>
-        ))}
-      </div>
+        )
+      })()}
 
       {/* Selector de agente */}
       <div style={{ display: 'flex', gap: 6, marginBottom: '0.85rem', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -349,131 +418,124 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
       ) : filtered.length === 0 ? (
         <div style={{ ...CARD, padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>Sin embarques que coincidan.</div>
       ) : (
-        <div style={{ ...CARD }}>
-          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.8rem' }}>
-            <thead>
-              <tr>
-                {sortTh('#', 'num')}
-                {sortTh('Embarque', 'origen')}
-                {sortTh('Cont.', null)}
-                {sortTh('ETA', 'eta')}
-                {sortTh('Estado', 'status')}
-                {sortTh('Total', 'total', 'right')}
-                {sortTh('Saldo', 'saldo', 'right')}
-                <th style={{ ...TH_BASE, width: 1 }} aria-label="Acciones"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {(() => {
-                const groups = []
-                sorted.forEach(s => { const k = s.agente || 'Bruce'; let g = groups.find(x => x.key === k); if (!g) { g = { key: k, items: [] }; groups.push(g) } g.items.push(s) })
-                const multi = agenteFilter === 'todos' && groups.length > 1
-                return groups.map(g => (
-                  <Fragment key={'ag-' + g.key}>
-                    {multi && (() => { const a = agenteStyle(g.key); const tot = g.items.reduce((x, r) => x + numUSD(r.total_usd), 0); const sal = g.items.reduce((x, r) => x + numUSD(r.balance_usd), 0); return (
-                      <tr style={{ background: '#eef2f7' }}>
-                        <td colSpan={8} style={{ padding: '0.45rem 0.7rem', borderBottom: '1px solid #e2e8f0' }}>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.64rem', fontWeight: 800, color: a.c, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                              <span style={{ width: 8, height: 8, borderRadius: '50%', background: a.c }} />{g.key}
-                            </span>
-                            <span style={{ fontSize: '0.66rem', color: '#94a3b8', fontWeight: 600 }}>{g.items.length} embarque{g.items.length === 1 ? '' : 's'}</span>
-                            <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: '#64748b', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>Total {fmtUSD(tot)}</span>
-                            <span style={{ fontSize: '0.72rem', fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: sal > 0 ? '#dc2626' : '#16a34a' }}>{sal > 0 ? 'Le debés ' + fmtUSD(sal) : 'Saldado ✓'}</span>
-                          </span>
-                        </td>
-                      </tr>
-                    ) })()}
-                    {g.items.map(s => {
-                const st = statusStyle(s.status)
-                const op = opByBL[blNorm(s.bl)]
-                const bal = numUSD(s.balance_usd)
-                const ag = s.agente || 'Bruce'; const a = agenteStyle(ag)
-                const eta = etaInfo(s.eta)
-                const TD = { padding: '0.5rem 0.7rem', borderBottom: '1px solid #eef2f7', verticalAlign: 'middle' }
-                return (
-                  <tr key={s.id} className="track-row" style={{ cursor: 'pointer', background: st.bg, transition: 'filter .12s' }} onClick={() => s.bl ? setFicha({ bl: s.bl, ship: s }) : openEdit(s)}>
-                    <td style={{ ...TD, color: '#475569', fontWeight: 700, fontVariantNumeric: 'tabular-nums', boxShadow: `inset 4px 0 0 ${st.dot}`, whiteSpace: 'nowrap' }}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-                        <span title={`Agente: ${ag}`} style={{ width: 7, height: 7, borderRadius: '50%', background: a.c, flex: '0 0 auto' }} />
-                        {s.num || '—'}
-                      </span>
-                    </td>
-                    <td style={{ ...TD, minWidth: 240 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, color: '#1e293b' }}>
-                        <span>{s.origen || '—'}</span>
-                        <span style={{ color: '#cbd5e1' }}>→</span>
-                        <span style={{ color: '#475569' }}>{s.destino || '—'}</span>
-                        {s.carrier && <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#64748b', background: '#eef2f7', borderRadius: 4, padding: '0.05rem 0.35rem' }}>{s.carrier}</span>}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, fontSize: '0.66rem', color: '#94a3b8', maxWidth: 340 }}>
-                        {s.bl && <span style={{ fontFamily: 'ui-monospace,monospace', flex: '0 0 auto', color: '#64748b' }}>{s.bl}</span>}
-                        {s.suppliers && <span title={s.suppliers} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>· {s.suppliers}</span>}
-                      </div>
-                      {(() => {
-                        const d = despByBL[blNorm(s.bl)]
-                        const dSaldo = d ? numUSD(d.saldo) : 0
-                        return (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
-                            <span onClick={() => s.bl && setFicha(s.bl)} style={{ cursor: s.bl ? 'pointer' : 'default' }}>
-                              <MiniFlow state={importFlowState({ op, ship: s, desp: d })} />
-                            </span>
-                            {op && (
-                              <button onClick={() => { window.location.href = '/gestion/operaciones?op=' + encodeURIComponent(op.id) }} title={`Abrir operación: ${op.nombre || ''}`}
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: '0.6rem', fontWeight: 700, color: '#1d4ed8', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 4, padding: '0.05rem 0.4rem', cursor: 'pointer', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                📦 {op.nombre || 'Operación'}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
+          {(() => {
+            const groups = []
+            filtered.forEach(x => { const k = x.agente || 'Bruce'; let g = groups.find(y => y.key === k); if (!g) { g = { key: k, items: [] }; groups.push(g) } g.items.push(x) })
+            groups.forEach(g => g.items.sort((a, b) => (numUSD(b.balance_usd) > 0 ? 1 : 0) - (numUSD(a.balance_usd) > 0 ? 1 : 0) || (parseInt(b.num, 10) || 0) - (parseInt(a.num, 10) || 0)))
+            return groups.map(g => {
+              const a = agenteStyle(g.key)
+              const debe = g.items.reduce((x, r) => x + Math.max(0, numUSD(r.balance_usd)), 0)
+              const favor = g.items.reduce((x, r) => x + Math.max(0, -numUSD(r.balance_usd)), 0)
+              const neto = debe - favor
+              return (
+                <div key={g.key}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 0.55rem 0.1rem' }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: a.c, flex: '0 0 auto' }} />
+                    <span style={{ fontSize: '0.68rem', fontWeight: 800, color: a.c, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{g.key}</span>
+                    <span style={{ fontSize: '0.64rem', fontWeight: 700, color: '#fff', background: '#94a3b8', borderRadius: 50, padding: '0.05rem 0.45rem' }}>{g.items.length}</span>
+                    <span style={{ marginLeft: 'auto', fontSize: '0.72rem', fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: neto > 0 ? '#dc2626' : '#16a34a' }}>
+                      {neto > 0 ? `Le debés ${fmtUSD(neto)}` : neto < 0 ? `${fmtUSD(-neto)} a tu favor` : 'Saldado ✓'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {g.items.map(sh => {
+                      const st = statusStyle(sh.status)
+                      const bal = numUSD(sh.balance_usd)
+                      const due = numUSD(sh.amount_due_usd), rec = numUSD(sh.amount_rec_usd)
+                      const pct = due > 0 ? Math.max(0, Math.min(1, rec / due)) : (rec > 0 ? 1 : 0)
+                      const op = opByBL[blNorm(sh.bl)]
+                      const d = despByBL[blNorm(sh.bl)]
+                      const dSaldo = d ? numUSD(d.saldo) : 0
+                      const eta = etaInfo(sh.eta)
+                      const exp = expandId === sh.id
+                      const hist = histPagos[sh.id]
+                      return (
+                        <div key={sh.id} style={{ ...CARD, borderLeft: `3px solid ${st.dot}`, padding: '0.75rem 0.9rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                            <div onClick={() => sh.bl ? setFicha({ bl: sh.bl, ship: sh }) : openEdit(sh)} style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                <span style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.9rem' }}>#{sh.num || '—'} · {sh.origen || '—'} <span style={{ color: '#cbd5e1' }}>→</span> {sh.destino || '—'}</span>
+                                {sh.carrier && <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#64748b', background: '#eef2f7', borderRadius: 4, padding: '0.05rem 0.35rem' }}>{sh.carrier}</span>}
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.6rem', fontWeight: 700, color: st.c, border: `1px solid ${st.border}`, background: '#fff', borderRadius: 4, padding: '0.05rem 0.4rem', whiteSpace: 'nowrap' }}>
+                                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: st.dot }} />{sh.status || '—'}
+                                </span>
+                                {sh.eta && <span style={{ fontSize: '0.62rem', color: eta ? eta.tone : '#94a3b8', fontWeight: 600 }}>ETA {sh.eta}{eta ? ` · ${eta.rel}` : ''}</span>}
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+                                {sh.bl && <span style={{ fontFamily: 'ui-monospace,monospace', fontSize: '0.66rem', color: '#64748b' }}>{sh.bl}</span>}
+                                <MiniFlow state={importFlowState({ op, ship: sh, desp: d })} />
+                                {op && (
+                                  <span onClick={e => { e.stopPropagation(); window.location.href = '/gestion/operaciones?op=' + encodeURIComponent(op.id) }} style={{ fontSize: '0.6rem', fontWeight: 700, color: '#1d4ed8', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 4, padding: '0.05rem 0.4rem', cursor: 'pointer', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📦 {op.nombre || 'Operación'}</span>
+                                )}
+                                {d && (dSaldo > 0
+                                  ? <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 4, padding: '0.05rem 0.4rem', whiteSpace: 'nowrap' }}>Aduana USD {d.saldo}</span>
+                                  : <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#065f46', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 4, padding: '0.05rem 0.4rem', whiteSpace: 'nowrap' }}>Aduana ✓</span>)}
+                              </div>
+                            </div>
+                            <div style={{ textAlign: 'right', flex: '0 0 auto' }}>
+                              <p style={{ fontSize: '0.58rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{bal > 0 ? 'Debés' : bal < 0 ? 'A favor' : 'Saldo'}</p>
+                              <p style={{ fontSize: '1.05rem', fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: bal > 0 ? '#dc2626' : bal < 0 ? '#b45309' : '#16a34a', lineHeight: 1.1 }}>{bal !== 0 ? fmtUSD(Math.abs(bal)) : (due > 0 ? '✓' : '—')}</p>
+                            </div>
+                          </div>
+
+                          {due > 0 && (
+                            <div style={{ marginTop: 9 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: '#64748b', marginBottom: 4 }}>
+                                <span>Total <b style={{ color: '#0f172a' }}>{sh.total_usd ? 'USD ' + sh.total_usd : '—'}</b></span>
+                                <span>Pagado <b style={{ color: '#334155' }}>{fmtUSD(rec)}</b> de {fmtUSD(due)}</span>
+                              </div>
+                              <div style={{ height: 6, background: '#f1f5f9', borderRadius: 4, overflow: 'hidden' }}>
+                                <div style={{ height: '100%', width: `${Math.round(pct * 100)}%`, background: bal > 0 ? '#f59e0b' : '#16a34a', borderRadius: 4, transition: 'width .2s' }} />
+                              </div>
+                            </div>
+                          )}
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
+                            {bal > 0 && (
+                              <button onClick={() => setPagoModal({ ship: sh, fecha: hoyStr(), monto: fmtCalc(bal), metodo: 'transferencia', nota: '' })} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '0.34rem 0.75rem', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, background: PRIMARY, color: '#fff' }}>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                Registrar pago
                               </button>
                             )}
-                            {d && (dSaldo > 0
-                              ? <span title="Saldo pendiente al despachante" style={{ fontSize: '0.6rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 4, padding: '0.05rem 0.4rem', whiteSpace: 'nowrap' }}>Aduana USD {d.saldo}</span>
-                              : <span title="Despacho sin saldo pendiente" style={{ fontSize: '0.6rem', fontWeight: 700, color: '#065f46', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 4, padding: '0.05rem 0.4rem', whiteSpace: 'nowrap' }}>Aduana ✓</span>)}
+                            <button onClick={() => toggleHist(sh)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '0.34rem 0.7rem', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer' }}>
+                              Historial{Array.isArray(hist) ? ` (${hist.length})` : ''}
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: exp ? 'rotate(180deg)' : 'none' }}><polyline points="6 9 12 15 18 9"/></svg>
+                            </button>
+                            <div style={{ marginLeft: 'auto', display: 'inline-flex', gap: 4 }}>
+                              <button onClick={() => openEdit(sh)} title="Editar" aria-label={`Editar embarque ${sh.num || ''}`} style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                              </button>
+                              <button onClick={() => setConfirmDel(sh.id)} title="Eliminar" aria-label={`Eliminar embarque ${sh.num || ''}`} style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #fee2e2', background: '#fff', color: '#dc2626', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+                              </button>
+                            </div>
                           </div>
-                        )
-                      })()}
-                    </td>
-                    <td style={{ ...TD, color: '#475569', whiteSpace: 'nowrap', fontSize: '0.74rem' }}>{s.contenedores || '—'}</td>
-                    <td style={{ ...TD, whiteSpace: 'nowrap' }}>
-                      {s.eta ? (
-                        <div>
-                          <div style={{ color: '#334155', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{s.eta}</div>
-                          {eta && <div style={{ fontSize: '0.62rem', color: eta.tone, fontWeight: 600 }}>{eta.rel}</div>}
+
+                          {exp && (
+                            <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid #f1f5f9' }}>
+                              {!Array.isArray(hist) ? (
+                                <p style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Cargando…</p>
+                              ) : hist.length === 0 ? (
+                                <p style={{ fontSize: '0.72rem', color: '#cbd5e1' }}>Sin pagos registrados para este embarque.</p>
+                              ) : hist.map(pg => (
+                                <div key={pg.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.28rem 0', fontSize: '0.74rem' }}>
+                                  <span style={{ color: '#64748b', fontVariantNumeric: 'tabular-nums' }}>{pg.fecha || '—'}</span>
+                                  <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#475569', background: '#f1f5f9', borderRadius: 4, padding: '0.05rem 0.4rem' }}>{pg.metodo === 'cash' ? 'Efectivo' : 'Transferencia'}</span>
+                                  {pg.nota && <span style={{ color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pg.nota}</span>}
+                                  <span style={{ marginLeft: 'auto', fontWeight: 700, color: '#16a34a', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(numUSD(pg.monto))}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                      ) : <span style={{ color: '#cbd5e1' }}>—</span>}
-                    </td>
-                    <td style={{ ...TD }}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: '#fff', color: st.c, border: `1px solid ${st.border}`, fontSize: '0.64rem', fontWeight: 600, padding: '0.18rem 0.5rem', borderRadius: 6, whiteSpace: 'nowrap' }}>
-                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: st.dot }} />{s.status || '—'}
-                      </span>
-                    </td>
-                    <td style={{ ...TD, textAlign: 'right', color: '#0f172a', fontWeight: 700, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
-                      {s.total_usd ? <>USD {s.total_usd}</> : <span style={{ color: '#cbd5e1' }}>—</span>}
-                    </td>
-                    <td style={{ ...TD, textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', color: bal > 0 ? '#dc2626' : '#16a34a' }}>
-                      {bal > 0 ? <>USD {s.balance_usd}</> : '✓'}
-                    </td>
-                    <td style={{ ...TD, textAlign: 'right', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
-                      <div className="track-actions" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                        {op && (
-                          <button onClick={() => { window.location.href = `/gestion/operaciones?op=${encodeURIComponent(op.id)}` }} title={`Operación: ${op.nombre || ''}`} aria-label="Abrir operación" style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #bbf7d0', background: '#f0fdf4', color: '#059669', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 18l6-6-6-6"/></svg>
-                          </button>
-                        )}
-                        <button onClick={() => openEdit(s)} title="Editar" aria-label={`Editar embarque ${s.num || ''}`} style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                        </button>
-                        <button onClick={() => setConfirmDel(s.id)} title="Eliminar" aria-label={`Eliminar embarque ${s.num || ''}`} style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #fee2e2', background: '#fff', color: '#dc2626', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
+                      )
                     })}
-                  </Fragment>
-                ))
-              })()}
-            </tbody>
-          </table>
+                  </div>
+                </div>
+              )
+            })
+          })()}
         </div>
       )}
 
@@ -495,6 +557,34 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
             <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
               <button onClick={() => setConfirmDel(null)} style={{ padding: '0.5rem 1rem', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer' }}>Cancelar</button>
               <button onClick={() => del(confirmDel)} style={{ padding: '0.5rem 1.2rem', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>Eliminar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Registrar pago al forwarder: evento en el ledger + actualiza el saldo */}
+      {pagoModal && (
+        <div onClick={e => { if (e.target === e.currentTarget) setPagoModal(null) }} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div style={{ ...CARD, width: '100%', maxWidth: 380, padding: '1.25rem' }}>
+            <p style={{ fontWeight: 800, color: '#0f172a', marginBottom: 3, fontSize: '0.95rem' }}>Registrar pago a {pagoModal.ship.agente || 'Bruce'}</p>
+            <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginBottom: 12 }}>#{pagoModal.ship.num} · {pagoModal.ship.origen} → {pagoModal.ship.destino} · saldo {fmtUSD(numUSD(pagoModal.ship.balance_usd))}</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+              <div><label style={LBL}>Fecha</label><input type="date" value={pagoModal.fecha} onChange={e => setPagoModal(f => ({ ...f, fecha: e.target.value }))} style={INP} /></div>
+              <div><label style={LBL}>Monto (USD)</label><input inputMode="decimal" value={pagoModal.monto} onChange={e => setPagoModal(f => ({ ...f, monto: e.target.value }))} style={INP} placeholder="0" /></div>
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <label style={LBL}>Método</label>
+              <div style={{ display: 'flex', gap: 3, background: '#f1f5f9', borderRadius: 8, padding: 3 }}>
+                {[['transferencia', 'Transferencia'], ['cash', 'Efectivo']].map(([v, l]) => {
+                  const on = pagoModal.metodo === v
+                  return <button key={v} onClick={() => setPagoModal(f => ({ ...f, metodo: v }))} style={{ flex: 1, padding: '0.35rem', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: '0.76rem', fontWeight: on ? 700 : 500, background: on ? '#fff' : 'transparent', color: on ? '#0f172a' : '#64748b', boxShadow: on ? '0 1px 2px rgba(15,23,42,0.1)' : 'none' }}>{l}</button>
+                })}
+              </div>
+            </div>
+            <div style={{ marginBottom: 14 }}><label style={LBL}>Nota (opcional)</label><input value={pagoModal.nota} onChange={e => setPagoModal(f => ({ ...f, nota: e.target.value }))} style={INP} placeholder="Ej: adelanto 50%" /></div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setPagoModal(null)} style={{ padding: '0.5rem 1rem', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={savePagoAgente} disabled={pagoBusy} style={{ padding: '0.5rem 1.1rem', borderRadius: 8, border: 'none', background: '#059669', color: '#fff', fontWeight: 700, fontSize: '0.8rem', cursor: pagoBusy ? 'wait' : 'pointer' }}>{pagoBusy ? 'Guardando…' : 'Registrar'}</button>
             </div>
           </div>
         </div>
