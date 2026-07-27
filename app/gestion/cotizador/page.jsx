@@ -785,7 +785,7 @@ function CotizadorMaritimo() {
       <!-- FOOTER -->
       <div class="sec" style="border-top:1px solid #e2e8f0;padding-top:8px;">
         <p style="font-size:0.66rem;color:#94a3b8;line-height:1.45;">
-          * Cotización expresada en dólares estadounidenses (USD). Los valores son estimados y están sujetos a variación según el tipo de cambio oficial vigente al momento del despacho, actualizaciones arancelarias y condiciones del proveedor. La presente cotización tiene validez de 7 días hábiles desde su emisión.
+          * Cotización de carácter estimativo y no final, expresada en dólares estadounidenses (USD). Los valores se calculan sobre la base de tarifas, tipo de cambio y normativa vigentes a la fecha de emisión, y el importe definitivo se confirmará al momento del despacho, pudiendo variar según: (i) el tipo de cambio oficial al momento del despacho; (ii) el flete internacional, cuya tarifa puede ajustarse hasta la fecha efectiva de embarque; (iii) actualizaciones arancelarias, impositivas o normativas; (iv) condiciones del proveedor en origen; y (v) contingencias operativas o aduaneras ajenas a Transtide, tales como asignación de canal rojo o naranja, verificaciones físicas, escaneos, almacenajes, estadías o demoras. De producirse alguna de estas variaciones, la diferencia se trasladará al costo final, con la documentación respaldatoria correspondiente. La presente cotización no constituye una oferta en firme, tiene validez de 7 días hábiles desde su emisión y comprende únicamente los conceptos aquí detallados; todo servicio no incluido se cotiza por separado.
         </p>
       </div>
     </div>
@@ -1508,7 +1508,7 @@ function CotizadorMaritimo() {
               {/* disclaimer */}
               <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '0.75rem' }}>
                 <p style={{ fontSize: '0.68rem', color: '#94a3b8', lineHeight: 1.6 }}>
-                  * Cotización expresada en USD. Los valores son estimados y están sujetos a variación según el tipo de cambio oficial vigente al momento del despacho, actualizaciones arancelarias y condiciones del proveedor. Validez: 7 días hábiles.
+                  * Cotización de carácter estimativo y no final, expresada en USD. Los valores se calculan con tarifas, tipo de cambio y normativa vigentes a la fecha de emisión; el importe definitivo se confirma al momento del despacho y puede variar según el tipo de cambio oficial, el flete internacional (ajustable hasta la fecha efectiva de embarque), actualizaciones arancelarias o normativas, condiciones del proveedor en origen y contingencias aduaneras ajenas a Transtide (canal rojo/naranja, verificaciones, escaneos, almacenajes, estadías o demoras). Las diferencias se trasladan al costo final con documentación respaldatoria. No constituye una oferta en firme. Validez: 7 días hábiles; servicios no incluidos se cotizan por separado.
                 </p>
               </div>
 
@@ -2311,7 +2311,7 @@ function CotizadorAereo() {
 
               <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '0.75rem' }}>
                 <p style={{ fontSize: '0.68rem', color: '#94a3b8', lineHeight: 1.6 }}>
-                  * Cotización aérea expresada en USD. Chargeable weight = max(peso real, peso volumétrico). Validez: 7 días hábiles.
+                  * Cotización aérea de carácter estimativo y no final, expresada en USD. Chargeable weight = max(peso real, peso volumétrico). Los valores se calculan con tarifas, tipo de cambio y normativa vigentes a la fecha de emisión; el importe definitivo se confirma al momento del despacho y puede variar según el tipo de cambio oficial, el flete internacional (ajustable hasta la fecha efectiva de embarque), actualizaciones arancelarias o normativas, condiciones del proveedor en origen y contingencias aduaneras ajenas a Transtide (canal rojo/naranja, verificaciones, escaneos, almacenajes, estadías o demoras). Las diferencias se trasladan al costo final con documentación respaldatoria. No constituye una oferta en firme. Validez: 7 días hábiles; servicios no incluidos se cotizan por separado.
                 </p>
               </div>
             </div>
