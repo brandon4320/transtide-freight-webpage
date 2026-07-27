@@ -682,91 +682,101 @@ function CotizadorMaritimo() {
     const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
     <title>Cotización - ${cliente || 'Cliente'}</title>
     <style>
-      @page { margin: 18mm 15mm; size: A4; }
+      @page { margin: 10mm 14mm; size: A4 landscape; }
       * { box-sizing: border-box; margin: 0; padding: 0; }
       body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; color: #1e293b; background: #fff; }
-      .page { max-width: 720px; margin: 0 auto; padding: 0; }
+      .page { max-width: 1060px; margin: 0 auto; }
       table { width: 100%; border-collapse: collapse; }
+      .sec { break-inside: avoid; page-break-inside: avoid; }
       @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
     </style></head><body>
     <div class="page">
-      <!-- HEADER -->
-      <table style="margin-bottom:24px;">
+
+      <!-- HEADER: una sola fila — logo · título+cliente · fecha (lectura horizontal) -->
+      <table class="sec" style="margin-bottom:12px;">
         <tr>
-          <td>
-            <div style="font-size:1.4rem;font-weight:800;color:#2563eb;letter-spacing:-0.02em;">TRANSTIDE FREIGHT</div>
-            <div style="font-size:0.78rem;color:#94a3b8;margin-top:2px;">Gestión Logística & Importaciones</div>
+          <td style="width:28%;">
+            <div style="font-size:1.25rem;font-weight:800;color:#2563eb;letter-spacing:-0.02em;">TRANSTIDE FREIGHT</div>
+            <div style="font-size:0.7rem;color:#94a3b8;margin-top:1px;">Gestión Logística & Importaciones</div>
           </td>
-          <td style="text-align:right;vertical-align:top;">
-            <div style="font-size:0.72rem;color:#94a3b8;">Fecha de cotización</div>
-            <div style="font-size:0.88rem;font-weight:600;color:#475569;">${today}</div>
+          <td style="text-align:center;">
+            <div style="display:inline-block;background:#2563eb;border-radius:8px;padding:8px 22px;">
+              <span style="font-size:0.95rem;font-weight:800;color:#fff;">COTIZACIÓN DE IMPORTACIÓN</span>${cliente ? `<span style="font-size:0.85rem;color:#bfdbfe;"> · <strong style="color:#fff;">${cliente}</strong></span>` : ''}
+            </div>
+          </td>
+          <td style="width:16%;text-align:right;vertical-align:top;">
+            <div style="font-size:0.68rem;color:#94a3b8;">Fecha de cotización</div>
+            <div style="font-size:0.85rem;font-weight:600;color:#475569;">${today}</div>
           </td>
         </tr>
       </table>
 
-      <!-- TITLE BAND -->
-      <div style="background:#2563eb;border-radius:10px;padding:14px 20px;margin-bottom:20px;">
-        <div style="font-size:1.05rem;font-weight:800;color:#fff;letter-spacing:0.01em;">COTIZACIÓN DE IMPORTACIÓN</div>
-        ${cliente ? `<div style="font-size:0.82rem;color:#bfdbfe;margin-top:4px;">Cliente: <strong style="color:#fff;">${cliente}</strong></div>` : ''}
-      </div>
-
-      <!-- CLIENT INFO -->
       ${(descripcion || clasificacion) ? `
-      <table style="margin-bottom:20px;background:#f8fafc;border-radius:8px;overflow:hidden;">
-        ${descripcion ? `<tr><td style="padding:8px 14px;font-size:0.75rem;color:#64748b;font-weight:600;width:200px;">Descripción</td><td style="padding:8px 14px;font-size:0.82rem;color:#1e293b;">${descripcion}</td></tr>` : ''}
-        ${clasificacion ? `<tr style="border-top:1px solid #e2e8f0;"><td style="padding:8px 14px;font-size:0.75rem;color:#64748b;font-weight:600;">Posición Arancelaria</td><td style="padding:8px 14px;font-size:0.82rem;color:#1e293b;">${clasificacion}</td></tr>` : ''}
-      </table>` : ''}
+      <div class="sec" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:7px 14px;margin-bottom:12px;font-size:0.78rem;color:#1e293b;">
+        ${descripcion ? `<strong style="color:#64748b;font-size:0.72rem;">Descripción:</strong> ${descripcion}` : ''}${descripcion && clasificacion ? ' &nbsp;·&nbsp; ' : ''}${clasificacion ? `<strong style="color:#64748b;font-size:0.72rem;">Posición arancelaria:</strong> ${clasificacion}` : ''}
+      </div>` : ''}
 
-      <!-- DESGLOSE -->
-      <table style="margin-bottom:16px;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;">
-        ${divider('Base de la Importación')}
-        ${row('Valor de Mercadería (FOB Declarado)', fmt(c.fobDC))}
-        ${row('Flete Internacional', fmt(n(fleteCli)))}
-        ${row('Seguro Marítimo (1% FOB)', fmt(c.segC))}
-        ${row('CIF — Base Arancelaria', fmt(c.cifC), { bold: true, highlight: true })}
+      <!-- DOS COLUMNAS: base+locales (izq) · aranceles+totales (der) -->
+      <table style="margin-bottom:12px;"><tr>
+        <td style="width:49.5%;vertical-align:top;">
+          <table class="sec" style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:12px;">
+            ${divider('Base de la Importación')}
+            ${row('Valor de Mercadería (FOB Declarado)', fmt(c.fobDC))}
+            ${row('Flete Internacional', fmt(n(fleteCli)))}
+            ${row('Seguro Marítimo (1% FOB)', fmt(c.segC))}
+            ${row('CIF — Base Arancelaria', fmt(c.cifC), { bold: true, highlight: true })}
+          </table>
+          ${(c.desC > 0 || c.terC > 0 || c.navC > 0 || c.logC > 0) ? `
+          <table class="sec" style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
+            ${divider('Gastos Locales')}
+            ${c.desC > 0 ? row('Despachante de Aduana', fmt(c.desC)) : ''}
+            ${c.terC > 0 ? row('Terminal Portuaria', fmt(c.terC)) : ''}
+            ${c.navC > 0 ? row('Naviera', fmt(c.navC)) : ''}
+            ${c.logC > 0 ? row('Logística Interna', fmt(c.logC)) : ''}
+          </table>` : ''}
+        </td>
+        <td style="width:1%;"></td>
+        <td style="width:49.5%;vertical-align:top;">
+          <table class="sec" style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:12px;">
+            ${divider('Aranceles Aduaneros')}
+            ${row(`Derechos de Importación (${pct(pDer)})`, fmt(c.derC))}
+            ${n(pTas) > 0 ? row(`Tasa Estadística (${pct(pTas)})`, fmt(c.tasC)) : ''}
+            ${row('Base IVA', fmt(c.bivC), { sub: true })}
+            ${row(`IVA (${pct(pIva)})`, fmt(c.ivaC))}
+            ${c.ivaAC > 0 ? row(`IVA Adicional (${pct(pIvaA)})`, fmt(c.ivaAC)) : ''}
+            ${c.ganC > 0 ? row(`Percepción Ganancias (${pct(pGan)})`, fmt(c.ganC)) : ''}
+            ${c.iibbC > 0 ? row(`Percepción IIBB (${pct(pIIBB)})`, fmt(c.iibbC)) : ''}
+          </table>
+          <table class="sec" style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
+            ${divider('Totales')}
+            ${row('Costo Total CON IVA', fmt(c.totConC), { bold: true })}
+            ${row('Costo Total SIN IVA', fmt(c.totSinC), { sub: true })}
+            ${row(`Honorarios del Servicio (${pct(pHon)})`, fmt(c.honorarios))}
+            ${c.gastFac > 0 ? row(`Gastos de Facturación (${pct(pFac)})`, fmt(c.gastFac), { sub: true }) : ''}
+          </table>
+        </td>
+      </tr></table>
 
-        ${divider('Aranceles Aduaneros')}
-        ${row(`Derechos de Importación (${pct(pDer)})`, fmt(c.derC))}
-        ${pTas > 0 ? row(`Tasa Estadística (${pct(pTas)})`, fmt(c.tasC)) : ''}
-        ${row('Base IVA', fmt(c.bivC), { sub: true })}
-        ${row(`IVA (${pct(pIva)})`, fmt(c.ivaC))}
-        ${c.ivaAC > 0 ? row(`IVA Adicional (${pct(pIvaA)})`, fmt(c.ivaAC)) : ''}
-        ${c.ganC > 0 ? row(`Percepción Ganancias (${pct(pGan)})`, fmt(c.ganC)) : ''}
-        ${c.iibbC > 0 ? row(`Percepción IIBB (${pct(pIIBB)})`, fmt(c.iibbC)) : ''}
-
-        ${(c.desC > 0 || c.terC > 0 || c.navC > 0 || c.logC > 0) ? divider('Gastos Locales') : ''}
-        ${c.desC > 0 ? row('Despachante de Aduana', fmt(c.desC)) : ''}
-        ${c.terC > 0 ? row('Terminal Portuaria', fmt(c.terC)) : ''}
-        ${c.navC > 0 ? row('Naviera', fmt(c.navC)) : ''}
-        ${c.logC > 0 ? row('Logística Interna', fmt(c.logC)) : ''}
-
-        ${divider('Totales')}
-        ${row('Costo Total CON IVA', fmt(c.totConC), { bold: true })}
-        ${row('Costo Total SIN IVA', fmt(c.totSinC), { sub: true })}
-        ${row(`Honorarios del Servicio (${pct(pHon)})`, fmt(c.honorarios))}
-        ${c.gastFac > 0 ? row(`Gastos de Facturación (${pct(pFac)})`, fmt(c.gastFac), { sub: true }) : ''}
-      </table>
-
-      <!-- FINAL PRICES -->
-      <table style="margin-bottom:24px;border-radius:10px;overflow:hidden;">
+      <!-- PRECIO FINAL — bloque protegido contra cortes de página -->
+      <table class="sec" style="margin-bottom:10px;border-radius:10px;overflow:hidden;">
         <tr>
-          <td style="padding:18px 20px;background:#065f46;border-radius:10px 0 0 10px;width:50%;">
-            <div style="font-size:0.65rem;font-weight:700;color:#6ee7b7;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">Precio Final CON Factura</div>
-            <div style="font-size:1.6rem;font-weight:800;color:#ffffff;line-height:1;">${fmt(c.precioConF)}</div>
+          <td style="padding:14px 20px;background:#065f46;border-radius:10px 0 0 10px;width:50%;">
+            <div style="font-size:0.65rem;font-weight:700;color:#6ee7b7;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:5px;">Precio Final CON Factura</div>
+            <div style="font-size:1.5rem;font-weight:800;color:#ffffff;line-height:1;">${fmt(c.precioConF)}</div>
             <div style="font-size:0.7rem;color:#6ee7b7;margin-top:4px;">Hon. ${fmt(c.honorarios)} + Gs.Fac. ${fmt(c.gastFac)}</div>
           </td>
           <td style="width:8px;"></td>
-          <td style="padding:18px 20px;background:#78350f;border-radius:0 10px 10px 0;width:50%;">
-            <div style="font-size:0.65rem;font-weight:700;color:#fcd34d;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">Precio Final SIN Factura</div>
-            <div style="font-size:1.6rem;font-weight:800;color:#ffffff;line-height:1;">${fmt(c.precioSinF)}</div>
+          <td style="padding:14px 20px;background:#78350f;border-radius:0 10px 10px 0;width:50%;">
+            <div style="font-size:0.65rem;font-weight:700;color:#fcd34d;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:5px;">Precio Final SIN Factura</div>
+            <div style="font-size:1.5rem;font-weight:800;color:#ffffff;line-height:1;">${fmt(c.precioSinF)}</div>
             <div style="font-size:0.7rem;color:#fcd34d;margin-top:4px;">Ahorro para el cliente: ${fmt(c.gastFac)}</div>
           </td>
         </tr>
       </table>
 
       <!-- FOOTER -->
-      <div style="border-top:1px solid #e2e8f0;padding-top:12px;">
-        <p style="font-size:0.7rem;color:#94a3b8;line-height:1.5;">
+      <div class="sec" style="border-top:1px solid #e2e8f0;padding-top:8px;">
+        <p style="font-size:0.66rem;color:#94a3b8;line-height:1.45;">
           * Cotización expresada en dólares estadounidenses (USD). Los valores son estimados y están sujetos a variación según el tipo de cambio oficial vigente al momento del despacho, actualizaciones arancelarias y condiciones del proveedor. La presente cotización tiene validez de 7 días hábiles desde su emisión.
         </p>
       </div>
