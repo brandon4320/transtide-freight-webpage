@@ -86,6 +86,7 @@ function printInPage(html) {
 
 // Imprime el contenido (innerHTML) de un elemento del DOM, preservando estilos inline.
 function printElement(elementId, title = 'Cotización') {
+  try {
   const el = document.getElementById(elementId);
   if (!el) return;
   const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>${title}</title>
@@ -96,6 +97,10 @@ function printElement(elementId, title = 'Cotización') {
       @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
     </style></head><body>${el.innerHTML}</body></html>`;
   printHTML(html);
+  } catch (e) {
+    console.error('print build failed', e);
+    gToast.error('No se pudo armar el documento: ' + (e.message || e));
+  }
 }
 
 // ─── estados (saved quotes) ─────────────────────────────────────────────────────
@@ -656,9 +661,13 @@ function CotizadorMaritimo() {
 
   // ─── print client quote ───────────────────────────────────────────────────
   const printClienteQuote = () => {
+    try {
     const today = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
     const fmt = (v) => '$ ' + (Math.round(v * 100) / 100).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const pct = (v) => v.toFixed(1) + '%';
+    // n(): los % vienen del estado del form y pueden ser STRING (cotizaciones
+    // reactivadas los restauran como texto) — sin esto, .toFixed explotaba y el
+    // botón de imprimir moría en silencio con cualquier cotización cargada.
+    const pct = (v) => n(v).toFixed(1) + '%';
     const row = (label, val, opts = {}) => {
       const color = opts.bold ? '#1e293b' : opts.sub ? '#475569' : '#374151';
       const bg = opts.highlight ? '#eff6ff' : opts.total ? '#1e3a5f' : 'transparent';
@@ -765,6 +774,10 @@ function CotizadorMaritimo() {
     </body></html>`;
 
     printHTML(html);
+    } catch (e) {
+      console.error('print build failed', e);
+      gToast.error('No se pudo armar el documento: ' + (e.message || e));
+    }
   };
 
   // ─── RENDER ───────────────────────────────────────────────────────────────
