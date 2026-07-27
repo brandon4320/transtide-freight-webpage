@@ -13,12 +13,30 @@ const usd = (n) => {
 };
 const n = (v) => parseFloat(v) || 0;
 
-// Imprime/exporta a PDF un HTML SIN iframes ocultos ni window.open: los navegadores
+// Camino principal de impresión: pestaña dedicada /gestion/print. El documento
+// viaja por localStorage y se imprime LIMPIO (sin el layout de la app, sin
+// iframes ocultos que los navegadores imprimen en blanco). La pestaña trae su
+// propia barra con "Imprimir / Guardar PDF", así el usuario siempre ve el
+// documento y tiene un botón que funciona, pase lo que pase con el auto-print.
+function printHTML(html) {
+  try {
+    const toolbar = `<div class="__no_print__" style="position:fixed;top:0;left:0;right:0;background:#0f172a;color:#fff;padding:10px 16px;display:flex;gap:12px;align-items:center;z-index:9999;font-family:system-ui,sans-serif"><b style="font-size:14px">Vista de impresión — Transtide</b><button onclick="window.print()" style="margin-left:auto;background:#2563eb;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-weight:700;cursor:pointer;font-size:14px">🖨 Imprimir / Guardar PDF</button></div><style>@media print{.__no_print__{display:none!important}}@media screen{body{margin-top:52px}}</style>`
+    const docHtml = html.includes('</body>') ? html.replace('</body>', toolbar + '</body>') : html + toolbar
+    localStorage.setItem('__ttf_print_html__', docHtml)
+    const w = window.open('/print', '_blank')
+    if (w) return
+    // popup bloqueado → fallback en la misma página
+  } catch {}
+  printInPage(html)
+}
+
+// Fallback: imprime dentro del propio documento (hoja + body.cot-printing).
+// Los navegadores
 // modernos (Brave/Chrome/Safari) bloquean o imprimen en blanco los iframes 0x0.
 // En su lugar se monta el contenido como "hoja" dentro del propio documento y se
 // imprime la ventana principal; el CSS de gestion.css (body.cot-printing) hace que
 // en la impresión se vea SOLO la hoja. Mismo patrón que el estado de cuenta.
-function printHTML(html) {
+function printInPage(html) {
   try {
     // El HTML llega como documento completo: extraer estilos + contenido del body.
     const doc = new DOMParser().parseFromString(html, 'text/html');
