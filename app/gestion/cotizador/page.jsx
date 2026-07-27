@@ -465,6 +465,7 @@ function CotizadorMaritimo() {
 
   // ── CIERRE ──
   const [pHon, setPHon] = useState(4);
+  const [pHonMin, setPHonMin] = useState(500); // piso de honorarios en USD; vacío/0 = sin mínimo
   const [pFac, setPFac] = useState(8);
   const [pMrg, setPMrg] = useState(20); // solo modo personal
 
@@ -484,7 +485,7 @@ function CotizadorMaritimo() {
     fobCliente, fobDecCli, fleteCli, gDes, gTer, gNav, gLog,
     fobReal, fobDecReal, fleteRealInput, m3Merch,
     pDer, pTas, pIva, pagaIva, pIvaA, pagaIvaA, pGan, pagaGan, pIIBB, pagaIIBB,
-    pHon, pFac, pMrg, usaSociedadPropia,
+    pHon, pHonMin, pFac, pMrg, usaSociedadPropia,
   });
 
   useEffect(() => {
@@ -524,6 +525,8 @@ function CotizadorMaritimo() {
       if (d.pIIBB !== undefined) setPIIBB(d.pIIBB);
       if (d.pagaIIBB !== undefined) setPagaIIBB(d.pagaIIBB);
       if (d.pHon !== undefined) setPHon(d.pHon);
+      // Cotizaciones guardadas ANTES del mínimo: sin pHonMin → '' (no cambia el número guardado).
+      setPHonMin(d.pHonMin !== undefined ? d.pHonMin : '');
       if (d.pFac !== undefined) setPFac(d.pFac);
       if (d.pMrg !== undefined) setPMrg(d.pMrg);
       if (d.usaSociedadPropia !== undefined) setUsaSociedadPropia(d.usaSociedadPropia);
@@ -606,7 +609,12 @@ function CotizadorMaritimo() {
     const totSinR = totConR - ivaR - ivaAR;
 
     // ── ESCENARIOS (solo cliente) ──
-    const honorarios = totConC * hon;
+    // Honorarios = máx(% sobre costo, mínimo USD): el mínimo cubre el trabajo fijo
+    // de una importación chica; el % gana a partir del punto de cruce.
+    const honPct  = totConC * hon;
+    const honMinV = n(pHonMin);
+    const honMinAplica = totConC > 0 && honMinV > honPct;
+    const honorarios = honMinAplica ? honMinV : honPct;
     const gastFac    = usaSociedadPropia ? 0 : totConC * fac;
     const precioConF = totConC + honorarios + gastFac;
     const precioSinF = totConC + honorarios; // sin gastos de facturación (cuando sociedad propia)
@@ -639,7 +647,7 @@ function CotizadorMaritimo() {
       desC, terC, navC, logC, gasC, totConC, totSinC,
       fleteR, segR, cifR, derR, tasR, bivR, ivaR, ivaAR, ganR, iibbR,
       desR, terR, navR, logR, gasR, totConR, totSinR,
-      honorarios, gastFac, precioConF, precioSinF,
+      honorarios, honMinAplica, gastFac, precioConF, precioSinF,
       mFOB, mFlet, mDer, mTas, mIva, mIvaA, mGan, mIIBB, mAranc, mGas, ganTotal,
       precioVenta, ventaNeta, gananciaNeta, ivaVentaMonto, precioVentaFinal,
       ratio, curM3,
@@ -648,7 +656,7 @@ function CotizadorMaritimo() {
     fobCliente, fobDecCli, fleteCli, gDes, gTer, gNav, gLog,
     fobReal, fobDecReal, fleteRealInput, m3Merch,
     pDer, pTas, pIva, pagaIva, pIvaA, pagaIvaA, pGan, pagaGan, pIIBB, pagaIIBB,
-    pHon, pFac, pMrg, usaSociedadPropia, curM3, curCosts,
+    pHon, pHonMin, pFac, pMrg, usaSociedadPropia, curM3, curCosts,
   ]);
 
   // ─── tabs per mode ────────────────────────────────────────────────────────
@@ -751,7 +759,7 @@ function CotizadorMaritimo() {
             ${divider('Totales')}
             ${row('Costo Total CON IVA', fmt(c.totConC), { bold: true })}
             ${row('Costo Total SIN IVA', fmt(c.totSinC), { sub: true })}
-            ${row(`Honorarios del Servicio (${pct(pHon)})`, fmt(c.honorarios))}
+            ${row(c.honMinAplica ? 'Honorarios del Servicio' : `Honorarios del Servicio (${pct(pHon)})`, fmt(c.honorarios))}
             ${c.gastFac > 0 ? row(`Gastos de Facturación (${pct(pFac)})`, fmt(c.gastFac), { sub: true }) : ''}
           </table>
         </td>
@@ -1058,9 +1066,19 @@ function CotizadorMaritimo() {
                   </div>
                 </div>
 
-                <F label={`Honorarios % (s/ costo CON IVA)`}>
-                  <input type="number" inputMode="decimal" step="any" min="0" value={pHon} onChange={e => setPHon(e.target.value)} style={INP} />
-                </F>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+                  <F label={`Honorarios % (s/ costo CON IVA)`}>
+                    <input type="number" inputMode="decimal" step="any" min="0" value={pHon} onChange={e => setPHon(e.target.value)} style={INP} />
+                  </F>
+                  <F label={`Honorarios mínimos (USD)`}>
+                    <input type="number" inputMode="decimal" step="any" min="0" value={pHonMin} onChange={e => setPHonMin(e.target.value)} style={INP} placeholder="Sin mínimo" />
+                  </F>
+                </div>
+                {c.honMinAplica && (
+                  <p style={{ fontSize: '0.7rem', color: '#9a3412', background: '#fff4ee', border: '1px solid #fed7aa', borderRadius: '8px', padding: '0.4rem 0.6rem', marginTop: '0.35rem' }}>
+                    Aplica el mínimo: {pHon}% = {usd(c.totConC * (n(pHon) / 100))} &lt; {usd(n(pHonMin))}
+                  </p>
+                )}
 
                 {!usaSociedadPropia && (
                   <F label={`Gastos de Facturación % — sociedad Transtide`}>
@@ -1073,7 +1091,7 @@ function CotizadorMaritimo() {
                     <span>Costo Total CON IVA</span><span>{usd(c.totConC)}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.83rem', padding: '0.38rem 0', borderBottom: '1px solid #f3e8ff', color: '#475569' }}>
-                    <span>+ Honorarios ({pHon}%)</span><span>{usd(c.honorarios)}</span>
+                    <span>+ Honorarios ({c.honMinAplica ? 'mín. USD' : `${pHon}%`})</span><span>{usd(c.honorarios)}</span>
                   </div>
                   {!usaSociedadPropia && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.83rem', padding: '0.38rem 0', borderBottom: '1px solid #f3e8ff', color: '#7c3aed' }}>
@@ -1464,7 +1482,7 @@ function CotizadorMaritimo() {
                 {[
                   ['Costo Total CON IVA', usd(c.totConC), false, true],
                   ['Costo Total SIN IVA', usd(c.totSinC), true, false],
-                  [`Honorarios del Servicio (${pHon}%)`, usd(c.honorarios), false, false],
+                  [c.honMinAplica ? 'Honorarios del Servicio' : `Honorarios del Servicio (${pHon}%)`, usd(c.honorarios), false, false],
                   ...(c.gastFac > 0 ? [[`Gastos de Facturación (${pFac}%)`, usd(c.gastFac), true, false]] : []),
                 ].map(([l, v, sub, bold]) => (
                   <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 12px', borderBottom: '1px solid #f8fafc', fontSize: sub ? '0.8rem' : bold ? '0.88rem' : '0.83rem', fontWeight: bold ? 700 : 400, color: sub ? '#94a3b8' : bold ? '#1e293b' : '#374151' }}>
@@ -1587,6 +1605,7 @@ function CotizadorAereo() {
 
   // cierre
   const [pHon, setPHon] = useState(4);
+  const [pHonMin, setPHonMin] = useState(500); // piso de honorarios en USD; vacío/0 = sin mínimo
   const [pFac, setPFac] = useState(8);
   const [pMrg, setPMrg] = useState(20);
   const [usaSociedadPropia, setUsaSociedadPropia] = useState(false);
@@ -1604,7 +1623,7 @@ function CotizadorAereo() {
     fobCliente, fobDecCli, fleteCliInput, awbCli, handCli, terCli, desCli, traCli,
     fobReal, fobDecReal, fleteRealInput, awbReal, handReal, terReal, desReal, traReal,
     pDer, pTas, pIva, pagaIva, pIvaA, pagaIvaA, pGan, pagaGan, pIIBB, pagaIIBB,
-    pHon, pFac, pMrg, usaSociedadPropia,
+    pHon, pHonMin, pFac, pMrg, usaSociedadPropia,
   });
 
   useEffect(() => {
@@ -1644,6 +1663,8 @@ function CotizadorAereo() {
       if (d.pIIBB !== undefined) setPIIBB(d.pIIBB);
       if (d.pagaIIBB !== undefined) setPagaIIBB(d.pagaIIBB);
       if (d.pHon !== undefined) setPHon(d.pHon);
+      // Cotizaciones guardadas ANTES del mínimo: sin pHonMin → '' (no cambia el número guardado).
+      setPHonMin(d.pHonMin !== undefined ? d.pHonMin : '');
       if (d.pFac !== undefined) setPFac(d.pFac);
       if (d.pMrg !== undefined) setPMrg(d.pMrg);
       if (d.usaSociedadPropia !== undefined) setUsaSociedadPropia(d.usaSociedadPropia);
@@ -1724,7 +1745,11 @@ function CotizadorAereo() {
     const totSinR = totConR - ivaR - ivaAR;
 
     // cierre
-    const honorarios = totConC * hon;
+    // Honorarios = máx(% sobre costo, mínimo USD) — igual que en marítimo.
+    const honPct  = totConC * hon;
+    const honMinV = n(pHonMin);
+    const honMinAplica = totConC > 0 && honMinV > honPct;
+    const honorarios = honMinAplica ? honMinV : honPct;
     const gastFac    = usaSociedadPropia ? 0 : totConC * fac;
     const precioConF = totConC + honorarios + gastFac;
     const precioSinF = totConC + honorarios;
@@ -1756,7 +1781,7 @@ function CotizadorAereo() {
       awbCv, handCv, terCv, desCv, traCv, gasC, totConC, totSinC,
       segR, cifR, derR, tasR, bivR, ivaR, ivaAR, ganR, iibbR,
       awbRv, handRv, terRv, desRv, traRv, gasR, totConR, totSinR,
-      honorarios, gastFac, precioConF, precioSinF,
+      honorarios, honMinAplica, gastFac, precioConF, precioSinF,
       mFOB, mFlet, mDer, mTas, mIva, mIvaA, mGan, mIIBB, mAranc,
       mAwb, mHand, mTer, mDes, mTra, mGas, ganTotal,
       precioVenta,
@@ -1767,7 +1792,7 @@ function CotizadorAereo() {
     awbCli, handCli, terCli, desCli, traCli,
     awbReal, handReal, terReal, desReal, traReal,
     pDer, pTas, pIva, pagaIva, pIvaA, pagaIvaA, pGan, pagaGan, pIIBB, pagaIIBB,
-    pHon, pFac, pMrg, usaSociedadPropia,
+    pHon, pHonMin, pFac, pMrg, usaSociedadPropia,
   ]);
 
   const tabs = [['cliente_fob','Cotización cliente'],['real_fob','Mis costos reales'],['aranceles','Aranceles'],['cierre','Cierre']];
@@ -2033,9 +2058,19 @@ function CotizadorAereo() {
                   </div>
                 </div>
 
-                <F label={`Honorarios % (s/ costo CON IVA)`}>
-                  <input type="number" inputMode="decimal" step="any" min="0" value={pHon} onChange={e => setPHon(e.target.value)} style={INP} />
-                </F>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+                  <F label={`Honorarios % (s/ costo CON IVA)`}>
+                    <input type="number" inputMode="decimal" step="any" min="0" value={pHon} onChange={e => setPHon(e.target.value)} style={INP} />
+                  </F>
+                  <F label={`Honorarios mínimos (USD)`}>
+                    <input type="number" inputMode="decimal" step="any" min="0" value={pHonMin} onChange={e => setPHonMin(e.target.value)} style={INP} placeholder="Sin mínimo" />
+                  </F>
+                </div>
+                {c.honMinAplica && (
+                  <p style={{ fontSize: '0.7rem', color: '#9a3412', background: '#fff4ee', border: '1px solid #fed7aa', borderRadius: '8px', padding: '0.4rem 0.6rem', marginTop: '0.35rem' }}>
+                    Aplica el mínimo: {pHon}% = {usd(c.totConC * (n(pHon) / 100))} &lt; {usd(n(pHonMin))}
+                  </p>
+                )}
                 {!usaSociedadPropia && (
                   <F label={`Gastos de Facturación % — sociedad Transtide`}>
                     <input type="number" inputMode="decimal" step="any" min="0" value={pFac} onChange={e => setPFac(e.target.value)} style={INP} />
@@ -2044,7 +2079,7 @@ function CotizadorAereo() {
 
                 <div style={{ background: '#faf5ff', borderRadius: '10px', padding: '1rem', border: '1px solid #e9d5ff', marginTop: '0.75rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.83rem', padding: '0.38rem 0', borderBottom: '1px solid #f3e8ff', color: '#475569' }}><span>Costo Total CON IVA</span><span>{usd(c.totConC)}</span></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.83rem', padding: '0.38rem 0', borderBottom: '1px solid #f3e8ff', color: '#475569' }}><span>+ Honorarios ({pHon}%)</span><span>{usd(c.honorarios)}</span></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.83rem', padding: '0.38rem 0', borderBottom: '1px solid #f3e8ff', color: '#475569' }}><span>+ Honorarios ({c.honMinAplica ? 'mín. USD' : `${pHon}%`})</span><span>{usd(c.honorarios)}</span></div>
                   {!usaSociedadPropia && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.83rem', padding: '0.38rem 0', borderBottom: '1px solid #f3e8ff', color: '#7c3aed' }}><span>+ Gastos de Facturación ({pFac}%)</span><span>{usd(c.gastFac)}</span></div>
                   )}
@@ -2251,7 +2286,7 @@ function CotizadorAereo() {
                   <span>Costo Total (mercadería + flete + aranceles + gastos)</span><span>{usd(c.totConC)}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 12px', borderBottom: '1px solid #f8fafc', fontSize: '0.83rem', color: '#374151' }}>
-                  <span>+ Honorarios ({pHon}%)</span><span>{usd(c.honorarios)}</span>
+                  <span>+ Honorarios{c.honMinAplica ? '' : ` (${pHon}%)`}</span><span>{usd(c.honorarios)}</span>
                 </div>
                 {!usaSociedadPropia && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 12px', borderBottom: '1px solid #f8fafc', fontSize: '0.83rem', color: '#7c3aed' }}>

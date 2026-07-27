@@ -912,7 +912,10 @@ function OperationDetail({ op, onBack }) {
       const gastosUSD = tcUsed > 0 ? Math.round((costoFinal / tcUsed) * 100) / 100 : 0;
       const cashUSD   = tcUsed > 0 ? Math.round((prorCashPesos / tcUsed) * 100) / 100 : 0;
       const origenUSD = n(p.gastosOrigenUSD);
-      const honorarios = cb.honorarios ? Math.round((gastosUSD + origenUSD) * 0.04 * 100) / 100 : 0;
+      // Honorarios = máx(4%, mínimo USD si está cargado). Vacío = solo 4% (compat
+      // con operaciones viejas).
+      const honPct4 = Math.round((gastosUSD + origenUSD) * 0.04 * 100) / 100;
+      const honorarios = cb.honorarios ? Math.max(honPct4, n(cb.honMin)) : 0;
       // Giro de divisas al exterior: servicio cobrado al cliente cuando Brandon
       // hace el pago al proveedor. % sobre lo girado + gasto fijo (ej. USD 45 de
       // transferencia); un total manual pisa el cálculo. Todas las opciones.
@@ -1988,7 +1991,7 @@ function ExpandedDetail({ p, clientes, onCreateCliente, onUpdProveedor, onUpdCob
               <Mini label="VEP Aduana" val={fmtP(p.vepPesos)} />
               <Mini label={`÷ TC ${p.tcUsed || '—'}`} val={fmtU(p.gastosUSD)} />
               {p.origenUSD > 0 && <Mini label="+ origen" val={fmtU(p.origenUSD)} />}
-              {p.cb.honorarios && <Mini label="+ honor. 4%" val={fmtU(p.honorarios)} />}
+              {p.cb.honorarios && <Mini label={n(p.cb.honMin) > 0 && p.honorarios === n(p.cb.honMin) ? '+ honor. mín.' : '+ honor. 4%'} val={fmtU(p.honorarios)} />}
               {n(p.cb.despAdic) > 0 && <Mini label="+ desp. adic." val={fmtU(n(p.cb.despAdic))} />}
               {p.giroUSD > 0 && <Mini label="+ giro de divisas" val={fmtU(p.giroUSD)} />}
               {n(p.cb.ganancia) > 0 && <Mini label="+ tu ganancia (no se desglosa al cliente)" val={fmtU(n(p.cb.ganancia))} />}
@@ -2050,14 +2053,25 @@ function ExpandedDetail({ p, clientes, onCreateCliente, onUpdProveedor, onUpdCob
               <p style={{ ...HINT, color: '#059669' }}>se suma al total a cobrar sin desglosarse — el cliente ve un solo monto de gastos</p>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.7rem', background: '#f8fafc', borderRadius: 6, border: '1px solid #e8ecf1' }}>
-              <div>
-                <p style={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151' }}>Honorarios 4%</p>
-                <p style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: 1 }}>sobre (gastos + origen)</p>
+            <div style={{ padding: '0.5rem 0.7rem', background: '#f8fafc', borderRadius: 6, border: '1px solid #e8ecf1' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <p style={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151' }}>Honorarios 4%</p>
+                  <p style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: 1 }}>sobre (gastos + origen)</p>
+                </div>
+                <button type="button" onClick={() => onUpdCobrar('honorarios', !p.cb.honorarios)} className={`g-toggle${p.cb.honorarios ? ' on' : ''}`} aria-pressed={!!p.cb.honorarios}>
+                  <span className="g-toggle-knob" />
+                </button>
               </div>
-              <button type="button" onClick={() => onUpdCobrar('honorarios', !p.cb.honorarios)} className={`g-toggle${p.cb.honorarios ? ' on' : ''}`} aria-pressed={!!p.cb.honorarios}>
-                <span className="g-toggle-knob" />
-              </button>
+              {p.cb.honorarios && (
+                <div style={{ marginTop: 8 }}>
+                  <p style={LBL_E}>Mínimo (USD) — vacío = solo 4%</p>
+                  <input type="number" inputMode="decimal" step="any" min="0" value={p.cb.honMin || ''} onChange={e => onUpdCobrar('honMin', e.target.value)} placeholder="ej. 500" style={{ ...INP_E, textAlign: 'right' }} />
+                  {n(p.cb.honMin) > 0 && p.honorarios === n(p.cb.honMin) && (
+                    <p style={{ ...HINT, color: '#9a3412' }}>aplica el mínimo: 4% = {fmtU(Math.round((p.gastosUSD + p.origenUSD) * 0.04 * 100) / 100)}</p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
