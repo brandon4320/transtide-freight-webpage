@@ -670,14 +670,14 @@ function CotizadorMaritimo() {
     const pct = (v) => n(v).toFixed(1) + '%';
     const row = (label, val, opts = {}) => {
       const color = opts.bold ? '#1e293b' : opts.sub ? '#475569' : '#374151';
-      const bg = opts.highlight ? '#eff6ff' : opts.total ? '#1e3a5f' : 'transparent';
+      const bg = opts.highlight ? '#fff4ee' : opts.total ? '#0f172a' : 'transparent';
       const txtColor = opts.total ? '#ffffff' : color;
       return `<tr style="background:${bg};">
         <td style="padding:7px 12px;font-size:${opts.bold||opts.total?'0.9':'0.84'}rem;font-weight:${opts.bold||opts.total?700:400};color:${opts.sub?'#64748b':txtColor};border-bottom:1px solid #f1f5f9;">${label}</td>
         <td style="padding:7px 12px;text-align:right;font-size:${opts.bold||opts.total?'0.9':'0.84'}rem;font-weight:${opts.bold||opts.total?700:opts.semibold?600:400};color:${opts.total?'#ffffff':opts.bold?'#1e293b':'#374151'};border-bottom:1px solid #f1f5f9;">${val}</td>
       </tr>`;
     };
-    const divider = (label) => `<tr><td colspan="2" style="padding:10px 12px 4px;font-size:0.65rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.08em;border-bottom:2px solid #e2e8f0;">${label}</td></tr>`;
+    const divider = (label) => `<tr><td colspan="2" style="padding:10px 12px 5px;font-size:0.65rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;border-bottom:2px solid #e2e8f0;"><span style="border-left:3px solid #ea580c;padding-left:8px;">${label}</span></td></tr>`;
 
     const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
     <title>Cotización - ${cliente || 'Cliente'}</title>
@@ -696,12 +696,12 @@ function CotizadorMaritimo() {
       <table class="sec" style="margin-bottom:12px;">
         <tr>
           <td style="width:28%;">
-            <div style="font-size:1.25rem;font-weight:800;color:#2563eb;letter-spacing:-0.02em;">TRANSTIDE FREIGHT</div>
-            <div style="font-size:0.7rem;color:#94a3b8;margin-top:1px;">Gestión Logística & Importaciones</div>
+            <img src="/images/transtide-logo-full.png" alt="Transtide Freight" style="height:36px;width:auto;display:block;" />
+            <div style="font-size:0.68rem;color:#94a3b8;margin-top:3px;">Gestión Logística & Importaciones</div>
           </td>
           <td style="text-align:center;">
-            <div style="display:inline-block;background:#2563eb;border-radius:8px;padding:8px 22px;">
-              <span style="font-size:0.95rem;font-weight:800;color:#fff;">COTIZACIÓN DE IMPORTACIÓN</span>${cliente ? `<span style="font-size:0.85rem;color:#bfdbfe;"> · <strong style="color:#fff;">${cliente}</strong></span>` : ''}
+            <div style="display:inline-block;background:#0f172a;border-radius:8px;padding:8px 22px;">
+              <span style="font-size:0.95rem;font-weight:800;color:#fff;">COTIZACIÓN DE IMPORTACIÓN</span>${cliente ? `<span style="font-size:0.85rem;color:#94a3b8;"> · <strong style="color:#fb923c;">${cliente}</strong></span>` : ''}
             </div>
           </td>
           <td style="width:16%;text-align:right;vertical-align:top;">
@@ -712,8 +712,8 @@ function CotizadorMaritimo() {
       </table>
 
       ${(descripcion || clasificacion) ? `
-      <div class="sec" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:7px 14px;margin-bottom:12px;font-size:0.78rem;color:#1e293b;">
-        ${descripcion ? `<strong style="color:#64748b;font-size:0.72rem;">Descripción:</strong> ${descripcion}` : ''}${descripcion && clasificacion ? ' &nbsp;·&nbsp; ' : ''}${clasificacion ? `<strong style="color:#64748b;font-size:0.72rem;">Posición arancelaria:</strong> ${clasificacion}` : ''}
+      <div class="sec" style="background:#fff4ee;border:1px solid #fed7aa;border-radius:8px;padding:7px 14px;margin-bottom:12px;font-size:0.78rem;color:#1e293b;">
+        ${descripcion ? `<strong style="color:#9a3412;font-size:0.72rem;">Descripción:</strong> ${descripcion}` : ''}${descripcion && clasificacion ? ' &nbsp;·&nbsp; ' : ''}${clasificacion ? `<strong style="color:#9a3412;font-size:0.72rem;">Posición arancelaria:</strong> ${clasificacion}` : ''}
       </div>` : ''}
 
       <!-- DOS COLUMNAS: base+locales (izq) · aranceles+totales (der) -->
@@ -760,16 +760,16 @@ function CotizadorMaritimo() {
       <!-- PRECIO FINAL — bloque protegido contra cortes de página -->
       <table class="sec" style="margin-bottom:10px;border-radius:10px;overflow:hidden;">
         <tr>
-          <td style="padding:14px 20px;background:#065f46;border-radius:10px 0 0 10px;width:50%;">
-            <div style="font-size:0.65rem;font-weight:700;color:#6ee7b7;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:5px;">Precio Final CON Factura</div>
+          <td style="padding:14px 20px;background:#0f172a;border-radius:10px 0 0 10px;width:50%;">
+            <div style="font-size:0.65rem;font-weight:700;color:#fb923c;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:5px;">Precio Final CON Factura</div>
             <div style="font-size:1.5rem;font-weight:800;color:#ffffff;line-height:1;">${fmt(c.precioConF)}</div>
-            <div style="font-size:0.7rem;color:#6ee7b7;margin-top:4px;">Hon. ${fmt(c.honorarios)} + Gs.Fac. ${fmt(c.gastFac)}</div>
+            <div style="font-size:0.7rem;color:#94a3b8;margin-top:4px;">Hon. ${fmt(c.honorarios)} + Gs.Fac. ${fmt(c.gastFac)}</div>
           </td>
           <td style="width:8px;"></td>
-          <td style="padding:14px 20px;background:#78350f;border-radius:0 10px 10px 0;width:50%;">
-            <div style="font-size:0.65rem;font-weight:700;color:#fcd34d;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:5px;">Precio Final SIN Factura</div>
+          <td style="padding:14px 20px;background:#ea580c;border-radius:0 10px 10px 0;width:50%;">
+            <div style="font-size:0.65rem;font-weight:700;color:#ffedd5;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:5px;">Precio Final SIN Factura</div>
             <div style="font-size:1.5rem;font-weight:800;color:#ffffff;line-height:1;">${fmt(c.precioSinF)}</div>
-            <div style="font-size:0.7rem;color:#fcd34d;margin-top:4px;">Ahorro para el cliente: ${fmt(c.gastFac)}</div>
+            <div style="font-size:0.7rem;color:#ffedd5;margin-top:4px;">Ahorro para el cliente: ${fmt(c.gastFac)}</div>
           </td>
         </tr>
       </table>
