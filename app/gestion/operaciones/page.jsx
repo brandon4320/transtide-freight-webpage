@@ -7,6 +7,8 @@ import { EmbarqueModal } from '../embarque-form';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 const n    = (v) => parseFloat(v) || 0;
+// Montos del módulo Despachante: guardados como strings es-AR ("11.886" = 11886).
+const numDesp = (v) => { const x = parseFloat(String(v || '').replace(/\./g, '').replace(',', '.')); return isNaN(x) ? 0 : x; };
 const toTitle = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase().replace(/\b\w/g, c => c.toUpperCase()) : s;
 const fmtP = (v) => v == null || isNaN(v) ? '—' : '$ ' + Math.round(v).toLocaleString('es-AR');
 const fmtU = (v) => v == null || isNaN(v) ? '—' : 'USD ' + (Math.round(v * 100) / 100).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -1097,8 +1099,8 @@ function OperationDetail({ op, onBack }) {
                 <tr style={{ background: '#f8fafc' }}>
                   {[
                     { l: 'Proveedor', a: 'left' }, { l: 'Tipo', a: 'left' }, { l: 'm³', a: 'right' },
-                    { l: 'FOB USD', a: 'right' }, { l: 'Costo $', a: 'right' }, { l: 'TC', a: 'right' },
-                    { l: 'A cobrar', a: 'right' }, { l: 'Estado', a: 'left' }, { l: '', a: 'right' },
+                    { l: 'FOB USD', a: 'right' }, { l: 'Costo (AR$)', a: 'right' }, { l: 'TC', a: 'right' },
+                    { l: 'A cobrar (USD)', a: 'right' }, { l: 'Estado', a: 'left' }, { l: '', a: 'right' },
                   ].map((c, idx) => (
                     <th key={idx} style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '0.6rem 0.7rem', textAlign: c.a, borderBottom: '1px solid #e8ecf1' }}>{c.l}</th>
                   ))}
@@ -1133,7 +1135,7 @@ function OperationDetail({ op, onBack }) {
                           <td style={{ padding: '0.45rem 0.7rem', textAlign: 'right', fontSize: '0.7rem', fontWeight: 700, color: '#64748b', fontVariantNumeric: 'tabular-nums' }}>{fmtUcompact(g.items.reduce((s, x) => s + n(x.fobUSD), 0))}</td>
                           <td style={{ padding: '0.45rem 0.7rem', textAlign: 'right', fontSize: '0.7rem', fontWeight: 700, color: '#64748b', fontVariantNumeric: 'tabular-nums' }}>{fmtP(g.items.reduce((s, x) => s + x.costoFinal, 0))}</td>
                           <td />
-                          <td style={{ padding: '0.45rem 0.7rem', textAlign: 'right', fontSize: '0.76rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>{fmtUcompact(g.items.reduce((s, x) => s + x.totalUSD, 0))}</td>
+                          <td style={{ padding: '0.45rem 0.7rem', textAlign: 'right', fontSize: '0.76rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}><span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#94a3b8' }}>USD </span>{fmtUcompact(g.items.reduce((s, x) => s + x.totalUSD, 0))}</td>
                           <td colSpan={2} style={{ padding: '0.45rem 0.7rem', fontSize: '0.64rem', color: '#94a3b8', whiteSpace: 'nowrap' }}>{g.items.filter(x => x.cb.cobrado).length}/{g.items.length} cobrados</td>
                         </tr>
                       )}
@@ -1162,7 +1164,17 @@ function OperationDetail({ op, onBack }) {
                             ? <span title={p.tcInherited ? 'TC heredado de la operación (este proveedor no tiene VEP/TC propio)' : undefined} style={p.tcInherited ? { fontStyle: 'italic', color: '#cbd5e1' } : undefined}>{p.tcUsed}{p.tcInherited ? '*' : ''}</span>
                             : '—'}
                         </td>
-                        <td style={{ padding: '0.7rem', textAlign: 'right', fontWeight: 700, color: '#1e293b', fontVariantNumeric: 'tabular-nums' }}>{p.totalUSD > 0 ? fmtUcompact(p.totalUSD) : '—'}</td>
+                        <td style={{ padding: '0.7rem', textAlign: 'right', fontWeight: 700, color: '#1e293b', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                          {p.totalUSD > 0 ? fmtUcompact(p.totalUSD) : '—'}
+                          {(() => {
+                            // Puente AR$→USD: gastos convertidos + servicios (honorarios, adic., giro, ganancia).
+                            const gastos = Math.round((p.gastosUSD + p.origenUSD) * 100) / 100;
+                            const serv = Math.round((p.totalUSD - gastos) * 100) / 100;
+                            return p.totalUSD > 0 && serv > 0 ? (
+                              <span style={{ display: 'block', fontSize: '0.58rem', fontWeight: 500, color: '#94a3b8', marginTop: 2 }}>{fmtUcompact(gastos)} gastos + {fmtUcompact(serv)} serv.</span>
+                            ) : null;
+                          })()}
+                        </td>
                         <td style={{ padding: '0.7rem' }}>
                           {isCobrado ? (
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#16a34a', fontSize: '0.72rem', fontWeight: 600 }}>
@@ -1282,6 +1294,101 @@ function OperationDetail({ op, onBack }) {
               </div>
             )}
           </div>
+
+          {/* Tu bolsillo: cash puesto por Brandon y cuánto ya volvió vía cobranzas */}
+          {(() => {
+            const conCash = calc.perProv.filter(p => p.cashUSD > 0);
+            if (!conCash.length && calc.cash <= 0) return null;
+            const puse   = conCash.reduce((s, p) => s + p.cashUSD, 0);
+            const vuelto = conCash.reduce((s, p) => s + (p.cb.cobrado ? p.cashUSD : 0), 0);
+            const falta  = Math.round((puse - vuelto) * 100) / 100;
+            const pctRec = puse > 0 ? (vuelto / puse) * 100 : 0;
+            return (
+              <div style={CARD}>
+                <div style={{ padding: '0.75rem 0.95rem', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: '0.85rem' }}>🪙</span>
+                  <p style={{ fontSize: '0.82rem', fontWeight: 700 }}>Tu bolsillo · cash</p>
+                </div>
+                <div style={{ padding: '0.7rem 0.95rem 0.9rem', display: 'flex', flexDirection: 'column', gap: 6, fontSize: '0.74rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#94a3b8' }}>Pusiste</span>
+                    <span style={{ fontWeight: 700, color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>{fmtU(puse)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.64rem', color: '#94a3b8', marginTop: -4 }}>
+                    <span />
+                    <span>{fmtP(calc.cash)} en gastos cash</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#94a3b8' }}>Recuperado (cobrado)</span>
+                    <span style={{ fontWeight: 700, color: '#059669', fontVariantNumeric: 'tabular-nums' }}>{fmtU(vuelto)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 6, borderTop: '1px solid #f1f5f9' }}>
+                    <span style={{ color: '#94a3b8' }}>Te falta recuperar</span>
+                    <span style={{ fontWeight: 800, color: falta > 0 ? '#d97706' : '#059669', fontVariantNumeric: 'tabular-nums' }}>{falta > 0 ? fmtU(falta) : 'Todo ✓'}</span>
+                  </div>
+                  <div style={{ height: 4, background: '#e8ecf1', borderRadius: 99, overflow: 'hidden' }}>
+                    <div style={{ width: `${Math.min(pctRec, 100)}%`, height: '100%', background: '#059669', borderRadius: 99 }} />
+                  </div>
+                  <p style={{ fontSize: '0.62rem', color: '#94a3b8', lineHeight: 1.45 }}>
+                    Lo que pagaste de tu bolsillo va dentro del &quot;A cobrar&quot; de cada cliente y vuelve cuando pagan.
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Despachante: lo que LE PAGÁS por este despacho vs lo que LE COBRÁS al cliente */}
+          {op.bl && (() => {
+            const adicCobrados = calc.perProv.reduce((s, p) => s + n(p.cb.despAdic), 0);
+            const d = despacho;
+            const hon   = d ? numDesp(d.total_honorarios) : 0;
+            const adic  = d ? numDesp(d.adu_extras) + numDesp(d.otros_gastos) : 0;
+            const pag   = d ? numDesp(d.total_pagado) : 0;
+            const saldo = d ? numDesp(d.saldo) : 0;
+            return (
+              <div style={CARD}>
+                <div style={{ padding: '0.75rem 0.95rem', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                  <p style={{ fontSize: '0.82rem', fontWeight: 700 }}>Despachante</p>
+                  <a href="/gestion/despachante" style={{ fontSize: '0.64rem', fontWeight: 700, color: '#2563eb', textDecoration: 'none' }}>Ver cuenta →</a>
+                </div>
+                {d ? (
+                  <div style={{ padding: '0.7rem 0.95rem 0.9rem', display: 'flex', flexDirection: 'column', gap: 6, fontSize: '0.74rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#94a3b8' }}>Honorarios (total)</span>
+                      <span style={{ fontWeight: 700, color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>{fmtU(hon)}</span>
+                    </div>
+                    {adic > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.64rem', color: '#94a3b8', marginTop: -4 }}>
+                        <span>incluye adicionales (aduana + otros)</span>
+                        <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtU(adic)}</span>
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#94a3b8' }}>Le pagaste</span>
+                      <span style={{ fontWeight: 700, color: '#059669', fontVariantNumeric: 'tabular-nums' }}>{fmtU(pag)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 6, borderTop: '1px solid #f1f5f9' }}>
+                      <span style={{ color: '#94a3b8' }}>Saldo</span>
+                      <span style={{ fontWeight: 800, color: saldo > 0 ? '#dc2626' : '#059669', fontVariantNumeric: 'tabular-nums' }}>{saldo > 0 ? `Le debés ${fmtU(saldo)}` : saldo < 0 ? `A tu favor ${fmtU(-saldo)}` : 'Saldado ✓'}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', background: '#f8fafc', border: '1px solid #e8ecf1', borderRadius: 6, padding: '0.4rem 0.55rem' }}>
+                      <span style={{ color: '#64748b', fontSize: '0.66rem' }}>Adic. que cobrás a clientes</span>
+                      <span style={{ fontWeight: 700, color: '#334155', fontSize: '0.7rem', fontVariantNumeric: 'tabular-nums' }}>{fmtU(adicCobrados)}</span>
+                    </div>
+                    {adic > adicCobrados && (
+                      <p style={{ fontSize: '0.62rem', color: '#9a3412', background: '#fff4ee', border: '1px solid #fed7aa', borderRadius: 6, padding: '0.35rem 0.5rem', lineHeight: 1.4 }}>
+                        ⚠ Los adicionales que pagás ({fmtU(adic)}) superan lo que les cobrás a los clientes ({fmtU(adicCobrados)}) — revisá &quot;Desp. adic.&quot; en cada proveedor.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ padding: '0.7rem 0.95rem 0.9rem' }}>
+                    <p style={{ fontSize: '0.7rem', color: '#94a3b8', lineHeight: 1.5 }}>Sin despacho cargado para este B/L. Cargalo en <a href="/gestion/despachante" style={{ color: '#2563eb', fontWeight: 700, textDecoration: 'none' }}>Despachante</a> para ver acá lo que le debés.</p>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Cotizado vs a cobrar (si la operación vino de una cotización) */}
           {detail.totalCotizadoUsd ? (() => {
@@ -1543,14 +1650,12 @@ function EstadoCuentaModal({ group, op, onClose }) {
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.25rem' }}>
       <div className="estado-cuenta-sheet" onClick={e => e.stopPropagation()} style={{ background: '#fff', width: '100%', maxWidth: 700, borderRadius: 14, boxShadow: '0 30px 80px rgba(0,0,0,0.3)', maxHeight: '92vh', overflowY: 'auto' }}>
 
-        {/* encabezado con marca */}
-        <div style={{ background: '#0f172a', color: '#fff', padding: '1.1rem 1.6rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <div>
-            <p style={{ fontSize: '0.95rem', fontWeight: 800, letterSpacing: '0.04em' }}>TRANSTIDE FREIGHT</p>
-            <p style={{ fontSize: '0.62rem', color: '#94a3b8' }}>transtidefreight.com</p>
-          </div>
+        {/* encabezado con marca — mismo branding que la cotización imprimible */}
+        <div style={{ background: '#fff', padding: '1rem 1.6rem 0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', borderBottom: '3px solid #ea580c', borderRadius: '14px 14px 0 0' }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/images/transtide-logo-full.png" alt="Transtide Freight" style={{ height: 30, width: 'auto' }} />
           <div style={{ textAlign: 'right' }}>
-            <p style={{ fontSize: '0.72rem', fontWeight: 700, color: '#7dd3fc', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Estado de cuenta</p>
+            <p style={{ fontSize: '0.72rem', fontWeight: 800, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Estado de cuenta</p>
             <p style={{ fontSize: '0.62rem', color: '#94a3b8' }}>{hoy}</p>
           </div>
         </div>
@@ -2019,7 +2124,7 @@ function ExpandedDetail({ p, clientes, onCreateCliente, onUpdProveedor, onUpdCob
               <div>
                 <p style={LBL_E}>Desp. adic. USD</p>
                 <input type="number" inputMode="decimal" step="any" value={p.cb.despAdic || ''} onChange={e => onUpdCobrar('despAdic', e.target.value)} placeholder="0" style={{ ...INP_E, textAlign: 'right' }} />
-                <p style={HINT}>extras del despachante</p>
+                <p style={HINT}>extras del despachante que LE COBRÁS a este cliente · lo que vos le pagás está en la tarjeta Despachante →</p>
               </div>
             </div>
 
