@@ -1124,9 +1124,8 @@ function OperationDetail({ op, onBack }) {
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                               <span>{g.key} <span style={{ fontWeight: 600, color: '#94a3b8', textTransform: 'none', letterSpacing: 0 }}>· {g.items.length} proveedor{g.items.length === 1 ? '' : 'es'}</span></span>
                               {g.key !== 'Propio' && (
-                                <button onClick={() => setEstadoCuenta(g)} title="Resumen limpio para enviar al cliente (captura o PDF)" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '0.16rem 0.5rem', borderRadius: 5, border: '1px solid #cbd5e1', background: '#fff', color: '#334155', fontSize: '0.6rem', fontWeight: 700, cursor: 'pointer', textTransform: 'none', letterSpacing: 0 }}>
-                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                                  Estado de cuenta
+                                <button onClick={() => setEstadoCuenta(g)} title="Hoja SIN ganancia, TC ni pesos internos — segura para captura o PDF" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '0.16rem 0.5rem', borderRadius: 5, border: '1px solid #fdba74', background: '#fff7ed', color: '#c2410c', fontSize: '0.6rem', fontWeight: 700, cursor: 'pointer', textTransform: 'none', letterSpacing: 0 }}>
+                                  📸 Resumen p/ cliente
                                 </button>
                               )}
                             </span>
@@ -1647,8 +1646,12 @@ function EstadoCuentaModal({ group, op, onClose }) {
   const TD = { padding: '0.5rem 0.65rem', borderBottom: '1px solid #f1f5f9', fontSize: '0.78rem', fontVariantNumeric: 'tabular-nums' };
 
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.25rem' }}>
-      <div className="estado-cuenta-sheet" onClick={e => e.stopPropagation()} style={{ background: '#fff', width: '100%', maxWidth: 700, borderRadius: 14, boxShadow: '0 30px 80px rgba(0,0,0,0.3)', maxHeight: '92vh', overflowY: 'auto' }}>
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 1200, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '1.25rem' }}>
+      {/* Pill FUERA de la hoja blanca: no sale en la impresión ni en una captura recortada de la hoja. */}
+      <div className="no-print" onClick={e => e.stopPropagation()} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#052e16', border: '1px solid #16a34a', color: '#bbf7d0', borderRadius: 999, padding: '0.4rem 0.9rem', fontSize: '0.72rem', fontWeight: 700 }}>
+        ✓ Vista segura para el cliente — sin tu ganancia, TC ni pesos internos. Capturá la hoja blanca o tocá Imprimir / PDF.
+      </div>
+      <div className="estado-cuenta-sheet" onClick={e => e.stopPropagation()} style={{ background: '#fff', width: '100%', maxWidth: 700, borderRadius: 14, boxShadow: '0 30px 80px rgba(0,0,0,0.3)', maxHeight: '88vh', overflowY: 'auto' }}>
 
         {/* encabezado con marca — mismo branding que la cotización imprimible */}
         <div style={{ background: '#fff', padding: '1rem 1.6rem 0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', borderBottom: '3px solid #ea580c', borderRadius: '14px 14px 0 0' }}>
