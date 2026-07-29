@@ -84,24 +84,114 @@ function printInPage(html) {
   }
 }
 
-// Imprime el contenido (innerHTML) de un elemento del DOM, preservando estilos inline.
-function printElement(elementId, title = 'Cotización') {
-  try {
-  const el = document.getElementById(elementId);
-  if (!el) return;
-  const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>${title}</title>
-    <style>
-      @page { margin: 14mm; size: A4; }
-      * { box-sizing: border-box; }
-      body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; color: #1e293b; }
-      @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-    </style></head><body>${el.innerHTML}</body></html>`;
-  printHTML(html);
-  } catch (e) {
-    console.error('print build failed', e);
-    gToast.error('No se pudo armar el documento: ' + (e.message || e));
-  }
+// ─── documento imprimible de cotización ──────────────────────────────────────
+// UN SOLO generador para marítimo y aéreo: A4 apaisado, dos columnas y paleta de
+// marca. Todo cambio de formato aplica a los dos cotizadores a la vez — no
+// duplicar plantillas (el aéreo había quedado con un formato propio).
+const qFmt = (v) => '$ ' + (Math.round((parseFloat(v) || 0) * 100) / 100).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// Los % vienen del estado del form y pueden ser STRING (una cotización guardada
+// los restaura como texto): parsear siempre antes de formatear.
+const qPct = (v) => (parseFloat(v) || 0).toFixed(1) + '%';
+
+function qRow(label, val, opts = {}) {
+  const bg = opts.highlight ? '#fff4ee' : 'transparent';
+  const size = opts.bold ? '0.9' : '0.84';
+  const weight = opts.bold ? 700 : opts.semibold ? 600 : 400;
+  return `<tr style="background:${bg};">
+    <td style="padding:7px 12px;font-size:${size}rem;font-weight:${weight};color:${opts.sub ? '#64748b' : opts.bold ? '#1e293b' : '#374151'};border-bottom:1px solid #f1f5f9;">${label}</td>
+    <td style="padding:7px 12px;text-align:right;font-size:${size}rem;font-weight:${weight};color:${opts.sub ? '#64748b' : opts.bold ? '#1e293b' : '#374151'};border-bottom:1px solid #f1f5f9;">${val}</td>
+  </tr>`;
 }
+
+// Sección con título acentuado; se omite entera si no tiene filas visibles.
+function qSection(title, rows) {
+  const filas = (rows || []).filter(Boolean).join('');
+  if (!filas) return '';
+  const divider = `<tr><td colspan="2" style="padding:10px 12px 5px;font-size:0.65rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;border-bottom:2px solid #e2e8f0;"><span style="border-left:3px solid #ea580c;padding-left:8px;">${title}</span></td></tr>`;
+  return `<table class="sec" style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:12px;">${divider}${filas}</table>`;
+}
+
+function buildQuoteHTML({ titulo, cliente, fecha, subtitulo, descripcion, clasificacion, izq, der, precio, footer }) {
+  const cols = (arr) => (arr || []).filter(Boolean).join('');
+  const chipTxt = [
+    descripcion ? `<strong style="color:#9a3412;font-size:0.72rem;">Descripción:</strong> ${descripcion}` : '',
+    clasificacion ? `<strong style="color:#9a3412;font-size:0.72rem;">Posición arancelaria:</strong> ${clasificacion}` : '',
+    subtitulo ? `<strong style="color:#9a3412;font-size:0.72rem;">Servicio:</strong> ${subtitulo}` : '',
+  ].filter(Boolean).join(' &nbsp;·&nbsp; ');
+
+  const banda = precio.unico
+    ? `<tr><td style="padding:14px 20px;background:#0f172a;border-radius:10px;">
+         <div style="font-size:0.65rem;font-weight:700;color:#fb923c;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:5px;">Precio Final</div>
+         <div style="font-size:1.5rem;font-weight:800;color:#ffffff;line-height:1;">${qFmt(precio.conFactura)}</div>
+         <div style="font-size:0.7rem;color:#94a3b8;margin-top:4px;">Honorarios ${qFmt(precio.honorarios)} incluidos</div>
+       </td></tr>`
+    : `<tr>
+         <td style="padding:14px 20px;background:#0f172a;border-radius:10px 0 0 10px;width:50%;">
+           <div style="font-size:0.65rem;font-weight:700;color:#fb923c;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:5px;">Precio Final CON Factura</div>
+           <div style="font-size:1.5rem;font-weight:800;color:#ffffff;line-height:1;">${qFmt(precio.conFactura)}</div>
+           <div style="font-size:0.7rem;color:#94a3b8;margin-top:4px;">Hon. ${qFmt(precio.honorarios)} + Gs.Fac. ${qFmt(precio.gastFac)}</div>
+         </td>
+         <td style="width:8px;"></td>
+         <td style="padding:14px 20px;background:#ea580c;border-radius:0 10px 10px 0;width:50%;">
+           <div style="font-size:0.65rem;font-weight:700;color:#ffedd5;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:5px;">Precio Final SIN Factura</div>
+           <div style="font-size:1.5rem;font-weight:800;color:#ffffff;line-height:1;">${qFmt(precio.sinFactura)}</div>
+           <div style="font-size:0.7rem;color:#ffedd5;margin-top:4px;">Ahorro para el cliente: ${qFmt(precio.gastFac)}</div>
+         </td>
+       </tr>`;
+
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+    <title>${titulo} - ${cliente || 'Cliente'}</title>
+    <style>
+      @page { margin: 10mm 14mm; size: A4 landscape; }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; color: #1e293b; background: #fff; }
+      .page { max-width: 1060px; margin: 0 auto; }
+      table { width: 100%; border-collapse: collapse; }
+      .sec { break-inside: avoid; page-break-inside: avoid; }
+      @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+    </style></head><body>
+    <div class="page">
+
+      <table class="sec" style="margin-bottom:12px;">
+        <tr>
+          <td style="width:28%;">
+            <img src="/images/transtide-logo-full.png" alt="Transtide Freight" style="height:36px;width:auto;display:block;" />
+            <div style="font-size:0.68rem;color:#94a3b8;margin-top:3px;">Gestión Logística &amp; Importaciones</div>
+          </td>
+          <td style="text-align:center;">
+            <div style="display:inline-block;background:#0f172a;border-radius:8px;padding:8px 22px;">
+              <span style="font-size:0.95rem;font-weight:800;color:#fff;">${titulo}</span>${cliente ? `<span style="font-size:0.85rem;color:#94a3b8;"> · <strong style="color:#fb923c;">${cliente}</strong></span>` : ''}
+            </div>
+          </td>
+          <td style="width:16%;text-align:right;vertical-align:top;">
+            <div style="font-size:0.68rem;color:#94a3b8;">Fecha de cotización</div>
+            <div style="font-size:0.85rem;font-weight:600;color:#475569;">${fecha}</div>
+          </td>
+        </tr>
+      </table>
+
+      ${chipTxt ? `<div class="sec" style="background:#fff4ee;border:1px solid #fed7aa;border-radius:8px;padding:7px 14px;margin-bottom:12px;font-size:0.78rem;color:#1e293b;">${chipTxt}</div>` : ''}
+
+      <table style="margin-bottom:12px;"><tr>
+        <td style="width:49.5%;vertical-align:top;">${cols(izq)}</td>
+        <td style="width:1%;"></td>
+        <td style="width:49.5%;vertical-align:top;">${cols(der)}</td>
+      </tr></table>
+
+      <table class="sec" style="margin-bottom:10px;border-radius:10px;overflow:hidden;">${banda}</table>
+
+      <div class="sec" style="border-top:1px solid #e2e8f0;padding-top:8px;">
+        <p style="font-size:0.66rem;color:#94a3b8;line-height:1.45;">${footer}</p>
+      </div>
+    </div>
+    </body></html>`;
+}
+
+// Leyenda legal — misma cobertura en marítimo y aéreo; el aéreo suma chargeable.
+const LEYENDA_BASE = 'Los valores se calculan sobre la base de tarifas, tipo de cambio y normativa vigentes a la fecha de emisión, y el importe definitivo se confirmará al momento del despacho, pudiendo variar según: (i) el tipo de cambio oficial al momento del despacho; (ii) el flete internacional, cuya tarifa puede ajustarse hasta la fecha efectiva de embarque; (iii) actualizaciones arancelarias, impositivas o normativas; (iv) condiciones del proveedor en origen; y (v) contingencias operativas o aduaneras ajenas a Transtide, tales como asignación de canal rojo o naranja, verificaciones físicas, escaneos, almacenajes, estadías o demoras. De producirse alguna de estas variaciones, la diferencia se trasladará al costo final, con la documentación respaldatoria correspondiente. La presente cotización no constituye una oferta en firme, tiene validez de 7 días hábiles desde su emisión y comprende únicamente los conceptos aquí detallados; todo servicio no incluido se cotiza por separado.';
+const LEYENDA_MAR = '* Cotización de carácter estimativo y no final, expresada en dólares estadounidenses (USD). ' + LEYENDA_BASE;
+const LEYENDA_AER = '* Cotización aérea de carácter estimativo y no final, expresada en dólares estadounidenses (USD). Chargeable weight = máx(peso real, peso volumétrico). ' + LEYENDA_BASE;
+
 
 // ─── estados (saved quotes) ─────────────────────────────────────────────────────
 const ESTADOS = [
@@ -680,128 +770,49 @@ function CotizadorMaritimo() {
   // ─── print client quote ───────────────────────────────────────────────────
   const printClienteQuote = () => {
     try {
-    const today = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    const fmt = (v) => '$ ' + (Math.round(v * 100) / 100).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    // n(): los % vienen del estado del form y pueden ser STRING (cotizaciones
-    // reactivadas los restauran como texto) — sin esto, .toFixed explotaba y el
-    // botón de imprimir moría en silencio con cualquier cotización cargada.
-    const pct = (v) => n(v).toFixed(1) + '%';
-    const row = (label, val, opts = {}) => {
-      const color = opts.bold ? '#1e293b' : opts.sub ? '#475569' : '#374151';
-      const bg = opts.highlight ? '#fff4ee' : opts.total ? '#0f172a' : 'transparent';
-      const txtColor = opts.total ? '#ffffff' : color;
-      return `<tr style="background:${bg};">
-        <td style="padding:7px 12px;font-size:${opts.bold||opts.total?'0.9':'0.84'}rem;font-weight:${opts.bold||opts.total?700:400};color:${opts.sub?'#64748b':txtColor};border-bottom:1px solid #f1f5f9;">${label}</td>
-        <td style="padding:7px 12px;text-align:right;font-size:${opts.bold||opts.total?'0.9':'0.84'}rem;font-weight:${opts.bold||opts.total?700:opts.semibold?600:400};color:${opts.total?'#ffffff':opts.bold?'#1e293b':'#374151'};border-bottom:1px solid #f1f5f9;">${val}</td>
-      </tr>`;
-    };
-    const divider = (label) => `<tr><td colspan="2" style="padding:10px 12px 5px;font-size:0.65rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;border-bottom:2px solid #e2e8f0;"><span style="border-left:3px solid #ea580c;padding-left:8px;">${label}</span></td></tr>`;
-
-    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
-    <title>Cotización - ${cliente || 'Cliente'}</title>
-    <style>
-      @page { margin: 10mm 14mm; size: A4 landscape; }
-      * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; color: #1e293b; background: #fff; }
-      .page { max-width: 1060px; margin: 0 auto; }
-      table { width: 100%; border-collapse: collapse; }
-      .sec { break-inside: avoid; page-break-inside: avoid; }
-      @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-    </style></head><body>
-    <div class="page">
-
-      <!-- HEADER: una sola fila — logo · título+cliente · fecha (lectura horizontal) -->
-      <table class="sec" style="margin-bottom:12px;">
-        <tr>
-          <td style="width:28%;">
-            <img src="/images/transtide-logo-full.png" alt="Transtide Freight" style="height:36px;width:auto;display:block;" />
-            <div style="font-size:0.68rem;color:#94a3b8;margin-top:3px;">Gestión Logística & Importaciones</div>
-          </td>
-          <td style="text-align:center;">
-            <div style="display:inline-block;background:#0f172a;border-radius:8px;padding:8px 22px;">
-              <span style="font-size:0.95rem;font-weight:800;color:#fff;">COTIZACIÓN DE IMPORTACIÓN</span>${cliente ? `<span style="font-size:0.85rem;color:#94a3b8;"> · <strong style="color:#fb923c;">${cliente}</strong></span>` : ''}
-            </div>
-          </td>
-          <td style="width:16%;text-align:right;vertical-align:top;">
-            <div style="font-size:0.68rem;color:#94a3b8;">Fecha de cotización</div>
-            <div style="font-size:0.85rem;font-weight:600;color:#475569;">${today}</div>
-          </td>
-        </tr>
-      </table>
-
-      ${(descripcion || clasificacion) ? `
-      <div class="sec" style="background:#fff4ee;border:1px solid #fed7aa;border-radius:8px;padding:7px 14px;margin-bottom:12px;font-size:0.78rem;color:#1e293b;">
-        ${descripcion ? `<strong style="color:#9a3412;font-size:0.72rem;">Descripción:</strong> ${descripcion}` : ''}${descripcion && clasificacion ? ' &nbsp;·&nbsp; ' : ''}${clasificacion ? `<strong style="color:#9a3412;font-size:0.72rem;">Posición arancelaria:</strong> ${clasificacion}` : ''}
-      </div>` : ''}
-
-      <!-- DOS COLUMNAS: base+locales (izq) · aranceles+totales (der) -->
-      <table style="margin-bottom:12px;"><tr>
-        <td style="width:49.5%;vertical-align:top;">
-          <table class="sec" style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:12px;">
-            ${divider('Base de la Importación')}
-            ${row('Valor de Mercadería (FOB Declarado)', fmt(c.fobDC))}
-            ${row('Flete Internacional', fmt(n(fleteCli)))}
-            ${row('Seguro Marítimo (1% FOB)', fmt(c.segC))}
-            ${row('CIF — Base Arancelaria', fmt(c.cifC), { bold: true, highlight: true })}
-          </table>
-          ${(c.desC > 0 || c.terC > 0 || c.navC > 0 || c.logC > 0) ? `
-          <table class="sec" style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
-            ${divider('Gastos Locales')}
-            ${c.desC > 0 ? row('Despachante de Aduana', fmt(c.desC)) : ''}
-            ${c.terC > 0 ? row('Terminal Portuaria', fmt(c.terC)) : ''}
-            ${c.navC > 0 ? row('Naviera', fmt(c.navC)) : ''}
-            ${c.logC > 0 ? row('Logística Interna', fmt(c.logC)) : ''}
-          </table>` : ''}
-        </td>
-        <td style="width:1%;"></td>
-        <td style="width:49.5%;vertical-align:top;">
-          <table class="sec" style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:12px;">
-            ${divider('Aranceles Aduaneros')}
-            ${row(`Derechos de Importación (${pct(pDer)})`, fmt(c.derC))}
-            ${n(pTas) > 0 ? row(`Tasa Estadística (${pct(pTas)})`, fmt(c.tasC)) : ''}
-            ${row('Base IVA', fmt(c.bivC), { sub: true })}
-            ${row(`IVA (${pct(pIva)})`, fmt(c.ivaC))}
-            ${c.ivaAC > 0 ? row(`IVA Adicional (${pct(pIvaA)})`, fmt(c.ivaAC)) : ''}
-            ${c.ganC > 0 ? row(`Percepción Ganancias (${pct(pGan)})`, fmt(c.ganC)) : ''}
-            ${c.iibbC > 0 ? row(`Percepción IIBB (${pct(pIIBB)})`, fmt(c.iibbC)) : ''}
-          </table>
-          <table class="sec" style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
-            ${divider('Totales')}
-            ${row('Costo Total CON IVA', fmt(c.totConC), { bold: true })}
-            ${row('Costo Total SIN IVA', fmt(c.totSinC), { sub: true })}
-            ${row(c.honMinAplica ? 'Honorarios del Servicio' : `Honorarios del Servicio (${pct(pHon)})`, fmt(c.honorarios))}
-            ${c.gastFac > 0 ? row(`Gastos de Facturación (${pct(pFac)})`, fmt(c.gastFac), { sub: true }) : ''}
-          </table>
-        </td>
-      </tr></table>
-
-      <!-- PRECIO FINAL — bloque protegido contra cortes de página -->
-      <table class="sec" style="margin-bottom:10px;border-radius:10px;overflow:hidden;">
-        <tr>
-          <td style="padding:14px 20px;background:#0f172a;border-radius:10px 0 0 10px;width:50%;">
-            <div style="font-size:0.65rem;font-weight:700;color:#fb923c;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:5px;">Precio Final CON Factura</div>
-            <div style="font-size:1.5rem;font-weight:800;color:#ffffff;line-height:1;">${fmt(c.precioConF)}</div>
-            <div style="font-size:0.7rem;color:#94a3b8;margin-top:4px;">Hon. ${fmt(c.honorarios)} + Gs.Fac. ${fmt(c.gastFac)}</div>
-          </td>
-          <td style="width:8px;"></td>
-          <td style="padding:14px 20px;background:#ea580c;border-radius:0 10px 10px 0;width:50%;">
-            <div style="font-size:0.65rem;font-weight:700;color:#ffedd5;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:5px;">Precio Final SIN Factura</div>
-            <div style="font-size:1.5rem;font-weight:800;color:#ffffff;line-height:1;">${fmt(c.precioSinF)}</div>
-            <div style="font-size:0.7rem;color:#ffedd5;margin-top:4px;">Ahorro para el cliente: ${fmt(c.gastFac)}</div>
-          </td>
-        </tr>
-      </table>
-
-      <!-- FOOTER -->
-      <div class="sec" style="border-top:1px solid #e2e8f0;padding-top:8px;">
-        <p style="font-size:0.66rem;color:#94a3b8;line-height:1.45;">
-          * Cotización de carácter estimativo y no final, expresada en dólares estadounidenses (USD). Los valores se calculan sobre la base de tarifas, tipo de cambio y normativa vigentes a la fecha de emisión, y el importe definitivo se confirmará al momento del despacho, pudiendo variar según: (i) el tipo de cambio oficial al momento del despacho; (ii) el flete internacional, cuya tarifa puede ajustarse hasta la fecha efectiva de embarque; (iii) actualizaciones arancelarias, impositivas o normativas; (iv) condiciones del proveedor en origen; y (v) contingencias operativas o aduaneras ajenas a Transtide, tales como asignación de canal rojo o naranja, verificaciones físicas, escaneos, almacenajes, estadías o demoras. De producirse alguna de estas variaciones, la diferencia se trasladará al costo final, con la documentación respaldatoria correspondiente. La presente cotización no constituye una oferta en firme, tiene validez de 7 días hábiles desde su emisión y comprende únicamente los conceptos aquí detallados; todo servicio no incluido se cotiza por separado.
-        </p>
-      </div>
-    </div>
-    </body></html>`;
-
-    printHTML(html);
+      const today = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const html = buildQuoteHTML({
+        titulo: 'COTIZACIÓN DE IMPORTACIÓN',
+        cliente, fecha: today, descripcion, clasificacion,
+        izq: [
+          qSection('Base de la Importación', [
+            qRow('Valor de Mercadería (FOB Declarado)', qFmt(c.fobDC)),
+            qRow('Flete Internacional', qFmt(n(fleteCli))),
+            qRow('Seguro Marítimo (1% FOB)', qFmt(c.segC)),
+            qRow('CIF — Base Arancelaria', qFmt(c.cifC), { bold: true, highlight: true }),
+          ]),
+          qSection('Gastos Locales', [
+            c.desC > 0 ? qRow('Despachante de Aduana', qFmt(c.desC)) : '',
+            c.terC > 0 ? qRow('Terminal Portuaria', qFmt(c.terC)) : '',
+            c.navC > 0 ? qRow('Naviera', qFmt(c.navC)) : '',
+            c.logC > 0 ? qRow('Logística Interna', qFmt(c.logC)) : '',
+          ]),
+        ],
+        der: [
+          qSection('Aranceles Aduaneros', [
+            qRow(`Derechos de Importación (${qPct(pDer)})`, qFmt(c.derC)),
+            n(pTas) > 0 ? qRow(`Tasa Estadística (${qPct(pTas)})`, qFmt(c.tasC)) : '',
+            qRow('Base IVA', qFmt(c.bivC), { sub: true }),
+            qRow(`IVA (${qPct(pIva)})`, qFmt(c.ivaC)),
+            c.ivaAC > 0 ? qRow(`IVA Adicional (${qPct(pIvaA)})`, qFmt(c.ivaAC)) : '',
+            c.ganC > 0 ? qRow(`Percepción Ganancias (${qPct(pGan)})`, qFmt(c.ganC)) : '',
+            c.iibbC > 0 ? qRow(`Percepción IIBB (${qPct(pIIBB)})`, qFmt(c.iibbC)) : '',
+          ]),
+          qSection('Totales', [
+            qRow('Costo Total CON IVA', qFmt(c.totConC), { bold: true }),
+            qRow('Costo Total SIN IVA', qFmt(c.totSinC), { sub: true }),
+            qRow(c.honMinAplica ? 'Honorarios del Servicio' : `Honorarios del Servicio (${qPct(pHon)})`, qFmt(c.honorarios)),
+            c.gastFac > 0 ? qRow(`Gastos de Facturación (${qPct(pFac)})`, qFmt(c.gastFac), { sub: true }) : '',
+          ]),
+        ],
+        precio: {
+          unico: usaSociedadPropia, // con sociedad del cliente no hay gastos de facturación
+          conFactura: c.precioConF, sinFactura: c.precioSinF,
+          honorarios: c.honorarios, gastFac: c.gastFac,
+        },
+        footer: LEYENDA_MAR,
+      });
+      printHTML(html);
     } catch (e) {
       console.error('print build failed', e);
       gToast.error('No se pudo armar el documento: ' + (e.message || e));
@@ -1839,6 +1850,60 @@ function CotizadorAereo() {
     ? [['cliente_fob','Cotización cliente'],['real_fob','Mis costos reales'],['aranceles','Aranceles'],['cierre','Cierre']]
     : [['real_fob','Mis costos'],['aranceles','Aranceles'],['venta','Precio de venta']];
 
+  // ─── print client quote (mismo documento que marítimo) ────────────────────
+  const printClienteQuote = () => {
+    try {
+      const today = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const html = buildQuoteHTML({
+        titulo: 'COTIZACIÓN DE IMPORTACIÓN AÉREA',
+        cliente, fecha: today, descripcion, clasificacion,
+        subtitulo: `Chargeable ${chargeable.toFixed(2)} kg (${n(m3Input).toFixed(2)} m³ · ${n(pesoReal).toFixed(2)} kg real)`,
+        izq: [
+          qSection('Base de la Importación', [
+            qRow('Valor de Mercadería (FOB Declarado)', qFmt(c.fobDC)),
+            qRow(`Flete Aéreo (${chargeable.toFixed(2)} kg chargeable)`, qFmt(c.fleteC)),
+            qRow('Seguro (1% FOB)', qFmt(c.segC)),
+            qRow('CIF — Base Arancelaria', qFmt(c.cifC), { bold: true, highlight: true }),
+          ]),
+          qSection('Gastos Aeroportuarios', [
+            c.awbCv > 0 ? qRow('AWB', qFmt(c.awbCv)) : '',
+            c.handCv > 0 ? qRow('Handling', qFmt(c.handCv)) : '',
+            c.terCv > 0 ? qRow('Terminal Aérea', qFmt(c.terCv)) : '',
+            c.desCv > 0 ? qRow('Despachante de Aduana', qFmt(c.desCv)) : '',
+            c.traCv > 0 ? qRow('Transporte Interno', qFmt(c.traCv)) : '',
+          ]),
+        ],
+        der: [
+          qSection('Aranceles Aduaneros', [
+            qRow(`Derechos de Importación (${qPct(pDer)})`, qFmt(c.derC)),
+            n(pTas) > 0 ? qRow(`Tasa Estadística (${qPct(pTas)})`, qFmt(c.tasC)) : '',
+            qRow('Base IVA', qFmt(c.bivC), { sub: true }),
+            qRow(`IVA (${qPct(pIva)})`, qFmt(c.ivaC)),
+            c.ivaAC > 0 ? qRow(`IVA Adicional (${qPct(pIvaA)})`, qFmt(c.ivaAC)) : '',
+            c.ganC > 0 ? qRow(`Percepción Ganancias (${qPct(pGan)})`, qFmt(c.ganC)) : '',
+            c.iibbC > 0 ? qRow(`Percepción IIBB (${qPct(pIIBB)})`, qFmt(c.iibbC)) : '',
+          ]),
+          qSection('Totales', [
+            qRow('Costo Total CON IVA', qFmt(c.totConC), { bold: true }),
+            qRow('Costo Total SIN IVA', qFmt(c.totSinC), { sub: true }),
+            qRow(c.honMinAplica ? 'Honorarios del Servicio' : `Honorarios del Servicio (${qPct(pHon)})`, qFmt(c.honorarios)),
+            c.gastFac > 0 ? qRow(`Gastos de Facturación (${qPct(pFac)})`, qFmt(c.gastFac), { sub: true }) : '',
+          ]),
+        ],
+        precio: {
+          unico: usaSociedadPropia,
+          conFactura: c.precioConF, sinFactura: c.precioSinF,
+          honorarios: c.honorarios, gastFac: c.gastFac,
+        },
+        footer: LEYENDA_AER,
+      });
+      printHTML(html);
+    } catch (e) {
+      console.error('print build failed', e);
+      gToast.error('No se pudo armar el documento: ' + (e.message || e));
+    }
+  };
+
   return (
     <div style={{ paddingBottom: '3rem' }}>
 
@@ -2330,7 +2395,7 @@ function CotizadorAereo() {
                 <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#1e293b' }}>Cotización Aérea al Cliente</h3>
               </div>
               <div style={{ display: 'flex', gap: '0.6rem' }}>
-                <button onClick={() => printElement('cot-aereo-print', `Cotización Aérea - ${cliente || 'Cliente'}`)} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', borderRadius: '50px', border: 'none', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700, background: '#2563eb', color: '#fff', boxShadow: '0 2px 8px rgba(37,99,235,0.3)' }}>
+                <button onClick={printClienteQuote} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', borderRadius: '50px', border: 'none', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700, background: '#2563eb', color: '#fff', boxShadow: '0 2px 8px rgba(37,99,235,0.3)' }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
                   Imprimir / PDF
                 </button>

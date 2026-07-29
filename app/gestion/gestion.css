@@ -473,7 +473,9 @@
   position: fixed;
   left: -99999px;
   top: 0;
-  width: 794px; /* ~A4 a 96dpi, para que el layout se arme igual que impreso */
+  /* ~A4 APAISADO a 96dpi: el documento de cotización es landscape, así el
+     fallback arma el layout de 2 columnas igual que la pestaña /print. */
+  width: 1123px;
   background: #fff;
 }
 @media print {
@@ -485,11 +487,16 @@
     left: 0 !important;
     top: 0 !important;
     width: 100% !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 }
 
-/* Estado de cuenta (operaciones): al imprimir con el modal abierto, sale SOLO la hoja */
+/* Estado de cuenta (operaciones): al imprimir con el modal abierto, sale SOLO la
+   hoja. Va en A4 vertical (es un resumen de cuenta, no la cotización apaisada),
+   pero comparte el criterio de imprimir los colores de marca. */
 @media print {
+  body.estado-print { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   body.estado-print * { visibility: hidden !important; }
   body.estado-print .estado-cuenta-sheet,
   body.estado-print .estado-cuenta-sheet * { visibility: visible !important; }
@@ -501,6 +508,8 @@
     overflow: visible !important;
     border-radius: 0 !important;
     box-shadow: none !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   body.estado-print .no-print { display: none !important; }
 }
