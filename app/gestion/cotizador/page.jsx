@@ -459,9 +459,9 @@ function CotizadorMaritimo() {
   const [pDer, setPDer] = useState(35);
   const [pTas, setPTas] = useState(0);
   const [pIva, setPIva] = useState(21);    const [pagaIva, setPagaIva] = useState(true);
-  const [pIvaA, setPIvaA] = useState(20);  const [pagaIvaA, setPagaIvaA] = useState(false);
-  const [pGan, setPGan] = useState(6);     const [pagaGan, setPagaGan] = useState(false);
-  const [pIIBB, setPIIBB] = useState(2.5); const [pagaIIBB, setPagaIIBB] = useState(false);
+  const [pIvaA, setPIvaA] = useState(20);  const [pagaIvaA, setPagaIvaA] = useState(true);
+  const [pGan, setPGan] = useState(6);     const [pagaGan, setPagaGan] = useState(true);
+  const [pIIBB, setPIIBB] = useState(2.5); const [pagaIIBB, setPagaIIBB] = useState(true);
 
   // ── CIERRE ──
   const [pHon, setPHon] = useState(4);
@@ -486,6 +486,7 @@ function CotizadorMaritimo() {
     fobReal, fobDecReal, fleteRealInput, m3Merch,
     pDer, pTas, pIva, pagaIva, pIvaA, pagaIvaA, pGan, pagaGan, pIIBB, pagaIIBB,
     pHon, pHonMin, pFac, pMrg, usaSociedadPropia,
+    arancelToggles: 'v2', // v2: percepciones con toggle afectan cobro Y costo real
   });
 
   useEffect(() => {
@@ -519,11 +520,13 @@ function CotizadorMaritimo() {
       if (d.pIva !== undefined) setPIva(d.pIva);
       if (d.pagaIva !== undefined) setPagaIva(d.pagaIva);
       if (d.pIvaA !== undefined) setPIvaA(d.pIvaA);
-      if (d.pagaIvaA !== undefined) setPagaIvaA(d.pagaIvaA);
+      // Migración pre-v2: el cliente pagaba toda percepción con % > 0 (el toggle
+      // solo tocaba el costo real) — restaurar "aplica" preserva el precio guardado.
+      if (d.pagaIvaA !== undefined) setPagaIvaA(d.arancelToggles === 'v2' ? d.pagaIvaA : (d.pagaIvaA || n(d.pIvaA) > 0));
       if (d.pGan !== undefined) setPGan(d.pGan);
-      if (d.pagaGan !== undefined) setPagaGan(d.pagaGan);
+      if (d.pagaGan !== undefined) setPagaGan(d.arancelToggles === 'v2' ? d.pagaGan : (d.pagaGan || n(d.pGan) > 0));
       if (d.pIIBB !== undefined) setPIIBB(d.pIIBB);
-      if (d.pagaIIBB !== undefined) setPagaIIBB(d.pagaIIBB);
+      if (d.pagaIIBB !== undefined) setPagaIIBB(d.arancelToggles === 'v2' ? d.pagaIIBB : (d.pagaIIBB || n(d.pIIBB) > 0));
       if (d.pHon !== undefined) setPHon(d.pHon);
       // Cotizaciones guardadas ANTES del mínimo: sin pHonMin → '' (no cambia el número guardado).
       setPHonMin(d.pHonMin !== undefined ? d.pHonMin : '');
@@ -568,7 +571,9 @@ function CotizadorMaritimo() {
     const fobC  = n(fobCliente);
     const fobDC = n(fobDecCli) || fobC;       // FOB declarado al cliente (base aranceles cliente)
     const fobR  = n(fobReal);
-    const fobDR = n(fobDecReal) || fobR;      // FOB declarado real (base aranceles reales)
+    // La aduana cobra sobre lo DECLARADO: sin una base declarada real distinta,
+    // hereda la declarada al cliente (evita márgenes arancelarios fantasma).
+    const fobDR = n(fobDecReal) || n(fobDecCli) || fobR;
 
     const m3val = n(m3Merch);
     const ratio = m3val > 0 && curM3 > 0 ? m3val / curM3 : 0;
@@ -580,10 +585,11 @@ function CotizadorMaritimo() {
     const derC   = cifC * der;
     const tasC   = cifC * tas;
     const bivC   = cifC + derC + tasC;
-    const ivaC   = bivC * iva;
-    const ivaAC  = bivC * ivaA;
-    const ganC   = bivC * gan;
-    const iibbC  = bivC * iibb;
+    const ivaC   = bivC * iva; // IVA siempre aplica
+    // Percepciones: si aplican, juegan en las DOS puntas (cobro y costo real).
+    const ivaAC  = pagaIvaA ? bivC * ivaA : 0;
+    const ganC   = pagaGan  ? bivC * gan  : 0;
+    const iibbC  = pagaIIBB ? bivC * iibb : 0;
     const arcC   = n(fleteCli) + segC + derC + tasC + ivaC + ivaAC + ganC + iibbC;
     const desC   = n(gDes), terC = n(gTer), navC = n(gNav), logC = n(gLog);
     const gasC   = desC + terC + navC + logC;
@@ -596,7 +602,7 @@ function CotizadorMaritimo() {
     const derR   = cifR * der;
     const tasR   = cifR * tas;
     const bivR   = cifR + derR + tasR;
-    const ivaR   = pagaIva  ? bivR * iva  : 0;
+    const ivaR   = bivR * iva; // IVA siempre se paga
     const ivaAR  = pagaIvaA ? bivR * ivaA : 0;
     const ganR   = pagaGan  ? bivR * gan  : 0;
     const iibbR  = pagaIIBB ? bivR * iibb : 0;
@@ -630,7 +636,10 @@ function CotizadorMaritimo() {
     const mIIBB = iibbC - iibbR;
     const mAranc = mDer + mTas + mIva + mIvaA + mGan + mIIBB;
     const mGas  = gasC - gasR;
-    const ganTotal = mFOB + mFlet + mAranc + mGas + honorarios;
+    // Con sociedad del cliente los aranceles los paga él directamente:
+    // no existe margen arancelario para Transtide.
+    const mArancEff = usaSociedadPropia ? 0 : mAranc;
+    const ganTotal = mFOB + mFlet + mArancEff + mGas + honorarios;
 
     // ── modo personal ──
     // El IVA del import es crédito fiscal recuperable → NO es costo real.
@@ -648,7 +657,7 @@ function CotizadorMaritimo() {
       fleteR, segR, cifR, derR, tasR, bivR, ivaR, ivaAR, ganR, iibbR,
       desR, terR, navR, logR, gasR, totConR, totSinR,
       honorarios, honMinAplica, gastFac, precioConF, precioSinF,
-      mFOB, mFlet, mDer, mTas, mIva, mIvaA, mGan, mIIBB, mAranc, mGas, ganTotal,
+      mFOB, mFlet, mDer, mTas, mIva, mIvaA, mGan, mIIBB, mAranc, mArancEff, mGas, ganTotal,
       precioVenta, ventaNeta, gananciaNeta, ivaVentaMonto, precioVentaFinal,
       ratio, curM3,
     };
@@ -999,20 +1008,22 @@ function CotizadorMaritimo() {
                   <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#4338ca', letterSpacing: 0 }}>Configuración arancelaria</p>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '1rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.6rem', marginBottom: '1rem' }}>
                   <F label="Derechos de Importación %">
                     <input type="number" inputMode="decimal" step="any" min="0" value={pDer} onChange={e => setPDer(e.target.value)} style={INP} />
                   </F>
                   <F label="Tasa Estadística %">
                     <input type="number" inputMode="decimal" step="any" min="0" value={pTas} onChange={e => setPTas(e.target.value)} style={INP} />
                   </F>
+                  <F label="IVA %">
+                    <input type="number" inputMode="decimal" step="any" min="0" value={pIva} onChange={e => setPIva(e.target.value)} style={INP} />
+                  </F>
                 </div>
 
-                <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginBottom: '0.65rem' }}>Tildá los que pagás vos (afecta solo tu costo real).</p>
+                <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginBottom: '0.65rem' }}>Percepciones — ¿aplican en esta importación? Con SÍ se cobran en la cotización y cuentan en el costo real; con NO, en ninguno.</p>
 
                 <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '0.65rem 0.85rem', border: '1px solid #f1f5f9', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem 0.9rem' }}>
                   {[
-                    ['IVA %', pIva, setPIva, pagaIva, setPagaIva],
                     ['IVA Adicional %', pIvaA, setPIvaA, pagaIvaA, setPagaIvaA],
                     ['Perc. Ganancias %', pGan, setPGan, pagaGan, setPagaGan],
                     ['Perc. IIBB %', pIIBB, setPIIBB, pagaIIBB, setPagaIIBB],
@@ -1021,7 +1032,7 @@ function CotizadorMaritimo() {
                       <label style={{ ...LBL, marginBottom: '0.12rem' }}>{lbl}</label>
                       <div style={{ display: 'flex', alignItems: 'stretch', border: '1px solid #e2e8f0', borderRadius: '7px', overflow: 'hidden', background: '#fff', maxWidth: '100%' }}>
                         <input type="number" inputMode="decimal" step="any" min="0" value={val} onChange={e => setVal(e.target.value)} onWheel={e => e.currentTarget.blur()} style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', padding: '0.38rem 0.6rem', fontSize: '0.82rem', color: '#1e293b', fontVariantNumeric: 'tabular-nums' }} />
-                        <button onClick={() => setPaga(!paga)} title="¿Lo pagás vos? Afecta solo tus costos reales" style={{ border: 'none', borderLeft: '1px solid #e2e8f0', padding: '0 0.7rem', cursor: 'pointer', fontSize: '0.66rem', fontWeight: 700, minWidth: '42px', background: paga ? '#ecfdf5' : '#fef2f2', color: paga ? '#059669' : '#dc2626' }}>
+                        <button onClick={() => setPaga(!paga)} title="¿Aplica en esta importación? Afecta la cotización al cliente y tu costo real" style={{ border: 'none', borderLeft: '1px solid #e2e8f0', padding: '0 0.7rem', cursor: 'pointer', fontSize: '0.66rem', fontWeight: 700, minWidth: '42px', background: paga ? '#ecfdf5' : '#fef2f2', color: paga ? '#059669' : '#dc2626' }}>
                         {paga ? 'SÍ' : 'NO'}
                         </button>
                       </div>
@@ -1047,7 +1058,7 @@ function CotizadorMaritimo() {
                       onClick={() => setUsaSociedadPropia(true)}
                       style={{ flex: 1, padding: '0.6rem 0.75rem', borderRadius: '10px', border: `2px solid ${usaSociedadPropia ? '#059669' : '#e2e8f0'}`, cursor: 'pointer', background: usaSociedadPropia ? '#dcfce7' : '#fff', textAlign: 'left', transition: 'all 0.15s' }}>
                       <p style={{ fontSize: '0.75rem', fontWeight: 700, color: usaSociedadPropia ? '#059669' : '#64748b', marginBottom: '0.15rem' }}>
-                        {usaSociedadPropia ? '✓ ' : ''}Sociedad propia del cliente
+                        {usaSociedadPropia ? '✓ ' : ''}Sociedad del cliente
                       </p>
                       <p style={{ fontSize: '0.65rem', color: usaSociedadPropia ? '#059669' : '#94a3b8' }}>
                         Sin gastos de facturación
@@ -1103,7 +1114,7 @@ function CotizadorMaritimo() {
                   </div>
                   {usaSociedadPropia && (
                     <p style={{ fontSize: '0.68rem', color: '#059669', marginTop: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                      ✓ Sin gastos de facturación — sociedad propia del cliente
+                      ✓ Sin gastos de facturación — sociedad del cliente
                     </p>
                   )}
                 </div>
@@ -1149,7 +1160,7 @@ function CotizadorMaritimo() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.75rem', padding: '0.4rem 0.7rem', background: usaSociedadPropia ? '#f0fdf4' : '#eff6ff', borderRadius: '8px', border: `1px solid ${usaSociedadPropia ? '#bbf7d0' : '#bfdbfe'}` }}>
                 <span style={{ fontSize: '0.75rem' }}>{usaSociedadPropia ? '🏢' : '🔵'}</span>
                 <span style={{ fontSize: '0.7rem', fontWeight: 700, color: usaSociedadPropia ? '#059669' : '#2563eb' }}>
-                  {usaSociedadPropia ? 'Sociedad propia — sin gastos de facturación' : 'Sociedad Transtide — incluye gastos de facturación'}
+                  {usaSociedadPropia ? 'Sociedad del cliente — sin gastos de facturación' : 'Sociedad Transtide — incluye gastos de facturación'}
                 </span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: usaSociedadPropia ? '1fr' : '1fr 1fr', gap: '0.75rem' }}>
@@ -1211,7 +1222,7 @@ function CotizadorMaritimo() {
                   {[
                     ['Margen FOB', c.mFOB],
                     ['Margen Flete', c.mFlet],
-                    ['Margen Aranceles', c.mAranc],
+                    [usaSociedadPropia ? 'Margen Aranceles — los paga el cliente (su sociedad)' : 'Margen Aranceles', c.mArancEff],
                     ['Margen Gastos Locales', c.mGas],
                     ['Honorarios', c.honorarios],
                   ].map(([lbl, val]) => {
@@ -1599,9 +1610,9 @@ function CotizadorAereo() {
   const [pDer, setPDer] = useState(35);
   const [pTas, setPTas] = useState(0);
   const [pIva, setPIva] = useState(21);    const [pagaIva, setPagaIva] = useState(true);
-  const [pIvaA, setPIvaA] = useState(20);  const [pagaIvaA, setPagaIvaA] = useState(false);
-  const [pGan, setPGan] = useState(6);     const [pagaGan, setPagaGan] = useState(false);
-  const [pIIBB, setPIIBB] = useState(2.5); const [pagaIIBB, setPagaIIBB] = useState(false);
+  const [pIvaA, setPIvaA] = useState(20);  const [pagaIvaA, setPagaIvaA] = useState(true);
+  const [pGan, setPGan] = useState(6);     const [pagaGan, setPagaGan] = useState(true);
+  const [pIIBB, setPIIBB] = useState(2.5); const [pagaIIBB, setPagaIIBB] = useState(true);
 
   // cierre
   const [pHon, setPHon] = useState(4);
@@ -1624,6 +1635,7 @@ function CotizadorAereo() {
     fobReal, fobDecReal, fleteRealInput, awbReal, handReal, terReal, desReal, traReal,
     pDer, pTas, pIva, pagaIva, pIvaA, pagaIvaA, pGan, pagaGan, pIIBB, pagaIIBB,
     pHon, pHonMin, pFac, pMrg, usaSociedadPropia,
+    arancelToggles: 'v2', // v2: percepciones con toggle afectan cobro Y costo real
   });
 
   useEffect(() => {
@@ -1657,11 +1669,13 @@ function CotizadorAereo() {
       if (d.pIva !== undefined) setPIva(d.pIva);
       if (d.pagaIva !== undefined) setPagaIva(d.pagaIva);
       if (d.pIvaA !== undefined) setPIvaA(d.pIvaA);
-      if (d.pagaIvaA !== undefined) setPagaIvaA(d.pagaIvaA);
+      // Migración pre-v2: el cliente pagaba toda percepción con % > 0 (el toggle
+      // solo tocaba el costo real) — restaurar "aplica" preserva el precio guardado.
+      if (d.pagaIvaA !== undefined) setPagaIvaA(d.arancelToggles === 'v2' ? d.pagaIvaA : (d.pagaIvaA || n(d.pIvaA) > 0));
       if (d.pGan !== undefined) setPGan(d.pGan);
-      if (d.pagaGan !== undefined) setPagaGan(d.pagaGan);
+      if (d.pagaGan !== undefined) setPagaGan(d.arancelToggles === 'v2' ? d.pagaGan : (d.pagaGan || n(d.pGan) > 0));
       if (d.pIIBB !== undefined) setPIIBB(d.pIIBB);
-      if (d.pagaIIBB !== undefined) setPagaIIBB(d.pagaIIBB);
+      if (d.pagaIIBB !== undefined) setPagaIIBB(d.arancelToggles === 'v2' ? d.pagaIIBB : (d.pagaIIBB || n(d.pIIBB) > 0));
       if (d.pHon !== undefined) setPHon(d.pHon);
       // Cotizaciones guardadas ANTES del mínimo: sin pHonMin → '' (no cambia el número guardado).
       setPHonMin(d.pHonMin !== undefined ? d.pHonMin : '');
@@ -1707,7 +1721,8 @@ function CotizadorAereo() {
     const fobC  = n(fobCliente);
     const fobDC = n(fobDecCli) || fobC;
     const fobR  = n(fobReal);
-    const fobDR = n(fobDecReal) || fobR;
+    // Igual que en marítimo: la base real hereda lo declarado al cliente.
+    const fobDR = n(fobDecReal) || n(fobDecCli) || fobR;
 
     // flete = total USD (cerrado, lo pasa el agente)
     const fleteC = n(fleteCliInput);
@@ -1719,10 +1734,11 @@ function CotizadorAereo() {
     const derC   = cifC * der;
     const tasC   = cifC * tas;
     const bivC   = cifC + derC + tasC;
-    const ivaC   = bivC * iva;
-    const ivaAC  = bivC * ivaA;
-    const ganC   = bivC * gan;
-    const iibbC  = bivC * iibb;
+    const ivaC   = bivC * iva; // IVA siempre aplica
+    // Percepciones: si aplican, juegan en las DOS puntas (cobro y costo real).
+    const ivaAC  = pagaIvaA ? bivC * ivaA : 0;
+    const ganC   = pagaGan  ? bivC * gan  : 0;
+    const iibbC  = pagaIIBB ? bivC * iibb : 0;
     const arcC   = fleteC + segC + derC + tasC + ivaC + ivaAC + ganC + iibbC;
     const awbCv  = n(awbCli), handCv = n(handCli), terCv = n(terCli), desCv = n(desCli), traCv = n(traCli);
     const gasC   = awbCv + handCv + terCv + desCv + traCv;
@@ -1735,7 +1751,7 @@ function CotizadorAereo() {
     const derR   = cifR * der;
     const tasR   = cifR * tas;
     const bivR   = cifR + derR + tasR;
-    const ivaR   = pagaIva  ? bivR * iva  : 0;
+    const ivaR   = bivR * iva; // IVA siempre se paga
     const ivaAR  = pagaIvaA ? bivR * ivaA : 0;
     const ganR   = pagaGan  ? bivR * gan  : 0;
     const iibbR  = pagaIIBB ? bivR * iibb : 0;
@@ -1770,7 +1786,10 @@ function CotizadorAereo() {
     const mDes  = desCv - desRv;
     const mTra  = traCv - traRv;
     const mGas  = gasC - gasR;
-    const ganTotal = mFOB + mFlet + mAranc + mGas + honorarios;
+    // Con sociedad del cliente los aranceles los paga él directamente:
+    // no existe margen arancelario para Transtide.
+    const mArancEff = usaSociedadPropia ? 0 : mAranc;
+    const ganTotal = mFOB + mFlet + mArancEff + mGas + honorarios;
 
     const precioVenta = totConR * (1 + mrg);
 
@@ -1782,7 +1801,7 @@ function CotizadorAereo() {
       segR, cifR, derR, tasR, bivR, ivaR, ivaAR, ganR, iibbR,
       awbRv, handRv, terRv, desRv, traRv, gasR, totConR, totSinR,
       honorarios, honMinAplica, gastFac, precioConF, precioSinF,
-      mFOB, mFlet, mDer, mTas, mIva, mIvaA, mGan, mIIBB, mAranc,
+      mFOB, mFlet, mDer, mTas, mIva, mIvaA, mGan, mIIBB, mAranc, mArancEff,
       mAwb, mHand, mTer, mDes, mTra, mGas, ganTotal,
       precioVenta,
     };
@@ -1995,20 +2014,22 @@ function CotizadorAereo() {
                 </div>
                 <p style={{ fontSize: '0.68rem', color: '#94a3b8', marginBottom: '0.85rem', fontStyle: 'italic' }}>Misma lógica que importación marítima — CIF = FOB declarado + Flete + Seguro 1%.</p>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '1rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.6rem', marginBottom: '1rem' }}>
                   <F label="Derechos de Importación %">
                     <input type="number" inputMode="decimal" step="any" min="0" value={pDer} onChange={e => setPDer(e.target.value)} style={INP} />
                   </F>
                   <F label="Tasa Estadística %">
                     <input type="number" inputMode="decimal" step="any" min="0" value={pTas} onChange={e => setPTas(e.target.value)} style={INP} />
                   </F>
+                  <F label="IVA %">
+                    <input type="number" inputMode="decimal" step="any" min="0" value={pIva} onChange={e => setPIva(e.target.value)} style={INP} />
+                  </F>
                 </div>
 
-                <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginBottom: '0.65rem' }}>Tildá los que pagás vos (afecta solo tu costo real).</p>
+                <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginBottom: '0.65rem' }}>Percepciones — ¿aplican en esta importación? Con SÍ se cobran en la cotización y cuentan en el costo real; con NO, en ninguno.</p>
 
                 <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '0.65rem 0.85rem', border: '1px solid #f1f5f9', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem 0.9rem' }}>
                   {[
-                    ['IVA %', pIva, setPIva, pagaIva, setPagaIva],
                     ['IVA Adicional %', pIvaA, setPIvaA, pagaIvaA, setPagaIvaA],
                     ['Perc. Ganancias %', pGan, setPGan, pagaGan, setPagaGan],
                     ['Perc. IIBB %', pIIBB, setPIIBB, pagaIIBB, setPagaIIBB],
@@ -2017,7 +2038,7 @@ function CotizadorAereo() {
                       <label style={{ ...LBL, marginBottom: '0.12rem' }}>{lbl}</label>
                       <div style={{ display: 'flex', alignItems: 'stretch', border: '1px solid #e2e8f0', borderRadius: '7px', overflow: 'hidden', background: '#fff', maxWidth: '100%' }}>
                         <input type="number" inputMode="decimal" step="any" min="0" value={val} onChange={e => setVal(e.target.value)} onWheel={e => e.currentTarget.blur()} style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', padding: '0.38rem 0.6rem', fontSize: '0.82rem', color: '#1e293b', fontVariantNumeric: 'tabular-nums' }} />
-                        <button onClick={() => setPaga(!paga)} title="¿Lo pagás vos? Afecta solo tus costos reales" style={{ border: 'none', borderLeft: '1px solid #e2e8f0', padding: '0 0.7rem', cursor: 'pointer', fontSize: '0.66rem', fontWeight: 700, minWidth: '42px', background: paga ? '#ecfdf5' : '#fef2f2', color: paga ? '#059669' : '#dc2626' }}>
+                        <button onClick={() => setPaga(!paga)} title="¿Aplica en esta importación? Afecta la cotización al cliente y tu costo real" style={{ border: 'none', borderLeft: '1px solid #e2e8f0', padding: '0 0.7rem', cursor: 'pointer', fontSize: '0.66rem', fontWeight: 700, minWidth: '42px', background: paga ? '#ecfdf5' : '#fef2f2', color: paga ? '#059669' : '#dc2626' }}>
                         {paga ? 'SÍ' : 'NO'}
                         </button>
                       </div>
@@ -2048,7 +2069,7 @@ function CotizadorAereo() {
                   <p style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', letterSpacing: 0, marginBottom: '0.5rem' }}>¿Qué sociedad usa el cliente para importar?</p>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <button onClick={() => setUsaSociedadPropia(true)} style={{ flex: 1, padding: '0.6rem 0.75rem', borderRadius: '10px', border: `2px solid ${usaSociedadPropia ? '#059669' : '#e2e8f0'}`, cursor: 'pointer', background: usaSociedadPropia ? '#dcfce7' : '#fff', textAlign: 'left' }}>
-                      <p style={{ fontSize: '0.75rem', fontWeight: 700, color: usaSociedadPropia ? '#059669' : '#64748b', marginBottom: '0.15rem' }}>{usaSociedadPropia ? '✓ ' : ''}Sociedad propia del cliente</p>
+                      <p style={{ fontSize: '0.75rem', fontWeight: 700, color: usaSociedadPropia ? '#059669' : '#64748b', marginBottom: '0.15rem' }}>{usaSociedadPropia ? '✓ ' : ''}Sociedad del cliente</p>
                       <p style={{ fontSize: '0.65rem', color: usaSociedadPropia ? '#059669' : '#94a3b8' }}>Sin gastos de facturación</p>
                     </button>
                     <button onClick={() => setUsaSociedadPropia(false)} style={{ flex: 1, padding: '0.6rem 0.75rem', borderRadius: '10px', border: `2px solid ${!usaSociedadPropia ? '#2563eb' : '#e2e8f0'}`, cursor: 'pointer', background: !usaSociedadPropia ? '#eff6ff' : '#fff', textAlign: 'left' }}>
@@ -2099,7 +2120,7 @@ function CotizadorAereo() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.75rem', padding: '0.4rem 0.7rem', background: usaSociedadPropia ? '#f0fdf4' : '#eff6ff', borderRadius: '8px', border: `1px solid ${usaSociedadPropia ? '#bbf7d0' : '#bfdbfe'}` }}>
               <span style={{ fontSize: '0.75rem' }}>{usaSociedadPropia ? '🏢' : '🔵'}</span>
               <span style={{ fontSize: '0.7rem', fontWeight: 700, color: usaSociedadPropia ? '#059669' : '#2563eb' }}>
-                {usaSociedadPropia ? 'Sociedad propia — sin gastos de facturación' : 'Sociedad Transtide — incluye gastos de facturación'}
+                {usaSociedadPropia ? 'Sociedad del cliente — sin gastos de facturación' : 'Sociedad Transtide — incluye gastos de facturación'}
               </span>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: usaSociedadPropia ? '1fr' : '1fr 1fr', gap: '0.75rem' }}>
@@ -2137,7 +2158,7 @@ function CotizadorAereo() {
             {[
               ['Margen FOB', c.mFOB],
               ['Margen Flete', c.mFlet],
-              ['Margen Aranceles', c.mAranc],
+              [usaSociedadPropia ? 'Margen Aranceles — los paga el cliente (su sociedad)' : 'Margen Aranceles', c.mArancEff],
               ['Margen Gastos Aeroportuarios', c.mGas],
               ['Honorarios', c.honorarios],
             ].map(([lbl, val]) => {
