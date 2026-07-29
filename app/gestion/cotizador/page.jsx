@@ -674,7 +674,8 @@ function CotizadorMaritimo() {
     : [['real_fob','Mis costos'],['aranceles','Aranceles'],['venta','Precio de venta']];
 
   // reset tab when switching mode
-  const switchMode = (m) => { setMode(m); setTab(m === 'cliente' ? 'cliente_fob' : 'real_fob'); };
+  // Impo personal = SIEMPRE con sociedad Transtide.
+  const switchMode = (m) => { setMode(m); setTab(m === 'cliente' ? 'cliente_fob' : 'real_fob'); if (m === 'personal') setUsaSociedadPropia(false); };
 
   // ─── print client quote ───────────────────────────────────────────────────
   const printClienteQuote = () => {
@@ -1329,6 +1330,10 @@ function CotizadorMaritimo() {
                 <span style={{ fontSize: '0.72rem', color: '#065f46' }}>FOB declarado · CIF declarado</span>
                 <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#059669' }}>{usd(c.fobDR)} · {usd(c.cifR)}</span>
               </div>
+              <div style={{ marginTop: '0.75rem', padding: '0.45rem 0.75rem', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: '0.75rem' }}>🔵</span>
+                <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#2563eb' }}>Importación personal — siempre con sociedad Transtide</span>
+              </div>
             </Card>
 
             {/* Cascada: de qué se compone el costo real (sin IVA) */}
@@ -1622,7 +1627,11 @@ function CotizadorAereo() {
   const [usaSociedadPropia, setUsaSociedadPropia] = useState(false);
 
   // ui
+  const [mode, setMode] = useState('cliente'); // 'cliente' | 'personal'
   const [tab, setTab] = useState('cliente_fob');
+  // Impo personal = SIEMPRE con sociedad Transtide (la pregunta de sociedad
+  // del cliente solo existe cuando cotizás para un cliente).
+  const switchMode = (m) => { setMode(m); setTab(m === 'cliente' ? 'cliente_fob' : 'real_fob'); if (m === 'personal') setUsaSociedadPropia(false); };
   const [showClienteView, setShowClienteView] = useState(false);
   const [showSave, setShowSave] = useState(false);
   // Cotización cargada desde "guardadas" (para poder actualizarla en vez de duplicar).
@@ -1630,6 +1639,7 @@ function CotizadorAereo() {
 
   // ── serialize / restore (saved quotes) ──
   const serialize = () => ({
+    mode, // 'cliente' | 'personal'
     cliente, descripcion, clasificacion, m3Input, pesoReal,
     fobCliente, fobDecCli, fleteCliInput, awbCli, handCli, terCli, desCli, traCli,
     fobReal, fobDecReal, fleteRealInput, awbReal, handReal, terReal, desReal, traReal,
@@ -1643,6 +1653,10 @@ function CotizadorAereo() {
       if (!e.detail || e.detail.mode !== 'aereo') return;
       setLoadedQuote(e.detail.meta || null);
       const d = e.detail.data || {};
+      if (d.mode === 'cliente' || d.mode === 'personal') {
+        setMode(d.mode);
+        setTab(d.mode === 'cliente' ? 'cliente_fob' : 'real_fob');
+      }
       if (d.cliente !== undefined) setCliente(d.cliente);
       if (d.descripcion !== undefined) setDescripcion(d.descripcion);
       if (d.clasificacion !== undefined) setClasificacion(d.clasificacion);
@@ -1791,7 +1805,14 @@ function CotizadorAereo() {
     const mArancEff = usaSociedadPropia ? 0 : mAranc;
     const ganTotal = mFOB + mFlet + mArancEff + mGas + honorarios;
 
-    const precioVenta = totConR * (1 + mrg);
+    // modo personal — igual que marítimo: el IVA del import es crédito fiscal
+    // recuperable, el margen se aplica sobre el costo SIN IVA y el IVA se suma
+    // recién al vender.
+    const ventaNeta      = totSinR * (1 + mrg);
+    const gananciaNeta   = totSinR * mrg;
+    const ivaVentaMonto  = ventaNeta * iva;
+    const precioVentaFinal = ventaNeta * (1 + iva);
+    const precioVenta    = precioVentaFinal;
 
     return {
       fobC, fobDC, fobR, fobDR,
@@ -1803,7 +1824,7 @@ function CotizadorAereo() {
       honorarios, honMinAplica, gastFac, precioConF, precioSinF,
       mFOB, mFlet, mDer, mTas, mIva, mIvaA, mGan, mIIBB, mAranc, mArancEff,
       mAwb, mHand, mTer, mDes, mTra, mGas, ganTotal,
-      precioVenta,
+      precioVenta, ventaNeta, gananciaNeta, ivaVentaMonto, precioVentaFinal,
     };
   }, [
     fobCliente, fobDecCli, fobReal, fobDecReal,
@@ -1814,32 +1835,48 @@ function CotizadorAereo() {
     pHon, pHonMin, pFac, pMrg, usaSociedadPropia,
   ]);
 
-  const tabs = [['cliente_fob','Cotización cliente'],['real_fob','Mis costos reales'],['aranceles','Aranceles'],['cierre','Cierre']];
+  const tabs = mode === 'cliente'
+    ? [['cliente_fob','Cotización cliente'],['real_fob','Mis costos reales'],['aranceles','Aranceles'],['cierre','Cierre']]
+    : [['real_fob','Mis costos'],['aranceles','Aranceles'],['venta','Precio de venta']];
 
   return (
     <div style={{ paddingBottom: '3rem' }}>
 
       {/* HEADER */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h2 style={{ fontSize: '1.45rem', fontWeight: 800, color: '#1e293b', marginBottom: '0.2rem' }}>Cotizador Aéreo</h2>
           <p style={{ fontSize: '0.82rem', color: '#94a3b8' }}>Calculá el costo real, lo que cobrás y tu rentabilidad — importación aérea</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <SaveQuoteButton onClick={() => setShowSave(true)} />
-          <button onClick={() => setShowClienteView(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', padding: '0.55rem 1.1rem', borderRadius: '50px', border: 'none', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700, background: '#2563eb', color: '#fff', boxShadow: '0 2px 10px rgba(37,99,235,0.3)' }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            Ver cotización al cliente
-          </button>
+          {mode === 'cliente' && (
+            <button onClick={() => setShowClienteView(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', padding: '0.55rem 1.1rem', borderRadius: '50px', border: 'none', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700, background: '#2563eb', color: '#fff', boxShadow: '0 2px 10px rgba(37,99,235,0.3)' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              Ver cotización al cliente
+            </button>
+          )}
         </div>
+      </div>
+
+      {/* MODO — misma lógica que marítimo: para cliente o impo personal */}
+      <div style={{ display: 'inline-flex', background: '#f1f5f9', borderRadius: '50px', padding: '4px', gap: '2px', marginBottom: '0.85rem' }}>
+        <Pill active={mode === 'cliente'} onClick={() => switchMode('cliente')}>Para Cliente</Pill>
+        <Pill active={mode === 'personal'} onClick={() => switchMode('personal')}>Importación Personal</Pill>
       </div>
 
       {/* RESUMEN PEGAJOSO */}
       <div style={{ position: 'sticky', top: 0, zIndex: 30, marginBottom: '0.85rem' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, background: 'rgba(248,250,252,0.94)', backdropFilter: 'blur(6px)', padding: '0.45rem', borderRadius: 12, border: '1px solid #e8ecf1' }}>
-          <SummaryChip label="Costo real" val={usd(c.totConR)} />
-          <SummaryChip label="A cobrar al cliente" val={usd(c.totConC)} color="#2563eb" bg="#eff6ff" border="#bfdbfe" />
-          <SummaryChip label="Margen / ganancia" val={usd(c.ganTotal)} color="#059669" bg="#f0fdf4" border="#bbf7d0" />
+          {mode === 'personal' ? (<>
+            <SummaryChip label="Costo real (sin IVA)" val={usd(c.totSinR)} />
+            <SummaryChip label={`Ganancia neta (${pMrg}%)`} val={usd(c.gananciaNeta)} color="#0891b2" bg="#ecfeff" border="#a5f3fc" />
+            <SummaryChip label="Precio venta final" val={usd(c.precioVentaFinal)} color="#059669" bg="#f0fdf4" border="#bbf7d0" />
+          </>) : (<>
+            <SummaryChip label="Costo real" val={usd(c.totConR)} />
+            <SummaryChip label="A cobrar al cliente" val={usd(c.totConC)} color="#2563eb" bg="#eff6ff" border="#bfdbfe" />
+            <SummaryChip label="Margen / ganancia" val={usd(c.ganTotal)} color="#059669" bg="#f0fdf4" border="#bbf7d0" />
+          </>)}
         </div>
       </div>
 
@@ -2109,12 +2146,65 @@ function CotizadorAereo() {
               </div>
             )}
 
+            {tab === 'venta' && (
+              <div>
+                <p style={SECL}>Precio de venta estimado</p>
+                <F label="Margen de ganancia deseado %">
+                  <input type="number" inputMode="decimal" step="any" min="0" value={pMrg} onChange={e => setPMrg(e.target.value)} style={INP} />
+                </F>
+                <p style={{ fontSize: '0.68rem', color: '#94a3b8', margin: '0 0 0.6rem' }}>El IVA del import es crédito fiscal recuperable: el margen se calcula sobre el costo sin IVA, y el IVA se suma recién al vender.</p>
+                <div style={{ background: '#f0fdf4', borderRadius: '10px', padding: '1rem', marginTop: '0.2rem' }}>
+                  {[
+                    ['Costo real (sin IVA)', c.totSinR, false, false],
+                    [`+ Margen (${pMrg}%) — ganancia neta`, c.gananciaNeta, false, 'profit'],
+                    ['= Precio de venta neto', c.ventaNeta, true, false],
+                    [`+ IVA (${pIva}%) sobre la venta`, c.ivaVentaMonto, false, false],
+                    ['= Precio de venta final (con IVA)', c.precioVentaFinal, 'final', false],
+                  ].map(([lbl, val, emph, kind], i, arr) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: emph === 'final' ? '0.95rem' : '0.85rem', padding: '0.4rem 0', borderBottom: i < arr.length - 1 ? '1px solid #d1fae5' : 'none', fontWeight: emph ? 800 : 400, color: emph === 'final' ? '#059669' : kind === 'profit' ? '#0891b2' : emph ? '#065f46' : '#374151' }}>
+                      <span>{lbl}</span><span style={{ fontVariantNumeric: 'tabular-nums' }}>{usd(val)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
           </Card>
         </div>
 
         {/* RIGHT: results */}
         <div className="cot-right-rail" style={{ position: 'sticky', top: '1rem', maxHeight: 'calc(100vh - 110px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 
+          {mode === 'personal' && (
+            <Card>
+              <p style={{ ...SECL, margin: '0 0 0.7rem' }}>Costo real de importación (sin IVA)</p>
+              <p style={{ fontSize: '2rem', fontWeight: 800, color: '#1e293b', lineHeight: 1 }}>{usd(c.totSinR)}</p>
+              <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.3rem' }}>Con IVA pagás {usd(c.totConR)} · el IVA es crédito fiscal recuperable</p>
+              {c.ventaNeta > 0 && (
+                <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #f1f5f9' }}>
+                  <div style={{ background: '#ecfeff', border: '1px solid #a5f3fc', borderRadius: '8px', padding: '0.5rem 0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#0891b2', letterSpacing: 0 }}>Ganancia neta ({pMrg}%)</span>
+                    <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0891b2', fontVariantNumeric: 'tabular-nums' }}>{usd(c.gananciaNeta)}</span>
+                  </div>
+                  <p style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', letterSpacing: 0, marginBottom: '0.15rem' }}>Precio de venta neto (sin IVA)</p>
+                  <p style={{ fontSize: '1.25rem', fontWeight: 800, color: '#059669', lineHeight: 1.1 }}>{usd(c.ventaNeta)}</p>
+                  <p style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', letterSpacing: 0, margin: '0.6rem 0 0.15rem' }}>Precio de venta final (con IVA {pIva}%)</p>
+                  <p style={{ fontSize: '1.5rem', fontWeight: 800, color: '#10b981', lineHeight: 1 }}>{usd(c.precioVentaFinal)}</p>
+                  <p style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: '0.2rem' }}>incluye {usd(c.ivaVentaMonto)} de IVA</p>
+                </div>
+              )}
+              <div style={{ background: '#f0fdf4', borderRadius: '8px', padding: '0.45rem 0.75rem', marginTop: '0.75rem', display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '0.72rem', color: '#065f46' }}>FOB declarado · CIF declarado</span>
+                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#059669' }}>{usd(c.fobDR)} · {usd(c.cifR)}</span>
+              </div>
+              <div style={{ marginTop: '0.75rem', padding: '0.45rem 0.75rem', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: '0.75rem' }}>🔵</span>
+                <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#2563eb' }}>Importación personal — siempre con sociedad Transtide</span>
+              </div>
+            </Card>
+          )}
+
+          {mode === 'cliente' && (<>
           <Card>
             <p style={{ ...SECL, margin: '0 0 0.7rem' }}>Precio final al cliente</p>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.75rem', padding: '0.4rem 0.7rem', background: usaSociedadPropia ? '#f0fdf4' : '#eff6ff', borderRadius: '8px', border: `1px solid ${usaSociedadPropia ? '#bbf7d0' : '#bfdbfe'}` }}>
@@ -2225,6 +2315,7 @@ function CotizadorAereo() {
               <span className="cot-detalle-margen" style={{ textAlign: 'right', color: c.ganTotal >= 0 ? '#10b981' : '#ef4444' }}>{c.ganTotal >= 0 ? '+' : ''}{usd(c.ganTotal)}</span>
             </div>
           </Card>
+          </>)}
 
         </div>
       </div>
