@@ -10,6 +10,7 @@
 import { useState, useEffect } from 'react'
 import { gToast } from './toast'
 import { EmbarqueModal } from './embarque-form'
+import { METODOS_PAGO, metodoLabel } from './pagos-metodos'
 
 const blNorm = (b) => (b || '').replace(/[\s-]/g, '').toUpperCase()
 const num = (v) => { const x = parseFloat(String(v || '').replace(/\./g, '').replace(',', '.')); return isNaN(x) ? 0 : x }
@@ -151,7 +152,8 @@ export default function FichaImportacion({ bl, seed = {}, onClose, onChanged }) 
   }
 
   const BtnPago = ({ scope }) => (
-    <button onClick={() => setPagoForm({ scope, fecha: hoy(), monto: '', metodo: 'transferencia', nota: '' })}
+    // A los agentes se les gira desde la cuenta de USA; al despachante, local.
+    <button onClick={() => setPagoForm({ scope, fecha: hoy(), monto: '', metodo: scope === 'agente' ? 'usa' : 'transferencia', nota: '' })}
       style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '0.35rem 0.75rem', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, background: '#0f172a', color: '#fff' }}>
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       Registrar pago
@@ -281,7 +283,7 @@ export default function FichaImportacion({ bl, seed = {}, onClose, onChanged }) 
                     <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.4rem 0', borderBottom: '1px solid #f8fafc', fontSize: '0.75rem' }}>
                       <span style={{ color: '#64748b', fontVariantNumeric: 'tabular-nums', flex: '0 0 auto' }}>{p.fecha || '—'}</span>
                       <span style={{ fontSize: '0.6rem', fontWeight: 700, color: p.scope === 'agente' ? '#1d4ed8' : '#059669', background: p.scope === 'agente' ? '#eff6ff' : '#ecfdf5', borderRadius: 4, padding: '0.05rem 0.4rem', flex: '0 0 auto' }}>{p.scope === 'agente' ? 'Agente' : 'Despachante'}</span>
-                      <span style={{ color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{p.metodo}{p.nota ? ` · ${p.nota}` : ''}</span>
+                      <span style={{ color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{metodoLabel(p.metodo)}{p.nota ? ` · ${p.nota}` : ''}</span>
                       <span style={{ fontWeight: 700, color: '#0f172a', fontVariantNumeric: 'tabular-nums', flex: '0 0 auto' }}>USD {p.monto}</span>
                     </div>
                   ))}
@@ -312,11 +314,11 @@ export default function FichaImportacion({ bl, seed = {}, onClose, onChanged }) 
                 <div><label style={LBL}>Monto (USD)</label><input inputMode="decimal" value={pagoForm.monto} onChange={e => setPagoForm(f => ({ ...f, monto: e.target.value }))} style={INP} placeholder="0" /></div>
               </div>
               <div style={{ marginBottom: 10 }}>
-                <label style={LBL}>Método</label>
+                <label style={LBL}>{pagoForm.scope === 'agente' ? 'Pagado desde' : 'Método'}</label>
                 <div style={{ display: 'flex', gap: 3, background: '#f1f5f9', borderRadius: 8, padding: 3 }}>
-                  {[['transferencia', 'Transferencia'], ['cash', 'Efectivo']].map(([v, l]) => {
+                  {(pagoForm.scope === 'agente' ? METODOS_PAGO : METODOS_PAGO.filter(([v]) => v !== 'usa')).map(([v, l]) => {
                     const on = pagoForm.metodo === v
-                    return <button key={v} onClick={() => setPagoForm(f => ({ ...f, metodo: v }))} style={{ flex: 1, padding: '0.35rem', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: '0.76rem', fontWeight: on ? 700 : 500, background: on ? '#fff' : 'transparent', color: on ? '#0f172a' : '#64748b', boxShadow: on ? '0 1px 2px rgba(15,23,42,0.1)' : 'none' }}>{l}</button>
+                    return <button key={v} onClick={() => setPagoForm(f => ({ ...f, metodo: v }))} style={{ flex: 1, padding: '0.35rem', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: '0.74rem', fontWeight: on ? 700 : 500, background: on ? '#fff' : 'transparent', color: on ? (v === 'usa' ? '#1d4ed8' : '#0f172a') : '#64748b', boxShadow: on ? '0 1px 2px rgba(15,23,42,0.1)' : 'none', whiteSpace: 'nowrap' }}>{v === 'usa' ? '🇺🇸 ' : ''}{l}</button>
                   })}
                 </div>
               </div>

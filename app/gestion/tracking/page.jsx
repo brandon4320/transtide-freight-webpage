@@ -5,6 +5,7 @@ import { gToast } from '../toast'
 import FichaImportacion from '../ficha-importacion'
 import { EmbarqueModal, AGENTES } from '../embarque-form'
 import { importFlowState, MiniFlow } from '../flujo-importacion'
+import { METODOS_PAGO, METODO_DEFAULT_AGENTE, metodoLabel } from '../pagos-metodos'
 
 const CARD = { background: '#fff', borderRadius: 10, border: '1px solid #e8ecf1', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }
 const INP = { width: '100%', padding: '0.5rem 0.65rem', border: '1px solid #e2e8f0', borderRadius: 7, fontSize: '16px', color: '#0f172a', background: '#fff', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }
@@ -55,6 +56,7 @@ function etaInfo(eta) {
 const PRIMARY = '#0f172a'  // acento único (slate-900); el color de datos lo dan los estados
 
 
+
 export default function TrackingPage({ devShips = null, devOps = null, devDesps = null } = {}) {
   const [ships, setShips] = useState([])
   const [ops, setOps] = useState([])
@@ -75,6 +77,8 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
   const [pagoBusy, setPagoBusy] = useState(false)
   const [expandId, setExpandId] = useState(null)   // embarque con historial abierto
   const [histPagos, setHistPagos] = useState({})
+  // Último método usado con cada agente → precarga el modal (Bruce siempre USA).
+  const [ultMetodo, setUltMetodo] = useState({})
 
   const load = async () => {
     // Inyección de datos para preview de diseño (dev): evita auth/D1.
@@ -85,10 +89,24 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
       const [t, o, d] = await Promise.all([fetch('/api/tracking'), fetch('/api/db/operations'), fetch('/api/db/despachante')])
       if (!t.ok) throw new Error('tracking')
       const td = await t.json()
-      setShips(td.shipments || [])
+      const shipments = td.shipments || []
+      setShips(shipments)
       if (o.ok) setOps(await o.json())
       if (d.ok) { const dd = await d.json(); setDesps(Array.isArray(dd) ? dd : []) }
       fetch('/api/db/alertas').then(x => x.ok ? x.json() : []).then(arr => { if (Array.isArray(arr)) setHechas(new Set(arr)) }).catch(() => {})
+      // Método habitual por agente: el ledger viene ordenado del más nuevo al
+      // más viejo, así que la primera aparición de cada agente es la última vez.
+      fetch('/api/db/pagos').then(x => x.ok ? x.json() : []).then(arr => {
+        if (!Array.isArray(arr)) return
+        const byId = {}; shipments.forEach(s => { byId[String(s.id)] = s.agente || 'Bruce' })
+        const m = {}
+        arr.forEach(p => {
+          if (p.scope !== 'agente' || !p.metodo) return
+          const ag = byId[String(p.ref_id)]
+          if (ag && !m[ag]) m[ag] = p.metodo
+        })
+        setUltMetodo(m)
+      }).catch(() => {})
     } catch {
       setLoadError(true)
       gToast.error('No se pudieron cargar los embarques. Revisá tu conexión.')
@@ -241,6 +259,7 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
       })
       if (!res.ok) throw new Error('No se pudo registrar el pago')
       gToast.success('Pago registrado.')
+      setUltMetodo(m => ({ ...m, [sh.agente || 'Bruce']: f.metodo }))
       setPagoModal(null)
       setHistPagos(h => { const n = { ...h }; delete n[sh.id]; return n })
       load()
@@ -493,7 +512,7 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
 
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
                             {bal > 0 && (
-                              <button onClick={() => setPagoModal({ ship: sh, fecha: hoyStr(), monto: fmtCalc(bal), metodo: 'transferencia', nota: '' })} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '0.34rem 0.75rem', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, background: PRIMARY, color: '#fff' }}>
+                              <button onClick={() => setPagoModal({ ship: sh, fecha: hoyStr(), monto: fmtCalc(bal), metodo: ultMetodo[sh.agente || 'Bruce'] || METODO_DEFAULT_AGENTE, nota: '' })} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '0.34rem 0.75rem', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, background: PRIMARY, color: '#fff' }}>
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                                 Registrar pago
                               </button>
@@ -521,7 +540,7 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
                               ) : hist.map(pg => (
                                 <div key={pg.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.28rem 0', fontSize: '0.74rem' }}>
                                   <span style={{ color: '#64748b', fontVariantNumeric: 'tabular-nums' }}>{pg.fecha || '—'}</span>
-                                  <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#475569', background: '#f1f5f9', borderRadius: 4, padding: '0.05rem 0.4rem' }}>{pg.metodo === 'cash' ? 'Efectivo' : 'Transferencia'}</span>
+                                  <span style={{ fontSize: '0.58rem', fontWeight: 700, color: pg.metodo === 'usa' ? '#1d4ed8' : '#475569', background: pg.metodo === 'usa' ? '#eff6ff' : '#f1f5f9', borderRadius: 4, padding: '0.05rem 0.4rem' }}>{pg.metodo === 'usa' ? '🇺🇸 ' : ''}{metodoLabel(pg.metodo)}</span>
                                   {pg.nota && <span style={{ color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pg.nota}</span>}
                                   <span style={{ marginLeft: 'auto', fontWeight: 700, color: '#16a34a', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(numUSD(pg.monto))}</span>
                                 </div>
@@ -573,13 +592,24 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
               <div><label style={LBL}>Monto (USD)</label><input inputMode="decimal" value={pagoModal.monto} onChange={e => setPagoModal(f => ({ ...f, monto: e.target.value }))} style={INP} placeholder="0" /></div>
             </div>
             <div style={{ marginBottom: 10 }}>
-              <label style={LBL}>Método</label>
+              <label style={LBL}>Pagado desde</label>
               <div style={{ display: 'flex', gap: 3, background: '#f1f5f9', borderRadius: 8, padding: 3 }}>
-                {[['transferencia', 'Transferencia'], ['cash', 'Efectivo']].map(([v, l]) => {
+                {METODOS_PAGO.map(([v, l]) => {
                   const on = pagoModal.metodo === v
-                  return <button key={v} onClick={() => setPagoModal(f => ({ ...f, metodo: v }))} style={{ flex: 1, padding: '0.35rem', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: '0.76rem', fontWeight: on ? 700 : 500, background: on ? '#fff' : 'transparent', color: on ? '#0f172a' : '#64748b', boxShadow: on ? '0 1px 2px rgba(15,23,42,0.1)' : 'none' }}>{l}</button>
+                  return <button key={v} onClick={() => setPagoModal(f => ({ ...f, metodo: v }))} style={{ flex: 1, padding: '0.35rem', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: '0.74rem', fontWeight: on ? 700 : 500, background: on ? '#fff' : 'transparent', color: on ? (v === 'usa' ? '#1d4ed8' : '#0f172a') : '#64748b', boxShadow: on ? '0 1px 2px rgba(15,23,42,0.1)' : 'none', whiteSpace: 'nowrap' }}>{v === 'usa' ? '🇺🇸 ' : ''}{l}</button>
                 })}
               </div>
+              {(() => {
+                const ag = pagoModal.ship.agente || 'Bruce'
+                const prev = ultMetodo[ag]
+                return (
+                  <p style={{ fontSize: '0.64rem', color: '#94a3b8', marginTop: 5 }}>
+                    {prev
+                      ? <>así le pagaste la última vez a <b style={{ color: '#64748b' }}>{ag}</b> — cambialo si esta vez fue distinto</>
+                      : <>los pagos a agentes salen de la cuenta de USA por defecto</>}
+                  </p>
+                )
+              })()}
             </div>
             <div style={{ marginBottom: 14 }}><label style={LBL}>Nota (opcional)</label><input value={pagoModal.nota} onChange={e => setPagoModal(f => ({ ...f, nota: e.target.value }))} style={INP} placeholder="Ej: adelanto 50%" /></div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
