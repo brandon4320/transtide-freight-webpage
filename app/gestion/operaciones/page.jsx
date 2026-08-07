@@ -874,12 +874,17 @@ function OperationDetail({ op, onBack }) {
     }, { blanco: 0, cash: 0 });
 
     let enBlanco = tAdu, cash = 0; // VEP siempre sociedad
-    [[naviera, 'blanco'], [terminal, 'blanco'], [transporte, 'blanco'], [despachante, 'blanco'], [admin, 'blanco'], [fleteIntl, 'cash']].forEach(([rows, def]) => {
+    // catsBlanco: desglose por categoría de lo que paga la SOCIEDAD IMPORTADORA
+    // (la parte facturada de cada rubro) — alimenta la banda "Reparto de la plata".
+    const catsBlanco = tAdu > 0 ? [{ label: 'VEP Aduana (tributos)', monto: tAdu }] : [];
+    [[naviera, 'blanco', 'Naviera'], [terminal, 'blanco', 'Terminal'], [transporte, 'blanco', 'Transporte'], [despachante, 'blanco', 'Despachante (gastos)'], [admin, 'blanco', 'Admin'], [fleteIntl, 'cash', 'Flete Internacional']].forEach(([rows, def, label]) => {
       const s = splitRows(rows, def); enBlanco += s.blanco; cash += s.cash;
+      if (s.blanco > 0) catsBlanco.push({ label, monto: s.blanco });
     });
     customGastos.forEach(cg => {
       const s = splitRows(detail[cg.id] || [], cg.kind === 'cash' ? 'cash' : 'blanco');
       enBlanco += s.blanco; cash += s.cash;
+      if (s.blanco > 0) catsBlanco.push({ label: cg.label || 'Otro', monto: s.blanco });
     });
 
     // Líneas cargadas en USD sin T.C.: no entran al total en pesos ni al
@@ -930,7 +935,7 @@ function OperationDetail({ op, onBack }) {
     });
     return {
       tNav, tTerm, tAdu, tTra, tDes, tAdm, tFlt, usdSinTC, fallbackTC,
-      enBlanco, cash, prorBase, totalGastos, totalM3, perProv,
+      enBlanco, cash, prorBase, totalGastos, totalM3, perProv, catsBlanco,
       totalACobrar:  perProv.reduce((s, p) => s + p.totalUSD, 0),
       totalCobrado:  perProv.reduce((s, p) => s + (p.cb.cobrado ? p.totalUSD : 0), 0),
       totalCashUSD:  perProv.reduce((s, p) => s + p.cashUSD, 0),
@@ -1061,7 +1066,8 @@ function OperationDetail({ op, onBack }) {
       {/* MAIN LAYOUT */}
       <div className="gestion-main-split" style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: '1rem', alignItems: 'start' }}>
 
-        {/* LEFT: Master table */}
+        {/* LEFT: tabla + reparto de la plata (debajo, para no estirar el carril derecho) */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minWidth: 0 }}>
         <div style={CARD}>
           <div style={{ padding: '0.85rem 1rem', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -1233,6 +1239,113 @@ function OperationDetail({ op, onBack }) {
           </div>
         </div>
 
+        {/* ══ REPARTO DE LA PLATA — a quién le pagás y qué cobrás, en 4 números ══ */}
+        <div style={CARD}>
+          <div style={{ padding: '0.85rem 1rem', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+            <p style={{ fontSize: '0.85rem', fontWeight: 700 }}>Reparto de la plata</p>
+            <span style={{ fontSize: '0.66rem', color: '#94a3b8' }}>a quién le pagás y qué cobrás en esta operación</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(235px, 1fr))', gap: 10, padding: '0.9rem 1rem' }}>
+
+            {/* 1 · Sociedad importadora: todo lo facturado (tributos, naviera, terminal…) */}
+            <div style={{ background: '#f8fafc', border: '1px solid #e8ecf1', borderRadius: 10, padding: '0.8rem 0.9rem' }}>
+              <p style={{ fontSize: '0.62rem', fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>🏢 A la sociedad importadora</p>
+              <p style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{fmtP(calc.enBlanco)}</p>
+              <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 3, marginBottom: 8 }}>facturado{calc.fallbackTC > 0 && calc.enBlanco > 0 ? ` · ≈ USD ${Math.round(calc.enBlanco / calc.fallbackTC).toLocaleString('es-AR')}` : ''}</p>
+              {calc.catsBlanco.map(cb => (
+                <div key={cb.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', padding: '0.16rem 0', color: '#64748b' }}>
+                  <span>{cb.label}</span><span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: '#475569' }}>{fmtP(cb.monto)}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* 2 · Despachante: su cuenta (honorarios + adicionales) por este B/L */}
+            {(() => {
+              const d = despacho;
+              const hon   = d ? numDesp(d.total_honorarios) : 0;
+              const adic  = d ? numDesp(d.adu_extras) + numDesp(d.otros_gastos) : 0;
+              const pag   = d ? numDesp(d.total_pagado) : 0;
+              const saldo = d ? numDesp(d.saldo) : 0;
+              const adicCobrados = calc.perProv.reduce((s, p) => s + n(p.cb.despAdic), 0);
+              return (
+                <div style={{ background: '#f8fafc', border: '1px solid #e8ecf1', borderRadius: 10, padding: '0.8rem 0.9rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <p style={{ fontSize: '0.62rem', fontWeight: 800, color: '#9a3412', textTransform: 'uppercase', letterSpacing: '0.05em' }}>🧾 Al despachante</p>
+                    <a href="/gestion/despachante" style={{ fontSize: '0.62rem', fontWeight: 700, color: '#2563eb', textDecoration: 'none' }}>Ver cuenta →</a>
+                  </div>
+                  {d ? (<>
+                    <p style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{fmtU(hon)}</p>
+                    <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 3, marginBottom: 8 }}>honorarios{adic > 0 ? ` + adicionales ${fmtU(adic)}` : ''}</p>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', padding: '0.16rem 0', color: '#64748b' }}>
+                      <span>Le pagaste</span><span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: '#059669' }}>{fmtU(pag)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', padding: '0.16rem 0', color: '#64748b' }}>
+                      <span>Saldo</span><span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: saldo > 0 ? '#dc2626' : '#059669' }}>{saldo > 0 ? `Le debés ${fmtU(saldo)}` : saldo < 0 ? `A tu favor ${fmtU(-saldo)}` : 'Saldado ✓'}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', padding: '0.16rem 0', color: '#64748b' }}>
+                      <span>Adic. que cobrás a clientes</span><span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: '#475569' }}>{fmtU(adicCobrados)}</span>
+                    </div>
+                    {adic > adicCobrados && (
+                      <p style={{ fontSize: '0.6rem', color: '#9a3412', background: '#fff4ee', border: '1px solid #fed7aa', borderRadius: 6, padding: '0.3rem 0.45rem', marginTop: 6, lineHeight: 1.35 }}>
+                        ⚠ Pagás {fmtU(adic)} de adicionales y cobrás {fmtU(adicCobrados)} — revisá &quot;Desp. adic.&quot; por proveedor.
+                      </p>
+                    )}
+                  </>) : (
+                    <p style={{ fontSize: '0.7rem', color: '#94a3b8', lineHeight: 1.5 }}>Sin despacho cargado para este B/L. Cargalo en <a href="/gestion/despachante" style={{ color: '#2563eb', fontWeight: 700, textDecoration: 'none' }}>Despachante</a> para ver acá lo que le debés.</p>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* 3 · Tu bolsillo: cash puesto y cuánto ya volvió vía cobranzas */}
+            {(() => {
+              const conCash = calc.perProv.filter(p => p.cashUSD > 0);
+              const puse   = conCash.reduce((s, p) => s + p.cashUSD, 0);
+              const vuelto = conCash.reduce((s, p) => s + (p.cb.cobrado ? p.cashUSD : 0), 0);
+              const falta  = Math.round((puse - vuelto) * 100) / 100;
+              const pctRec = puse > 0 ? (vuelto / puse) * 100 : 0;
+              return (
+                <div style={{ background: '#f8fafc', border: '1px solid #e8ecf1', borderRadius: 10, padding: '0.8rem 0.9rem' }}>
+                  <p style={{ fontSize: '0.62rem', fontWeight: 800, color: '#0891b2', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>🪙 De tu bolsillo · cash</p>
+                  {calc.cash > 0 || puse > 0 ? (<>
+                    <p style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{fmtU(puse)}</p>
+                    <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 3, marginBottom: 8 }}>{fmtP(calc.cash)} en gastos cash · vuelve cuando los clientes pagan</p>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', padding: '0.16rem 0', color: '#64748b' }}>
+                      <span>Recuperado</span><span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: '#059669' }}>{fmtU(vuelto)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', padding: '0.16rem 0', color: '#64748b' }}>
+                      <span>Te falta</span><span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: falta > 0 ? '#d97706' : '#059669' }}>{falta > 0 ? fmtU(falta) : 'Todo ✓'}</span>
+                    </div>
+                    <div style={{ height: 4, background: '#e8ecf1', borderRadius: 99, overflow: 'hidden', marginTop: 6 }}>
+                      <div style={{ width: `${Math.min(pctRec, 100)}%`, height: '100%', background: '#059669', borderRadius: 99 }} />
+                    </div>
+                  </>) : (
+                    <p style={{ fontSize: '0.7rem', color: '#94a3b8', lineHeight: 1.5 }}>No pusiste cash en esta operación.</p>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* 4 · Cobrás vos: total a clientes, cobrado y pendiente */}
+            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '0.8rem 0.9rem' }}>
+              <p style={{ fontSize: '0.62rem', fontWeight: 800, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>💵 Cobrás a clientes</p>
+              <p style={{ fontSize: '1.15rem', fontWeight: 800, color: '#065f46', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{fmtU(calc.totalACobrar)}</p>
+              <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 3, marginBottom: 8 }}>incluye gastos + servicios (con tu ganancia camuflada)</p>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', padding: '0.16rem 0', color: '#64748b' }}>
+                <span>Cobrado</span><span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: '#059669' }}>{fmtU(calc.totalCobrado)} · {calc.cobrados}/{calc.perProv.length}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', padding: '0.16rem 0', color: '#64748b' }}>
+                <span>Pendiente</span><span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: calc.totalACobrar - calc.totalCobrado > 0 ? '#d97706' : '#059669' }}>{fmtU(calc.totalACobrar - calc.totalCobrado)}</span>
+              </div>
+              <div style={{ height: 4, background: '#dcfce7', borderRadius: 99, overflow: 'hidden', marginTop: 6 }}>
+                <div style={{ width: `${calc.totalACobrar > 0 ? Math.min((calc.totalCobrado / calc.totalACobrar) * 100, 100) : 0}%`, height: '100%', background: '#059669', borderRadius: 99 }} />
+              </div>
+            </div>
+
+          </div>
+        </div>
+        </div>
+
         {/* RIGHT RAIL */}
         <div style={{ position: 'sticky', top: 220, display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={CARD}>
@@ -1293,101 +1406,6 @@ function OperationDetail({ op, onBack }) {
               </div>
             )}
           </div>
-
-          {/* Tu bolsillo: cash puesto por Brandon y cuánto ya volvió vía cobranzas */}
-          {(() => {
-            const conCash = calc.perProv.filter(p => p.cashUSD > 0);
-            if (!conCash.length && calc.cash <= 0) return null;
-            const puse   = conCash.reduce((s, p) => s + p.cashUSD, 0);
-            const vuelto = conCash.reduce((s, p) => s + (p.cb.cobrado ? p.cashUSD : 0), 0);
-            const falta  = Math.round((puse - vuelto) * 100) / 100;
-            const pctRec = puse > 0 ? (vuelto / puse) * 100 : 0;
-            return (
-              <div style={CARD}>
-                <div style={{ padding: '0.75rem 0.95rem', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: '0.85rem' }}>🪙</span>
-                  <p style={{ fontSize: '0.82rem', fontWeight: 700 }}>Tu bolsillo · cash</p>
-                </div>
-                <div style={{ padding: '0.7rem 0.95rem 0.9rem', display: 'flex', flexDirection: 'column', gap: 6, fontSize: '0.74rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#94a3b8' }}>Pusiste</span>
-                    <span style={{ fontWeight: 700, color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>{fmtU(puse)}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.64rem', color: '#94a3b8', marginTop: -4 }}>
-                    <span />
-                    <span>{fmtP(calc.cash)} en gastos cash</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#94a3b8' }}>Recuperado (cobrado)</span>
-                    <span style={{ fontWeight: 700, color: '#059669', fontVariantNumeric: 'tabular-nums' }}>{fmtU(vuelto)}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 6, borderTop: '1px solid #f1f5f9' }}>
-                    <span style={{ color: '#94a3b8' }}>Te falta recuperar</span>
-                    <span style={{ fontWeight: 800, color: falta > 0 ? '#d97706' : '#059669', fontVariantNumeric: 'tabular-nums' }}>{falta > 0 ? fmtU(falta) : 'Todo ✓'}</span>
-                  </div>
-                  <div style={{ height: 4, background: '#e8ecf1', borderRadius: 99, overflow: 'hidden' }}>
-                    <div style={{ width: `${Math.min(pctRec, 100)}%`, height: '100%', background: '#059669', borderRadius: 99 }} />
-                  </div>
-                  <p style={{ fontSize: '0.62rem', color: '#94a3b8', lineHeight: 1.45 }}>
-                    Lo que pagaste de tu bolsillo va dentro del &quot;A cobrar&quot; de cada cliente y vuelve cuando pagan.
-                  </p>
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Despachante: lo que LE PAGÁS por este despacho vs lo que LE COBRÁS al cliente */}
-          {op.bl && (() => {
-            const adicCobrados = calc.perProv.reduce((s, p) => s + n(p.cb.despAdic), 0);
-            const d = despacho;
-            const hon   = d ? numDesp(d.total_honorarios) : 0;
-            const adic  = d ? numDesp(d.adu_extras) + numDesp(d.otros_gastos) : 0;
-            const pag   = d ? numDesp(d.total_pagado) : 0;
-            const saldo = d ? numDesp(d.saldo) : 0;
-            return (
-              <div style={CARD}>
-                <div style={{ padding: '0.75rem 0.95rem', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-                  <p style={{ fontSize: '0.82rem', fontWeight: 700 }}>Despachante</p>
-                  <a href="/gestion/despachante" style={{ fontSize: '0.64rem', fontWeight: 700, color: '#2563eb', textDecoration: 'none' }}>Ver cuenta →</a>
-                </div>
-                {d ? (
-                  <div style={{ padding: '0.7rem 0.95rem 0.9rem', display: 'flex', flexDirection: 'column', gap: 6, fontSize: '0.74rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: '#94a3b8' }}>Honorarios (total)</span>
-                      <span style={{ fontWeight: 700, color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>{fmtU(hon)}</span>
-                    </div>
-                    {adic > 0 && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.64rem', color: '#94a3b8', marginTop: -4 }}>
-                        <span>incluye adicionales (aduana + otros)</span>
-                        <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtU(adic)}</span>
-                      </div>
-                    )}
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: '#94a3b8' }}>Le pagaste</span>
-                      <span style={{ fontWeight: 700, color: '#059669', fontVariantNumeric: 'tabular-nums' }}>{fmtU(pag)}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 6, borderTop: '1px solid #f1f5f9' }}>
-                      <span style={{ color: '#94a3b8' }}>Saldo</span>
-                      <span style={{ fontWeight: 800, color: saldo > 0 ? '#dc2626' : '#059669', fontVariantNumeric: 'tabular-nums' }}>{saldo > 0 ? `Le debés ${fmtU(saldo)}` : saldo < 0 ? `A tu favor ${fmtU(-saldo)}` : 'Saldado ✓'}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', background: '#f8fafc', border: '1px solid #e8ecf1', borderRadius: 6, padding: '0.4rem 0.55rem' }}>
-                      <span style={{ color: '#64748b', fontSize: '0.66rem' }}>Adic. que cobrás a clientes</span>
-                      <span style={{ fontWeight: 700, color: '#334155', fontSize: '0.7rem', fontVariantNumeric: 'tabular-nums' }}>{fmtU(adicCobrados)}</span>
-                    </div>
-                    {adic > adicCobrados && (
-                      <p style={{ fontSize: '0.62rem', color: '#9a3412', background: '#fff4ee', border: '1px solid #fed7aa', borderRadius: 6, padding: '0.35rem 0.5rem', lineHeight: 1.4 }}>
-                        ⚠ Los adicionales que pagás ({fmtU(adic)}) superan lo que les cobrás a los clientes ({fmtU(adicCobrados)}) — revisá &quot;Desp. adic.&quot; en cada proveedor.
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <div style={{ padding: '0.7rem 0.95rem 0.9rem' }}>
-                    <p style={{ fontSize: '0.7rem', color: '#94a3b8', lineHeight: 1.5 }}>Sin despacho cargado para este B/L. Cargalo en <a href="/gestion/despachante" style={{ color: '#2563eb', fontWeight: 700, textDecoration: 'none' }}>Despachante</a> para ver acá lo que le debés.</p>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
 
           {/* Cotizado vs a cobrar (si la operación vino de una cotización) */}
           {detail.totalCotizadoUsd ? (() => {
