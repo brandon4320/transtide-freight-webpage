@@ -1259,11 +1259,13 @@ function OperationDetail({ op, onBack }) {
               ))}
             </div>
 
-            {/* 2 · Despachante: su cuenta (honorarios + adicionales) por este B/L */}
+            {/* 2 · Despachante: lo que le pagás sale de los costos YA cargados en la
+                operación (categoría "Despachante" + adicionales por proveedor). La
+                cuenta corriente del módulo Despachante es complemento, no requisito.
+                OJO concepto: "despacho" = trámite aduanero (tributos, tile 1) — esto
+                es la factura del DESPACHANTE. */}
             {(() => {
               const d = despacho;
-              const hon   = d ? numDesp(d.total_honorarios) : 0;
-              const adic  = d ? numDesp(d.adu_extras) + numDesp(d.otros_gastos) : 0;
               const pag   = d ? numDesp(d.total_pagado) : 0;
               const saldo = d ? numDesp(d.saldo) : 0;
               const adicCobrados = calc.perProv.reduce((s, p) => s + n(p.cb.despAdic), 0);
@@ -1273,25 +1275,22 @@ function OperationDetail({ op, onBack }) {
                     <p style={{ fontSize: '0.62rem', fontWeight: 800, color: '#9a3412', textTransform: 'uppercase', letterSpacing: '0.05em' }}>🧾 Al despachante</p>
                     <a href="/gestion/despachante" style={{ fontSize: '0.62rem', fontWeight: 700, color: '#2563eb', textDecoration: 'none' }}>Ver cuenta →</a>
                   </div>
-                  {d ? (<>
-                    <p style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{fmtU(hon)}</p>
-                    <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 3, marginBottom: 8 }}>honorarios{adic > 0 ? ` + adicionales ${fmtU(adic)}` : ''}</p>
+                  <p style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{fmtP(calc.tDes)}</p>
+                  <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 3, marginBottom: 8 }}>sus gastos cargados en la operación{calc.fallbackTC > 0 && calc.tDes > 0 ? ` · ≈ USD ${Math.round(calc.tDes / calc.fallbackTC).toLocaleString('es-AR')}` : ''}</p>
+                  {adicCobrados > 0 && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', padding: '0.16rem 0', color: '#64748b' }}>
-                      <span>Le pagaste</span><span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: '#059669' }}>{fmtU(pag)}</span>
+                      <span>+ Adicionales (los cobrás a clientes)</span><span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: '#475569' }}>{fmtU(adicCobrados)}</span>
+                    </div>
+                  )}
+                  {d ? (<>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', padding: '0.16rem 0', color: '#64748b', borderTop: '1px solid #eef2f7', marginTop: 4, paddingTop: 6 }}>
+                      <span>Cuenta corriente · le pagaste</span><span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: '#059669' }}>{fmtU(pag)}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', padding: '0.16rem 0', color: '#64748b' }}>
                       <span>Saldo</span><span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: saldo > 0 ? '#dc2626' : '#059669' }}>{saldo > 0 ? `Le debés ${fmtU(saldo)}` : saldo < 0 ? `A tu favor ${fmtU(-saldo)}` : 'Saldado ✓'}</span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', padding: '0.16rem 0', color: '#64748b' }}>
-                      <span>Adic. que cobrás a clientes</span><span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: '#475569' }}>{fmtU(adicCobrados)}</span>
-                    </div>
-                    {adic > adicCobrados && (
-                      <p style={{ fontSize: '0.6rem', color: '#9a3412', background: '#fff4ee', border: '1px solid #fed7aa', borderRadius: 6, padding: '0.3rem 0.45rem', marginTop: 6, lineHeight: 1.35 }}>
-                        ⚠ Pagás {fmtU(adic)} de adicionales y cobrás {fmtU(adicCobrados)} — revisá &quot;Desp. adic.&quot; por proveedor.
-                      </p>
-                    )}
                   </>) : (
-                    <p style={{ fontSize: '0.7rem', color: '#94a3b8', lineHeight: 1.5 }}>Sin despacho cargado para este B/L. Cargalo en <a href="/gestion/despachante" style={{ color: '#2563eb', fontWeight: 700, textDecoration: 'none' }}>Despachante</a> para ver acá lo que le debés.</p>
+                    <p style={{ fontSize: '0.6rem', color: '#cbd5e1', marginTop: 6 }}>Su cuenta corriente (pagos y saldo) vive en Despachante — sin registro para este B/L todavía.</p>
                   )}
                 </div>
               );
