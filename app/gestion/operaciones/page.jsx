@@ -874,11 +874,15 @@ function OperationDetail({ op, onBack }) {
     }, { blanco: 0, cash: 0 });
 
     let enBlanco = tAdu, cash = 0; // VEP siempre sociedad
-    // catsBlanco: desglose por categoría de lo que paga la SOCIEDAD IMPORTADORA
-    // (la parte facturada de cada rubro) — alimenta la banda "Reparto de la plata".
+    // catsBlanco: desglose de lo que paga la SOCIEDAD IMPORTADORA (tributos,
+    // naviera, terminal…) para la banda "Reparto de la plata". El DESPACHANTE
+    // va aparte (despBlanco): es SU factura, no de la sociedad — si estuviera
+    // acá y en su propia tarjeta se sumaría dos veces.
     const catsBlanco = tAdu > 0 ? [{ label: 'VEP Aduana (tributos)', monto: tAdu }] : [];
-    [[naviera, 'blanco', 'Naviera'], [terminal, 'blanco', 'Terminal'], [transporte, 'blanco', 'Transporte'], [despachante, 'blanco', 'Despachante (gastos)'], [admin, 'blanco', 'Admin'], [fleteIntl, 'cash', 'Flete Internacional']].forEach(([rows, def, label]) => {
+    let despBlanco = 0;
+    [[naviera, 'blanco', 'Naviera'], [terminal, 'blanco', 'Terminal'], [transporte, 'blanco', 'Transporte'], [despachante, 'blanco', null], [admin, 'blanco', 'Admin'], [fleteIntl, 'cash', 'Flete Internacional']].forEach(([rows, def, label]) => {
       const s = splitRows(rows, def); enBlanco += s.blanco; cash += s.cash;
+      if (label === null) { despBlanco = s.blanco; return; }
       if (s.blanco > 0) catsBlanco.push({ label, monto: s.blanco });
     });
     customGastos.forEach(cg => {
@@ -935,7 +939,7 @@ function OperationDetail({ op, onBack }) {
     });
     return {
       tNav, tTerm, tAdu, tTra, tDes, tAdm, tFlt, usdSinTC, fallbackTC,
-      enBlanco, cash, prorBase, totalGastos, totalM3, perProv, catsBlanco,
+      enBlanco, cash, prorBase, totalGastos, totalM3, perProv, catsBlanco, despBlanco,
       totalACobrar:  perProv.reduce((s, p) => s + p.totalUSD, 0),
       totalCobrado:  perProv.reduce((s, p) => s + (p.cb.cobrado ? p.totalUSD : 0), 0),
       totalCashUSD:  perProv.reduce((s, p) => s + p.cashUSD, 0),
@@ -1253,12 +1257,14 @@ function OperationDetail({ op, onBack }) {
             {(() => {
               const tcOp = calc.fallbackTC;
               const uOf = (p) => tcOp > 0 ? p / tcOp : null;
-              const uB = uOf(calc.enBlanco);
+              // Sin el despachante: su factura tiene tarjeta propia (no sumar dos veces).
+              const socPesos = calc.enBlanco - calc.despBlanco;
+              const uB = uOf(socPesos);
               return (
                 <div style={{ background: '#f8fafc', border: '1px solid #e8ecf1', borderRadius: 10, padding: '0.8rem 0.9rem' }}>
                   <p style={{ fontSize: '0.62rem', fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>🏢 A la sociedad importadora</p>
-                  <p style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{uB != null ? fmtU(uB) : fmtP(calc.enBlanco)}</p>
-                  <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 3, marginBottom: 8 }}>{uB != null ? `${fmtP(calc.enBlanco)} facturado · al T.C. ${tcOp}` : 'facturado · cargá un T.C. para verlo en USD'}</p>
+                  <p style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{uB != null ? fmtU(uB) : fmtP(socPesos)}</p>
+                  <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 3, marginBottom: 8 }}>{uB != null ? `${fmtP(socPesos)} facturado · al T.C. ${tcOp}` : 'facturado · cargá un T.C. para verlo en USD'}</p>
                   {calc.catsBlanco.map(cb => (
                     <div key={cb.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', padding: '0.16rem 0', color: '#64748b' }}>
                       <span>{cb.label}</span><span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: '#475569' }}>{uOf(cb.monto) != null ? fmtU(uOf(cb.monto)) : fmtP(cb.monto)}</span>
@@ -1284,8 +1290,8 @@ function OperationDetail({ op, onBack }) {
                     <p style={{ fontSize: '0.62rem', fontWeight: 800, color: '#9a3412', textTransform: 'uppercase', letterSpacing: '0.05em' }}>🧾 Al despachante</p>
                     <a href="/gestion/despachante" style={{ fontSize: '0.62rem', fontWeight: 700, color: '#2563eb', textDecoration: 'none' }}>Ver cuenta →</a>
                   </div>
-                  <p style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{calc.fallbackTC > 0 ? fmtU(calc.tDes / calc.fallbackTC) : fmtP(calc.tDes)}</p>
-                  <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 3, marginBottom: 8 }}>{calc.fallbackTC > 0 ? `${fmtP(calc.tDes)} en gastos de la operación · al T.C. ${calc.fallbackTC}` : 'sus gastos cargados en la operación'}</p>
+                  <p style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{calc.fallbackTC > 0 ? fmtU(calc.despBlanco / calc.fallbackTC) : fmtP(calc.despBlanco)}</p>
+                  <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 3, marginBottom: 8 }}>{calc.fallbackTC > 0 ? `${fmtP(calc.despBlanco)} en gastos de la operación · al T.C. ${calc.fallbackTC}` : 'sus gastos cargados en la operación'}</p>
                   {adicCobrados > 0 && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', padding: '0.16rem 0', color: '#64748b' }}>
                       <span>+ Adicionales (los cobrás a clientes)</span><span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: '#475569' }}>{fmtU(adicCobrados)}</span>
@@ -1351,6 +1357,57 @@ function OperationDetail({ op, onBack }) {
             </div>
 
           </div>
+
+          {/* El mismo reparto, POR CLIENTE: cada fila suma exacto su "A cobrar"
+              (sociedad + despachante + bolsillo + servicios). Necesita T.C. */}
+          {calc.fallbackTC > 0 && calc.perProv.length > 0 && (() => {
+            const tc = calc.fallbackTC;
+            const socBase = calc.enBlanco - calc.tAdu - calc.despBlanco; // prorrateable sin VEP ni despachante
+            const groups = [];
+            calc.perProv.forEach(p => {
+              const key = p.tipo === 'Propio' ? 'Propio' : (p.clienteNombre || 'Cliente s/asignar');
+              let g = groups.find(x => x.key === key);
+              if (!g) { g = { key, soc: 0, desp: 0, bols: 0, serv: 0, cobrar: 0, cobrados: 0, n: 0 }; groups.push(g); }
+              const soc  = (p.vepPesos + p.ratio * socBase) / tc;
+              const desp = (p.ratio * calc.despBlanco) / tc + n(p.cb.despAdic);
+              const bols = p.cashUSD;
+              const serv = p.totalUSD - soc - desp - bols; // honorarios+ganancia+giro+origen (cierra la fila)
+              g.soc += soc; g.desp += desp; g.bols += bols; g.serv += serv;
+              g.cobrar += p.totalUSD; g.n++; if (p.cb.cobrado) g.cobrados++;
+            });
+            const TH = { fontSize: '0.58rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '0.35rem 0.6rem', textAlign: 'right', whiteSpace: 'nowrap' };
+            const TD = { fontSize: '0.74rem', padding: '0.4rem 0.6rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: '#475569', borderTop: '1px solid #f1f5f9', whiteSpace: 'nowrap' };
+            return (
+              <div style={{ margin: '0 1rem 1rem', border: '1px solid #e8ecf1', borderRadius: 10, overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc' }}>
+                      <th style={{ ...TH, textAlign: 'left' }}>Por cliente · USD</th>
+                      <th style={TH}>🏢 Sociedad</th>
+                      <th style={TH}>🧾 Despachante</th>
+                      <th style={TH}>🪙 Tu bolsillo</th>
+                      <th style={TH}>Servicios (tuyos)</th>
+                      <th style={TH}>= A cobrar</th>
+                      <th style={TH}>Cobrado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {groups.map(g => (
+                      <tr key={g.key}>
+                        <td style={{ ...TD, textAlign: 'left', fontWeight: 700, color: '#1e293b' }}>{g.key}</td>
+                        <td style={TD}>{fmtUcompact(g.soc)}</td>
+                        <td style={TD}>{fmtUcompact(g.desp)}</td>
+                        <td style={{ ...TD, color: '#0891b2' }}>{fmtUcompact(g.bols)}</td>
+                        <td style={{ ...TD, color: '#059669' }}>{fmtUcompact(g.serv)}</td>
+                        <td style={{ ...TD, fontWeight: 800, color: '#0f172a' }}>{fmtUcompact(g.cobrar)}</td>
+                        <td style={{ ...TD, color: g.cobrados === g.n ? '#059669' : '#94a3b8' }}>{g.cobrados}/{g.n}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
         </div>
         </div>
 
