@@ -1247,17 +1247,26 @@ function OperationDetail({ op, onBack }) {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(235px, 1fr))', gap: 10, padding: '0.9rem 1rem' }}>
 
-            {/* 1 · Sociedad importadora: todo lo facturado (tributos, naviera, terminal…) */}
-            <div style={{ background: '#f8fafc', border: '1px solid #e8ecf1', borderRadius: 10, padding: '0.8rem 0.9rem' }}>
-              <p style={{ fontSize: '0.62rem', fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>🏢 A la sociedad importadora</p>
-              <p style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{fmtP(calc.enBlanco)}</p>
-              <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 3, marginBottom: 8 }}>facturado{calc.fallbackTC > 0 && calc.enBlanco > 0 ? ` · ≈ USD ${Math.round(calc.enBlanco / calc.fallbackTC).toLocaleString('es-AR')}` : ''}</p>
-              {calc.catsBlanco.map(cb => (
-                <div key={cb.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', padding: '0.16rem 0', color: '#64748b' }}>
-                  <span>{cb.label}</span><span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: '#475569' }}>{fmtP(cb.monto)}</span>
+            {/* 1 · Sociedad importadora: todo lo facturado (tributos, naviera, terminal…)
+                Moneda estandarizada: USD primero (al T.C. de la operación), pesos como
+                referencia — igual que el resto de la banda. Sin T.C. cae a pesos. */}
+            {(() => {
+              const tcOp = calc.fallbackTC;
+              const uOf = (p) => tcOp > 0 ? p / tcOp : null;
+              const uB = uOf(calc.enBlanco);
+              return (
+                <div style={{ background: '#f8fafc', border: '1px solid #e8ecf1', borderRadius: 10, padding: '0.8rem 0.9rem' }}>
+                  <p style={{ fontSize: '0.62rem', fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>🏢 A la sociedad importadora</p>
+                  <p style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{uB != null ? fmtU(uB) : fmtP(calc.enBlanco)}</p>
+                  <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 3, marginBottom: 8 }}>{uB != null ? `${fmtP(calc.enBlanco)} facturado · al T.C. ${tcOp}` : 'facturado · cargá un T.C. para verlo en USD'}</p>
+                  {calc.catsBlanco.map(cb => (
+                    <div key={cb.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', padding: '0.16rem 0', color: '#64748b' }}>
+                      <span>{cb.label}</span><span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: '#475569' }}>{uOf(cb.monto) != null ? fmtU(uOf(cb.monto)) : fmtP(cb.monto)}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              );
+            })()}
 
             {/* 2 · Despachante: lo que le pagás sale de los costos YA cargados en la
                 operación (categoría "Despachante" + adicionales por proveedor). La
@@ -1275,8 +1284,8 @@ function OperationDetail({ op, onBack }) {
                     <p style={{ fontSize: '0.62rem', fontWeight: 800, color: '#9a3412', textTransform: 'uppercase', letterSpacing: '0.05em' }}>🧾 Al despachante</p>
                     <a href="/gestion/despachante" style={{ fontSize: '0.62rem', fontWeight: 700, color: '#2563eb', textDecoration: 'none' }}>Ver cuenta →</a>
                   </div>
-                  <p style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{fmtP(calc.tDes)}</p>
-                  <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 3, marginBottom: 8 }}>sus gastos cargados en la operación{calc.fallbackTC > 0 && calc.tDes > 0 ? ` · ≈ USD ${Math.round(calc.tDes / calc.fallbackTC).toLocaleString('es-AR')}` : ''}</p>
+                  <p style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{calc.fallbackTC > 0 ? fmtU(calc.tDes / calc.fallbackTC) : fmtP(calc.tDes)}</p>
+                  <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 3, marginBottom: 8 }}>{calc.fallbackTC > 0 ? `${fmtP(calc.tDes)} en gastos de la operación · al T.C. ${calc.fallbackTC}` : 'sus gastos cargados en la operación'}</p>
                   {adicCobrados > 0 && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', padding: '0.16rem 0', color: '#64748b' }}>
                       <span>+ Adicionales (los cobrás a clientes)</span><span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: '#475569' }}>{fmtU(adicCobrados)}</span>
