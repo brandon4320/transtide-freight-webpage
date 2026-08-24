@@ -318,7 +318,7 @@ export default function DespachantePage({ devRows = null, devShips = null, devPa
           <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
             {alertas.slice(0, 6).map((a, i) => (
               <button key={i} onClick={() => a.row.bl && setFicha({ bl: a.row.bl, desp: a.row, ship: shipByBL[blNorm(a.row.bl)] })} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: '0.1rem 0', cursor: 'pointer', textAlign: 'left', fontSize: '0.78rem', color: '#78350f' }}>
-                <span>💸 <b>{a.row.descripcion}</b> — mercadería arribó{a.sem != null ? ` hace ${a.sem} semana${a.sem === 1 ? '' : 's'}` : ''}, saldo <b>{fmtUSD(a.monto)}</b> al despachante</span>
+                <span><b>{a.row.descripcion}</b> — mercadería arribó{a.sem != null ? ` hace ${a.sem} semana${a.sem === 1 ? '' : 's'}` : ''}, saldo <b>{fmtUSD(a.monto)}</b> al despachante</span>
               </button>
             ))}
           </div>

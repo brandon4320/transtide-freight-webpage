@@ -13,22 +13,20 @@ const LBL = { display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#64
 const SEC = { fontSize: '0.82rem', fontWeight: 700, color: '#0f172a', margin: '0 0 0.85rem', paddingBottom: '0.45rem', borderBottom: '1px solid #f1f5f9' }
 
 // STATUSES y AGENTES viven en embarque-form (formulario compartido con Operaciones)
-const agenteStyle = (a) => a === 'Yachao'
-  ? { c: '#0284c7', bg: '#eff6ff', border: '#bfdbfe' }
-  : a === 'Shaina'
-    ? { c: '#0d9488', bg: '#f0fdfa', border: '#99f6e4' }
-    : { c: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' } // Bruce
 
-function statusStyle(raw) {
+// Tono del estado como texto plano: color solo cuando es semántico
+// (rojo problema, verde ok, ámbar atención); el resto en gris.
+function statusTone(raw) {
   const s = (raw || '').toLowerCase()
-  if (/cancel/.test(s))                    return { c: '#dc2626', bg: '#fef2f2', border: '#fecaca', dot: '#dc2626' }
-  if (/paid|pagad/.test(s))                return { c: '#065f46', bg: '#ecfdf5', border: '#a7f3d0', dot: '#059669' }
-  if (/pending|pendiente/.test(s))         return { c: '#d97706', bg: '#fffbeb', border: '#fde68a', dot: '#d97706' }
-  if (/deliver|entreg/.test(s))            return { c: '#059669', bg: '#f0fdf4', border: '#bbf7d0', dot: '#059669' }
-  if (/transit|tránsito|transito/.test(s)) return { c: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe', dot: '#2563eb' }
-  if (/customs|aduana|arrived/.test(s))    return { c: '#0891b2', bg: '#ecfeff', border: '#a5f3fc', dot: '#0891b2' }
-  return { c: '#64748b', bg: '#f1f5f9', border: '#e2e8f0', dot: '#94a3b8' }
+  if (/cancel/.test(s))                    return '#dc2626'
+  if (/paid|pagad|deliver|entreg/.test(s)) return '#16a34a'
+  if (/pending|pendiente/.test(s))         return '#d97706'
+  return '#94a3b8'
 }
+
+// Cerrada = cancelada, o entregada/pagada con el agente ya saldado.
+// Si arribó pero todavía le debés al forwarder, sigue activa (el pago manda).
+const esCerrada = (s) => /cancel/i.test(s.status || '') || (/deliver|paid|entreg|pagad/i.test(s.status || '') && numUSD(s.balance_usd) <= 0)
 
 const blNorm = (b) => (b || '').replace(/[\s-]/g, '').toUpperCase()
 const numUSD = (v) => { const n = parseFloat(String(v || '').replace(/\./g, '').replace(',', '.')); return isNaN(n) ? 0 : n }
@@ -73,6 +71,7 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
   const [desps, setDesps] = useState([])     // despachos (estado de aduana por fila)
   const [hechas, setHechas] = useState(() => new Set())  // akeys de alertas ya resueltas
   const [alertsOpen, setAlertsOpen] = useState(false)
+  const [cerradasOpen, setCerradasOpen] = useState(false)  // sección "Cerradas" del fondo, colapsada por defecto
   const [pagoModal, setPagoModal] = useState(null) // registrar pago al forwarder
   const [pagoBusy, setPagoBusy] = useState(false)
   const [expandId, setExpandId] = useState(null)   // embarque con historial abierto
@@ -221,12 +220,12 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
 
   // Texto de cada alerta (una sola fuente para el panel).
   const alertText = (a) => {
-    if (a.tipo === 'bl_china') return <>📄 <b>#{a.num}</b> llega {a.dias === 0 ? 'hoy' : `en ${a.dias} día${a.dias === 1 ? '' : 's'}`} — pedile a {a.agente} la liberación del B/L desde China</>
-    if (a.tipo === 'naviera') return <>⚓ <b>#{a.num}</b> llega {a.dias === 0 ? 'hoy' : `en ${a.dias} día${a.dias === 1 ? '' : 's'}`} — pagá naviera/terminal para liberar el contenedor a tiempo</>
-    if (a.tipo === 'transporte') return <>🚚 <b>#{a.num}</b> llega {a.dias === 0 ? 'hoy' : `en ${a.dias} día${a.dias === 1 ? '' : 's'}`}{a.destino ? ` a ${a.destino}` : ''} — coordiná el transporte interno</>
-    if (a.tipo === 'liberar') return <>🕐 <b>#{a.num}</b> arribó hace {a.dias} días y sigue sin liberar — riesgo de demoras/almacenaje</>
-    if (a.tipo === 'despacho') return <>📦 <b>#{a.num}</b> arribó hace {a.sem} semana{a.sem === 1 ? '' : 's'} — cargá el despacho del despachante</>
-    return <>💸 <b>#{a.num}</b> arribó{a.sem != null ? ` hace ${a.sem} semana${a.sem === 1 ? '' : 's'}` : ''} — saldo <b>{fmtUSD(a.monto)}</b> a {a.agente}</>
+    if (a.tipo === 'bl_china') return <><b>#{a.num}</b> llega {a.dias === 0 ? 'hoy' : `en ${a.dias} día${a.dias === 1 ? '' : 's'}`} — pedile a {a.agente} la liberación del B/L desde China</>
+    if (a.tipo === 'naviera') return <><b>#{a.num}</b> llega {a.dias === 0 ? 'hoy' : `en ${a.dias} día${a.dias === 1 ? '' : 's'}`} — pagá naviera/terminal para liberar el contenedor a tiempo</>
+    if (a.tipo === 'transporte') return <><b>#{a.num}</b> llega {a.dias === 0 ? 'hoy' : `en ${a.dias} día${a.dias === 1 ? '' : 's'}`}{a.destino ? ` a ${a.destino}` : ''} — coordiná el transporte interno</>
+    if (a.tipo === 'liberar') return <><b>#{a.num}</b> arribó hace {a.dias} días y sigue sin liberar — riesgo de demoras/almacenaje</>
+    if (a.tipo === 'despacho') return <><b>#{a.num}</b> arribó hace {a.sem} semana{a.sem === 1 ? '' : 's'} — cargá el despacho del despachante</>
+    return <><b>#{a.num}</b> arribó{a.sem != null ? ` hace ${a.sem} semana${a.sem === 1 ? '' : 's'}` : ''} — saldo <b>{fmtUSD(a.monto)}</b> a {a.agente}</>
   }
 
   const stats = useMemo(() => {
@@ -382,7 +381,7 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
               </div>
               <div style={{ ...CARD, padding: '0.75rem 0.95rem' }}>
                 <p style={{ fontSize: '0.56rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>En tránsito</p>
-                <p style={{ fontSize: '1.35rem', fontWeight: 800, color: '#2563eb', lineHeight: 1 }}>{transito}</p>
+                <p style={{ fontSize: '1.35rem', fontWeight: 800, color: '#334155', lineHeight: 1 }}>{transito}</p>
               </div>
             </div>
           </div>
@@ -395,12 +394,11 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
         <div style={{ display: 'flex', gap: 3, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 3 }}>
           {['todos', ...agentesFiltro].map(a => {
             const sel = agenteFilter === a
-            const st = a === 'todos' ? { c: '#fff', bg: PRIMARY } : agenteStyle(a)
             return (
               <button key={a} onClick={() => setAgenteFilter(a)} style={{
                 padding: '0.32rem 0.75rem', borderRadius: 6, cursor: 'pointer', fontSize: '0.74rem', fontWeight: 600, border: 'none',
-                background: sel ? (a === 'todos' ? PRIMARY : st.bg) : 'transparent',
-                color: sel ? (a === 'todos' ? '#fff' : st.c) : '#64748b',
+                background: sel ? PRIMARY : 'transparent',
+                color: sel ? '#fff' : '#64748b',
               }}>
                 {a === 'todos' ? 'Todos' : a}{a === 'Yachao' ? ' · aéreo' : (a === 'Bruce' || a === 'Shaina') ? ' · marítimo' : ''}
               </button>
@@ -439,19 +437,23 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
           {(() => {
+            // Activas arriba (agrupadas por agente); cerradas todas al fondo, colapsadas.
+            const activos = filtered.filter(s => !esCerrada(s))
+            const cerradas = filtered.filter(s => esCerrada(s)).sort((a, b) => (parseInt(b.num, 10) || 0) - (parseInt(a.num, 10) || 0))
+            // Si el filtro apunta a pagados (o no queda ninguna activa), las cerradas se muestran solas.
+            const mostrarCerradas = cerradasOpen || filter === 'pagado' || activos.length === 0
             const groups = []
-            filtered.forEach(x => { const k = x.agente || 'Bruce'; let g = groups.find(y => y.key === k); if (!g) { g = { key: k, items: [] }; groups.push(g) } g.items.push(x) })
+            activos.forEach(x => { const k = x.agente || 'Bruce'; let g = groups.find(y => y.key === k); if (!g) { g = { key: k, items: [] }; groups.push(g) } g.items.push(x) })
             groups.forEach(g => g.items.sort((a, b) => (numUSD(b.balance_usd) > 0 ? 1 : 0) - (numUSD(a.balance_usd) > 0 ? 1 : 0) || (parseInt(b.num, 10) || 0) - (parseInt(a.num, 10) || 0)))
-            return groups.map(g => {
-              const a = agenteStyle(g.key)
+            const grupos = groups.map(g => {
               const debe = g.items.reduce((x, r) => x + Math.max(0, numUSD(r.balance_usd)), 0)
               const favor = g.items.reduce((x, r) => x + Math.max(0, -numUSD(r.balance_usd)), 0)
               const neto = debe - favor
               return (
                 <div key={g.key}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 0.55rem 0.1rem' }}>
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: a.c, flex: '0 0 auto' }} />
-                    <span style={{ fontSize: '0.68rem', fontWeight: 800, color: a.c, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{g.key}</span>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#94a3b8', flex: '0 0 auto' }} />
+                    <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{g.key}</span>
                     <span style={{ fontSize: '0.64rem', fontWeight: 700, color: '#fff', background: '#94a3b8', borderRadius: 50, padding: '0.05rem 0.45rem' }}>{g.items.length}</span>
                     <span style={{ marginLeft: 'auto', fontSize: '0.72rem', fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: neto > 0 ? '#dc2626' : '#16a34a' }}>
                       {neto > 0 ? `Le debés ${fmtUSD(neto)}` : neto < 0 ? `${fmtUSD(-neto)} a tu favor` : 'Saldado ✓'}
@@ -459,7 +461,6 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     {g.items.map(sh => {
-                      const st = statusStyle(sh.status)
                       const bal = numUSD(sh.balance_usd)
                       const due = numUSD(sh.amount_due_usd), rec = numUSD(sh.amount_rec_usd)
                       const pct = due > 0 ? Math.max(0, Math.min(1, rec / due)) : (rec > 0 ? 1 : 0)
@@ -470,62 +471,59 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
                       const exp = expandId === sh.id
                       const hist = histPagos[sh.id]
                       return (
-                        <div key={sh.id} style={{ ...CARD, borderLeft: `3px solid ${st.dot}`, padding: '0.75rem 0.9rem' }}>
+                        <div key={sh.id} style={{ ...CARD, padding: '0.9rem 1.1rem' }}>
                           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                             <div onClick={() => sh.bl ? setFicha({ bl: sh.bl, ship: sh }) : openEdit(sh)} style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                                <span style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.9rem' }}>#{sh.num || '—'} · {sh.origen || '—'} <span style={{ color: '#cbd5e1' }}>→</span> {sh.destino || '—'}</span>
-                                {sh.carrier && <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#64748b', background: '#eef2f7', borderRadius: 4, padding: '0.05rem 0.35rem' }}>{sh.carrier}</span>}
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.6rem', fontWeight: 700, color: st.c, border: `1px solid ${st.border}`, background: '#fff', borderRadius: 4, padding: '0.05rem 0.4rem', whiteSpace: 'nowrap' }}>
-                                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: st.dot }} />{sh.status || '—'}
-                                </span>
-                                {sh.eta && <span style={{ fontSize: '0.62rem', color: eta ? eta.tone : '#94a3b8', fontWeight: 600 }}>ETA {sh.eta}{eta ? ` · ${eta.rel}` : ''}</span>}
+                              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                                <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.9rem' }}>#{sh.num || '—'} · {sh.origen || '—'} <span style={{ color: '#cbd5e1' }}>→</span> {sh.destino || '—'}</span>
+                                <span style={{ fontSize: '0.68rem', fontWeight: 600, color: statusTone(sh.status) }}>{sh.status || ''}</span>
+                                {sh.eta && <span style={{ fontSize: '0.68rem', color: eta ? eta.tone : '#94a3b8' }}>ETA {sh.eta}{eta ? ` · ${eta.rel}` : ''}</span>}
                               </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
-                                {sh.bl && <span style={{ fontFamily: 'ui-monospace,monospace', fontSize: '0.66rem', color: '#64748b' }}>{sh.bl}</span>}
+                              {/* Una sola línea de meta: referencia, carrier, flujo, operación y aduana como texto plano */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5, flexWrap: 'wrap', fontSize: '0.66rem', color: '#94a3b8' }}>
+                                {sh.bl && <span style={{ fontFamily: 'ui-monospace,monospace' }}>{sh.bl}</span>}
+                                {sh.carrier && <span>{sh.carrier}</span>}
+                                {sh.total_usd && <span>Total USD {sh.total_usd}</span>}
                                 <MiniFlow state={importFlowState({ op, ship: sh, desp: d })} />
                                 {op && (
-                                  <span onClick={e => { e.stopPropagation(); window.location.href = '/gestion/operaciones?op=' + encodeURIComponent(op.id) }} style={{ fontSize: '0.6rem', fontWeight: 700, color: '#1d4ed8', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 4, padding: '0.05rem 0.4rem', cursor: 'pointer', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📦 {op.nombre || 'Operación'}</span>
+                                  <span onClick={e => { e.stopPropagation(); window.location.href = '/gestion/operaciones?op=' + encodeURIComponent(op.id) }} style={{ cursor: 'pointer', color: '#64748b', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{op.nombre || 'Operación'}</span>
                                 )}
                                 {d && (dSaldo > 0
-                                  ? <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 4, padding: '0.05rem 0.4rem', whiteSpace: 'nowrap' }}>Aduana USD {d.saldo}</span>
-                                  : <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#065f46', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 4, padding: '0.05rem 0.4rem', whiteSpace: 'nowrap' }}>Aduana ✓</span>)}
+                                  ? <span style={{ fontWeight: 600, color: '#dc2626', whiteSpace: 'nowrap' }}>Aduana USD {d.saldo}</span>
+                                  : <span style={{ fontWeight: 600, color: '#16a34a', whiteSpace: 'nowrap' }}>Aduana ✓</span>)}
                               </div>
                             </div>
                             <div style={{ textAlign: 'right', flex: '0 0 auto' }}>
-                              <p style={{ fontSize: '0.58rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{bal > 0 ? 'Debés' : bal < 0 ? 'A favor' : 'Saldo'}</p>
                               <p style={{ fontSize: '1.05rem', fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: bal > 0 ? '#dc2626' : bal < 0 ? '#b45309' : '#16a34a', lineHeight: 1.1 }}>{bal !== 0 ? fmtUSD(Math.abs(bal)) : (due > 0 ? '✓' : '—')}</p>
+                              <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 2 }}>{bal > 0 ? 'debés' : bal < 0 ? 'a tu favor' : due > 0 ? 'pagado' : 'sin monto'}</p>
                             </div>
                           </div>
 
-                          {due > 0 && (
-                            <div style={{ marginTop: 9 }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: '#64748b', marginBottom: 4 }}>
-                                <span>Total <b style={{ color: '#0f172a' }}>{sh.total_usd ? 'USD ' + sh.total_usd : '—'}</b></span>
-                                <span>Pagado <b style={{ color: '#334155' }}>{fmtUSD(rec)}</b> de {fmtUSD(due)}</span>
+                          {/* Progreso: solo cuando hay pagos parciales en curso */}
+                          {rec > 0 && bal > 0 && (
+                            <div style={{ marginTop: 10 }}>
+                              <div style={{ height: 4, background: '#f1f5f9', borderRadius: 3, overflow: 'hidden' }}>
+                                <div style={{ height: '100%', width: `${Math.round(pct * 100)}%`, background: '#f59e0b', borderRadius: 3, transition: 'width .2s' }} />
                               </div>
-                              <div style={{ height: 6, background: '#f1f5f9', borderRadius: 4, overflow: 'hidden' }}>
-                                <div style={{ height: '100%', width: `${Math.round(pct * 100)}%`, background: bal > 0 ? '#f59e0b' : '#16a34a', borderRadius: 4, transition: 'width .2s' }} />
-                              </div>
+                              <p style={{ marginTop: 4, fontSize: '0.66rem', color: '#94a3b8', textAlign: 'right' }}>Pagado {fmtUSD(rec)} de {fmtUSD(due)}</p>
                             </div>
                           )}
 
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
                             {bal > 0 && (
-                              <button onClick={() => setPagoModal({ ship: sh, fecha: hoyStr(), monto: fmtCalc(bal), metodo: ultMetodo[sh.agente || 'Bruce'] || METODO_DEFAULT_AGENTE, nota: '' })} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '0.34rem 0.75rem', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, background: PRIMARY, color: '#fff' }}>
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                                Registrar pago
+                              <button onClick={() => setPagoModal({ ship: sh, fecha: hoyStr(), monto: fmtCalc(bal), metodo: ultMetodo[sh.agente || 'Bruce'] || METODO_DEFAULT_AGENTE, nota: '' })} style={{ padding: '0.32rem 0.8rem', borderRadius: 7, border: '1px solid #e2e8f0', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 600, background: '#fff', color: '#0f172a' }}>
+                                + Registrar pago
                               </button>
                             )}
-                            <button onClick={() => toggleHist(sh)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '0.34rem 0.7rem', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer' }}>
+                            <button onClick={() => toggleHist(sh)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '0.32rem 0.7rem', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer' }}>
                               Historial{Array.isArray(hist) ? ` (${hist.length})` : ''}
                               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: exp ? 'rotate(180deg)' : 'none' }}><polyline points="6 9 12 15 18 9"/></svg>
                             </button>
-                            <div style={{ marginLeft: 'auto', display: 'inline-flex', gap: 4 }}>
-                              <button onClick={() => openEdit(sh)} title="Editar" aria-label={`Editar embarque ${sh.num || ''}`} style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <div style={{ marginLeft: 'auto', display: 'inline-flex', gap: 2 }}>
+                              <button onClick={() => openEdit(sh)} title="Editar" aria-label={`Editar embarque ${sh.num || ''}`} style={{ width: 26, height: 26, borderRadius: 6, border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                               </button>
-                              <button onClick={() => setConfirmDel(sh.id)} title="Eliminar" aria-label={`Eliminar embarque ${sh.num || ''}`} style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #fee2e2', background: '#fff', color: '#dc2626', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <button onClick={() => setConfirmDel(sh.id)} title="Eliminar" aria-label={`Eliminar embarque ${sh.num || ''}`} style={{ width: 26, height: 26, borderRadius: 6, border: 'none', background: 'none', color: '#cbd5e1', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
                               </button>
                             </div>
@@ -538,11 +536,11 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
                               ) : hist.length === 0 ? (
                                 <p style={{ fontSize: '0.72rem', color: '#cbd5e1' }}>Sin pagos registrados para este embarque.</p>
                               ) : hist.map(pg => (
-                                <div key={pg.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.28rem 0', fontSize: '0.74rem' }}>
-                                  <span style={{ color: '#64748b', fontVariantNumeric: 'tabular-nums' }}>{pg.fecha || '—'}</span>
-                                  <span style={{ fontSize: '0.58rem', fontWeight: 700, color: pg.metodo === 'usa' ? '#1d4ed8' : '#475569', background: pg.metodo === 'usa' ? '#eff6ff' : '#f1f5f9', borderRadius: 4, padding: '0.05rem 0.4rem' }}>{pg.metodo === 'usa' ? '🇺🇸 ' : ''}{metodoLabel(pg.metodo)}</span>
-                                  {pg.nota && <span style={{ color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pg.nota}</span>}
-                                  <span style={{ marginLeft: 'auto', fontWeight: 700, color: '#16a34a', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(numUSD(pg.monto))}</span>
+                                <div key={pg.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.18rem 0', fontSize: '0.72rem', color: '#94a3b8' }}>
+                                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>{pg.fecha || '—'}</span>
+                                  <span>{metodoLabel(pg.metodo)}</span>
+                                  {pg.nota && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pg.nota}</span>}
+                                  <span style={{ marginLeft: 'auto', fontWeight: 600, color: '#334155', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(numUSD(pg.monto))}</span>
                                 </div>
                               ))}
                             </div>
@@ -554,6 +552,51 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
                 </div>
               )
             })
+            return (
+              <>
+                {grupos}
+
+                {/* Cerradas: canceladas o entregadas/pagadas ya saldadas — colapsadas por defecto */}
+                {cerradas.length > 0 && (
+                  <div>
+                    <button onClick={() => setCerradasOpen(o => !o)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', borderTop: '1px solid #e8ecf1', padding: '0.8rem 0.1rem 0', cursor: 'pointer', color: '#94a3b8', textAlign: 'left' }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: mostrarCerradas ? 'rotate(180deg)' : 'none', flex: '0 0 auto' }}><polyline points="6 9 12 15 18 9"/></svg>
+                      <span style={{ fontSize: '0.68rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cerradas · {cerradas.length}</span>
+                    </button>
+                    {mostrarCerradas && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.6rem' }}>
+                        {cerradas.map(sh => {
+                          const due = numUSD(sh.amount_due_usd)
+                          const cancelada = /cancel/i.test(sh.status || '')
+                          const meta = [sh.bl, sh.agente || 'Bruce', sh.status || '', sh.eta ? `ETA ${sh.eta}` : ''].filter(Boolean).join(' · ')
+                          return (
+                            <div key={sh.id} style={{ ...CARD, padding: '0.55rem 1.1rem', opacity: 0.65 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <div onClick={() => sh.bl ? setFicha({ bl: sh.bl, ship: sh }) : openEdit(sh)} style={{ flex: 1, minWidth: 0, cursor: 'pointer', display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                                  <span style={{ fontWeight: 600, color: '#475569', fontSize: '0.8rem' }}>#{sh.num || '—'} · {sh.origen || '—'} → {sh.destino || '—'}</span>
+                                  <span style={{ fontSize: '0.64rem', color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meta}</span>
+                                </div>
+                                <span style={{ flex: '0 0 auto', fontSize: '0.74rem', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: cancelada ? '#dc2626' : '#16a34a' }}>
+                                  {cancelada ? 'Cancelada' : due > 0 ? `${fmtUSD(due)} ✓` : '✓'}
+                                </span>
+                                <div style={{ flex: '0 0 auto', display: 'inline-flex', gap: 2 }}>
+                                  <button onClick={() => openEdit(sh)} title="Editar" aria-label={`Editar embarque ${sh.num || ''}`} style={{ width: 24, height: 24, borderRadius: 6, border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                  </button>
+                                  <button onClick={() => setConfirmDel(sh.id)} title="Eliminar" aria-label={`Eliminar embarque ${sh.num || ''}`} style={{ width: 24, height: 24, borderRadius: 6, border: 'none', background: 'none', color: '#cbd5e1', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )
           })()}
         </div>
       )}
@@ -596,7 +639,7 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
               <div style={{ display: 'flex', gap: 3, background: '#f1f5f9', borderRadius: 8, padding: 3 }}>
                 {METODOS_PAGO.map(([v, l]) => {
                   const on = pagoModal.metodo === v
-                  return <button key={v} onClick={() => setPagoModal(f => ({ ...f, metodo: v }))} style={{ flex: 1, padding: '0.35rem', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: '0.74rem', fontWeight: on ? 700 : 500, background: on ? '#fff' : 'transparent', color: on ? (v === 'usa' ? '#1d4ed8' : '#0f172a') : '#64748b', boxShadow: on ? '0 1px 2px rgba(15,23,42,0.1)' : 'none', whiteSpace: 'nowrap' }}>{v === 'usa' ? '🇺🇸 ' : ''}{l}</button>
+                  return <button key={v} onClick={() => setPagoModal(f => ({ ...f, metodo: v }))} style={{ flex: 1, padding: '0.35rem', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: '0.74rem', fontWeight: on ? 700 : 500, background: on ? '#fff' : 'transparent', color: on ? '#0f172a' : '#64748b', boxShadow: on ? '0 1px 2px rgba(15,23,42,0.1)' : 'none', whiteSpace: 'nowrap' }}>{l}</button>
                 })}
               </div>
               {(() => {

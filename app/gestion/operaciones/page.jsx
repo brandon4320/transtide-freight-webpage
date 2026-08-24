@@ -16,7 +16,7 @@ const fmtUcompact = (v) => v == null || isNaN(v) ? '—' : Math.round(v * 100) /
 const pct  = (v) => isNaN(v) ? '—' : (v * 100).toFixed(2) + '%';
 
 // ─── styles ───────────────────────────────────────────────────────────────────
-const CARD = { background: '#fff', borderRadius: '10px', padding: '1.25rem', boxShadow: '0 1px 4px rgba(0,0,0,0.05)', border: '1px solid #e8ecf1' };
+const CARD = { background: '#fff', borderRadius: '10px', padding: '0.9rem 1.1rem', boxShadow: '0 1px 3px rgba(15,23,42,0.04)', border: '1px solid #e8ecf1' };
 const LBL  = { display: 'block', fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.25rem' };
 const INP  = { width: '100%', padding: '0.42rem 0.6rem', border: '1px solid #e2e8f0', borderRadius: '7px', fontSize: '0.82rem', color: '#1e293b', background: '#fff', outline: 'none', transition: 'border-color 0.15s' };
 const TH   = { fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '0.45rem 0.6rem', textAlign: 'left' };
@@ -61,18 +61,21 @@ const FASES = [
 // ─── operations list data ─────────────────────────────────────────────────────
 // Estados del flujo real de importación (en orden cronológico)
 const ESTADOS = [
-  { label: 'Consolidando',      icon: '📦', color: '#64748b', bg: '#f1f5f9',  desc: 'Carga en preparación en origen' },
-  { label: 'En tránsito',       icon: '🚢', color: '#ea580c', bg: '#fff4ee',  desc: 'Contenedor en el mar' },
-  { label: 'Arribado',          icon: '⚓', color: '#0891b2', bg: '#ecfeff',  desc: 'Llegó al puerto de destino' },
-  { label: 'En aduana',         icon: '📋', color: '#d97706', bg: '#fffbeb',  desc: 'Proceso de desaduanización' },
-  { label: 'Listo p/ retiro',   icon: '✅', color: '#ea580c', bg: '#fff7ed',  desc: 'Canal verde / libre para retirar' },
-  { label: 'En tránsito local', icon: '🚛', color: '#7c3aed', bg: '#f5f3ff',  desc: 'Flete en camino al destino final' },
-  { label: 'Entregado',         icon: '🏁', color: '#059669', bg: '#f0fdf4',  desc: 'Mercadería en destino final' },
-  { label: 'Liquidado',         icon: '💰', color: '#065f46', bg: '#ecfdf5',  desc: 'Costos cerrados y cobrados' },
-  { label: 'Cancelado',         icon: '✕',  color: '#94a3b8', bg: '#f8fafc',  desc: 'Operación cancelada' },
+  { label: 'Consolidando',      color: '#64748b', bg: '#f1f5f9',  desc: 'Carga en preparación en origen' },
+  { label: 'En tránsito',       color: '#ea580c', bg: '#fff4ee',  desc: 'Contenedor en el mar' },
+  { label: 'Arribado',          color: '#0891b2', bg: '#ecfeff',  desc: 'Llegó al puerto de destino' },
+  { label: 'En aduana',         color: '#d97706', bg: '#fffbeb',  desc: 'Proceso de desaduanización' },
+  { label: 'Listo p/ retiro',   color: '#ea580c', bg: '#fff7ed',  desc: 'Canal verde / libre para retirar' },
+  { label: 'En tránsito local', color: '#7c3aed', bg: '#f5f3ff',  desc: 'Flete en camino al destino final' },
+  { label: 'Entregado',         color: '#059669', bg: '#f0fdf4',  desc: 'Mercadería en destino final' },
+  { label: 'Liquidado',         color: '#065f46', bg: '#ecfdf5',  desc: 'Costos cerrados y cobrados' },
+  { label: 'Cancelado',         color: '#94a3b8', bg: '#f8fafc',  desc: 'Operación cancelada' },
 ];
 const estadoObj   = (e) => ESTADOS.find(s => s.label === e) || ESTADOS[0];
 const estadoColor = (e) => estadoObj(e).color;
+// Criterio de "cerrada": el mismo que ya usaba el KPI de Completadas.
+const ESTADOS_CERRADOS = ['Entregado', 'Liquidado', 'Cancelado'];
+const PRIMARY = '#0f172a';
 const CONTENEDORES = ['20 Pies', '40 Pies', '40HQ', 'Flat Rack', 'LCL'];
 const CONTAINER_M3 = { '20 Pies': 28, '40 Pies': 56, '40HQ': 76, 'Flat Rack': 76, 'LCL': null };
 
@@ -86,7 +89,7 @@ const trackingStatusColor = (raw) => {
   if (/paid/.test(s))    return '#059669';
   if (/pending/.test(s)) return '#d97706';
   if (/deliver/.test(s)) return '#059669';
-  if (/transit/.test(s)) return '#ea580c';
+  if (/transit/.test(s)) return '#64748b';
   return '#64748b';
 };
 const trackBalNum = (v) => { const x = parseFloat(String(v || '').replace(/\./g, '').replace(',', '.')); return isNaN(x) ? 0 : x; };
@@ -163,6 +166,7 @@ function OperationsList({ onSelect, deepLinkId }) {
   const [form,      setForm]      = useState(emptyOp());
   const [confirm,   setConfirm]   = useState(null); // id to delete
   const [statusPop, setStatusPop] = useState(null); // op.id with open status picker
+  const [showCerradas, setShowCerradas] = useState(false); // sección de cerradas: colapsada por defecto
   const [deepLinkDone, setDeepLinkDone] = useState(false);
 
   const [loadError, setLoadError] = useState(false);
@@ -279,40 +283,22 @@ function OperationsList({ onSelect, deepLinkId }) {
   const INP2 = { ...INP, padding: '0.5rem 0.75rem', boxSizing: 'border-box' };
   const SEL  = { ...INP2, cursor: 'pointer', appearance: 'auto' };
 
+  // Activas arriba, cerradas al fondo (colapsadas). Mismo orden que devuelve la API.
+  const opsActivas  = ops.filter(o => !ESTADOS_CERRADOS.includes(o.estado));
+  const opsCerradas = ops.filter(o => ESTADOS_CERRADOS.includes(o.estado));
+
   return (
     <div>
       {/* header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
         <div>
           <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#1e293b', marginBottom: '0.2rem' }}>Operaciones</h2>
-          <p style={{ fontSize: '0.82rem', color: '#94a3b8' }}>{ops.length} operaciones registradas</p>
+          <p style={{ fontSize: '0.82rem', color: '#94a3b8' }}>{opsActivas.length} activa{opsActivas.length === 1 ? '' : 's'}{opsCerradas.length > 0 ? ` · ${opsCerradas.length} cerrada${opsCerradas.length === 1 ? '' : 's'}` : ''}</p>
         </div>
-        <button onClick={openNew} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.55rem 1.1rem', borderRadius: '50px', border: 'none', cursor: 'pointer', background: '#ea580c', color: '#fff', fontWeight: 700, fontSize: '0.82rem' }}>
+        <button onClick={openNew} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.55rem 1.1rem', borderRadius: 8, border: 'none', cursor: 'pointer', background: PRIMARY, color: '#fff', fontWeight: 700, fontSize: '0.82rem' }}>
           + Nueva operación
         </button>
       </div>
-
-      {/* KPI summary */}
-      {ops.length > 0 && (() => {
-        const activas = ops.filter(o => !['Entregado','Liquidado','Cancelado'].includes(o.estado)).length;
-        return (
-          <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
-            {[
-              { label: 'Total', value: ops.length, suffix: ops.length === 1 ? 'operación' : 'operaciones', color: '#1e293b', bg: '#f8fafc', border: '#e2e8f0' },
-              { label: 'Activas', value: activas, suffix: activas === 1 ? 'en curso' : 'en curso', color: '#ea580c', bg: '#fff4ee', border: '#fed7aa' },
-              { label: 'Completadas', value: ops.length - activas, suffix: 'finalizadas', color: '#059669', bg: '#f0fdf4', border: '#bbf7d0' },
-            ].map(({ label, value, suffix, color, bg, border }) => (
-              <div key={label} style={{ background: bg, border: `1px solid ${border}`, borderRadius: '10px', padding: '0.65rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <span style={{ fontSize: '1.35rem', fontWeight: 900, color }}>{value}</span>
-                <div>
-                  <p style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</p>
-                  <p style={{ fontSize: '0.72rem', color: '#64748b' }}>{suffix}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        );
-      })()}
 
       {/* list */}
       <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -324,7 +310,7 @@ function OperationsList({ onSelect, deepLinkId }) {
           <div style={{ textAlign: 'center', padding: '4rem 2rem', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
             <p style={{ fontWeight: 700, color: '#b91c1c', marginBottom: '0.4rem', fontSize: '0.95rem' }}>No se pudieron cargar las operaciones</p>
             <p style={{ fontSize: '0.82rem', color: '#94a3b8', marginBottom: '1.25rem' }}>Puede ser un problema de conexión.</p>
-            <button onClick={() => loadOps.current && loadOps.current()} style={{ padding: '0.55rem 1.25rem', borderRadius: '50px', border: 'none', cursor: 'pointer', background: '#ea580c', color: '#fff', fontWeight: 700, fontSize: '0.82rem' }}>Reintentar</button>
+            <button onClick={() => loadOps.current && loadOps.current()} style={{ padding: '0.55rem 1.25rem', borderRadius: 8, border: 'none', cursor: 'pointer', background: PRIMARY, color: '#fff', fontWeight: 700, fontSize: '0.82rem' }}>Reintentar</button>
           </div>
         ) : ops.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '4rem 2rem', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
@@ -333,7 +319,7 @@ function OperationsList({ onSelect, deepLinkId }) {
             </div>
             <p style={{ fontWeight: 700, color: '#1e293b', marginBottom: '0.4rem', fontSize: '0.95rem' }}>No hay operaciones registradas</p>
             <p style={{ fontSize: '0.82rem', color: '#94a3b8', marginBottom: '1.25rem' }}>Creá tu primera operación para empezar a gestionar importaciones.</p>
-            <button onClick={openNew} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.55rem 1.25rem', borderRadius: '50px', border: 'none', cursor: 'pointer', background: '#ea580c', color: '#fff', fontWeight: 700, fontSize: '0.82rem' }}>
+            <button onClick={openNew} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.55rem 1.25rem', borderRadius: 8, border: 'none', cursor: 'pointer', background: PRIMARY, color: '#fff', fontWeight: 700, fontSize: '0.82rem' }}>
               + Crear primera operación
             </button>
           </div>
@@ -353,7 +339,7 @@ function OperationsList({ onSelect, deepLinkId }) {
               <p style={{ fontSize: '0.6rem', fontWeight: 800, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>Cobranzas · {viejas.length}</p>
               {viejas.slice(0, 5).map(o => (
                 <button key={o.id} onClick={() => onSelect(o)} style={{ display: 'block', background: 'none', border: 'none', padding: '0.1rem 0', cursor: 'pointer', textAlign: 'left', fontSize: '0.78rem', color: '#78350f' }}>
-                  💰 <b>{o.nombre}</b> entregada y sin liquidar — revisá cobros pendientes
+                  <b>{o.nombre}</b> entregada y sin liquidar — revisá cobros pendientes
                 </button>
               ))}
             </div>
@@ -361,115 +347,135 @@ function OperationsList({ onSelect, deepLinkId }) {
         })()}
 
         {/* column headers */}
-        <div className="ops-list-headers" style={{ display: 'grid', gridTemplateColumns: '3fr 1.6fr 1.4fr 1fr auto', gap: '0.5rem', padding: '0 1.25rem 0.55rem 5.25rem', alignItems: 'center' }}>
+        <div className="ops-list-headers" style={{ display: 'grid', gridTemplateColumns: '3fr 1.6fr 1.4fr 1fr auto', gap: '0.5rem', padding: '0 1.25rem 0.55rem', alignItems: 'center' }}>
           {['Operación', 'N° BL', 'Contenedor / M³', 'ETA', ''].map(h => (
             <span key={h} style={{ fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</span>
           ))}
         </div>
 
-        {ops.map(op => {
-          const est = estadoObj(op.estado);
-          const cap = CONTAINER_M3[op.contenedor];
-          const ocup = getOcupado(op);
-          const m3str = cap
-            ? `${ocup != null ? ocup.toFixed(1) : '—'} / ${cap} m³`
-            : ocup != null ? `${ocup.toFixed(1)} m³` : '—';
-          const m3Over = cap && ocup != null && ocup > cap * 0.9;
-          return (
-            <div key={op.id}
-              className="ops-list-row"
-              onClick={() => { if (statusPop === op.id) return; onSelect(op); }}
-              style={{
-                display: 'grid', gridTemplateColumns: '3fr 1.6fr 1.4fr 1fr auto',
-                gap: '0.5rem', alignItems: 'center',
-                padding: '0.8rem 1.25rem',
-                borderLeft: `4px solid ${est.color}`,
-                background: '#fff',
-                borderRadius: '10px',
-                cursor: 'pointer',
-                marginBottom: '5px',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                transition: 'background 0.1s, box-shadow 0.1s',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(0,0,0,0.08)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'; }}
-            >
-              {/* col 1: icon + name + date */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
-                <div style={{ width: '34px', height: '34px', borderRadius: '9px', background: est.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: est.color }} />
-                </div>
+        {(() => {
+          // Una sola plantilla de fila: normal para activas, compacta/apagada para cerradas.
+          const renderOpRow = (op, cerrada) => {
+            const est = estadoObj(op.estado);
+            const cap = CONTAINER_M3[op.contenedor];
+            const ocup = getOcupado(op);
+            const m3str = cap
+              ? `${ocup != null ? ocup.toFixed(1) : '—'} / ${cap} m³`
+              : ocup != null ? `${ocup.toFixed(1)} m³` : '—';
+            const m3Over = cap && ocup != null && ocup > cap * 0.9;
+            return (
+              <div key={op.id}
+                className="ops-list-row"
+                onClick={() => { if (statusPop === op.id) return; onSelect(op); }}
+                style={{
+                  display: 'grid', gridTemplateColumns: '3fr 1.6fr 1.4fr 1fr auto',
+                  gap: '0.5rem', alignItems: 'center',
+                  padding: cerrada ? '0.55rem 1.25rem' : '0.8rem 1.25rem',
+                  background: '#fff',
+                  border: '1px solid #e8ecf1',
+                  borderRadius: '10px',
+                  cursor: 'pointer',
+                  marginBottom: '5px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                  opacity: cerrada ? 0.65 : 1,
+                  transition: 'background 0.1s',
+                }}
+                onMouseEnter={cerrada ? undefined : e => { e.currentTarget.style.background = '#f8fafc'; }}
+                onMouseLeave={cerrada ? undefined : e => { e.currentTarget.style.background = '#fff'; }}
+              >
+                {/* col 1: nombre + meta */}
                 <div style={{ minWidth: 0 }}>
-                  <p style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{op.nombre}</p>
-                  <p style={{ fontSize: '0.68rem', color: '#94a3b8', marginTop: '1px' }}>ETA: {op.eta || op.fecha || '—'}</p>
-                  <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <MiniFlow state={importFlowState({ op, ship: flowShipByBL[blNorm(op.bl)], desp: flowDespByBL[blNorm(op.bl)] })} />
-                    {(() => {
-                      // Embarque unificado en la fila: estado + saldo al forwarder
-                      const sh = flowShipByBL[blNorm(op.bl)]
-                      if (!sh) return null
-                      const shBal = trackBalNum(sh.balance_usd)
-                      const stc = trackingStatusColor(sh.status)
-                      return (
-                        <>
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.58rem', fontWeight: 700, color: stc, border: `1px solid ${stc}40`, background: `${stc}12`, borderRadius: 4, padding: '0.05rem 0.4rem', whiteSpace: 'nowrap' }}>
-                            <span style={{ width: 5, height: 5, borderRadius: '50%', background: stc }} />{sh.agente || 'Bruce'} · {sh.status || '—'}
+                  <p style={{ fontWeight: 700, color: cerrada ? '#64748b' : '#0f172a', fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{op.nombre}</p>
+                  <p style={{ fontSize: '0.68rem', color: '#94a3b8', marginTop: '1px' }}>ETA {op.eta || op.fecha || '—'}</p>
+                  {!cerrada && (
+                    <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <MiniFlow state={importFlowState({ op, ship: flowShipByBL[blNorm(op.bl)], desp: flowDespByBL[blNorm(op.bl)] })} />
+                      {(() => {
+                        // Embarque en la fila: agente y estado como meta-texto; solo la deuda va en rojo
+                        const sh = flowShipByBL[blNorm(op.bl)]
+                        if (!sh) return null
+                        const shBal = trackBalNum(sh.balance_usd)
+                        return (
+                          <span style={{ fontSize: '0.66rem', color: '#94a3b8', whiteSpace: 'nowrap' }}>
+                            {sh.agente || 'Bruce'} · {sh.status || '—'}
+                            {shBal > 0 && <b style={{ color: '#dc2626', fontWeight: 700 }}> · Forwarder USD {sh.balance_usd}</b>}
                           </span>
-                          {shBal > 0 && <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 4, padding: '0.05rem 0.4rem', whiteSpace: 'nowrap' }}>Forwarder USD {sh.balance_usd}</span>}
-                        </>
-                      )
-                    })()}
-                  </div>
-                </div>
-              </div>
-
-              {/* col 2: BL */}
-              <p className="col-bl" style={{ fontSize: '0.8rem', fontWeight: 600, color: op.bl ? '#475569' : '#cbd5e1', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{op.bl || '—'}</p>
-
-              {/* col 3: container + m³ */}
-              <div className="col-container">
-                <p style={{ fontSize: '0.82rem', fontWeight: 600, color: '#475569' }}>{op.contenedor || '—'}</p>
-                <p style={{ fontSize: '0.7rem', color: m3Over ? '#dc2626' : '#94a3b8' }}>{m3str}</p>
-              </div>
-
-              {/* col 4: ETA */}
-              <p className="col-eta" style={{ fontSize: '0.82rem', fontWeight: 600, color: op.eta ? '#059669' : '#cbd5e1' }}>{op.eta || '—'}</p>
-
-              {/* col 5: actions */}
-              <div className="col-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }} onClick={e => e.stopPropagation()}>
-                {/* status badge */}
-                <div style={{ position: 'relative' }}>
-                  <button onClick={() => setStatusPop(statusPop === op.id ? null : op.id)}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.25rem 0.65rem', borderRadius: '6px', fontSize: '0.68rem', fontWeight: 600, background: est.bg, color: est.color, border: `1px solid ${est.color}30`, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                    {est.label} <span style={{ fontSize: '0.55rem', opacity: 0.6 }}>▾</span>
-                  </button>
-                  {statusPop === op.id && (
-                    <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 6px)', background: '#fff', borderRadius: '12px', boxShadow: '0 8px 32px rgba(0,0,0,0.14)', border: '1px solid #e2e8f0', zIndex: 200, minWidth: '230px', overflow: 'hidden' }}>
-                      <p style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', padding: '0.6rem 0.85rem 0.3rem' }}>Cambiar estado</p>
-                      {ESTADOS.map((s, idx) => (
-                        <button key={s.label} onClick={() => setEstado(op.id, s.label)}
-                          style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', width: '100%', padding: '0.5rem 0.85rem', border: 'none', background: op.estado === s.label ? s.bg : 'transparent', cursor: 'pointer', borderBottom: idx < ESTADOS.length - 1 ? '1px solid #f8fafc' : 'none' }}>
-                          <span>{s.icon}</span>
-                          <div style={{ textAlign: 'left' }}>
-                            <p style={{ fontSize: '0.78rem', fontWeight: op.estado === s.label ? 700 : 500, color: op.estado === s.label ? s.color : '#374151' }}>{s.label}</p>
-                            <p style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: '1px' }}>{s.desc}</p>
-                          </div>
-                          {op.estado === s.label && <span style={{ marginLeft: 'auto', color: s.color, fontSize: '0.8rem' }}>✓</span>}
-                        </button>
-                      ))}
+                        )
+                      })()}
                     </div>
                   )}
                 </div>
-                {/* edit icon */}
-                <button className="edit-btn" onClick={e => openEdit(op, e)} title="Editar" aria-label={`Editar operación ${op.nombre || ''}`}
-                  style={{ width: '30px', height: '30px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: '0.82rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✏</button>
-                {/* delete icon */}
-                <button className="del-btn" onClick={e => askDel(op.id, e)} title="Eliminar" aria-label={`Eliminar operación ${op.nombre || ''}`}
-                  style={{ width: '30px', height: '30px', borderRadius: '8px', border: '1px solid #fee2e2', background: '#fff', color: '#dc2626', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+
+                {/* col 2: BL */}
+                <p className="col-bl" style={{ fontSize: '0.8rem', fontWeight: 600, color: op.bl ? '#475569' : '#cbd5e1', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{op.bl || '—'}</p>
+
+                {/* col 3: container + m³ */}
+                <div className="col-container">
+                  <p style={{ fontSize: '0.82rem', fontWeight: 600, color: '#475569' }}>{op.contenedor || '—'}</p>
+                  <p style={{ fontSize: '0.7rem', color: m3Over ? '#dc2626' : '#94a3b8' }}>{m3str}</p>
+                </div>
+
+                {/* col 4: ETA */}
+                <p className="col-eta" style={{ fontSize: '0.82rem', fontWeight: 500, color: op.eta ? '#64748b' : '#cbd5e1' }}>{op.eta || '—'}</p>
+
+                {/* col 5: actions */}
+                <div className="col-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }} onClick={e => e.stopPropagation()}>
+                  {/* estado: botón ghost que abre el selector */}
+                  <div style={{ position: 'relative' }}>
+                    <button onClick={() => setStatusPop(statusPop === op.id ? null : op.id)}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.25rem 0.65rem', borderRadius: '6px', fontSize: '0.68rem', fontWeight: 600, background: '#fff', color: '#475569', border: '1px solid #e2e8f0', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                      {est.label} <span style={{ fontSize: '0.55rem', color: '#94a3b8' }}>▾</span>
+                    </button>
+                    {statusPop === op.id && (
+                      <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 6px)', background: '#fff', borderRadius: '12px', boxShadow: '0 8px 32px rgba(0,0,0,0.14)', border: '1px solid #e2e8f0', zIndex: 200, minWidth: '230px', overflow: 'hidden' }}>
+                        <p style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', padding: '0.6rem 0.85rem 0.3rem' }}>Cambiar estado</p>
+                        {ESTADOS.map((s, idx) => (
+                          <button key={s.label} onClick={() => setEstado(op.id, s.label)}
+                            style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', width: '100%', padding: '0.5rem 0.85rem', border: 'none', background: op.estado === s.label ? '#f8fafc' : 'transparent', cursor: 'pointer', borderBottom: idx < ESTADOS.length - 1 ? '1px solid #f8fafc' : 'none' }}>
+                            <div style={{ textAlign: 'left' }}>
+                              <p style={{ fontSize: '0.78rem', fontWeight: op.estado === s.label ? 700 : 500, color: op.estado === s.label ? '#0f172a' : '#374151' }}>{s.label}</p>
+                              <p style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: '1px' }}>{s.desc}</p>
+                            </div>
+                            {op.estado === s.label && <span style={{ marginLeft: 'auto', color: '#0f172a', fontSize: '0.8rem' }}>✓</span>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {/* edit icon */}
+                  <button className="edit-btn" onClick={e => openEdit(op, e)} title="Editar" aria-label={`Editar operación ${op.nombre || ''}`}
+                    style={{ width: '28px', height: '28px', borderRadius: '6px', border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  </button>
+                  {/* delete icon */}
+                  <button className="del-btn" onClick={e => askDel(op.id, e)} title="Eliminar" aria-label={`Eliminar operación ${op.nombre || ''}`}
+                    style={{ width: '28px', height: '28px', borderRadius: '6px', border: 'none', background: 'none', color: '#cbd5e1', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+                  </button>
+                </div>
               </div>
-            </div>
+            );
+          };
+
+          return (
+            <>
+              {opsActivas.map(op => renderOpRow(op, false))}
+
+              {/* Cerradas: todas al fondo, colapsadas por defecto */}
+              {opsCerradas.length > 0 && (
+                <div style={{ marginTop: opsActivas.length ? '1rem' : 0 }}>
+                  <button onClick={() => setShowCerradas(v => !v)}
+                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '0.55rem 0.25rem', marginBottom: showCerradas ? '0.45rem' : 0, background: 'none', border: 'none', borderTop: '1px solid #e8ecf1', cursor: 'pointer', textAlign: 'left' }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5" style={{ transform: showCerradas ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}><polyline points="6 9 12 15 18 9"/></svg>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cerradas · {opsCerradas.length}</span>
+                    <span style={{ fontSize: '0.66rem', color: '#cbd5e1' }}>entregadas, liquidadas y canceladas</span>
+                  </button>
+                  {showCerradas && opsCerradas.map(op => renderOpRow(op, true))}
+                </div>
+              )}
+            </>
           );
-        })}
+        })()}
         </>
         )}
       </div>
@@ -497,7 +503,7 @@ function OperationsList({ onSelect, deepLinkId }) {
               <div>
                 <label style={LBL}>Estado</label>
                 <select value={form.estado} onChange={e => setForm(f => ({ ...f, estado: e.target.value }))} style={SEL}>
-                  {ESTADOS.map(s => <option key={s.label} value={s.label}>{s.icon} {s.label}</option>)}
+                  {ESTADOS.map(s => <option key={s.label} value={s.label}>{s.label}</option>)}
                 </select>
               </div>
               <div>
@@ -524,7 +530,7 @@ function OperationsList({ onSelect, deepLinkId }) {
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.25rem' }}>
               <button onClick={() => setModal(null)} style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={submit} style={{ padding: '0.5rem 1.2rem', borderRadius: '8px', border: 'none', background: '#ea580c', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>
+              <button onClick={submit} style={{ padding: '0.5rem 1.2rem', borderRadius: '8px', border: 'none', background: PRIMARY, color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>
                 {modal === 'new' ? 'Crear operación' : 'Guardar cambios'}
               </button>
             </div>
@@ -959,7 +965,6 @@ function OperationDetail({ op, onBack }) {
   const doneTasks  = CHECKLIST.filter(t => checked.has(t.id)).length;
   const progress   = Math.round((doneTasks / totalTasks) * 100);
 
-  const estadoC = ESTADOS.find(s => s.label === op.estado) || ESTADOS[0];
   const cap = CONTAINER_M3[op.contenedor];
   const fillPct = cap ? (calc.totalM3 / cap) * 100 : 0;
 
@@ -1007,17 +1012,17 @@ function OperationDetail({ op, onBack }) {
           <div style={{ flex: 1, minWidth: 240 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
               <h1 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0 }}>{toTitle(op.nombre)}</h1>
-              <span style={{ background: estadoC.bg, color: estadoC.color, border: `1px solid ${estadoC.color}30`, fontSize: '0.68rem', fontWeight: 700, padding: '0.18rem 0.6rem', borderRadius: 5 }}>{op.estado}</span>
+              <span style={{ color: '#94a3b8', fontSize: '0.72rem', fontWeight: 600 }}>{op.estado}</span>
               {isDirty && !saveFlash && <span style={{ fontSize: '0.68rem', color: '#f59e0b', fontWeight: 600 }}>● Sin guardar</span>}
               {saveFlash && <span style={{ fontSize: '0.72rem', color: '#059669', fontWeight: 700 }}>✓ Guardado</span>}
             </div>
             <div style={{ display: 'flex', gap: '0.85rem', marginTop: 4, fontSize: '0.72rem', color: '#64748b', flexWrap: 'wrap' }}>
               <span><strong style={{ color: '#475569', fontFamily: 'ui-monospace,monospace' }}>{op.bl || '—'}</strong> · BL</span>
               <span>{op.contenedor}</span>
-              <span>ETA <strong style={{ color: '#059669' }}>{op.eta || '—'}</strong></span>
+              <span>ETA <strong style={{ color: '#475569' }}>{op.eta || '—'}</strong></span>
             </div>
           </div>
-          <button onClick={saveAll} disabled={!isDirty || saving} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 1.1rem', borderRadius: 8, border: isDirty ? 'none' : '1px solid #e2e8f0', background: saving ? '#94a3b8' : (isDirty ? '#059669' : '#fff'), color: isDirty || saving ? '#fff' : '#94a3b8', fontWeight: 700, fontSize: '0.78rem', cursor: (isDirty && !saving) ? 'pointer' : 'default' }}>
+          <button onClick={saveAll} disabled={!isDirty || saving} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 1.1rem', borderRadius: 8, border: isDirty ? 'none' : '1px solid #e2e8f0', background: saving ? '#94a3b8' : (isDirty ? PRIMARY : '#fff'), color: isDirty || saving ? '#fff' : '#94a3b8', fontWeight: 700, fontSize: '0.78rem', cursor: (isDirty && !saving) ? 'pointer' : 'default' }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
             {saving ? 'Guardando…' : (isDirty ? 'Guardar' : 'Guardado')}
           </button>
@@ -1027,18 +1032,19 @@ function OperationDetail({ op, onBack }) {
         <div className="gestion-kpi-strip" style={{ marginTop: 8, display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 8 }}>
           {[
             { lbl: 'Costos totales', val: fmtP(calc.totalGastos), sub: `${fmtP(calc.enBlanco)} blanco + ${fmtP(calc.cash)} cash` },
-            { lbl: 'Por cobrar', val: fmtU(calc.totalACobrar - calc.totalCobrado), sub: `de ${fmtU(calc.totalACobrar)} total`, accent: '#ea580c' },
+            { lbl: 'Por cobrar', val: fmtU(calc.totalACobrar - calc.totalCobrado), sub: `de ${fmtU(calc.totalACobrar)} total`, accent: calc.totalACobrar - calc.totalCobrado > 0 ? '#d97706' : '#0f172a' },
             { lbl: 'Cobrado', val: fmtU(calc.totalCobrado), sub: `${calc.cobrados}/${calc.perProv.length} proveedores`, accent: '#059669' },
             { lbl: 'Ocupación', val: cap ? `${calc.totalM3.toFixed(1)} / ${cap} m³` : `${calc.totalM3.toFixed(1)} m³`, sub: cap ? `${fillPct.toFixed(0)}% del contenedor` : '—', bar: cap ? fillPct : null },
-            { lbl: 'Checklist', val: `${doneTasks}/${totalTasks}`, sub: `${progress}% completado`, accent: progress === 100 ? '#059669' : '#ea580c', bar: progress },
+            { lbl: 'Checklist', val: `${doneTasks}/${totalTasks}`, sub: `${progress}% completado`, accent: progress === 100 ? '#059669' : '#0f172a', bar: progress },
           ].map(({ lbl, val, sub, accent = '#0f172a', bar }) => (
             <div key={lbl} style={{ ...CARD, padding: '0.65rem 0.85rem' }}>
               <p style={{ fontSize: '0.58rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>{lbl}</p>
               <p style={{ fontSize: '0.95rem', fontWeight: 800, color: accent, lineHeight: 1.1 }}>{val}</p>
               <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 3 }}>{sub}</p>
-              {bar != null && (
+              {/* Barra solo con progreso parcial en curso (ni 0% ni 100%) */}
+              {bar != null && bar > 0 && bar < 100 && (
                 <div style={{ marginTop: 5, height: 3, background: '#e8ecf1', borderRadius: 99, overflow: 'hidden' }}>
-                  <div style={{ width: `${Math.min(bar, 100)}%`, height: '100%', background: accent, borderRadius: 99 }} />
+                  <div style={{ width: `${Math.min(bar, 100)}%`, height: '100%', background: '#94a3b8', borderRadius: 99 }} />
                 </div>
               )}
             </div>
@@ -1050,8 +1056,7 @@ function OperationDetail({ op, onBack }) {
       <div style={{ marginBottom: '1rem' }}>
         <FlowTimeline state={flowState} />
         {flowState.lockEntrega && ['Listo p/ retiro', 'En tránsito local'].includes(op.estado) && (
-          <div style={{ marginTop: 8, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '0.6rem 0.95rem', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: '1rem' }}>🔒</span>
+          <div style={{ marginTop: 8, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '0.6rem 0.95rem' }}>
             <p style={{ fontSize: '0.78rem', fontWeight: 700, color: '#dc2626' }}>NO ENTREGAR — hay clientes con pago exigido antes de la entrega y saldo pendiente.</p>
           </div>
         )}
@@ -1134,8 +1139,8 @@ function OperationDetail({ op, onBack }) {
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                               <span>{g.key} <span style={{ fontWeight: 600, color: '#94a3b8', textTransform: 'none', letterSpacing: 0 }}>· {g.items.length} proveedor{g.items.length === 1 ? '' : 'es'}</span></span>
                               {g.key !== 'Propio' && (
-                                <button onClick={() => setEstadoCuenta(g)} title="Hoja SIN ganancia, TC ni pesos internos — segura para captura o PDF" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '0.16rem 0.5rem', borderRadius: 5, border: '1px solid #fdba74', background: '#fff7ed', color: '#c2410c', fontSize: '0.6rem', fontWeight: 700, cursor: 'pointer', textTransform: 'none', letterSpacing: 0 }}>
-                                  📸 Resumen p/ cliente
+                                <button onClick={() => setEstadoCuenta(g)} title="Hoja SIN ganancia, TC ni pesos internos — segura para captura o PDF" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '0.16rem 0.5rem', borderRadius: 5, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: '0.6rem', fontWeight: 700, cursor: 'pointer', textTransform: 'none', letterSpacing: 0 }}>
+                                  Resumen p/ cliente
                                 </button>
                               )}
                             </span>
@@ -1161,7 +1166,7 @@ function OperationDetail({ op, onBack }) {
                       >
                         <td style={{ padding: '0.7rem', fontWeight: 600, color: '#1e293b' }}>{p.nombre || <span style={{ color: '#cbd5e1' }}>— sin nombre —</span>}</td>
                         <td style={{ padding: '0.7rem' }}>
-                          <span style={{ background: '#f1f5f9', color: '#64748b', fontSize: '0.66rem', fontWeight: 600, padding: '0.15rem 0.55rem', borderRadius: 5, border: '1px solid #e2e8f0' }}>
+                          <span style={{ color: '#94a3b8', fontSize: '0.7rem', fontWeight: 500 }}>
                             {p.tipo === 'Propio' ? 'Propio' : (p.clienteNombre || 'Cliente s/asignar')}
                           </span>
                         </td>
@@ -1197,7 +1202,7 @@ function OperationDetail({ op, onBack }) {
                             </span>
                           )}
                           {!isCobrado && p.cb.exigirPago && (
-                            <span title="No entregar la mercadería hasta cancelar el saldo" style={{ display: 'block', marginTop: 3, fontSize: '0.58rem', fontWeight: 800, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 4, padding: '0.08rem 0.4rem', width: 'fit-content', whiteSpace: 'nowrap' }}>🔒 ENTREGA CONTRA PAGO</span>
+                            <span title="No entregar la mercadería hasta cancelar el saldo" style={{ display: 'block', marginTop: 3, fontSize: '0.58rem', fontWeight: 800, color: '#dc2626', whiteSpace: 'nowrap' }}>ENTREGA CONTRA PAGO</span>
                           )}
                         </td>
                         <td style={{ padding: '0.7rem', textAlign: 'right' }}>
@@ -1262,7 +1267,7 @@ function OperationDetail({ op, onBack }) {
               const uB = uOf(socPesos);
               return (
                 <div style={{ background: '#f8fafc', border: '1px solid #e8ecf1', borderRadius: 10, padding: '0.8rem 0.9rem' }}>
-                  <p style={{ fontSize: '0.62rem', fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>🏢 A la sociedad importadora</p>
+                  <p style={{ fontSize: '0.62rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>A la sociedad importadora</p>
                   <p style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{uB != null ? fmtU(uB) : fmtP(socPesos)}</p>
                   <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 3, marginBottom: 8 }}>{uB != null ? `${fmtP(socPesos)} facturado · al T.C. ${tcOp}` : 'facturado · cargá un T.C. para verlo en USD'}</p>
                   {calc.catsBlanco.map(cb => (
@@ -1287,8 +1292,8 @@ function OperationDetail({ op, onBack }) {
               return (
                 <div style={{ background: '#f8fafc', border: '1px solid #e8ecf1', borderRadius: 10, padding: '0.8rem 0.9rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <p style={{ fontSize: '0.62rem', fontWeight: 800, color: '#9a3412', textTransform: 'uppercase', letterSpacing: '0.05em' }}>🧾 Al despachante</p>
-                    <a href="/gestion/despachante" style={{ fontSize: '0.62rem', fontWeight: 700, color: '#2563eb', textDecoration: 'none' }}>Ver cuenta →</a>
+                    <p style={{ fontSize: '0.62rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Al despachante</p>
+                    <a href="/gestion/despachante" style={{ fontSize: '0.62rem', fontWeight: 700, color: '#475569', textDecoration: 'none' }}>Ver cuenta →</a>
                   </div>
                   <p style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{calc.fallbackTC > 0 ? fmtU(calc.despBlanco / calc.fallbackTC) : fmtP(calc.despBlanco)}</p>
                   <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 3, marginBottom: 8 }}>{calc.fallbackTC > 0 ? `${fmtP(calc.despBlanco)} en gastos de la operación · al T.C. ${calc.fallbackTC}` : 'sus gastos cargados en la operación'}</p>
@@ -1320,7 +1325,7 @@ function OperationDetail({ op, onBack }) {
               const pctRec = puse > 0 ? (vuelto / puse) * 100 : 0;
               return (
                 <div style={{ background: '#f8fafc', border: '1px solid #e8ecf1', borderRadius: 10, padding: '0.8rem 0.9rem' }}>
-                  <p style={{ fontSize: '0.62rem', fontWeight: 800, color: '#0891b2', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>🪙 De tu bolsillo · cash</p>
+                  <p style={{ fontSize: '0.62rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>De tu bolsillo · cash</p>
                   {calc.cash > 0 || puse > 0 ? (<>
                     <p style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{fmtU(puse)}</p>
                     <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 3, marginBottom: 8 }}>{fmtP(calc.cash)} en gastos cash · vuelve cuando los clientes pagan</p>
@@ -1330,9 +1335,12 @@ function OperationDetail({ op, onBack }) {
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', padding: '0.16rem 0', color: '#64748b' }}>
                       <span>Te falta</span><span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: falta > 0 ? '#d97706' : '#059669' }}>{falta > 0 ? fmtU(falta) : 'Todo ✓'}</span>
                     </div>
-                    <div style={{ height: 4, background: '#e8ecf1', borderRadius: 99, overflow: 'hidden', marginTop: 6 }}>
-                      <div style={{ width: `${Math.min(pctRec, 100)}%`, height: '100%', background: '#059669', borderRadius: 99 }} />
-                    </div>
+                    {/* Barra solo con recupero parcial en curso */}
+                    {pctRec > 0 && pctRec < 100 && (
+                      <div style={{ height: 4, background: '#e8ecf1', borderRadius: 99, overflow: 'hidden', marginTop: 6 }}>
+                        <div style={{ width: `${Math.min(pctRec, 100)}%`, height: '100%', background: '#059669', borderRadius: 99 }} />
+                      </div>
+                    )}
                   </>) : (
                     <p style={{ fontSize: '0.7rem', color: '#94a3b8', lineHeight: 1.5 }}>No pusiste cash en esta operación.</p>
                   )}
@@ -1341,9 +1349,9 @@ function OperationDetail({ op, onBack }) {
             })()}
 
             {/* 4 · Cobrás vos: total a clientes, cobrado y pendiente */}
-            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '0.8rem 0.9rem' }}>
-              <p style={{ fontSize: '0.62rem', fontWeight: 800, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>💵 Cobrás a clientes</p>
-              <p style={{ fontSize: '1.15rem', fontWeight: 800, color: '#065f46', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{fmtU(calc.totalACobrar)}</p>
+            <div style={{ background: '#f8fafc', border: '1px solid #e8ecf1', borderRadius: 10, padding: '0.8rem 0.9rem' }}>
+              <p style={{ fontSize: '0.62rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Cobrás a clientes</p>
+              <p style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{fmtU(calc.totalACobrar)}</p>
               <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 3, marginBottom: 8 }}>incluye gastos + servicios (con tu ganancia camuflada)</p>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', padding: '0.16rem 0', color: '#64748b' }}>
                 <span>Cobrado</span><span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: '#059669' }}>{fmtU(calc.totalCobrado)} · {calc.cobrados}/{calc.perProv.length}</span>
@@ -1351,9 +1359,12 @@ function OperationDetail({ op, onBack }) {
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', padding: '0.16rem 0', color: '#64748b' }}>
                 <span>Pendiente</span><span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: calc.totalACobrar - calc.totalCobrado > 0 ? '#d97706' : '#059669' }}>{fmtU(calc.totalACobrar - calc.totalCobrado)}</span>
               </div>
-              <div style={{ height: 4, background: '#dcfce7', borderRadius: 99, overflow: 'hidden', marginTop: 6 }}>
-                <div style={{ width: `${calc.totalACobrar > 0 ? Math.min((calc.totalCobrado / calc.totalACobrar) * 100, 100) : 0}%`, height: '100%', background: '#059669', borderRadius: 99 }} />
-              </div>
+              {/* Barra solo con cobranza parcial en curso */}
+              {calc.totalACobrar > 0 && calc.totalCobrado > 0 && calc.totalCobrado < calc.totalACobrar && (
+                <div style={{ height: 4, background: '#e8ecf1', borderRadius: 99, overflow: 'hidden', marginTop: 6 }}>
+                  <div style={{ width: `${Math.min((calc.totalCobrado / calc.totalACobrar) * 100, 100)}%`, height: '100%', background: '#059669', borderRadius: 99 }} />
+                </div>
+              )}
             </div>
 
           </div>
@@ -1383,9 +1394,9 @@ function OperationDetail({ op, onBack }) {
                   <thead>
                     <tr style={{ background: '#f8fafc' }}>
                       <th style={{ ...TH, textAlign: 'left' }}>Por cliente · USD</th>
-                      <th style={TH}>🏢 Sociedad</th>
-                      <th style={TH}>🧾 Despachante</th>
-                      <th style={TH}>🪙 Tu bolsillo</th>
+                      <th style={TH}>Sociedad</th>
+                      <th style={TH}>Despachante</th>
+                      <th style={TH}>Tu bolsillo</th>
                       <th style={TH}>Servicios (tuyos)</th>
                       <th style={TH}>= A cobrar</th>
                       <th style={TH}>Cobrado</th>
@@ -1397,8 +1408,8 @@ function OperationDetail({ op, onBack }) {
                         <td style={{ ...TD, textAlign: 'left', fontWeight: 700, color: '#1e293b' }}>{g.key}</td>
                         <td style={TD}>{fmtUcompact(g.soc)}</td>
                         <td style={TD}>{fmtUcompact(g.desp)}</td>
-                        <td style={{ ...TD, color: '#0891b2' }}>{fmtUcompact(g.bols)}</td>
-                        <td style={{ ...TD, color: '#059669' }}>{fmtUcompact(g.serv)}</td>
+                        <td style={TD}>{fmtUcompact(g.bols)}</td>
+                        <td style={TD}>{fmtUcompact(g.serv)}</td>
                         <td style={{ ...TD, fontWeight: 800, color: '#0f172a' }}>{fmtUcompact(g.cobrar)}</td>
                         <td style={{ ...TD, color: g.cobrados === g.n ? '#059669' : '#94a3b8' }}>{g.cobrados}/{g.n}</td>
                       </tr>
@@ -1430,18 +1441,17 @@ function OperationDetail({ op, onBack }) {
                 ))}
 
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.85rem 0.55rem 0.3rem' }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.58rem', fontWeight: 700, color: '#0891b2', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="6" x2="12" y2="18"/><line x1="6" y1="12" x2="18" y2="12"/></svg>
+                  <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                     Pagado por vos · cash
                   </span>
-                  <span style={{ fontSize: '0.62rem', color: '#0891b2', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmtP(calc.cash)}{calc.fallbackTC > 0 && calc.cash > 0 ? ` · U$ ${Math.round(calc.cash / calc.fallbackTC).toLocaleString('es-AR')}` : ''}</span>
+                  <span style={{ fontSize: '0.62rem', color: '#64748b', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmtP(calc.cash)}{calc.fallbackTC > 0 && calc.cash > 0 ? ` · U$ ${Math.round(calc.cash / calc.fallbackTC).toLocaleString('es-AR')}` : ''}</span>
                 </div>
-                <div style={{ background: '#f0f9ff', borderRadius: 6, padding: 3, border: '1px solid #e0f2fe' }}>
+                <div style={{ background: '#f8fafc', borderRadius: 6, padding: 3, border: '1px solid #e8ecf1' }}>
                   {GASTOS_CASH.map(g => (
                     <CategoryBtn key={g.id} g={g} onClick={() => setEditingCat(g)} cash />
                   ))}
                 </div>
-                <p style={{ fontSize: '0.62rem', color: '#0c4a6e', padding: '0.4rem 0.55rem 0', lineHeight: 1.4 }}>
+                <p style={{ fontSize: '0.62rem', color: '#94a3b8', padding: '0.4rem 0.55rem 0', lineHeight: 1.4 }}>
                   Lo pagaste vos de tu bolsillo · se recupera de cada cliente según su m³
                 </p>
 
@@ -1453,7 +1463,7 @@ function OperationDetail({ op, onBack }) {
 
                 {calc.usdSinTC > 0 && (
                   <div style={{ marginTop: 10, padding: '0.5rem 0.6rem', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, fontSize: '0.64rem', color: '#92400e', lineHeight: 1.45 }}>
-                    ⚠ <b>USD {calc.usdSinTC.toLocaleString('es-AR')}</b> cargados sin T.C. — no entran al total ni al prorrateo. Cargales el T.C. en su categoría.
+                    <b>USD {calc.usdSinTC.toLocaleString('es-AR')}</b> cargados sin T.C. — no entran al total ni al prorrateo. Cargales el T.C. en su categoría.
                   </div>
                 )}
                 <div style={{ marginTop: 10, padding: '0.65rem 0.7rem', background: '#0f172a', borderRadius: 6 }}>
@@ -1464,7 +1474,7 @@ function OperationDetail({ op, onBack }) {
                   {calc.fallbackTC > 0 && calc.totalGastos > 0 && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 3 }}>
                       <span style={{ fontSize: '0.6rem', color: '#64748b' }}>≈ al T.C. {calc.fallbackTC}</span>
-                      <span style={{ fontSize: '0.72rem', color: '#7dd3fc', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>USD {Math.round(calc.totalGastos / calc.fallbackTC).toLocaleString('es-AR')}</span>
+                      <span style={{ fontSize: '0.72rem', color: '#e2e8f0', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>USD {Math.round(calc.totalGastos / calc.fallbackTC).toLocaleString('es-AR')}</span>
                     </div>
                   )}
                 </div>
@@ -1499,8 +1509,8 @@ function OperationDetail({ op, onBack }) {
             <div style={{ padding: '0.75rem 0.95rem', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <p style={{ fontSize: '0.82rem', fontWeight: 700 }}>Embarque · agente</p>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                {shipment && <button onClick={() => setShipModal(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#059669', fontSize: '0.7rem', fontWeight: 700, padding: 0 }}>Editar</button>}
-                <button onClick={() => router.push('/gestion/tracking')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0284c7', fontSize: '0.7rem', fontWeight: 700, padding: 0 }}>Forwarding →</button>
+                {shipment && <button onClick={() => setShipModal(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', fontSize: '0.7rem', fontWeight: 700, padding: 0 }}>Editar</button>}
+                <button onClick={() => router.push('/gestion/tracking')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', fontSize: '0.7rem', fontWeight: 700, padding: 0 }}>Forwarding →</button>
               </div>
             </div>
             <div style={{ padding: '0.7rem 0.95rem 0.9rem' }}>
@@ -1509,7 +1519,7 @@ function OperationDetail({ op, onBack }) {
               ) : !shipment ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <p style={{ fontSize: '0.72rem', color: '#94a3b8', lineHeight: 1.4 }}>Sin embarque cargado (se vincula por N° BL).</p>
-                  <button onClick={() => setShipModal(true)} style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 5, padding: '0.35rem 0.8rem', borderRadius: 7, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1e40af', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer' }}>
+                  <button onClick={() => setShipModal(true)} style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 5, padding: '0.35rem 0.8rem', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer' }}>
                     + Cargar embarque
                   </button>
                 </div>
@@ -1519,19 +1529,16 @@ function OperationDetail({ op, onBack }) {
                 const agente = shipment.agente || 'Bruce';
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <span style={{ background: '#f1f5f9', color: '#334155', border: '1px solid #e2e8f0', fontSize: '0.64rem', fontWeight: 700, padding: '0.12rem 0.5rem', borderRadius: 5 }}>{agente}</span>
-                      {shipment.carrier && <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>{shipment.carrier}</span>}
-                      <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5, color: stColor, border: `1px solid ${stColor}40`, background: `${stColor}12`, fontSize: '0.64rem', fontWeight: 700, padding: '0.12rem 0.5rem', borderRadius: 5, whiteSpace: 'nowrap' }}>
-                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: stColor }} />{shipment.status || '—'}
-                      </span>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>{agente}{shipment.carrier ? ` · ${shipment.carrier}` : ''}</span>
+                      <span style={{ marginLeft: 'auto', color: stColor, fontSize: '0.68rem', fontWeight: 700, whiteSpace: 'nowrap' }}>{shipment.status || '—'}</span>
                     </div>
                     <div style={{ fontSize: '0.78rem', color: '#1e293b', fontWeight: 600 }}>
                       {shipment.origen || '—'} <span style={{ color: '#cbd5e1' }}>→</span> {shipment.destino || '—'}
                     </div>
                     <div style={{ display: 'flex', gap: 14, fontSize: '0.72rem' }}>
                       <div><span style={{ color: '#94a3b8' }}>Zarpe (ETD): </span><span style={{ color: '#475569', fontWeight: 600 }}>{shipment.etd || '—'}</span></div>
-                      <div><span style={{ color: '#94a3b8' }}>ETA: </span><span style={{ color: '#059669', fontWeight: 600 }}>{shipment.eta || '—'}</span></div>
+                      <div><span style={{ color: '#94a3b8' }}>ETA: </span><span style={{ color: '#475569', fontWeight: 600 }}>{shipment.eta || '—'}</span></div>
                     </div>
                     {shipment.total_usd && (
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.72rem' }}>
@@ -1540,9 +1547,9 @@ function OperationDetail({ op, onBack }) {
                       </div>
                     )}
                     {bal > 0 && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.4rem 0.55rem', background: '#fef2f2', borderRadius: 6, border: '1px solid #fecaca' }}>
-                        <span style={{ fontSize: '0.68rem', color: '#b91c1c', fontWeight: 600 }}>Saldo a pagar al agente</span>
-                        <span style={{ fontSize: '0.78rem', color: '#dc2626', fontWeight: 800 }}>USD {shipment.balance_usd}</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.68rem', color: '#dc2626', fontWeight: 600 }}>Saldo a pagar al agente</span>
+                        <span style={{ fontSize: '0.78rem', color: '#dc2626', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>USD {shipment.balance_usd}</span>
                       </div>
                     )}
                   </div>
@@ -1621,7 +1628,6 @@ function OperationDetail({ op, onBack }) {
       <button className="checklist-fab" onClick={() => setShowChecklist(!showChecklist)} style={{ position: 'fixed', bottom: 24, right: 24, padding: '0.7rem 1.1rem', borderRadius: 50, border: 'none', background: '#1e293b', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.8rem', fontWeight: 700, boxShadow: '0 8px 24px rgba(15,23,42,0.18)', zIndex: 40 }}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
         Checklist {doneTasks}/{totalTasks}
-        <span style={{ marginLeft: 4, fontSize: '0.7rem', background: progress === 100 ? '#16a34a' : '#ea580c', padding: '0.1rem 0.5rem', borderRadius: 99 }}>{progress}%</span>
       </button>
 
       {/* Checklist drawer */}
@@ -1636,20 +1642,20 @@ function OperationDetail({ op, onBack }) {
               </div>
               <button onClick={() => setShowChecklist(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '1.4rem', lineHeight: 1, padding: 0 }}>×</button>
             </div>
-            <div style={{ height: 6, background: '#f1f5f9', borderRadius: 99, marginBottom: '1.5rem', overflow: 'hidden' }}>
-              <div style={{ width: `${progress}%`, height: '100%', background: progress === 100 ? '#059669' : '#ea580c', borderRadius: 99, transition: 'width 0.3s' }} />
-            </div>
+            {/* Barra solo con avance parcial */}
+            {progress > 0 && progress < 100 && (
+              <div style={{ height: 6, background: '#f1f5f9', borderRadius: 99, marginBottom: '1.5rem', overflow: 'hidden' }}>
+                <div style={{ width: `${progress}%`, height: '100%', background: '#94a3b8', borderRadius: 99, transition: 'width 0.3s' }} />
+              </div>
+            )}
             {FASES.map(fase => {
               const items = CHECKLIST.filter(t => t.fase === fase.id);
               const doneInFase = items.filter(t => checked.has(t.id)).length;
               return (
                 <div key={fase.id} style={{ marginBottom: '1.25rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <span style={{ width: 7, height: 7, borderRadius: '50%', background: fase.color }} />
-                      <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e293b' }}>Fase {fase.id} — {fase.label}</p>
-                    </div>
-                    <span style={{ fontSize: '0.65rem', fontWeight: 700, background: fase.bg, color: fase.color, padding: '0.1rem 0.5rem', borderRadius: 99, border: `1px solid ${fase.badge}` }}>
+                    <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e293b' }}>Fase {fase.id} — {fase.label}</p>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 600, color: doneInFase === items.length ? '#16a34a' : '#94a3b8' }}>
                       {doneInFase}/{items.length}
                     </span>
                   </div>
@@ -1658,11 +1664,11 @@ function OperationDetail({ op, onBack }) {
                       const done = checked.has(task.id);
                       return (
                         <div key={task.id} onClick={() => toggleCheck(task.id)}
-                          style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', cursor: 'pointer', padding: '0.4rem 0.5rem', borderRadius: 6, transition: 'background 0.1s', background: done ? fase.bg : 'transparent' }}
+                          style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', cursor: 'pointer', padding: '0.4rem 0.5rem', borderRadius: 6, transition: 'background 0.1s', background: done ? '#f8fafc' : 'transparent' }}
                           onMouseEnter={e => !done && (e.currentTarget.style.background = '#f8fafc')}
                           onMouseLeave={e => !done && (e.currentTarget.style.background = 'transparent')}
                         >
-                          <div style={{ width: 16, height: 16, borderRadius: 4, border: done ? `2px solid ${fase.color}` : '2px solid #cbd5e1', background: done ? fase.color : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1, transition: 'all 0.15s' }}>
+                          <div style={{ width: 16, height: 16, borderRadius: 4, border: done ? '2px solid #0f172a' : '2px solid #cbd5e1', background: done ? '#0f172a' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1, transition: 'all 0.15s' }}>
                             {done && <svg width="9" height="9" viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                           </div>
                           <span style={{ fontSize: '0.78rem', color: done ? '#94a3b8' : '#374151', textDecoration: done ? 'line-through' : 'none', lineHeight: 1.4, fontWeight: done ? 400 : 500 }}>
@@ -1683,7 +1689,6 @@ function OperationDetail({ op, onBack }) {
       {showDiscard && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
           <div style={{ background: '#fff', borderRadius: '16px', padding: '2rem', width: '100%', maxWidth: '400px', margin: '1rem', boxShadow: '0 24px 64px rgba(0,0,0,0.18)' }}>
-            <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: '#fffbeb', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem', fontSize: '1.5rem' }}>⚠️</div>
             <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#1e293b', textAlign: 'center', marginBottom: '0.5rem' }}>Cambios sin guardar</h3>
             <p style={{ fontSize: '0.82rem', color: '#64748b', textAlign: 'center', marginBottom: '1.5rem', lineHeight: 1.5 }}>
               Tenés cambios sin guardar en esta operación.<br/>¿Qué querés hacer antes de salir?
@@ -1692,7 +1697,7 @@ function OperationDetail({ op, onBack }) {
               <button onClick={discardAndBack} style={{ flex: 1, padding: '0.6rem', borderRadius: '10px', border: '1px solid #fee2e2', background: '#fff', color: '#dc2626', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}>
                 Descartar cambios
               </button>
-              <button onClick={saveAndBack} style={{ flex: 1, padding: '0.6rem', borderRadius: '10px', border: 'none', background: '#059669', color: '#fff', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}>
+              <button onClick={saveAndBack} style={{ flex: 1, padding: '0.6rem', borderRadius: '10px', border: 'none', background: PRIMARY, color: '#fff', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}>
                 Guardar y salir
               </button>
             </div>
@@ -1839,15 +1844,15 @@ function CategoryBtn({ g, onClick, cash }) {
   return (
     <button onClick={onClick}
       style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.45rem 0.55rem', borderRadius: 5, cursor: 'pointer', transition: 'background 0.1s', width: '100%', border: 'none', background: 'transparent', textAlign: 'left' }}
-      onMouseEnter={e => e.currentTarget.style.background = cash ? '#e0f2fe' : '#f8fafc'}
+      onMouseEnter={e => e.currentTarget.style.background = cash ? '#f1f5f9' : '#f8fafc'}
       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
         <span style={{ width: 6, height: 6, borderRadius: '50%', background: g.total > 0 ? g.color : '#e2e8f0', flexShrink: 0 }} />
-        <span style={{ fontSize: '0.74rem', color: cash ? '#0c4a6e' : '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.label}</span>
+        <span style={{ fontSize: '0.74rem', color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.label}</span>
         {g.custom && <span style={{ fontSize: '0.55rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', background: '#f1f5f9', padding: '0 4px', borderRadius: 3 }}>custom</span>}
         {g.usdPend > 0 && <span title={`USD ${g.usdPend.toLocaleString('es-AR')} cargados sin T.C. — no entran al total en pesos ni al prorrateo`} style={{ fontSize: '0.55rem', fontWeight: 700, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', padding: '0 4px', borderRadius: 3, flexShrink: 0 }}>+USD s/TC</span>}
       </div>
-      <span style={{ fontSize: '0.73rem', fontWeight: 600, color: g.total > 0 ? (cash ? '#0891b2' : '#1e293b') : '#cbd5e1', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{g.total > 0 ? fmtP(g.total) : '—'}</span>
+      <span style={{ fontSize: '0.73rem', fontWeight: 600, color: g.total > 0 ? '#1e293b' : '#cbd5e1', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{g.total > 0 ? fmtP(g.total) : '—'}</span>
     </button>
   );
 }
@@ -1881,10 +1886,10 @@ function AddCategoryModal({ onAdd, onClose }) {
               const sel = kind === opt.v;
               return (
                 <button key={opt.v} onClick={() => setKind(opt.v)} style={{
-                  padding: '0.65rem 0.7rem', borderRadius: 7, border: `1.5px solid ${sel ? (opt.v === 'cash' ? '#0891b2' : '#475569') : '#e2e8f0'}`,
-                  background: sel ? (opt.v === 'cash' ? '#f0f9ff' : '#f8fafc') : '#fff', cursor: 'pointer', textAlign: 'left',
+                  padding: '0.65rem 0.7rem', borderRadius: 7, border: `1.5px solid ${sel ? '#475569' : '#e2e8f0'}`,
+                  background: sel ? '#f8fafc' : '#fff', cursor: 'pointer', textAlign: 'left',
                 }}>
-                  <p style={{ fontSize: '0.78rem', fontWeight: 700, color: sel ? (opt.v === 'cash' ? '#0891b2' : '#1e293b') : '#475569' }}>{opt.t}</p>
+                  <p style={{ fontSize: '0.78rem', fontWeight: 700, color: sel ? '#1e293b' : '#475569' }}>{opt.t}</p>
                   <p style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: 2, lineHeight: 1.3 }}>{opt.d}</p>
                 </button>
               );
@@ -1906,7 +1911,7 @@ function AddCategoryModal({ onAdd, onClose }) {
 
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           <button onClick={onClose} style={{ padding: '0.5rem 1rem', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}>Cancelar</button>
-          <button onClick={() => valid && onAdd({ label: label.trim(), kind, color })} disabled={!valid} style={{ padding: '0.5rem 1.25rem', borderRadius: 7, border: 'none', background: valid ? '#059669' : '#e2e8f0', color: valid ? '#fff' : '#94a3b8', fontWeight: 700, fontSize: '0.8rem', cursor: valid ? 'pointer' : 'default' }}>Crear categoría</button>
+          <button onClick={() => valid && onAdd({ label: label.trim(), kind, color })} disabled={!valid} style={{ padding: '0.5rem 1.25rem', borderRadius: 7, border: 'none', background: valid ? PRIMARY : '#e2e8f0', color: valid ? '#fff' : '#94a3b8', fontWeight: 700, fontSize: '0.8rem', cursor: valid ? 'pointer' : 'default' }}>Crear categoría</button>
         </div>
       </div>
     </>
@@ -1968,7 +1973,7 @@ function CategoryEditor({ cat, rows: initRows, onChange, onClose, onDelete }) {
                     </td>
                     <td style={{ padding: '0.25rem 0.3rem', width: 140 }}>
                       {calcPesos ? (
-                        <div style={{ ...INP_MODAL, background: '#f8fafc', color: '#059669', fontWeight: 600, textAlign: 'right' }}>{fmtP(n(row.usd) * n(row.tc))}</div>
+                        <div style={{ ...INP_MODAL, background: '#f8fafc', color: '#475569', fontWeight: 600, textAlign: 'right' }}>{fmtP(n(row.usd) * n(row.tc))}</div>
                       ) : (
                         <input type="number" inputMode="decimal" step="any" value={row.pesos} onChange={e => updRow(i, 'pesos', e.target.value)} style={{ ...INP_MODAL, textAlign: 'right' }} placeholder="" />
                       )}
@@ -2000,7 +2005,7 @@ function CategoryEditor({ cat, rows: initRows, onChange, onClose, onDelete }) {
               })}
             </tbody>
           </table>
-          <button onClick={addRow} style={{ marginTop: '0.6rem', background: 'transparent', border: `1px dashed ${cat.color}`, borderRadius: 7, padding: '0.4rem 0.9rem', fontSize: '0.75rem', fontWeight: 700, color: cat.color, cursor: 'pointer' }}>
+          <button onClick={addRow} style={{ marginTop: '0.6rem', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 7, padding: '0.4rem 0.9rem', fontSize: '0.75rem', fontWeight: 600, color: '#475569', cursor: 'pointer' }}>
             + Agregar línea
           </button>
         </div>
@@ -2009,7 +2014,7 @@ function CategoryEditor({ cat, rows: initRows, onChange, onClose, onDelete }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <div>
               <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Subtotal {cat.label}</span>
-              <p style={{ fontSize: '1.05rem', fontWeight: 800, color: cat.color, fontVariantNumeric: 'tabular-nums' }}>{fmtP(tot)}</p>
+              <p style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>{fmtP(tot)}</p>
             </div>
             {onDelete && (
               <button onClick={onDelete} style={{ background: 'none', border: 'none', color: '#cbd5e1', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer', padding: 0, transition: 'color 0.15s' }}
@@ -2021,7 +2026,7 @@ function CategoryEditor({ cat, rows: initRows, onChange, onClose, onDelete }) {
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={onClose} style={{ padding: '0.5rem 1rem', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}>Cancelar</button>
-            <button onClick={save} style={{ padding: '0.5rem 1.25rem', borderRadius: 7, border: 'none', background: '#059669', color: '#fff', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer' }}>Guardar</button>
+            <button onClick={save} style={{ padding: '0.5rem 1.25rem', borderRadius: 7, border: 'none', background: PRIMARY, color: '#fff', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer' }}>Guardar</button>
           </div>
         </div>
       </div>
@@ -2035,7 +2040,7 @@ function ExpandedDetail({ p, clientes, onCreateCliente, onUpdProveedor, onUpdCob
   const LBL_E  = { fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 };
   const SEC  = { fontSize: '0.65rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 };
   const HINT = { fontSize: '0.65rem', color: '#94a3b8', fontStyle: 'italic', marginTop: 3 };
-  const CALC = { fontSize: '0.7rem', color: '#059669', fontWeight: 600, marginTop: 3, fontVariantNumeric: 'tabular-nums' };
+  const CALC = { fontSize: '0.7rem', color: '#475569', fontWeight: 600, marginTop: 3, fontVariantNumeric: 'tabular-nums' };
   const INP_E = { width: '100%', padding: '0.4rem 0.55rem', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.78rem', color: '#1e293b', background: '#fff', outline: 'none', boxSizing: 'border-box' };
 
   const handleCrear = async () => {
@@ -2093,14 +2098,14 @@ function ExpandedDetail({ p, clientes, onCreateCliente, onUpdProveedor, onUpdCob
                       <button
                         onClick={handleCrear}
                         disabled={!newName.trim()}
-                        style={{ flexShrink: 0, padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #16a34a', background: newName.trim() ? '#16a34a' : '#cbd5e1', color: '#fff', fontSize: '0.72rem', fontWeight: 600, cursor: newName.trim() ? 'pointer' : 'not-allowed' }}>
+                        style={{ flexShrink: 0, padding: '0.4rem 0.6rem', borderRadius: 6, border: 'none', background: newName.trim() ? '#0f172a' : '#cbd5e1', color: '#fff', fontSize: '0.72rem', fontWeight: 600, cursor: newName.trim() ? 'pointer' : 'not-allowed' }}>
                         Crear
                       </button>
                       <button
                         onClick={() => { setCreating(false); setNewName(''); }}
                         title="Cancelar"
                         style={{ flexShrink: 0, padding: '0.4rem 0.5rem', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#94a3b8', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer' }}>
-                        ✕
+                        ×
                       </button>
                     </div>
                   ) : (
@@ -2124,7 +2129,7 @@ function ExpandedDetail({ p, clientes, onCreateCliente, onUpdProveedor, onUpdCob
           </div>
 
           <div style={{ marginBottom: 18 }}>
-            <p style={SEC}><span style={{ width: 4, height: 4, borderRadius: '50%', background: '#0284c7' }} /> Carga en el contenedor</p>
+            <p style={SEC}><span style={{ width: 4, height: 4, borderRadius: '50%', background: '#94a3b8' }} /> Carga en el contenedor</p>
             <div className="expanded-detail-carga" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
               <div>
                 <p style={LBL_E}>m³ (CBM) <Help title="Volumen en metros cúbicos. Define el % de prorrateo de los costos compartidos." /></p>
@@ -2143,7 +2148,7 @@ function ExpandedDetail({ p, clientes, onCreateCliente, onUpdProveedor, onUpdCob
           </div>
 
           <div style={{ marginBottom: 14 }}>
-            <p style={SEC}><span style={{ width: 4, height: 4, borderRadius: '50%', background: '#dc2626' }} /> VEP Aduana <Help title="Tributos aduaneros pagados por este proveedor. USD × T.C. = pesos asignados." /></p>
+            <p style={SEC}><span style={{ width: 4, height: 4, borderRadius: '50%', background: '#94a3b8' }} /> VEP Aduana <Help title="Tributos aduaneros pagados por este proveedor. USD × T.C. = pesos asignados." /></p>
             <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
               <div style={{ flex: 1 }}>
                 <p style={LBL_E}>USD</p>
@@ -2157,7 +2162,7 @@ function ExpandedDetail({ p, clientes, onCreateCliente, onUpdProveedor, onUpdCob
               <div style={{ paddingBottom: 8, color: '#cbd5e1', fontWeight: 700, fontSize: '0.9rem' }}>=</div>
               <div style={{ flex: 1.2 }}>
                 <p style={LBL_E}>Pesos</p>
-                <div style={{ ...INP_E, background: hasVepBoth ? '#f0fdf4' : '#f8fafc', color: hasVepBoth ? '#059669' : '#cbd5e1', fontWeight: 700, textAlign: 'right', borderColor: hasVepBoth ? '#bbf7d0' : '#e2e8f0' }}>
+                <div style={{ ...INP_E, background: '#f8fafc', color: hasVepBoth ? '#0f172a' : '#cbd5e1', fontWeight: 700, textAlign: 'right' }}>
                   {hasVepBoth ? fmtP(vepPesos) : '—'}
                 </div>
               </div>
@@ -2188,18 +2193,15 @@ function ExpandedDetail({ p, clientes, onCreateCliente, onUpdProveedor, onUpdCob
               {n(p.cb.ganancia) > 0 && <Mini label="+ tu ganancia (no se desglosa al cliente)" val={fmtU(n(p.cb.ganancia))} />}
             </div>
             {p.cashUSD > 0 && (
-              <div style={{ marginTop: 8, padding: '0.5rem 0.65rem', background: '#0c4a6e', borderRadius: 5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="6" x2="12" y2="18"/><line x1="6" y1="12" x2="18" y2="12"/></svg>
-                  <span style={{ fontSize: '0.66rem', color: '#7dd3fc', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>De los que recuperás cash</span>
-                </div>
-                <span style={{ fontSize: '0.85rem', color: '#38bdf8', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{fmtU(p.cashUSD)}</span>
+              <div style={{ marginTop: 8, padding: '0.5rem 0.65rem', background: '#1e293b', borderRadius: 5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '0.66rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>De los que recuperás cash</span>
+                <span style={{ fontSize: '0.85rem', color: '#e2e8f0', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{fmtU(p.cashUSD)}</span>
               </div>
             )}
           </div>
 
           <div style={{ background: '#fff', border: '1px solid #e8ecf1', borderRadius: 8, padding: '0.9rem 1.1rem' }}>
-            <p style={SEC}><span style={{ width: 4, height: 4, borderRadius: '50%', background: '#ea580c' }} /> Ajustes de cobro</p>
+            <p style={SEC}><span style={{ width: 4, height: 4, borderRadius: '50%', background: '#94a3b8' }} /> Ajustes de cobro</p>
 
             <div className="expanded-detail-ajustes" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
               <div>
@@ -2215,8 +2217,8 @@ function ExpandedDetail({ p, clientes, onCreateCliente, onUpdProveedor, onUpdCob
             </div>
 
             {/* Giro de divisas al exterior: % sobre lo girado + fijo, o total manual */}
-            <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 6, padding: '0.55rem 0.7rem', marginBottom: 10 }}>
-              <p style={{ ...LBL_E, color: '#5b21b6', marginBottom: 6 }}>Giro de divisas al exterior</p>
+            <div style={{ background: '#f8fafc', border: '1px solid #e8ecf1', borderRadius: 6, padding: '0.55rem 0.7rem', marginBottom: 10 }}>
+              <p style={{ ...LBL_E, marginBottom: 6 }}>Giro de divisas al exterior</p>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 <div>
                   <input type="number" inputMode="decimal" step="any" value={p.cb.giroMonto || ''} onChange={e => onUpdCobrar('giroMonto', e.target.value)} placeholder="0" style={{ ...INP_E, textAlign: 'right' }} />
@@ -2235,13 +2237,13 @@ function ExpandedDetail({ p, clientes, onCreateCliente, onUpdProveedor, onUpdCob
                   <p style={HINT}>total manual (pisa el cálculo)</p>
                 </div>
               </div>
-              {p.giroUSD > 0 && <p style={{ fontSize: '0.72rem', fontWeight: 800, color: '#5b21b6', marginTop: 6, textAlign: 'right' }}>= {fmtU(p.giroUSD)} al cliente</p>}
+              {p.giroUSD > 0 && <p style={{ fontSize: '0.72rem', fontWeight: 800, color: '#0f172a', marginTop: 6, textAlign: 'right' }}>= {fmtU(p.giroUSD)} al cliente</p>}
             </div>
 
-            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6, padding: '0.55rem 0.7rem', marginBottom: 10 }}>
-              <p style={{ ...LBL_E, color: '#065f46' }}>Tu ganancia (USD)</p>
-              <input type="number" inputMode="decimal" step="any" value={p.cb.ganancia || ''} onChange={e => onUpdCobrar('ganancia', e.target.value)} placeholder="0" style={{ ...INP_E, textAlign: 'right', fontWeight: 700, color: '#065f46' }} />
-              <p style={{ ...HINT, color: '#059669' }}>se suma al total a cobrar sin desglosarse — el cliente ve un solo monto de gastos</p>
+            <div style={{ background: '#f8fafc', border: '1px solid #e8ecf1', borderRadius: 6, padding: '0.55rem 0.7rem', marginBottom: 10 }}>
+              <p style={LBL_E}>Tu ganancia (USD)</p>
+              <input type="number" inputMode="decimal" step="any" value={p.cb.ganancia || ''} onChange={e => onUpdCobrar('ganancia', e.target.value)} placeholder="0" style={{ ...INP_E, textAlign: 'right', fontWeight: 700, color: '#0f172a' }} />
+              <p style={HINT}>se suma al total a cobrar sin desglosarse — el cliente ve un solo monto de gastos</p>
             </div>
 
             <div style={{ padding: '0.5rem 0.7rem', background: '#f8fafc', borderRadius: 6, border: '1px solid #e8ecf1' }}>
@@ -2291,7 +2293,7 @@ function ExpandedDetail({ p, clientes, onCreateCliente, onUpdProveedor, onUpdCob
             <button onClick={() => onUpdCobrar('exigirPago', !p.cb.exigirPago)}
               style={{ width: '100%', marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '0.55rem 0.7rem', borderRadius: 6, cursor: 'pointer', border: `1px solid ${p.cb.exigirPago ? '#fecaca' : '#e8ecf1'}`, background: p.cb.exigirPago ? '#fef2f2' : '#fff' }}>
               <div style={{ textAlign: 'left' }}>
-                <p style={{ fontSize: '0.75rem', fontWeight: 700, color: p.cb.exigirPago ? '#dc2626' : '#374151' }}>🔒 Exigir pago antes de entregar</p>
+                <p style={{ fontSize: '0.75rem', fontWeight: 700, color: p.cb.exigirPago ? '#dc2626' : '#374151' }}>Exigir pago antes de entregar</p>
                 <p style={{ fontSize: '0.64rem', color: p.cb.exigirPago ? '#b91c1c' : '#94a3b8', marginTop: 1 }}>
                   {p.cb.exigirPago ? 'la mercadería NO se entrega hasta cancelar el saldo' : 'activalo si el cliente suele demorar pagos'}
                 </p>
@@ -2308,12 +2310,9 @@ function ExpandedDetail({ p, clientes, onCreateCliente, onUpdProveedor, onUpdCob
 
 function Mini({ label, val, cash }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', color: cash ? '#7dd3fc' : '#94a3b8' }}>
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-        {cash && <span style={{ width: 4, height: 4, borderRadius: '50%', background: '#38bdf8' }} />}
-        {label}
-      </span>
-      <span style={{ color: cash ? '#38bdf8' : '#cbd5e1', fontWeight: cash ? 600 : 500, fontVariantNumeric: 'tabular-nums' }}>{val}</span>
+    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#94a3b8' }}>
+      <span>{label}</span>
+      <span style={{ color: '#cbd5e1', fontWeight: cash ? 600 : 500, fontVariantNumeric: 'tabular-nums' }}>{val}</span>
     </div>
   );
 }

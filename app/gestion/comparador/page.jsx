@@ -2,16 +2,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import { gToast } from '../toast';
 
-const CARD = { background: '#fff', borderRadius: '12px', padding: '1.25rem', boxShadow: '0 4px 20px rgba(0,0,0,0.04)', border: '1px solid #e8ecf1' };
+const CARD = { background: '#fff', borderRadius: 10, padding: '1.25rem', boxShadow: '0 1px 3px rgba(15,23,42,0.04)', border: '1px solid #e8ecf1' };
+const PRIMARY = '#0f172a';
 const INP  = { width: '100%', padding: '0.55rem 0.75rem', border: '1px solid #e8ecf1', borderRadius: '8px', fontSize: '16px', color: '#0f172a', background: '#fff', outline: 'none', boxSizing: 'border-box' };
 const LBL  = { display: 'block', fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' };
 
-const ESTADOS = {
-  cotizando: { label: 'Cotizando', color: '#d97706', bg: '#fffbeb' },
-  decidido:  { label: 'Decidido',  color: '#0284c7', bg: '#eff6ff' },
-  cerrado:   { label: 'Cerrado',   color: '#059669', bg: '#f0fdf4' },
-};
-const estadoMeta = (e) => ESTADOS[e] || ESTADOS.cotizando;
+// Estados como texto plano (sin badges de colores); "cerrado" manda el proyecto a la sección de abajo.
+const ESTADOS_LBL = { cotizando: 'Cotizando', decidido: 'Decidido', cerrado: 'Cerrado' };
+const estadoLabel = (e) => ESTADOS_LBL[e] || ESTADOS_LBL.cotizando;
+const esCerrado = (c) => c.estado === 'cerrado';
 
 const PROV_FIELDS = ['nombre','contacto','producto','moneda','precio_unitario','cantidad','moq','precio_total','lead_time','incoterm','puerto','m3','peso_kg','validez','notas'];
 const emptyProv = () => ({ nombre:'', contacto:'', producto:'', moneda:'USD', precio_unitario:'', cantidad:'', moq:'', precio_total:'', lead_time:'', incoterm:'FOB', puerto:'', m3:'', peso_kg:'', validez:'', notas:'' });
@@ -53,6 +52,7 @@ export default function ComparadorPage() {
   const [newForm, setNewForm] = useState({ nombre: '', descripcion: '' });
   const [savingNew, setSavingNew] = useState(false);
   const [confirmDel, setConfirmDel] = useState(null); // compra id
+  const [showCerradas, setShowCerradas] = useState(false); // sección de proyectos cerrados, colapsada por defecto
 
   // ----- detail state -----
   const [selectedId, setSelectedId] = useState(null);
@@ -384,9 +384,9 @@ export default function ComparadorPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.2rem' }}>Comparador de proveedores</h2>
-          <p style={{ fontSize: '0.82rem', color: '#64748b' }}>Compará cotizaciones de proveedores antes de importar</p>
+          <p style={{ fontSize: '0.82rem', color: '#94a3b8' }}>Compará cotizaciones de proveedores antes de importar · {compras.length} proyectos</p>
         </div>
-        <button onClick={() => { setNewForm({ nombre: '', descripcion: '' }); setNewModal(true); }} style={{ padding: '0.55rem 1.1rem', borderRadius: '50px', border: 'none', cursor: 'pointer', background: '#ea580c', color: '#fff', fontWeight: 700, fontSize: '0.82rem' }}>
+        <button onClick={() => { setNewForm({ nombre: '', descripcion: '' }); setNewModal(true); }} style={{ padding: '0.55rem 1.1rem', borderRadius: 8, border: 'none', cursor: 'pointer', background: PRIMARY, color: '#fff', fontWeight: 700, fontSize: '0.82rem' }}>
           + Nuevo proyecto
         </button>
       </div>
@@ -404,29 +404,46 @@ export default function ComparadorPage() {
           <p style={{ fontWeight: 600, marginBottom: '0.3rem', color: '#0f172a' }}>No hay proyectos de compra todavía</p>
           <p style={{ fontSize: '0.82rem' }}>Creá tu primer proyecto para empezar a comparar proveedores.</p>
         </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          {compras.map(c => {
-            const m = estadoMeta(c.estado);
-            return (
-              <div key={c.id} onClick={() => openDetail(c.id)} style={{ ...CARD, padding: '1rem 1.25rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <div style={{ flex: '1 1 auto', minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.25rem' }}>
-                    <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.95rem' }}>{c.nombre || 'Sin nombre'}</span>
-                    <Badge meta={m} />
+      ) : (() => {
+        // Cerradas separadas de activas: las activas arriba, las cerradas al fondo colapsadas.
+        const activas = compras.filter(c => !esCerrado(c));
+        const cerradas = compras.filter(esCerrado);
+        const renderCompra = (c, cerrada = false) => (
+          <div key={c.id} onClick={() => openDetail(c.id)} style={{ ...CARD, padding: cerrada ? '0.65rem 1.1rem' : '0.9rem 1.1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '1rem', opacity: cerrada ? 0.65 : 1 }}>
+            <div style={{ flex: '1 1 auto', minWidth: 0 }}>
+              <span style={{ fontWeight: cerrada ? 600 : 700, color: '#0f172a', fontSize: cerrada ? '0.85rem' : '0.95rem' }}>{c.nombre || 'Sin nombre'}</span>
+              <p style={{ fontSize: '0.73rem', color: '#94a3b8', marginTop: 2 }}>
+                {estadoLabel(c.estado)} · {c.n_proveedores ?? 0} proveedores{c.created_at ? ` · ${fmtDate(c.created_at)}` : ''}{c.created_by ? ` · ${c.created_by}` : ''}
+              </p>
+            </div>
+            <button onClick={(e) => { e.stopPropagation(); setConfirmDel(c.id); }} aria-label={`Eliminar proyecto ${c.nombre || ''}`} title="Eliminar" style={{ width: 26, height: 26, borderRadius: 6, border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+            </button>
+          </div>
+        );
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+            {activas.map(c => renderCompra(c))}
+            {activas.length === 0 && cerradas.length > 0 && (
+              <p style={{ fontSize: '0.8rem', color: '#94a3b8', padding: '0.4rem 0.2rem' }}>No hay proyectos activos.</p>
+            )}
+            {cerradas.length > 0 && (
+              <div style={{ marginTop: activas.length ? '0.9rem' : 0 }}>
+                <button onClick={() => setShowCerradas(v => !v)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: '0.35rem 0.1rem', color: '#94a3b8', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: showCerradas ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}><polyline points="9 18 15 12 9 6"/></svg>
+                  Cerradas · {cerradas.length}
+                  <span style={{ flex: 1, borderTop: '1px solid #e8ecf1' }} />
+                </button>
+                {showCerradas && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                    {cerradas.map(c => renderCompra(c, true))}
                   </div>
-                  <div style={{ display: 'flex', gap: '0.85rem', flexWrap: 'wrap', fontSize: '0.75rem', color: '#64748b' }}>
-                    <span>{c.n_proveedores ?? 0} proveedores</span>
-                    {c.created_at && <span>{fmtDate(c.created_at)}</span>}
-                    {c.created_by && <span>{c.created_by}</span>}
-                  </div>
-                </div>
-                <button onClick={(e) => { e.stopPropagation(); setConfirmDel(c.id); }} aria-label={`Eliminar proyecto ${c.nombre || ''}`} title="Eliminar" style={{ padding: '0.3rem 0.6rem', borderRadius: '7px', border: '1px solid #fee2e2', background: '#fff', color: '#dc2626', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>×</button>
+                )}
               </div>
-            );
-          })}
-        </div>
-      )}
+            )}
+          </div>
+        );
+      })()}
 
       {/* New project modal */}
       {newModal && (
@@ -519,7 +536,7 @@ function DetailView(props) {
             </select>
             {savingHeader && <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Guardando...</span>}
             {detail.operation_id && (
-              <a href={`/gestion/operaciones?op=${detail.operation_id}`} style={{ marginLeft: 'auto', color: '#059669', fontWeight: 700, fontSize: '0.82rem', textDecoration: 'none', padding: '0.45rem 0.85rem', border: '1px solid #bbf7d0', background: '#f0fdf4', borderRadius: '8px' }}>Ver operación →</a>
+              <a href={`/gestion/operaciones?op=${detail.operation_id}`} style={{ marginLeft: 'auto', color: '#0f172a', fontWeight: 600, fontSize: '0.8rem', textDecoration: 'none', padding: '0.45rem 0.85rem', border: '1px solid #e2e8f0', background: '#fff', borderRadius: 8 }}>Ver operación →</a>
             )}
           </div>
         ) : null}
@@ -529,10 +546,10 @@ function DetailView(props) {
         <>
           {/* actions bar */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.85rem' }}>
-            <button onClick={onNewProv} style={{ padding: '0.5rem 1rem', borderRadius: '50px', border: 'none', cursor: 'pointer', background: '#ea580c', color: '#fff', fontWeight: 700, fontSize: '0.8rem' }}>+ Agregar proveedor</button>
+            <button onClick={onNewProv} style={{ padding: '0.5rem 1rem', borderRadius: 8, border: 'none', cursor: 'pointer', background: PRIMARY, color: '#fff', fontWeight: 700, fontSize: '0.8rem' }}>+ Agregar proveedor</button>
             <button onClick={onConvert} disabled={!hasElegido || converting}
               title={hasElegido ? 'Convertir en operación' : 'Elegí un proveedor primero'}
-              style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid #bbf7d0', cursor: hasElegido && !converting ? 'pointer' : 'not-allowed', background: hasElegido ? '#f0fdf4' : '#f8fafc', color: hasElegido ? '#059669' : '#94a3b8', fontWeight: 700, fontSize: '0.8rem', opacity: converting ? 0.6 : 1 }}>
+              style={{ padding: '0.5rem 1rem', borderRadius: 8, border: '1px solid #e2e8f0', cursor: hasElegido && !converting ? 'pointer' : 'not-allowed', background: '#fff', color: hasElegido ? '#0f172a' : '#94a3b8', fontWeight: 600, fontSize: '0.8rem', opacity: converting ? 0.6 : 1 }}>
               {converting ? 'Convirtiendo...' : 'Convertir en operación'}
             </button>
           </div>
@@ -580,7 +597,7 @@ function DetailView(props) {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
                               {docs.filter(d => d.proveedor_id === p.id).map(d => (
                                 <a key={d.id} href={`/api/db/compras/${detail.id}/docs/${d.id}`} target="_blank" rel="noreferrer" title={`${d.filename} — abrir`}
-                                  style={{ display: 'inline-flex', alignItems: 'center', gap: 3, maxWidth: 130, padding: '0.12rem 0.45rem', borderRadius: 5, border: '1px solid #e0f2fe', background: '#f0f9ff', color: '#0369a1', fontSize: '0.64rem', fontWeight: 600, textDecoration: 'none' }}>
+                                  style={{ display: 'inline-flex', alignItems: 'center', gap: 3, maxWidth: 130, padding: '0.12rem 0.2rem', color: '#64748b', fontSize: '0.66rem', fontWeight: 600, textDecoration: 'none' }}>
                                   <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" style={{ flexShrink: 0 }}><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
                                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.filename}</span>
                                 </a>
@@ -593,14 +610,18 @@ function DetailView(props) {
                           </td>
                           <td style={{ ...txtCell, textAlign: 'center' }}>
                             {p.elegido ? (
-                              <span title="Elegido" style={{ color: '#059669', fontSize: '1rem' }}>★</span>
+                              <span title="Elegido" style={{ color: '#059669', fontSize: '0.7rem', fontWeight: 700 }}>Elegido</span>
                             ) : (
-                              <button onClick={() => onElegir(p)} title="Elegir como ganador" style={{ background: 'none', border: '1px solid #e8ecf1', borderRadius: '6px', padding: '0.15rem 0.45rem', cursor: 'pointer', color: '#94a3b8', fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>☆ Elegir</button>
+                              <button onClick={() => onElegir(p)} title="Elegir como ganador" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6, padding: '0.2rem 0.55rem', cursor: 'pointer', color: '#64748b', fontSize: '0.72rem', fontWeight: 600 }}>Elegir</button>
                             )}
                           </td>
                           <td style={{ ...txtCell, textAlign: 'right' }}>
-                            <button onClick={() => onEditProv(p)} aria-label={`Editar ${p.nombre || 'proveedor'}`} style={{ padding: '0.25rem 0.55rem', borderRadius: '6px', border: '1px solid #e8ecf1', background: '#fff', color: '#64748b', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', marginRight: '0.35rem' }}>Editar</button>
-                            <button onClick={() => onAskDelProv(p.id)} aria-label={`Eliminar ${p.nombre || 'proveedor'}`} title="Eliminar" style={{ padding: '0.25rem 0.5rem', borderRadius: '6px', border: '1px solid #fee2e2', background: '#fff', color: '#dc2626', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}>×</button>
+                            <button onClick={() => onEditProv(p)} title="Editar" aria-label={`Editar ${p.nombre || 'proveedor'}`} style={{ width: 26, height: 26, borderRadius: 6, border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', verticalAlign: 'middle' }}>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            </button>
+                            <button onClick={() => onAskDelProv(p.id)} title="Eliminar" aria-label={`Eliminar ${p.nombre || 'proveedor'}`} style={{ width: 26, height: 26, borderRadius: 6, border: 'none', background: 'none', color: '#cbd5e1', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', verticalAlign: 'middle' }}>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+                            </button>
                           </td>
                         </tr>
                       );
@@ -613,7 +634,7 @@ function DetailView(props) {
 
           {docs.length > 0 && (
             <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '0.75rem' }}>
-              {docs.length} documento{docs.length === 1 ? '' : 's'} adjunto{docs.length === 1 ? '' : 's'} · clic en el chip para abrirlo · se eliminan desde "Editar"
+              {docs.length} documento{docs.length === 1 ? '' : 's'} adjunto{docs.length === 1 ? '' : 's'} · clic en el nombre para abrirlo · se eliminan desde "Editar"
             </p>
           )}
         </>
@@ -667,13 +688,13 @@ function ProvModal({ mode, form, setPF, onClose, onSave, saving, aiState, onAiFi
       <ModalHead title={mode === 'new' ? 'Nuevo proveedor' : 'Editar proveedor'} onClose={() => !saving && onClose()} />
 
       {/* AI import */}
-      <div style={{ border: '1px dashed #fdba74', background: '#fff7ed', borderRadius: '10px', padding: '0.85rem', marginBottom: '1rem' }}>
+      <div style={{ border: '1px dashed #e2e8f0', background: '#f8fafc', borderRadius: 10, padding: '0.85rem', marginBottom: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
           <div>
-            <p style={{ fontWeight: 700, color: '#9a3412', fontSize: '0.82rem' }}>Importar de PDF (IA)</p>
-            <p style={{ fontSize: '0.72rem', color: '#9a3412', opacity: 0.85 }}>Subí el invoice/packing y la IA completa los campos · o cargá a mano</p>
+            <p style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.82rem' }}>Importar de PDF (IA)</p>
+            <p style={{ fontSize: '0.72rem', color: '#64748b' }}>Subí el invoice/packing y la IA completa los campos · o cargá a mano</p>
           </div>
-          <label style={{ padding: '0.4rem 0.85rem', borderRadius: '8px', border: '1px solid #fdba74', background: '#fff', color: '#ea580c', fontWeight: 700, fontSize: '0.78rem', cursor: aiState === 'loading' ? 'wait' : 'pointer' }}>
+          <label style={{ padding: '0.4rem 0.85rem', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#0f172a', fontWeight: 600, fontSize: '0.78rem', cursor: aiState === 'loading' ? 'wait' : 'pointer' }}>
             {aiState === 'loading' ? 'Analizando…' : 'Elegir archivo'}
             <input type="file" accept={ACCEPT} disabled={aiState === 'loading'} onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; onAiFile(f); }} style={{ display: 'none' }} />
           </label>
@@ -737,11 +758,11 @@ function ProvModal({ mode, form, setPF, onClose, onSave, saving, aiState, onAiFi
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '0.75rem' }}>
                 {docs.map(d => (
                   <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.45rem 0.6rem', border: '1px solid #e8ecf1', borderRadius: '8px', fontSize: '0.78rem' }}>
-                    <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '0.1rem 0.4rem', borderRadius: '5px', background: '#eff6ff', color: '#0284c7', textTransform: 'uppercase' }}>{d.tipo || 'Doc'}</span>
+                    <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{d.tipo || 'Doc'}</span>
                     <span style={{ flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#0f172a' }}>{d.filename}</span>
                     <span style={{ color: '#94a3b8', flexShrink: 0 }}>{fmtSize(d.size)}</span>
-                    <a href={`/api/db/compras/${compraId}/docs/${d.id}`} target="_blank" rel="noopener noreferrer" style={{ color: '#ea580c', fontWeight: 700, textDecoration: 'none', flexShrink: 0 }}>Ver</a>
-                    <button onClick={() => onDeleteDoc(d.id)} aria-label={`Eliminar documento ${d.filename || ''}`} title="Eliminar" style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 700, flexShrink: 0 }}>×</button>
+                    <a href={`/api/db/compras/${compraId}/docs/${d.id}`} target="_blank" rel="noopener noreferrer" style={{ color: '#0f172a', fontWeight: 600, textDecoration: 'none', flexShrink: 0 }}>Ver</a>
+                    <button onClick={() => onDeleteDoc(d.id)} aria-label={`Eliminar documento ${d.filename || ''}`} title="Eliminar" style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 700, flexShrink: 0 }}>×</button>
                   </div>
                 ))}
               </div>
@@ -756,7 +777,7 @@ function ProvModal({ mode, form, setPF, onClose, onSave, saving, aiState, onAiFi
                 {docFile ? docFile.name : 'Elegir archivo'}
                 <input type="file" accept={ACCEPT} onChange={e => onPickDoc(e.target.files?.[0])} style={{ display: 'none' }} />
               </label>
-              <button onClick={onUploadDoc} disabled={!docFile || uploadingDoc} style={{ padding: '0.5rem 0.95rem', borderRadius: '8px', border: 'none', background: !docFile || uploadingDoc ? '#cbd5e1' : '#0f172a', color: '#fff', fontWeight: 700, fontSize: '0.78rem', cursor: !docFile || uploadingDoc ? 'not-allowed' : 'pointer' }}>{uploadingDoc ? 'Subiendo...' : 'Subir'}</button>
+              <button onClick={onUploadDoc} disabled={!docFile || uploadingDoc} style={{ padding: '0.5rem 0.95rem', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: !docFile || uploadingDoc ? '#94a3b8' : '#0f172a', fontWeight: 600, fontSize: '0.78rem', cursor: !docFile || uploadingDoc ? 'not-allowed' : 'pointer' }}>{uploadingDoc ? 'Subiendo...' : 'Subir'}</button>
             </div>
             {docErr && <p style={{ fontSize: '0.72rem', color: '#dc2626', marginTop: '0.5rem' }}>{docErr}</p>}
           </Section>
@@ -774,13 +795,10 @@ function ProvModal({ mode, form, setPF, onClose, onSave, saving, aiState, onAiFi
 // ============================ small UI helpers ============================
 function Spinner() {
   return (
-    <span style={{ display: 'inline-block', width: 22, height: 22, border: '3px solid #e8ecf1', borderTopColor: '#ea580c', borderRadius: '50%', animation: 'cmpspin 0.7s linear infinite' }}>
+    <span style={{ display: 'inline-block', width: 22, height: 22, border: '3px solid #e8ecf1', borderTopColor: PRIMARY, borderRadius: '50%', animation: 'cmpspin 0.7s linear infinite' }}>
       <style>{`@keyframes cmpspin{to{transform:rotate(360deg)}}`}</style>
     </span>
   );
-}
-function Badge({ meta }) {
-  return <span style={{ fontSize: '0.66rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '20px', background: meta.bg, color: meta.color, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{meta.label}</span>;
 }
 function Modal({ children, onClose, maxWidth = 480 }) {
   return (
@@ -814,7 +832,7 @@ function Grid({ children }) {
   return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.75rem' }}>{children}</div>;
 }
 function BtnPrimary({ children, onClick, disabled }) {
-  return <button onClick={onClick} disabled={disabled} style={{ padding: '0.5rem 1.2rem', borderRadius: '8px', border: 'none', background: disabled ? '#fdba74' : '#ea580c', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: disabled ? 'not-allowed' : 'pointer' }}>{children}</button>;
+  return <button onClick={onClick} disabled={disabled} style={{ padding: '0.5rem 1.2rem', borderRadius: 8, border: 'none', background: disabled ? '#94a3b8' : PRIMARY, color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: disabled ? 'not-allowed' : 'pointer' }}>{children}</button>;
 }
 function BtnGhost({ children, onClick, disabled }) {
   return <button onClick={onClick} disabled={disabled} style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid #e8ecf1', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.82rem', cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.6 : 1 }}>{children}</button>;

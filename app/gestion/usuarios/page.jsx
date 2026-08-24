@@ -6,6 +6,7 @@ import { gToast } from '../toast'
 const CARD = { background: '#fff', borderRadius: 10, border: '1px solid #e8ecf1', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }
 const INP = { width: '100%', padding: '0.55rem 0.7rem', border: '1px solid #e2e8f0', borderRadius: 7, fontSize: '16px', color: '#0f172a', background: '#fff', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }
 const LBL = { display: 'block', fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 5 }
+const PRIMARY = '#0f172a'
 
 const SECTIONS = [
   { id: 'operaciones', label: 'Operaciones' },
@@ -17,11 +18,11 @@ const SECTIONS = [
   { id: 'despachante', label: 'Despachante' },
 ]
 const ROLES = [
-  { id: 'admin',  label: 'Administrador', desc: 'Acceso total + gestión de usuarios', c: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
-  { id: 'editor', label: 'Editor',        desc: 'Ve y edita las secciones asignadas', c: '#ea580c', bg: '#fff4ee', border: '#fed7aa' },
-  { id: 'viewer', label: 'Lectura',       desc: 'Solo ve las secciones asignadas',    c: '#64748b', bg: '#f1f5f9', border: '#e2e8f0' },
+  { id: 'admin',  label: 'Administrador', desc: 'Acceso total + gestión de usuarios' },
+  { id: 'editor', label: 'Editor',        desc: 'Ve y edita las secciones asignadas' },
+  { id: 'viewer', label: 'Lectura',       desc: 'Solo ve las secciones asignadas' },
 ]
-const roleStyle = (r) => ROLES.find(x => x.id === r) || ROLES[1]
+const roleLabel = (r) => (ROLES.find(x => x.id === r) || ROLES[1]).label
 
 const EMPTY = { name: '', username: '', password: '', role: 'editor', sections: ['operaciones', 'tracking', 'clientes', 'cotizador'], active: 1 }
 
@@ -33,6 +34,7 @@ export default function UsuariosPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
   const [confirmDel, setConfirmDel] = useState(null)
+  const [showInact, setShowInact] = useState(false) // sección de inactivos, colapsada por defecto
 
   const load = async () => {
     setLoading(true)
@@ -84,85 +86,97 @@ export default function UsuariosPage() {
     } finally { setConfirmDel(null) }
   }
 
+  // Activos arriba; inactivos (equivalente a "cerrados") al fondo, colapsados.
+  const activos = users.filter(u => u.active)
+  const inactivos = users.filter(u => !u.active)
+
+  // Línea de acceso: rol · secciones, todo como texto plano.
+  const accesoText = (u) => {
+    if (u.role === 'admin') return 'Todo el sistema'
+    const secs = (u.sections || '').split(',').filter(Boolean)
+    if (secs.length === 0) return null
+    return secs.map(sid => SECTIONS.find(x => x.id === sid)?.label || sid).join(' · ')
+  }
+
+  // Card de usuario, misma pieza para activos e inactivos (compacta/apagada abajo).
+  const userCard = (u, dim) => {
+    const acceso = accesoText(u)
+    return (
+      <div key={u.id} onClick={() => openEdit(u)}
+        style={{ ...CARD, padding: dim ? '0.6rem 1.1rem' : '0.9rem 1.1rem', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', opacity: dim ? 0.6 : 1 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.9rem' }}>{u.name || u.username}</span>
+            <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>@{u.username}</span>
+          </div>
+          <p style={{ marginTop: 3, fontSize: '0.72rem', color: '#64748b' }}>
+            {roleLabel(u.role)}
+            <span style={{ color: '#cbd5e1' }}> · </span>
+            {acceso || <span style={{ color: '#b45309', fontWeight: 600 }}>Sin acceso a secciones</span>}
+          </p>
+        </div>
+        <div style={{ display: 'inline-flex', gap: 2, flex: '0 0 auto' }} onClick={e => e.stopPropagation()}>
+          <button onClick={() => openEdit(u)} title="Editar" aria-label={`Editar usuario ${u.name || u.username}`} style={{ width: 26, height: 26, borderRadius: 6, border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <button onClick={() => setConfirmDel(u)} title="Eliminar" aria-label={`Eliminar usuario ${u.name || u.username}`} style={{ width: 26, height: 26, borderRadius: 6, border: 'none', background: 'none', color: '#cbd5e1', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div>
+      {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#1e293b', marginBottom: '0.2rem' }}>Usuarios y roles</h2>
-          <p style={{ fontSize: '0.82rem', color: '#94a3b8' }}>{users.length} usuarios · controlá quién accede a qué</p>
+          <p style={{ fontSize: '0.82rem', color: '#94a3b8' }}>Controlá quién accede a qué · {users.length} usuarios</p>
         </div>
-        <button onClick={openNew} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0.55rem 1.1rem', borderRadius: 50, border: 'none', background: '#ea580c', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>+ Nuevo usuario</button>
+        <button onClick={openNew} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0.55rem 1.1rem', borderRadius: 8, border: 'none', background: PRIMARY, color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Nuevo usuario
+        </button>
       </div>
 
       {loading ? (
         <div style={{ ...CARD, padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>
-          <div style={{ width: 34, height: 34, border: '3px solid #e8ecf1', borderTopColor: '#ea580c', borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 0.8s linear infinite' }} />
+          <div style={{ width: 34, height: 34, border: '3px solid #e8ecf1', borderTopColor: PRIMARY, borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 0.8s linear infinite' }} />
           Cargando usuarios…
         </div>
-      ) : (
-        <div style={{ ...CARD, overflow: 'hidden' }}>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-              <thead>
-                <tr style={{ background: '#f8fafc' }}>
-                  {['Usuario', 'Rol', 'Acceso a', 'Estado', ''].map(h => (
-                    <th key={h} style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '0.7rem', textAlign: 'left', borderBottom: '1px solid #e8ecf1' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {users.map(u => {
-                  const rs = roleStyle(u.role)
-                  const secs = (u.sections || '').split(',').filter(Boolean)
-                  return (
-                    <tr key={u.id} style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer', opacity: u.active ? 1 : 0.5 }}
-                      onClick={() => openEdit(u)}
-                      onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                      <td style={{ padding: '0.7rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg, #ea580c, #c2410c)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.8rem', flexShrink: 0 }}>{(u.name || u.username || '?').charAt(0).toUpperCase()}</div>
-                          <div>
-                            <p style={{ fontWeight: 700, color: '#1e293b' }}>{u.name}</p>
-                            <p style={{ fontSize: '0.72rem', color: '#94a3b8' }}>@{u.username}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td style={{ padding: '0.7rem' }}>
-                        <span style={{ display: 'inline-block', background: rs.bg, color: rs.c, border: `1px solid ${rs.border}`, fontSize: '0.68rem', fontWeight: 700, padding: '0.18rem 0.6rem', borderRadius: 5 }}>{rs.label}</span>
-                      </td>
-                      <td style={{ padding: '0.7rem' }}>
-                        {u.role === 'admin' ? (
-                          <span style={{ fontSize: '0.72rem', color: '#7c3aed', fontWeight: 600 }}>Todo el sistema</span>
-                        ) : secs.length === 0 ? (
-                          <span style={{ fontSize: '0.72rem', color: '#cbd5e1' }}>Sin acceso</span>
-                        ) : (
-                          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                            {secs.map(sid => (
-                              <span key={sid} style={{ fontSize: '0.64rem', background: '#f1f5f9', color: '#475569', padding: '0.1rem 0.45rem', borderRadius: 4, fontWeight: 600 }}>
-                                {SECTIONS.find(x => x.id === sid)?.label || sid}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </td>
-                      <td style={{ padding: '0.7rem' }}>
-                        {u.active ? (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.72rem', color: '#059669', fontWeight: 600 }}><span style={{ width: 6, height: 6, borderRadius: '50%', background: '#059669' }} />Activo</span>
-                        ) : (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.72rem', color: '#94a3b8', fontWeight: 600 }}><span style={{ width: 6, height: 6, borderRadius: '50%', background: '#cbd5e1' }} />Inactivo</span>
-                        )}
-                      </td>
-                      <td style={{ padding: '0.7rem', textAlign: 'right' }} onClick={e => e.stopPropagation()}>
-                        <button onClick={() => setConfirmDel(u)} aria-label={`Eliminar usuario ${u.name || u.username}`} title="Eliminar" style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #fee2e2', background: '#fff', color: '#dc2626', fontSize: '0.9rem', cursor: 'pointer' }}>×</button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+      ) : users.length === 0 ? (
+        <div style={{ ...CARD, padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>
+          <p style={{ fontWeight: 600, color: '#64748b', marginBottom: 4 }}>Todavía no hay usuarios.</p>
+          <p style={{ fontSize: '0.8rem' }}>Creá el primero con «Nuevo usuario».</p>
         </div>
+      ) : (
+        <>
+          {/* Activos */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {activos.map(u => userCard(u, false))}
+            {activos.length === 0 && (
+              <div style={{ ...CARD, padding: '1.5rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.8rem' }}>No hay usuarios activos.</div>
+            )}
+          </div>
+
+          {/* Inactivos: al fondo, colapsados por defecto */}
+          {inactivos.length > 0 && (
+            <div style={{ marginTop: '1.25rem' }}>
+              <button onClick={() => setShowInact(v => !v)}
+                style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'none', border: 'none', padding: '0.2rem 0.1rem', cursor: 'pointer' }}>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5" style={{ transform: showInact ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}><polyline points="9 18 15 12 9 6"/></svg>
+                <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Inactivos · {inactivos.length}</span>
+              </button>
+              {showInact && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.5rem' }}>
+                  {inactivos.map(u => userCard(u, true))}
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
 
       {/* Modal */}
@@ -189,12 +203,12 @@ export default function UsuariosPage() {
               {ROLES.map(r => {
                 const sel = form.role === r.id
                 return (
-                  <button key={r.id} onClick={() => setForm(f => ({ ...f, role: r.id }))} style={{ textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10, padding: '0.6rem 0.8rem', borderRadius: 8, border: `1.5px solid ${sel ? r.c : '#e2e8f0'}`, background: sel ? r.bg : '#fff', cursor: 'pointer' }}>
-                    <div style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid ${sel ? r.c : '#cbd5e1'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      {sel && <div style={{ width: 8, height: 8, borderRadius: '50%', background: r.c }} />}
+                  <button key={r.id} onClick={() => setForm(f => ({ ...f, role: r.id }))} style={{ textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10, padding: '0.6rem 0.8rem', borderRadius: 8, border: `1.5px solid ${sel ? PRIMARY : '#e2e8f0'}`, background: sel ? '#f8fafc' : '#fff', cursor: 'pointer' }}>
+                    <div style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid ${sel ? PRIMARY : '#cbd5e1'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      {sel && <div style={{ width: 8, height: 8, borderRadius: '50%', background: PRIMARY }} />}
                     </div>
                     <div>
-                      <p style={{ fontSize: '0.82rem', fontWeight: 700, color: sel ? r.c : '#1e293b' }}>{r.label}</p>
+                      <p style={{ fontSize: '0.82rem', fontWeight: 700, color: sel ? PRIMARY : '#1e293b' }}>{r.label}</p>
                       <p style={{ fontSize: '0.68rem', color: '#94a3b8' }}>{r.desc}</p>
                     </div>
                   </button>
@@ -210,11 +224,11 @@ export default function UsuariosPage() {
                   {SECTIONS.map(s => {
                     const on = form.sections.includes(s.id)
                     return (
-                      <button key={s.id} onClick={() => toggleSection(s.id)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.55rem 0.7rem', borderRadius: 7, border: `1px solid ${on ? '#bbf7d0' : '#e2e8f0'}`, background: on ? '#f0fdf4' : '#fff', cursor: 'pointer' }}>
-                        <div style={{ width: 16, height: 16, borderRadius: 4, border: `2px solid ${on ? '#059669' : '#cbd5e1'}`, background: on ? '#059669' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <button key={s.id} onClick={() => toggleSection(s.id)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.55rem 0.7rem', borderRadius: 7, border: `1px solid ${on ? '#cbd5e1' : '#e2e8f0'}`, background: on ? '#f8fafc' : '#fff', cursor: 'pointer' }}>
+                        <div style={{ width: 16, height: 16, borderRadius: 4, border: `2px solid ${on ? PRIMARY : '#cbd5e1'}`, background: on ? PRIMARY : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                           {on && <svg width="9" height="9" viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                         </div>
-                        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: on ? '#065f46' : '#475569' }}>{s.label}</span>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: on ? '#0f172a' : '#64748b' }}>{s.label}</span>
                       </button>
                     )
                   })}
@@ -235,11 +249,11 @@ export default function UsuariosPage() {
               </div>
             )}
 
-            {error && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 7, padding: '0.55rem 0.75rem', fontSize: '0.78rem', color: '#dc2626', fontWeight: 500, marginBottom: 14 }}>{error}</div>}
+            {error && <p style={{ fontSize: '0.78rem', color: '#dc2626', fontWeight: 600, marginBottom: 14 }}>{error}</p>}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button onClick={() => setModal(null)} style={{ padding: '0.55rem 1.1rem', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={save} disabled={saving} style={{ padding: '0.55rem 1.3rem', borderRadius: 8, border: 'none', background: '#059669', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: saving ? 'wait' : 'pointer' }}>{saving ? 'Guardando…' : (modal === 'new' ? 'Crear usuario' : 'Guardar')}</button>
+              <button onClick={save} disabled={saving} style={{ padding: '0.55rem 1.3rem', borderRadius: 8, border: 'none', background: PRIMARY, color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: saving ? 'wait' : 'pointer' }}>{saving ? 'Guardando…' : (modal === 'new' ? 'Crear usuario' : 'Guardar')}</button>
             </div>
           </div>
         </div>

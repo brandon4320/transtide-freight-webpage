@@ -2,9 +2,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { gToast } from '../toast';
 
-const CARD = { background: '#fff', borderRadius: '16px', padding: '1.25rem', boxShadow: '0 4px 20px rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.04)' };
-const INP  = { width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '0.85rem', color: '#1e293b', background: '#fff', outline: 'none', boxSizing: 'border-box' };
-const LBL  = { display: 'block', fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' };
+const CARD = { background: '#fff', borderRadius: 10, border: '1px solid #e8ecf1', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' };
+const INP  = { width: '100%', padding: '0.5rem 0.65rem', border: '1px solid #e2e8f0', borderRadius: 7, fontSize: '16px', color: '#0f172a', background: '#fff', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' };
+const LBL  = { display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#64748b', letterSpacing: 0, marginBottom: 5 };
+const PRIMARY = '#0f172a';
 
 const emptyForm = () => ({ nombre: '', cuit: '', email: '', telefono: '', notas: '' });
 
@@ -89,87 +90,72 @@ export default function ClientesPage() {
     (c.email || '').toLowerCase().includes(search.toLowerCase())
   );
 
+  const conCuit  = clientes.filter(c => c.cuit).length;
+  const conEmail = clientes.filter(c => c.email).length;
+
   return (
     <div style={{ paddingBottom: '3rem' }}>
 
-      {/* header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#1e293b', marginBottom: '0.2rem' }}>Clientes</h2>
-          <p style={{ fontSize: '0.82rem', color: '#94a3b8' }}>{clientes.length} clientes registrados</p>
+          <p style={{ fontSize: '0.82rem', color: '#94a3b8' }}>{clientes.length} clientes · {conCuit} con CUIT · {conEmail} con email</p>
         </div>
-        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', flex: '1 1 auto', justifyContent: 'flex-end' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '0.45rem 0.75rem', flex: '1 1 180px', maxWidth: 360 }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar cliente..." style={{ border: 'none', outline: 'none', fontSize: '0.82rem', color: '#1e293b', width: '100%', background: 'transparent' }} />
-          </div>
-          <button onClick={openNew} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.55rem 1.1rem', borderRadius: '50px', border: 'none', cursor: 'pointer', background: '#ea580c', color: '#fff', fontWeight: 700, fontSize: '0.82rem' }}>
-            + Nuevo cliente
-          </button>
-        </div>
+        <button onClick={openNew} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0.55rem 1.1rem', borderRadius: 8, border: 'none', background: PRIMARY, color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Nuevo cliente
+        </button>
       </div>
 
-      {/* stats row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
-        {[
-          ['Clientes totales', clientes.length, '#ea580c', '#fff4ee'],
-          ['Con CUIT', clientes.filter(c=>c.cuit).length, '#7c3aed', '#f5f3ff'],
-          ['Con email', clientes.filter(c=>c.email).length, '#059669', '#f0fdf4'],
-        ].map(([lbl, val, color, bg]) => (
-          <div key={lbl} style={{ ...CARD, background: bg, border: `1px solid ${color}20` }}>
-            <p style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.4rem' }}>{lbl}</p>
-            <p style={{ fontSize: '1.8rem', fontWeight: 800, color, lineHeight: 1 }}>{val}</p>
-          </div>
-        ))}
+      {/* Buscador */}
+      <div style={{ position: 'relative', marginBottom: '1rem', maxWidth: 420 }}>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nombre, CUIT o email…" style={{ ...INP, paddingLeft: '2.2rem' }} />
       </div>
 
-      {/* client cards grid */}
+      {/* Listado */}
       {loading ? (
-        <div style={{ ...CARD, textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
-          <p style={{ fontSize: '0.85rem' }}>Cargando clientes...</p>
+        <div style={{ ...CARD, padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>
+          <div style={{ width: 36, height: 36, border: '3px solid #e8ecf1', borderTopColor: PRIMARY, borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 0.8s linear infinite' }} />
+          Cargando…
         </div>
       ) : loadError ? (
-        <div style={{ ...CARD, textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#fca5a5" strokeWidth="1.5" style={{ marginBottom: '0.75rem' }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <div style={{ ...CARD, padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>
           <p style={{ fontWeight: 600, marginBottom: '0.3rem', color: '#b91c1c' }}>No se pudieron cargar los clientes</p>
-          <p style={{ fontSize: '0.8rem', marginBottom: '1rem' }}>Puede ser un problema de conexión.</p>
-          <button onClick={load} style={{ padding: '0.5rem 1.2rem', borderRadius: '8px', border: 'none', background: '#ea580c', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>Reintentar</button>
+          <p style={{ fontSize: '0.8rem' }}>Puede ser un problema de conexión.</p>
+          <button onClick={load} style={{ marginTop: '0.6rem', padding: '0.5rem 1.2rem', borderRadius: 8, border: 'none', background: PRIMARY, color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>Reintentar</button>
         </div>
       ) : filtered.length === 0 ? (
-        <div style={{ ...CARD, textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1.5" style={{ marginBottom: '0.75rem' }}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          <p style={{ fontWeight: 600, marginBottom: '0.3rem' }}>{search ? 'Sin resultados' : 'No hay clientes aún'}</p>
-          <p style={{ fontSize: '0.8rem' }}>{search ? 'Probá con otro término' : 'Agregá tu primer cliente'}</p>
+        <div style={{ ...CARD, padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>
+          <p style={{ fontWeight: 600, color: '#64748b', marginBottom: 4 }}>{search ? 'Sin resultados' : 'No hay clientes aún'}</p>
+          <p style={{ fontSize: '0.8rem' }}>{search ? 'Probá con otro término.' : 'Agregá tu primer cliente con «Nuevo cliente».'}</p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
           {filtered.map(c => (
-            <div key={c.id} style={{ ...CARD, borderTop: '3px solid #2563eb', position: 'relative' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
-                <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#fff4ee', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', fontWeight: 800, color: '#ea580c' }}>
-                  {(c.nombre || '?').charAt(0).toUpperCase()}
-                </div>
-                <div style={{ display: 'flex', gap: '0.4rem' }}>
-                  <button onClick={() => openEdit(c)} aria-label={`Editar ${c.nombre || 'cliente'}`} style={{ padding: '0.3rem 0.6rem', borderRadius: '7px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer' }}>Editar</button>
-                  <button onClick={() => setConfirm(c.id)} aria-label={`Eliminar ${c.nombre || 'cliente'}`} title="Eliminar" style={{ padding: '0.3rem 0.6rem', borderRadius: '7px', border: '1px solid #fee2e2', background: '#fff', color: '#dc2626', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer' }}>×</button>
-                </div>
-              </div>
-              <p style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.95rem', marginBottom: '0.15rem' }}>{c.nombre}</p>
-              {c.cuit && <p style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.5rem' }}>CUIT {c.cuit}</p>}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid #f1f5f9' }}>
-                {c.email && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{c.email}</span>
+            <div key={c.id} style={{ ...CARD, padding: '0.9rem 1.1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                <div onClick={() => openEdit(c)} style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.9rem' }}>{c.nombre || '— sin nombre —'}</span>
+                    {c.cuit && <span style={{ fontSize: '0.68rem', color: '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>CUIT {c.cuit}</span>}
                   </div>
-                )}
-                {c.telefono && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{c.telefono}</span>
-                  </div>
-                )}
-                {c.notas && <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '0.25rem', fontStyle: 'italic' }}>{c.notas}</p>}
+                  {(c.email || c.telefono) && (
+                    <p style={{ marginTop: 2, fontSize: '0.72rem', color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {[c.email, c.telefono].filter(Boolean).join(' · ')}
+                    </p>
+                  )}
+                  {c.notas && <p style={{ marginTop: 2, fontSize: '0.7rem', color: '#94a3b8', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.notas}</p>}
+                </div>
+                <div style={{ display: 'inline-flex', gap: 2, flex: '0 0 auto' }}>
+                  <button onClick={() => openEdit(c)} title="Editar" aria-label={`Editar ${c.nombre || 'cliente'}`} style={{ width: 26, height: 26, borderRadius: 6, border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  </button>
+                  <button onClick={() => setConfirm(c.id)} title="Eliminar" aria-label={`Eliminar ${c.nombre || 'cliente'}`} style={{ width: 26, height: 26, borderRadius: 6, border: 'none', background: 'none', color: '#cbd5e1', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+                  </button>
+                </div>
               </div>
             </div>
           ))}
@@ -178,18 +164,18 @@ export default function ClientesPage() {
 
       {/* Modal nuevo / editar */}
       {modal !== null && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setModal(null)}>
-          <div style={{ ...CARD, width: '100%', maxWidth: '480px', margin: '1rem', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }} onClick={() => setModal(null)}>
+          <div style={{ ...CARD, width: '100%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto', padding: '1.35rem 1.5rem', boxShadow: '0 24px 64px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-              <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#1e293b' }}>{modal === 'new' ? 'Nuevo cliente' : 'Editar cliente'}</h3>
-              <button onClick={() => setModal(null)} aria-label="Cerrar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '1.2rem' }}>×</button>
+              <h3 style={{ fontSize: '1.02rem', fontWeight: 800, color: '#0f172a' }}>{modal === 'new' ? 'Nuevo cliente' : 'Editar cliente'}</h3>
+              <button onClick={() => setModal(null)} aria-label="Cerrar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '1.4rem', lineHeight: 1 }}>×</button>
             </div>
             <div style={{ display: 'grid', gap: '0.85rem' }}>
               {[
-                ['nombre',   'Nombre / Razón Social', 'Ej: Franco Modulos SRL', false],
-                ['cuit',     'CUIT',                   'Ej: 30-71234567-8',      false],
-                ['email',    'Email',                   'Ej: info@empresa.com',   false],
-                ['telefono', 'Teléfono',                'Ej: 11-4444-5555',       false],
+                ['nombre',   'Nombre / Razón Social', 'Ej: Franco Modulos SRL'],
+                ['cuit',     'CUIT',                   'Ej: 30-71234567-8'],
+                ['email',    'Email',                   'Ej: info@empresa.com'],
+                ['telefono', 'Teléfono',                'Ej: 11-4444-5555'],
               ].map(([field, label, placeholder]) => (
                 <div key={field}>
                   <label style={LBL}>{label}</label>
@@ -198,12 +184,12 @@ export default function ClientesPage() {
               ))}
               <div>
                 <label style={LBL}>Notas</label>
-                <textarea value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))} rows={2} style={{ ...INP, resize: 'vertical', fontFamily: 'inherit' }} placeholder="Observaciones opcionales..." />
+                <textarea value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))} rows={2} style={{ ...INP, resize: 'vertical' }} placeholder="Observaciones opcionales..." />
               </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.25rem' }}>
-              <button onClick={() => setModal(null)} style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={submit} disabled={saving} style={{ padding: '0.5rem 1.2rem', borderRadius: '8px', border: 'none', background: saving ? '#fdba74' : '#ea580c', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: saving ? 'default' : 'pointer' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: '1.25rem' }}>
+              <button onClick={() => setModal(null)} style={{ padding: '0.55rem 1.1rem', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={submit} disabled={saving} style={{ padding: '0.55rem 1.3rem', borderRadius: 8, border: 'none', background: PRIMARY, color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: saving ? 'wait' : 'pointer' }}>
                 {saving ? 'Guardando…' : (modal === 'new' ? 'Agregar' : 'Guardar cambios')}
               </button>
             </div>
@@ -213,20 +199,19 @@ export default function ClientesPage() {
 
       {/* Confirm delete */}
       {confirm && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setConfirm(null)}>
-          <div style={{ ...CARD, width: '100%', maxWidth: '360px', margin: '1rem', textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
-            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-            </div>
-            <p style={{ fontWeight: 700, color: '#1e293b', marginBottom: '0.4rem' }}>¿Eliminar cliente?</p>
-            <p style={{ fontSize: '0.82rem', color: '#64748b', marginBottom: '1.25rem' }}>Esta acción no se puede deshacer.</p>
-            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
-              <button onClick={() => setConfirm(null)} style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={() => remove(confirm)} style={{ padding: '0.5rem 1.2rem', borderRadius: '8px', border: 'none', background: '#dc2626', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>Eliminar</button>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setConfirm(null)}>
+          <div style={{ ...CARD, maxWidth: 340, padding: '1.75rem', margin: '1rem', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+            <p style={{ fontWeight: 700, color: '#1e293b', marginBottom: 6 }}>¿Eliminar cliente?</p>
+            <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '1.25rem' }}>Esta acción no se puede deshacer.</p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+              <button onClick={() => setConfirm(null)} style={{ padding: '0.5rem 1rem', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={() => remove(confirm)} style={{ padding: '0.5rem 1.2rem', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>Eliminar</button>
             </div>
           </div>
         </div>
       )}
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

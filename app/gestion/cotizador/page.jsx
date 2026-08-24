@@ -285,10 +285,10 @@ function SaveQuoteModal({ modo, defaultCliente, getPayload, ncmPayload = null, l
               {loadedQuote?.id ? (
                 <>
                   <button onClick={() => save(true)} disabled={saving} title="Crea una cotización nueva sin tocar la anterior" style={{ padding: '0.55rem 1.1rem', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#fff', color: '#334155', fontWeight: 700, fontSize: '0.82rem', cursor: saving ? 'default' : 'pointer' }}>{saving ? 'Guardando…' : 'Guardar como nueva'}</button>
-                  <button onClick={() => save(false)} disabled={saving} title={`Sobrescribe «${loadedQuote.nombre}»`} style={{ padding: '0.55rem 1.3rem', borderRadius: '10px', border: 'none', background: saving ? '#94a3b8' : '#2563eb', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: saving ? 'default' : 'pointer', boxShadow: '0 2px 10px rgba(37,99,235,0.3)' }}>{saving ? 'Guardando…' : 'Actualizar la anterior'}</button>
+                  <button onClick={() => save(false)} disabled={saving} title={`Sobrescribe «${loadedQuote.nombre}»`} style={{ padding: '0.55rem 1.3rem', borderRadius: '10px', border: 'none', background: saving ? '#94a3b8' : '#0f172a', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: saving ? 'default' : 'pointer' }}>{saving ? 'Guardando…' : 'Actualizar la anterior'}</button>
                 </>
               ) : (
-                <button onClick={() => save(true)} disabled={saving} style={{ padding: '0.55rem 1.3rem', borderRadius: '10px', border: 'none', background: saving ? '#94a3b8' : '#2563eb', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: saving ? 'default' : 'pointer', boxShadow: '0 2px 10px rgba(37,99,235,0.3)' }}>{saving ? 'Guardando…' : 'Guardar'}</button>
+                <button onClick={() => save(true)} disabled={saving} style={{ padding: '0.55rem 1.3rem', borderRadius: '10px', border: 'none', background: saving ? '#94a3b8' : '#0f172a', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: saving ? 'default' : 'pointer' }}>{saving ? 'Guardando…' : 'Guardar'}</button>
               )}
             </div>
           </div>
@@ -425,7 +425,7 @@ function PagaToggle({ label, checked, onChange }) {
 }
 function Pill({ active, onClick, children }) {
   return (
-    <button onClick={onClick} style={{ padding: '0.45rem 1rem', borderRadius: '50px', border: 'none', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700, transition: 'all 0.15s', background: active ? '#2563eb' : 'transparent', color: active ? '#fff' : '#94a3b8' }}>
+    <button onClick={onClick} style={{ padding: '0.45rem 1rem', borderRadius: '50px', border: 'none', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700, transition: 'all 0.15s', background: active ? '#0f172a' : 'transparent', color: active ? '#fff' : '#94a3b8' }}>
       {children}
     </button>
   );
@@ -832,7 +832,7 @@ function CotizadorMaritimo() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
           <SaveQuoteButton onClick={() => setShowSave(true)} />
           {mode === 'cliente' && (
-            <button onClick={() => setShowClienteView(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', padding: '0.55rem 1.1rem', borderRadius: '50px', border: 'none', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700, background: '#2563eb', color: '#fff', boxShadow: '0 2px 10px rgba(37,99,235,0.3)' }}>
+            <button onClick={() => setShowClienteView(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', padding: '0.55rem 1.1rem', borderRadius: '50px', border: 'none', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700, background: '#0f172a', color: '#fff' }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
               Ver cotización al cliente
             </button>
@@ -845,12 +845,12 @@ function CotizadorMaritimo() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, background: 'rgba(248,250,252,0.94)', backdropFilter: 'blur(6px)', padding: '0.45rem', borderRadius: 12, border: '1px solid #e8ecf1' }}>
           {mode === 'personal' ? (<>
             <SummaryChip label="Costo real (sin IVA)" val={usd(c.totSinR)} />
-            <SummaryChip label={`Ganancia neta (${pMrg}%)`} val={usd(c.gananciaNeta)} color="#0891b2" bg="#ecfeff" border="#a5f3fc" />
-            <SummaryChip label="Precio venta final" val={usd(c.precioVentaFinal)} color="#059669" bg="#f0fdf4" border="#bbf7d0" />
+            <SummaryChip label={`Ganancia neta (${pMrg}%)`} val={usd(c.gananciaNeta)} color="#16a34a" />
+            <SummaryChip label="Precio venta final" val={usd(c.precioVentaFinal)} color="#0f172a" />
           </>) : (<>
             <SummaryChip label="Costo real" val={usd(c.totConR)} />
-            <SummaryChip label="A cobrar al cliente" val={usd(c.totConC)} color="#2563eb" bg="#eff6ff" border="#bfdbfe" />
-            <SummaryChip label="Margen / ganancia" val={usd(c.ganTotal)} color="#059669" bg="#f0fdf4" border="#bbf7d0" />
+            <SummaryChip label="A cobrar al cliente" val={usd(c.totConC)} color="#0f172a" />
+            <SummaryChip label="Margen / ganancia" val={usd(c.ganTotal)} color="#16a34a" />
           </>)}
         </div>
       </div>
@@ -1169,9 +1169,8 @@ function CotizadorMaritimo() {
             <Card>
               <p style={{ ...SECL, margin: '0 0 0.7rem' }}>Precio final al cliente</p>
               {/* Sociedad badge */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.75rem', padding: '0.4rem 0.7rem', background: usaSociedadPropia ? '#f0fdf4' : '#eff6ff', borderRadius: '8px', border: `1px solid ${usaSociedadPropia ? '#bbf7d0' : '#bfdbfe'}` }}>
-                <span style={{ fontSize: '0.75rem' }}>{usaSociedadPropia ? '🏢' : '🔵'}</span>
-                <span style={{ fontSize: '0.7rem', fontWeight: 700, color: usaSociedadPropia ? '#059669' : '#2563eb' }}>
+              <div style={{ marginBottom: '0.75rem', padding: '0.4rem 0.7rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e8ecf1' }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#64748b' }}>
                   {usaSociedadPropia ? 'Sociedad del cliente — sin gastos de facturación' : 'Sociedad Transtide — incluye gastos de facturación'}
                 </span>
               </div>
@@ -1303,7 +1302,7 @@ function CotizadorMaritimo() {
               <div className="cot-detalle-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', padding: '0.5rem 0.25rem', background: '#f0f7ff', borderRadius: '8px', marginTop: '0.4rem', fontWeight: 700, fontSize: '0.85rem' }}>
                 <span style={{ color: '#1e293b' }}>TOTAL</span>
                 <span style={{ textAlign: 'right', color: '#64748b' }}>{usd(c.totConR)}</span>
-                <span style={{ textAlign: 'right', color: '#2563eb' }}>{usd(c.totConC)}</span>
+                <span style={{ textAlign: 'right', color: '#0f172a' }}>{usd(c.totConC)}</span>
                 <span className="cot-detalle-margen" style={{ textAlign: 'right', color: c.ganTotal >= 0 ? '#10b981' : '#ef4444' }}>{c.ganTotal >= 0 ? '+' : ''}{usd(c.ganTotal)}</span>
               </div>
                 </div>
@@ -1341,9 +1340,8 @@ function CotizadorMaritimo() {
                 <span style={{ fontSize: '0.72rem', color: '#065f46' }}>FOB declarado · CIF declarado</span>
                 <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#059669' }}>{usd(c.fobDR)} · {usd(c.cifR)}</span>
               </div>
-              <div style={{ marginTop: '0.75rem', padding: '0.45rem 0.75rem', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: '0.75rem' }}>🔵</span>
-                <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#2563eb' }}>Importación personal — siempre con sociedad Transtide</span>
+              <div style={{ marginTop: '0.75rem', padding: '0.45rem 0.75rem', background: '#f8fafc', border: '1px solid #e8ecf1', borderRadius: '8px' }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#64748b' }}>Importación personal — siempre con sociedad Transtide</span>
               </div>
             </Card>
 
@@ -1916,7 +1914,7 @@ function CotizadorAereo() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <SaveQuoteButton onClick={() => setShowSave(true)} />
           {mode === 'cliente' && (
-            <button onClick={() => setShowClienteView(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', padding: '0.55rem 1.1rem', borderRadius: '50px', border: 'none', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700, background: '#2563eb', color: '#fff', boxShadow: '0 2px 10px rgba(37,99,235,0.3)' }}>
+            <button onClick={() => setShowClienteView(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', padding: '0.55rem 1.1rem', borderRadius: '50px', border: 'none', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700, background: '#0f172a', color: '#fff' }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
               Ver cotización al cliente
             </button>
@@ -1935,12 +1933,12 @@ function CotizadorAereo() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, background: 'rgba(248,250,252,0.94)', backdropFilter: 'blur(6px)', padding: '0.45rem', borderRadius: 12, border: '1px solid #e8ecf1' }}>
           {mode === 'personal' ? (<>
             <SummaryChip label="Costo real (sin IVA)" val={usd(c.totSinR)} />
-            <SummaryChip label={`Ganancia neta (${pMrg}%)`} val={usd(c.gananciaNeta)} color="#0891b2" bg="#ecfeff" border="#a5f3fc" />
-            <SummaryChip label="Precio venta final" val={usd(c.precioVentaFinal)} color="#059669" bg="#f0fdf4" border="#bbf7d0" />
+            <SummaryChip label={`Ganancia neta (${pMrg}%)`} val={usd(c.gananciaNeta)} color="#16a34a" />
+            <SummaryChip label="Precio venta final" val={usd(c.precioVentaFinal)} color="#0f172a" />
           </>) : (<>
             <SummaryChip label="Costo real" val={usd(c.totConR)} />
-            <SummaryChip label="A cobrar al cliente" val={usd(c.totConC)} color="#2563eb" bg="#eff6ff" border="#bfdbfe" />
-            <SummaryChip label="Margen / ganancia" val={usd(c.ganTotal)} color="#059669" bg="#f0fdf4" border="#bbf7d0" />
+            <SummaryChip label="A cobrar al cliente" val={usd(c.totConC)} color="#0f172a" />
+            <SummaryChip label="Margen / ganancia" val={usd(c.ganTotal)} color="#16a34a" />
           </>)}
         </div>
       </div>
@@ -2016,7 +2014,7 @@ function CotizadorAereo() {
           {/* tab bar */}
           <div style={{ display: 'grid', gridTemplateColumns: `repeat(${tabs.length}, 1fr)`, background: '#fff', borderRadius: '12px', padding: '4px', border: '1px solid #e2e8f0', gap: '3px' }}>
             {tabs.map(([id, label]) => (
-              <button key={id} onClick={() => setTab(id)} style={{ padding: '0.6rem 0.25rem', borderRadius: '9px', border: 'none', cursor: 'pointer', fontSize: '0.73rem', fontWeight: 700, transition: 'all 0.15s', background: tab === id ? '#2563eb' : 'transparent', color: tab === id ? '#fff' : '#94a3b8', lineHeight: 1.2 }}>
+              <button key={id} onClick={() => setTab(id)} style={{ padding: '0.6rem 0.25rem', borderRadius: '9px', border: 'none', cursor: 'pointer', fontSize: '0.73rem', fontWeight: 700, transition: 'all 0.15s', background: tab === id ? '#0f172a' : 'transparent', color: tab === id ? '#fff' : '#94a3b8', lineHeight: 1.2 }}>
                 {label}
               </button>
             ))}
@@ -2262,9 +2260,8 @@ function CotizadorAereo() {
                 <span style={{ fontSize: '0.72rem', color: '#065f46' }}>FOB declarado · CIF declarado</span>
                 <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#059669' }}>{usd(c.fobDR)} · {usd(c.cifR)}</span>
               </div>
-              <div style={{ marginTop: '0.75rem', padding: '0.45rem 0.75rem', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: '0.75rem' }}>🔵</span>
-                <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#2563eb' }}>Importación personal — siempre con sociedad Transtide</span>
+              <div style={{ marginTop: '0.75rem', padding: '0.45rem 0.75rem', background: '#f8fafc', border: '1px solid #e8ecf1', borderRadius: '8px' }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#64748b' }}>Importación personal — siempre con sociedad Transtide</span>
               </div>
             </Card>
           )}
@@ -2272,9 +2269,8 @@ function CotizadorAereo() {
           {mode === 'cliente' && (<>
           <Card>
             <p style={{ ...SECL, margin: '0 0 0.7rem' }}>Precio final al cliente</p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.75rem', padding: '0.4rem 0.7rem', background: usaSociedadPropia ? '#f0fdf4' : '#eff6ff', borderRadius: '8px', border: `1px solid ${usaSociedadPropia ? '#bbf7d0' : '#bfdbfe'}` }}>
-              <span style={{ fontSize: '0.75rem' }}>{usaSociedadPropia ? '🏢' : '🔵'}</span>
-              <span style={{ fontSize: '0.7rem', fontWeight: 700, color: usaSociedadPropia ? '#059669' : '#2563eb' }}>
+            <div style={{ marginBottom: '0.75rem', padding: '0.4rem 0.7rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e8ecf1' }}>
+              <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#64748b' }}>
                 {usaSociedadPropia ? 'Sociedad del cliente — sin gastos de facturación' : 'Sociedad Transtide — incluye gastos de facturación'}
               </span>
             </div>
@@ -2527,6 +2523,7 @@ function SavedQuotesPanel({ onClose, onReactivate }) {
   const [busyId, setBusyId]   = useState(null);
   const [confirmConv, setConfirmConv] = useState(null); // cotización a convertir
   const [confirmDel, setConfirmDel]   = useState(null); // cotización a eliminar
+  const [showCerradas, setShowCerradas] = useState(false); // sección "Cerradas" colapsada por defecto
 
   const load = async () => {
     setLoading(true); setErr('');
@@ -2617,6 +2614,13 @@ function SavedQuotesPanel({ onClose, onReactivate }) {
     return true;
   });
 
+  // "Cerrada" = ya no requiere trabajo: rechazada, o aprobada ya convertida en operación.
+  const isCerrada = (q) => q.estado === 'rechazada' || (q.estado === 'aprobada' && q.operation_id);
+  const activas  = visible.filter(q => !isCerrada(q));
+  const cerradas = visible.filter(isCerrada);
+  // Si el filtro o la búsqueda apuntan a cerradas, la sección se muestra sola.
+  const cerradasAbiertas = showCerradas || filter === 'rechazada' || filter === 'aprobada' || (!!s && cerradas.length > 0);
+
   const fmtDate = (v) => {
     if (!v) return '—';
     const d = new Date(v);
@@ -2625,18 +2629,19 @@ function SavedQuotesPanel({ onClose, onReactivate }) {
   };
 
   // Agrupación / orden de la lista para poder trabajar (no todo apilado suelto).
+  // Solo las ACTIVAS se agrupan acá; las cerradas van todas juntas al fondo.
   const byDateDesc = (a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0);
   let groups;
   if (agrupar === 'cliente') {
     const m = {};
-    visible.forEach(q => { const k = ((q.cliente || '').trim()) || 'Sin cliente'; (m[k] = m[k] || []).push(q); });
+    activas.forEach(q => { const k = ((q.cliente || '').trim()) || 'Sin cliente'; (m[k] = m[k] || []).push(q); });
     groups = Object.keys(m).sort((a, b) => a.localeCompare(b, 'es')).map(k => ({ key: k, label: k, count: m[k].length, items: m[k].sort(byDateDesc) }));
   } else if (agrupar === 'valor') {
-    groups = [{ key: 'all', items: [...visible].sort((a, b) => Number(b.total_usd || 0) - Number(a.total_usd || 0)) }];
+    groups = [{ key: 'all', items: [...activas].sort((a, b) => Number(b.total_usd || 0) - Number(a.total_usd || 0)) }];
   } else if (agrupar === 'fecha') {
-    groups = [{ key: 'all', items: [...visible].sort(byDateDesc) }];
+    groups = [{ key: 'all', items: [...activas].sort(byDateDesc) }];
   } else { // estado (default): en orden de pipeline
-    groups = ESTADOS.map(e => ({ key: e.id, label: e.label, dot: e.fg, count: 0, items: visible.filter(q => q.estado === e.id).sort(byDateDesc) })).filter(g => g.items.length);
+    groups = ESTADOS.map(e => ({ key: e.id, label: e.label, dot: e.fg, count: 0, items: activas.filter(q => q.estado === e.id).sort(byDateDesc) })).filter(g => g.items.length);
   }
 
   return (
@@ -2659,7 +2664,7 @@ function SavedQuotesPanel({ onClose, onReactivate }) {
             {[['todas', 'Todas'], ...ESTADOS.map(e => [e.id, e.label])].map(([id, label]) => {
               const active = filter === id;
               return (
-                <button key={id} onClick={() => setFilter(id)} style={{ padding: '0.3rem 0.75rem', borderRadius: '50px', border: `1px solid ${active ? '#2563eb' : '#e2e8f0'}`, cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, background: active ? '#2563eb' : '#fff', color: active ? '#fff' : '#64748b' }}>
+                <button key={id} onClick={() => setFilter(id)} style={{ padding: '0.3rem 0.75rem', borderRadius: '50px', border: `1px solid ${active ? '#0f172a' : '#e2e8f0'}`, cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, background: active ? '#0f172a' : '#fff', color: active ? '#fff' : '#64748b' }}>
                   {label}
                 </button>
               );
@@ -2692,10 +2697,10 @@ function SavedQuotesPanel({ onClose, onReactivate }) {
               <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '0.6rem 0.85rem' }}>
                 <p style={{ fontSize: '0.6rem', fontWeight: 800, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Seguimiento</p>
                 {sinConv.slice(0, 3).map(q => (
-                  <p key={q.id} style={{ fontSize: '0.76rem', color: '#78350f', padding: '0.08rem 0' }}>⏳ <b>{q.nombre}</b> está aprobada — convertila en operación</p>
+                  <p key={q.id} style={{ fontSize: '0.76rem', color: '#78350f', padding: '0.08rem 0' }}><b>{q.nombre}</b> está aprobada — convertila en operación</p>
                 ))}
                 {frias.slice(0, 4).map(q => (
-                  <p key={q.id} style={{ fontSize: '0.76rem', color: '#78350f', padding: '0.08rem 0' }}>📨 <b>{q.nombre}</b> sin respuesta hace {dias(q.updated_at || q.created_at)} días — hacé follow-up{q.cliente ? ` a ${q.cliente}` : ''}</p>
+                  <p key={q.id} style={{ fontSize: '0.76rem', color: '#78350f', padding: '0.08rem 0' }}><b>{q.nombre}</b> sin respuesta hace {dias(q.updated_at || q.created_at)} días — hacé follow-up{q.cliente ? ` a ${q.cliente}` : ''}</p>
                 ))}
               </div>
             )
@@ -2711,35 +2716,32 @@ function SavedQuotesPanel({ onClose, onReactivate }) {
               )}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {g.items.map(q => {
-                  const em = estadoMeta(q.estado);
                   const busy = busyId === q.id;
                   return (
-                    <div key={q.id} style={{ background: '#fff', borderRadius: '10px', padding: '0.65rem 0.8rem', border: '1px solid #e2e8f0', borderLeft: `3px solid ${em.fg}`, opacity: busy ? 0.6 : 1 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.6rem' }}>
+                    <div key={q.id} style={{ background: '#fff', borderRadius: '10px', padding: '0.65rem 0.9rem', border: '1px solid #e2e8f0', opacity: busy ? 0.6 : 1 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.6rem' }}>
                         <div style={{ minWidth: 0, flex: 1 }}>
-                          <p style={{ fontSize: '0.86rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.nombre}</p>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.68rem', color: '#94a3b8', marginTop: 1, flexWrap: 'wrap' }}>
-                            {q.cliente && <span style={{ color: '#64748b' }}>{q.cliente}</span>}
-                            <span>{q.modo === 'aereo' ? '✈️' : '🚢'}</span>
-                            {q.total_usd && <span style={{ fontWeight: 700, color: '#059669', fontVariantNumeric: 'tabular-nums' }}>USD {Number(q.total_usd).toLocaleString('es-AR')}</span>}
-                            <span>· {fmtDate(q.updated_at || q.created_at)}</span>
-                          </div>
+                          <p style={{ fontSize: '0.86rem', fontWeight: 700, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.nombre}</p>
+                          <p style={{ fontSize: '0.68rem', color: '#94a3b8', marginTop: 2 }}>
+                            {[q.cliente, q.modo === 'aereo' ? 'Aéreo' : 'Marítimo', fmtDate(q.updated_at || q.created_at)].filter(Boolean).join(' · ')}
+                          </p>
+                          {q.resumen && <p style={{ fontSize: '0.68rem', color: '#cbd5e1', marginTop: 2 }}>{q.resumen}</p>}
                         </div>
-                        <select value={q.estado} onChange={e => changeEstado(q, e.target.value)} disabled={busy} title="Cambiar estado" style={{ flexShrink: 0, padding: '0.28rem 0.45rem', borderRadius: '7px', border: `1px solid ${em.bg}`, fontSize: '0.7rem', fontWeight: 700, color: em.fg, background: em.bg, cursor: 'pointer' }}>
-                          {ESTADOS.map(e => <option key={e.id} value={e.id} style={{ color: '#334155', background: '#fff' }}>{e.label}</option>)}
-                        </select>
+                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                          {q.total_usd && <p style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums', lineHeight: 1.15 }}>USD {Number(q.total_usd).toLocaleString('es-AR')}</p>}
+                          <select value={q.estado} onChange={e => changeEstado(q, e.target.value)} disabled={busy} title="Cambiar estado" style={{ marginTop: 3, padding: '0.22rem 0.4rem', borderRadius: '7px', border: '1px solid #e2e8f0', fontSize: '0.68rem', fontWeight: 600, color: q.estado === 'aprobada' ? '#16a34a' : q.estado === 'rechazada' ? '#dc2626' : '#64748b', background: '#fff', cursor: 'pointer' }}>
+                            {ESTADOS.map(e => <option key={e.id} value={e.id} style={{ color: '#334155', background: '#fff' }}>{e.label}</option>)}
+                          </select>
+                        </div>
                       </div>
-                      {q.resumen && <p style={{ fontSize: '0.68rem', color: '#cbd5e1', margin: '0.3rem 0 0' }}>{q.resumen}</p>}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.55rem' }}>
-                        <button onClick={() => reactivate(q)} disabled={busy} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '0.32rem 0.7rem', borderRadius: '7px', border: 'none', cursor: busy ? 'default' : 'pointer', fontSize: '0.72rem', fontWeight: 700, background: '#2563eb', color: '#fff' }}>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                        <button onClick={() => reactivate(q)} disabled={busy} style={{ padding: '0.32rem 0.7rem', borderRadius: '7px', border: '1px solid #e2e8f0', cursor: busy ? 'default' : 'pointer', fontSize: '0.72rem', fontWeight: 600, background: '#fff', color: '#334155' }}>
                           Reactivar
                         </button>
-                        <button onClick={() => convertir(q)} disabled={busy} title={q.operation_id ? 'Ya convertida — ir a la operación' : 'Crear operación desde esta cotización'} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '0.32rem 0.7rem', borderRadius: '7px', border: 'none', cursor: busy ? 'default' : 'pointer', fontSize: '0.72rem', fontWeight: 700, background: q.operation_id ? '#f0fdf4' : '#059669', color: q.operation_id ? '#16a34a' : '#fff' }}>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polygon points="3 6 12 2 21 6 21 16 12 20 3 16 3 6"/><line x1="12" y1="22" x2="12" y2="12"/></svg>
+                        <button onClick={() => convertir(q)} disabled={busy} title={q.operation_id ? 'Ya convertida — ir a la operación' : 'Crear operación desde esta cotización'} style={{ padding: '0.32rem 0.7rem', borderRadius: '7px', border: '1px solid #e2e8f0', cursor: busy ? 'default' : 'pointer', fontSize: '0.72rem', fontWeight: 600, background: '#fff', color: q.operation_id ? '#16a34a' : '#334155' }}>
                           {q.operation_id ? 'Ver operación' : 'Convertir'}
                         </button>
-                        <button onClick={() => remove(q)} disabled={busy} aria-label="Eliminar" title="Eliminar" style={{ marginLeft: 'auto', width: 30, height: 30, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '7px', border: '1px solid #fecaca', cursor: busy ? 'default' : 'pointer', background: '#fff', color: '#dc2626' }}>
+                        <button onClick={() => remove(q)} disabled={busy} aria-label="Eliminar" title="Eliminar" style={{ marginLeft: 'auto', width: 28, height: 28, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '6px', border: 'none', cursor: busy ? 'default' : 'pointer', background: 'none', color: '#cbd5e1' }}>
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
                         </button>
                       </div>
@@ -2749,6 +2751,42 @@ function SavedQuotesPanel({ onClose, onReactivate }) {
               </div>
             </div>
           ))}
+
+          {/* Cerradas: rechazadas y aprobadas ya convertidas — todas al fondo, colapsadas */}
+          {!loading && !err && cerradas.length > 0 && (
+            <div style={{ marginTop: '0.25rem', paddingTop: '0.75rem', borderTop: '1px solid #e2e8f0' }}>
+              <button onClick={() => setShowCerradas(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 7, width: '100%', background: 'none', border: 'none', padding: '0.15rem 0.1rem', cursor: 'pointer', textAlign: 'left' }}>
+                <span style={{ fontSize: '0.62rem', color: '#94a3b8' }}>{cerradasAbiertas ? '▾' : '▸'}</span>
+                <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Cerradas · {cerradas.length}</span>
+              </button>
+              {cerradasAbiertas && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.45rem' }}>
+                  {[...cerradas].sort(byDateDesc).map(q => {
+                    const busy = busyId === q.id;
+                    return (
+                      <div key={q.id} style={{ background: '#fff', borderRadius: '10px', padding: '0.5rem 0.9rem', border: '1px solid #eef2f7', opacity: busy ? 0.5 : 0.7 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <p style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.nombre}</p>
+                            <p style={{ fontSize: '0.66rem', color: '#94a3b8', marginTop: 1 }}>
+                              {[estadoMeta(q.estado).label, q.cliente, q.modo === 'aereo' ? 'Aéreo' : 'Marítimo', q.total_usd ? `USD ${Number(q.total_usd).toLocaleString('es-AR')}` : '', fmtDate(q.updated_at || q.created_at)].filter(Boolean).join(' · ')}
+                            </p>
+                          </div>
+                          {q.operation_id && (
+                            <button onClick={() => convertir(q)} disabled={busy} title="Ir a la operación" style={{ padding: '0.28rem 0.65rem', borderRadius: '7px', border: '1px solid #e2e8f0', cursor: busy ? 'default' : 'pointer', fontSize: '0.7rem', fontWeight: 600, background: '#fff', color: '#334155' }}>Ver operación</button>
+                          )}
+                          <button onClick={() => reactivate(q)} disabled={busy} style={{ padding: '0.28rem 0.65rem', borderRadius: '7px', border: '1px solid #e2e8f0', cursor: busy ? 'default' : 'pointer', fontSize: '0.7rem', fontWeight: 600, background: '#fff', color: '#334155' }}>Reactivar</button>
+                          <button onClick={() => remove(q)} disabled={busy} aria-label="Eliminar" title="Eliminar" style={{ width: 26, height: 26, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '6px', border: 'none', cursor: busy ? 'default' : 'pointer', background: 'none', color: '#cbd5e1' }}>
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -2849,7 +2887,7 @@ function NcmForm({ initial, onCancel, onSaved }) {
       {err && <p style={{ fontSize: '0.78rem', color: '#dc2626', marginTop: '0.5rem' }}>{err}</p>}
       <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '0.75rem' }}>
         <button onClick={onCancel} style={{ padding: '0.5rem 1rem', borderRadius: '9px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer' }}>Cancelar</button>
-        <button onClick={save} disabled={saving} style={{ padding: '0.5rem 1.2rem', borderRadius: '9px', border: 'none', background: saving ? '#94a3b8' : '#2563eb', color: '#fff', fontWeight: 700, fontSize: '0.78rem', cursor: saving ? 'default' : 'pointer' }}>{saving ? 'Guardando…' : 'Guardar'}</button>
+        <button onClick={save} disabled={saving} style={{ padding: '0.5rem 1.2rem', borderRadius: '9px', border: 'none', background: saving ? '#94a3b8' : '#0f172a', color: '#fff', fontWeight: 700, fontSize: '0.78rem', cursor: saving ? 'default' : 'pointer' }}>{saving ? 'Guardando…' : 'Guardar'}</button>
       </div>
     </div>
   );
@@ -2927,7 +2965,7 @@ function NcmPanel({ onClose }) {
         {/* search + new */}
         <div style={{ padding: '0.9rem 1.4rem', background: '#fff', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: '64px', zIndex: 9, display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
           <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por código o producto…" style={{ ...INP, flex: 1 }} />
-          <button onClick={() => setEditing({})} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.55rem 0.9rem', borderRadius: '9px', border: 'none', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700, background: '#ea580c', color: '#fff', whiteSpace: 'nowrap' }}>
+          <button onClick={() => setEditing({})} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.55rem 0.9rem', borderRadius: '9px', border: 'none', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700, background: '#0f172a', color: '#fff', whiteSpace: 'nowrap' }}>
             + Nueva NCM
           </button>
         </div>
@@ -2954,7 +2992,7 @@ function NcmPanel({ onClose }) {
                   </div>
                   <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
                     <button onClick={() => setEditing(nc)} disabled={busy} style={{ padding: '0.32rem 0.7rem', borderRadius: '8px', border: '1px solid #e2e8f0', cursor: busy ? 'default' : 'pointer', fontSize: '0.74rem', fontWeight: 700, background: '#fff', color: '#334155' }}>Editar</button>
-                    <button onClick={() => remove(nc)} disabled={busy} title="Eliminar" style={{ width: '28px', height: '28px', borderRadius: '8px', border: '1px solid #fecaca', cursor: busy ? 'default' : 'pointer', fontSize: '0.95rem', fontWeight: 700, background: '#fff', color: '#dc2626', lineHeight: 1 }}>×</button>
+                    <button onClick={() => remove(nc)} disabled={busy} title="Eliminar" aria-label="Eliminar" style={{ width: '28px', height: '28px', borderRadius: '8px', border: 'none', cursor: busy ? 'default' : 'pointer', fontSize: '0.95rem', fontWeight: 700, background: 'none', color: '#94a3b8', lineHeight: 1 }}>×</button>
                   </div>
                 </div>
                 {rl && <p style={{ fontSize: '0.74rem', color: '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>{rl}</p>}
@@ -3079,9 +3117,9 @@ function CotizadorInner() {
             onClick={() => setImportOpen(true)}
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 8,
-              padding: '0.55rem 1.1rem', borderRadius: 10, border: 'none',
-              background: '#0f172a', color: '#fff', fontWeight: 700, fontSize: '0.82rem',
-              cursor: 'pointer', boxShadow: '0 2px 10px rgba(15,23,42,0.15)',
+              padding: '0.55rem 1.1rem', borderRadius: 10, border: '1px solid #e2e8f0',
+              background: '#fff', color: '#334155', fontWeight: 700, fontSize: '0.82rem',
+              cursor: 'pointer',
             }}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -3090,7 +3128,7 @@ function CotizadorInner() {
               <line x1="12" y1="3" x2="12" y2="15" />
             </svg>
             Importar de PDF/foto
-            <span style={{ fontSize: '0.62rem', background: '#3b82f6', padding: '0.1rem 0.45rem', borderRadius: 99, fontWeight: 700 }}>IA</span>
+            <span style={{ fontSize: '0.62rem', fontWeight: 600, color: '#94a3b8' }}>IA</span>
           </button>
         </div>
       </div>
