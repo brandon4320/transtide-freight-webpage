@@ -338,9 +338,8 @@ export default function DespachantePage({ devRows = null, devShips = null, devPa
           <div style={{ display: 'flex', gap: 18, marginTop: 12, flexWrap: 'wrap', fontSize: '0.74rem' }}>
             <span><span style={{ color: '#94a3b8' }}>Costos</span> <b style={{ color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(stats.totalHon)}</b></span>
             <span><span style={{ color: '#94a3b8' }}>− pagado</span> <b style={{ color: '#334155', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(stats.totalPag)}</b></span>
-            {(stats.fact > 0 || stats.negro > 0) && (
-              <span><span style={{ color: '#94a3b8' }}>Te factura</span> <b style={{ color: '#059669', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(stats.fact)}</b> <span style={{ color: '#94a3b8' }}>· en negro</span> <b style={{ color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(stats.negro)}</b></span>
-            )}
+            {stats.fact > 0 && <span><span style={{ color: '#94a3b8' }}>Te factura</span> <b style={{ color: '#059669', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(stats.fact)}</b></span>}
+            {stats.negro > 0 && <span><span style={{ color: '#94a3b8' }}>En negro</span> <b style={{ color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(stats.negro)}</b></span>}
           </div>
           {stats.debe > 0 && stats.favor > 0 && (
             <p style={{ fontSize: '0.66rem', color: '#94a3b8', marginTop: 8 }}>Debés {fmtUSD(stats.debe)} en unas · {fmtUSD(stats.favor)} a favor en otras → se compensan.</p>
@@ -420,72 +419,67 @@ export default function DespachantePage({ devRows = null, devShips = null, devPa
                       const st = saldoStyle(saldo, numUSD(r.total_honorarios))
                       const ship = shipByBL[blNorm(r.bl)]
                       const hon = numUSD(r.total_honorarios), pag = numUSD(r.total_pagado)
-                      const objetivo = hon
-                      const pct = objetivo > 0 ? Math.max(0, Math.min(1, pag / objetivo)) : (pag > 0 ? 1 : 0)
+                      const pct = hon > 0 ? Math.max(0, Math.min(1, pag / hon)) : (pag > 0 ? 1 : 0)
                       const rc = parseConc(r)
                       const rs = concSplit(rc)
                       const hist = pagos[String(r.id)] || []
+                      const partes = CONCEPTOS.filter(([k]) => rc[k] && numUSD(rc[k].m) > 0)
                       return (
-                        <div key={r.id} style={{ ...CARD, borderLeft: `3px solid ${st.dot}`, padding: '0.75rem 0.9rem' }}>
-                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                        <div key={r.id} style={{ ...CARD, padding: '0.9rem 1.1rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
                             <div onClick={() => r.bl ? setFicha({ bl: r.bl, desp: r, ship }) : openEdit(r)} style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                                <span style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.9rem' }}>{r.descripcion || '— sin descripción —'}</span>
-                                <span style={{ fontSize: '0.6rem', fontWeight: 700, padding: '0.12rem 0.45rem', borderRadius: 5, border: '1px solid', color: r.estado === 'Terminada' ? '#065f46' : '#1d4ed8', borderColor: r.estado === 'Terminada' ? '#a7f3d0' : '#bfdbfe', background: '#fff' }}>{r.estado || '—'}</span>
+                              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                                <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.9rem' }}>{r.descripcion || '— sin descripción —'}</span>
+                                <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>{r.estado || ''}</span>
                                 {r.facturado
-                                  ? <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#065f46', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 5, padding: '0.12rem 0.45rem' }}>Facturado{r.factura_nro ? ` · ${r.factura_nro}` : ''}</span>
-                                  : rs.fact > 0 ? <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 5, padding: '0.12rem 0.45rem' }}>Sin facturar</span> : null}
+                                  ? <span style={{ fontSize: '0.68rem', fontWeight: 600, color: '#059669' }}>✓ Facturado{r.factura_nro ? ` ${r.factura_nro}` : ''}</span>
+                                  : rs.fact > 0 ? <span style={{ fontSize: '0.68rem', fontWeight: 600, color: '#dc2626' }}>Sin facturar</span> : null}
                               </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, fontSize: '0.66rem', color: '#94a3b8' }}>
-                                {r.bl && <span style={{ fontFamily: 'ui-monospace,monospace', color: '#64748b' }}>{r.bl}</span>}
-                                {ship && <span onClick={e => { e.stopPropagation(); window.location.href = '/gestion/tracking' }} style={{ fontSize: '0.58rem', fontWeight: 700, color: '#1d4ed8', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 4, padding: '0.03rem 0.35rem', cursor: 'pointer' }}>🚢 #{ship.num}</span>}
-                              </div>
-                              {/* Desglose por concepto, con su marca factura/negro */}
-                              {rs.total > 0 && (
-                                <div style={{ display: 'flex', gap: 5, marginTop: 7, flexWrap: 'wrap', alignItems: 'center' }}>
-                                  {CONCEPTOS.map(([k, lbl]) => {
-                                    const e = rc[k]
-                                    if (!e || numUSD(e.m) <= 0) return null
-                                    const negro = !e.f
+                              {(r.bl || ship) && (
+                                <p style={{ marginTop: 2, fontSize: '0.66rem', color: '#94a3b8' }}>
+                                  {r.bl && <span style={{ fontFamily: 'ui-monospace,monospace' }}>{r.bl}</span>}
+                                  {ship && <span onClick={e => { e.stopPropagation(); window.location.href = '/gestion/tracking' }} style={{ cursor: 'pointer', color: '#64748b' }}>{r.bl ? ' · ' : ''}embarque #{ship.num}</span>}
+                                </p>
+                              )}
+                              {partes.length > 0 && (
+                                <p style={{ marginTop: 7, fontSize: '0.73rem', color: '#64748b', lineHeight: 1.8 }}>
+                                  {partes.map(([k, lbl], i) => {
+                                    const negro = !rc[k].f
                                     return (
-                                      <span key={k} title={negro ? 'En negro' : 'Te lo factura'} style={{ fontSize: '0.62rem', fontWeight: 600, padding: '0.14rem 0.5rem', borderRadius: 5, border: '1px solid', background: negro ? '#0f172a' : '#fff', color: negro ? '#e2e8f0' : '#334155', borderColor: negro ? '#0f172a' : '#e2e8f0' }}>
-                                        {lbl} <b style={{ fontVariantNumeric: 'tabular-nums', color: negro ? '#fff' : '#0f172a' }}>{fmtUSD(numUSD(e.m)).replace('USD ', '')}</b>
+                                      <span key={k} title={negro ? 'En negro' : 'Te lo factura'} style={{ whiteSpace: 'nowrap' }}>
+                                        {i > 0 && <span style={{ color: '#cbd5e1' }}>  ·  </span>}
+                                        {negro && <span style={{ display: 'inline-block', width: 5, height: 5, borderRadius: '50%', background: '#0f172a', marginRight: 4, verticalAlign: 'middle' }} />}
+                                        {lbl} <b style={{ color: '#334155', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{fmtUSD(numUSD(rc[k].m)).replace('USD ', '')}</b>
                                       </span>
                                     )
                                   })}
-                                  {rs.fact > 0 && rs.negro > 0 && (
-                                    <span style={{ fontSize: '0.62rem', color: '#94a3b8' }}>factura <b style={{ color: '#059669' }}>{fmtUSD(rs.fact)}</b> · negro <b style={{ color: '#0f172a' }}>{fmtUSD(rs.negro)}</b></span>
-                                  )}
-                                </div>
+                                </p>
                               )}
                             </div>
                             <div style={{ textAlign: 'right', flex: '0 0 auto' }}>
-                              <p style={{ fontSize: '0.58rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{saldo > 0 ? 'Debés' : saldo < 0 ? 'A favor' : 'Saldo'}</p>
                               <p style={{ fontSize: '1.05rem', fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: st.c, lineHeight: 1.1 }}>{saldo !== 0 ? fmtUSD(Math.abs(saldo)) : (hon > 0 ? '✓' : '—')}</p>
+                              <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 2 }}>{saldo > 0 ? 'debés' : saldo < 0 ? 'a tu favor' : hon > 0 ? 'saldado' : 'sin costos'}</p>
                             </div>
                           </div>
 
-                          {hon > 0 && (
-                            <div style={{ marginTop: 9 }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: '#64748b', marginBottom: 4 }}>
-                                <span>Total <b style={{ color: '#0f172a' }}>{fmtUSD(hon)}</b></span>
-                                <span>Pagado <b style={{ color: '#334155' }}>{fmtUSD(pag)}</b> de {fmtUSD(objetivo)}</span>
+                          {/* Progreso: solo cuando hay pagos parciales en curso */}
+                          {pag > 0 && saldo > 0 && (
+                            <div style={{ marginTop: 10 }}>
+                              <div style={{ height: 4, background: '#f1f5f9', borderRadius: 3, overflow: 'hidden' }}>
+                                <div style={{ height: '100%', width: `${Math.round(pct * 100)}%`, background: saldo > 0 ? '#f59e0b' : '#16a34a', borderRadius: 3, transition: 'width .2s' }} />
                               </div>
-                              <div style={{ height: 6, background: '#f1f5f9', borderRadius: 4, overflow: 'hidden' }}>
-                                <div style={{ height: '100%', width: `${Math.round(pct * 100)}%`, background: saldo > 0 ? '#f59e0b' : '#16a34a', borderRadius: 4, transition: 'width .2s' }} />
-                              </div>
+                              <p style={{ marginTop: 4, fontSize: '0.66rem', color: '#94a3b8', textAlign: 'right' }}>Pagado {fmtUSD(pag)} de {fmtUSD(hon)}</p>
                             </div>
                           )}
 
-                          {/* Pagos parciales, siempre a la vista */}
                           {hist.length > 0 && (
-                            <div style={{ marginTop: 9, paddingTop: 7, borderTop: '1px solid #f1f5f9' }}>
+                            <div style={{ marginTop: 8, paddingTop: 6, borderTop: '1px solid #f8fafc' }}>
                               {hist.map(pg => (
-                                <div key={pg.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.22rem 0', fontSize: '0.74rem' }}>
-                                  <span style={{ color: '#64748b', fontVariantNumeric: 'tabular-nums' }}>{pg.fecha || '—'}</span>
-                                  <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#475569', background: '#f1f5f9', borderRadius: 4, padding: '0.05rem 0.4rem' }}>{metodoLabel(pg.metodo)}</span>
-                                  {pg.nota && <span style={{ color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pg.nota}</span>}
-                                  <span style={{ marginLeft: 'auto', fontWeight: 700, color: '#16a34a', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(numUSD(pg.monto))}</span>
+                                <div key={pg.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.18rem 0', fontSize: '0.72rem', color: '#94a3b8' }}>
+                                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>{pg.fecha || '—'}</span>
+                                  <span>{metodoLabel(pg.metodo)}</span>
+                                  {pg.nota && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pg.nota}</span>}
+                                  <span style={{ marginLeft: 'auto', fontWeight: 600, color: '#334155', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(numUSD(pg.monto))}</span>
                                   <button onClick={() => setConfirmPago({ row: r, pg })} title="Borrar pago" aria-label="Borrar pago" style={{ width: 20, height: 20, borderRadius: 5, border: 'none', background: 'none', color: '#cbd5e1', cursor: 'pointer', fontSize: '0.85rem', lineHeight: 1, padding: 0 }}>×</button>
                                 </div>
                               ))}
@@ -494,21 +488,20 @@ export default function DespachantePage({ devRows = null, devShips = null, devPa
 
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
                             {saldo > 0 && (
-                              <button onClick={() => setPagoModal({ row: r, fecha: hoy(), monto: fmtCalc(saldo), metodo: 'transferencia', nota: '' })} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '0.34rem 0.75rem', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, background: PRIMARY, color: '#fff' }}>
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                                Registrar pago
+                              <button onClick={() => setPagoModal({ row: r, fecha: hoy(), monto: fmtCalc(saldo), metodo: 'transferencia', nota: '' })} style={{ padding: '0.32rem 0.8rem', borderRadius: 7, border: '1px solid #e2e8f0', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 600, background: '#fff', color: '#0f172a' }}>
+                                + Registrar pago
                               </button>
                             )}
                             {hon === 0 && (
-                              <button onClick={() => openEdit(r)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '0.34rem 0.75rem', borderRadius: 7, border: '1px dashed #cbd5e1', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, background: '#fff', color: '#475569' }}>
+                              <button onClick={() => openEdit(r)} style={{ padding: '0.32rem 0.8rem', borderRadius: 7, border: '1px solid #e2e8f0', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 600, background: '#fff', color: '#475569' }}>
                                 Cargar costos
                               </button>
                             )}
-                            <div style={{ marginLeft: 'auto', display: 'inline-flex', gap: 4 }}>
-                              <button onClick={() => openEdit(r)} title="Editar" aria-label="Editar" style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <div style={{ marginLeft: 'auto', display: 'inline-flex', gap: 2 }}>
+                              <button onClick={() => openEdit(r)} title="Editar" aria-label="Editar" style={{ width: 26, height: 26, borderRadius: 6, border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                               </button>
-                              <button onClick={() => setConfirmDel(r.id)} title="Eliminar" aria-label="Eliminar" style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #fee2e2', background: '#fff', color: '#dc2626', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <button onClick={() => setConfirmDel(r.id)} title="Eliminar" aria-label="Eliminar" style={{ width: 26, height: 26, borderRadius: 6, border: 'none', background: 'none', color: '#cbd5e1', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
                               </button>
                             </div>
