@@ -50,7 +50,7 @@ function concSplit(c) {
   return { fact, negro, total: fact + negro }
 }
 
-// Semántica del saldo: honorarios − pagado − comisión.
+// Semántica del saldo: total de costos − pagado.
 //  > 0 → le debés al despachante · < 0 → saldo a tu favor · 0 → saldado
 function saldoStyle(saldo, totalHon) {
   if (saldo > 0)  return { key: 'debe',    bg: '#fef2f2', dot: '#dc2626', c: '#dc2626', label: 'Debés' }
@@ -74,10 +74,12 @@ function FNToggle({ f, onChange, small }) {
   )
 }
 
-export default function DespachantePage({ devRows = null, devShips = null, devPagos = null } = {}) {
+export default function DespachantePage({ devRows = null, devShips = null, devPagos = null, devOps = null } = {}) {
   const [rows, setRows] = useState([])
   const [ships, setShips] = useState([])
   const [pagos, setPagos] = useState({})           // { [ref_id]: [pagos del ledger] }
+  const [ops, setOps] = useState([])               // operaciones de la sección Operaciones (para vincular por B/L)
+  const [linkOp, setLinkOp] = useState('')
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
   const [query, setQuery] = useState('')
@@ -94,14 +96,15 @@ export default function DespachantePage({ devRows = null, devShips = null, devPa
 
   const load = async () => {
     // Inyección para preview de diseño (dev): evita auth/D1.
-    if (devRows) { setRows(devRows); setShips(devShips || []); setPagos(devPagos || {}); setLoading(false); return }
+    if (devRows) { setRows(devRows); setShips(devShips || []); setPagos(devPagos || {}); setOps(devOps || []); setLoading(false); return }
     setLoading(true)
     setLoadError(false)
     try {
-      const [d, t, p] = await Promise.all([
+      const [d, t, p, o] = await Promise.all([
         fetch('/api/db/despachante'),
         fetch('/api/tracking'),
         fetch('/api/db/pagos?scope=despachante'),
+        fetch('/api/db/operations'),
       ])
       if (!d.ok) throw new Error('despachante')
       setRows(await d.json())
@@ -112,6 +115,7 @@ export default function DespachantePage({ devRows = null, devShips = null, devPa
         ;(Array.isArray(list) ? list : []).forEach(pg => { (m[pg.ref_id] = m[pg.ref_id] || []).push(pg) })
         setPagos(m)
       }
+      if (o.ok) { const oj = await o.json(); setOps(Array.isArray(oj) ? oj : []) }
     } catch {
       setLoadError(true)
       gToast.error('No se pudieron cargar los pagos al despachante.')
@@ -139,7 +143,7 @@ export default function DespachantePage({ devRows = null, devShips = null, devPa
   const stats = useMemo(() => {
     const debe = rows.reduce((a, r) => a + Math.max(0, numUSD(r.saldo)), 0)
     const favor = rows.reduce((a, r) => a + Math.max(0, -numUSD(r.saldo)), 0)
-    // Cuenta corriente con el despachante: cargos (honorarios − tu comisión) − pagos.
+    // Cuenta corriente con el despachante: costos − pagos.
     const totalHon = rows.reduce((a, r) => a + numUSD(r.total_honorarios), 0)
     const totalCom = rows.reduce((a, r) => a + numUSD(r.comision), 0)
     const totalPag = rows.reduce((a, r) => a + numUSD(r.total_pagado), 0)
@@ -173,13 +177,14 @@ export default function DespachantePage({ devRows = null, devShips = null, devPa
     return out
   }, [rows, shipByBL])
 
-  const openNew = () => { setForm({ ...EMPTY }); setConc(EMPTY_CONC()); setModal('new') }
+  const openNew = () => { setForm({ ...EMPTY }); setConc(EMPTY_CONC()); setLinkOp(''); setModal('new') }
   const openEdit = (r) => {
     setForm({ ...EMPTY, ...r })
     const base = EMPTY_CONC()
     const saved = parseConc(r)
     CONCEPTOS.forEach(([k]) => { if (saved[k]) base[k] = { m: String(saved[k].m ?? ''), f: saved[k].f ? 1 : 0 } })
     setConc(base)
+    setLinkOp('')
     setModal(r)
   }
 
@@ -202,7 +207,7 @@ export default function DespachantePage({ devRows = null, devShips = null, devPa
         conceptos: JSON.stringify(clean),
         total_honorarios: fmtCalc(total),
         total_pagado: modal === 'new' ? '' : modal.total_pagado,
-        saldo: fmtCalc(total - pagado - numUSD(form.comision)),
+        saldo: fmtCalc(total - pagado),
         // El desglose ya vive en `conceptos`; los campos viejos quedan vacíos.
         hon_regulares: '', adu_extras: '', otros_gastos: '',
       }
@@ -254,7 +259,7 @@ export default function DespachantePage({ devRows = null, devShips = null, devPa
       const cash = numUSD(r.pago_cash) + (f.metodo === 'cash' ? numUSD(f.monto) : 0)
       const transf = numUSD(r.pago_transferencia) + (f.metodo === 'cash' ? 0 : numUSD(f.monto))
       const pagado = cash + transf
-      const saldo = numUSD(r.total_honorarios) - pagado - numUSD(r.comision)
+      const saldo = numUSD(r.total_honorarios) - pagado
       const res = await fetch(`/api/db/despachante/${r.id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...r, pago_cash: fmtCalc(cash), pago_transferencia: fmtCalc(transf), total_pagado: fmtCalc(pagado), saldo: fmtCalc(saldo), fecha_pago: f.fecha }),
@@ -277,7 +282,7 @@ export default function DespachantePage({ devRows = null, devShips = null, devPa
       const cash = Math.max(0, numUSD(r.pago_cash) - (pg.metodo === 'cash' ? numUSD(pg.monto) : 0))
       const transf = Math.max(0, numUSD(r.pago_transferencia) - (pg.metodo === 'cash' ? 0 : numUSD(pg.monto)))
       const pagado = cash + transf
-      const saldo = numUSD(r.total_honorarios) - pagado - numUSD(r.comision)
+      const saldo = numUSD(r.total_honorarios) - pagado
       const res2 = await fetch(`/api/db/despachante/${r.id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...r, pago_cash: fmtCalc(cash), pago_transferencia: fmtCalc(transf), total_pagado: fmtCalc(pagado), saldo: fmtCalc(saldo) }),
@@ -332,7 +337,6 @@ export default function DespachantePage({ devRows = null, devShips = null, devPa
           </div>
           <div style={{ display: 'flex', gap: 18, marginTop: 12, flexWrap: 'wrap', fontSize: '0.74rem' }}>
             <span><span style={{ color: '#94a3b8' }}>Costos</span> <b style={{ color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(stats.totalHon)}</b></span>
-            {stats.totalCom > 0 && <span><span style={{ color: '#94a3b8' }}>− tu comisión</span> <b style={{ color: '#7c3aed', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(stats.totalCom)}</b></span>}
             <span><span style={{ color: '#94a3b8' }}>− pagado</span> <b style={{ color: '#334155', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(stats.totalPag)}</b></span>
             {(stats.fact > 0 || stats.negro > 0) && (
               <span><span style={{ color: '#94a3b8' }}>Te factura</span> <b style={{ color: '#059669', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(stats.fact)}</b> <span style={{ color: '#94a3b8' }}>· en negro</span> <b style={{ color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(stats.negro)}</b></span>
@@ -415,8 +419,8 @@ export default function DespachantePage({ devRows = null, devShips = null, devPa
                       const saldo = numUSD(r.saldo)
                       const st = saldoStyle(saldo, numUSD(r.total_honorarios))
                       const ship = shipByBL[blNorm(r.bl)]
-                      const hon = numUSD(r.total_honorarios), pag = numUSD(r.total_pagado), com = numUSD(r.comision)
-                      const objetivo = hon - com
+                      const hon = numUSD(r.total_honorarios), pag = numUSD(r.total_pagado)
+                      const objetivo = hon
                       const pct = objetivo > 0 ? Math.max(0, Math.min(1, pag / objetivo)) : (pag > 0 ? 1 : 0)
                       const rc = parseConc(r)
                       const rs = concSplit(rc)
@@ -464,7 +468,7 @@ export default function DespachantePage({ devRows = null, devShips = null, devPa
                           {hon > 0 && (
                             <div style={{ marginTop: 9 }}>
                               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: '#64748b', marginBottom: 4 }}>
-                                <span>Total <b style={{ color: '#0f172a' }}>{fmtUSD(hon)}</b>{com > 0 && <> · − comisión <b style={{ color: '#7c3aed' }}>{fmtUSD(com)}</b></>}</span>
+                                <span>Total <b style={{ color: '#0f172a' }}>{fmtUSD(hon)}</b></span>
                                 <span>Pagado <b style={{ color: '#334155' }}>{fmtUSD(pag)}</b> de {fmtUSD(objetivo)}</span>
                               </div>
                               <div style={{ height: 6, background: '#f1f5f9', borderRadius: 4, overflow: 'hidden' }}>
@@ -520,73 +524,81 @@ export default function DespachantePage({ devRows = null, devShips = null, devPa
         </div>
       )}
 
-      {/* Edit / new modal */}
+      {/* Edit / new modal — minimal: vincular, describir, 5 conceptos, listo */}
       {modal !== null && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }} onClick={() => setModal(null)}>
-          <div style={{ ...CARD, width: '100%', maxWidth: 640, maxHeight: '90vh', overflowY: 'auto', padding: '1.5rem', boxShadow: '0 24px 64px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-              <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>{modal === 'new' ? 'Nueva operación' : (form.descripcion || 'Editar')}</h3>
+          <div style={{ ...CARD, width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', padding: '1.35rem 1.5rem', boxShadow: '0 24px 64px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h3 style={{ fontSize: '1.02rem', fontWeight: 800, color: '#0f172a' }}>{modal === 'new' ? 'Nueva operación' : (form.descripcion || 'Editar')}</h3>
               <button onClick={() => setModal(null)} aria-label="Cerrar" style={{ background: 'none', border: 'none', fontSize: '1.4rem', color: '#94a3b8', cursor: 'pointer', lineHeight: 1 }}>×</button>
             </div>
 
-            <p style={SEC}>Operación</p>
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 10, marginBottom: '1.25rem' }}>
-              <div><label style={LBL}>Descripción de la carga *</label><input value={form.descripcion} onChange={e => upd('descripcion', e.target.value)} style={INP} placeholder="Ej: Módulos + mix varios" /></div>
-              <div><label style={LBL}>N° B/L / Referencia</label><input value={form.bl} onChange={e => upd('bl', e.target.value)} style={{ ...INP, fontFamily: 'ui-monospace,monospace' }} /></div>
-              <div><label style={LBL}>Estado</label>
-                <select value={form.estado} onChange={e => upd('estado', e.target.value)} style={{ ...INP, cursor: 'pointer' }}>
-                  {ESTADOS_IMP.map(s => <option key={s} value={s}>{s}</option>)}
-                  {form.estado && !ESTADOS_IMP.includes(form.estado) && <option value={form.estado}>{form.estado}</option>}
-                </select>
-              </div>
+            {ops.length > 0 && (
+              <select value={linkOp} onChange={e => {
+                const v = e.target.value; setLinkOp(v)
+                const o = ops.find(x => String(x.id) === v)
+                if (o) setForm(f => ({ ...f, bl: o.bl || f.bl, descripcion: f.descripcion.trim() ? f.descripcion : (o.nombre || '') }))
+              }} style={{ ...INP, cursor: 'pointer', marginBottom: 10, color: linkOp ? '#0f172a' : '#94a3b8', background: '#f8fafc' }}>
+                <option value="">Vincular a una operación de Operaciones…</option>
+                {ops.map(o => <option key={o.id} value={String(o.id)}>{o.nombre || '(sin nombre)'}{o.bl ? ` · ${o.bl}` : ''}</option>)}
+              </select>
+            )}
+
+            <div style={{ marginBottom: 8 }}>
+              <input value={form.descripcion} onChange={e => upd('descripcion', e.target.value)} style={INP} placeholder="Descripción de la carga *" />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 8, marginBottom: '1.15rem' }}>
+              <input value={form.bl} onChange={e => upd('bl', e.target.value)} style={{ ...INP, fontFamily: 'ui-monospace,monospace' }} placeholder="N° B/L / Referencia" />
+              <select value={form.estado} onChange={e => upd('estado', e.target.value)} style={{ ...INP, cursor: 'pointer' }}>
+                {ESTADOS_IMP.map(s => <option key={s} value={s}>{s}</option>)}
+                {form.estado && !ESTADOS_IMP.includes(form.estado) && <option value={form.estado}>{form.estado}</option>}
+              </select>
             </div>
 
-            <p style={SEC}>Costos del despachante <span style={{ fontWeight: 500, color: '#94a3b8' }}>· cargá solo los que apliquen</span></p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 10 }}>
+            <p style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Costos <span style={{ fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>· solo los que apliquen</span></p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
               {CONCEPTOS.map(([k, lbl]) => (
-                <div key={k} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 105px 138px', gap: 8, alignItems: 'center' }}>
+                <div key={k} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 100px 132px', gap: 8, alignItems: 'center' }}>
                   <label style={{ fontSize: '0.78rem', fontWeight: 600, color: numUSD(conc[k].m) > 0 ? '#0f172a' : '#64748b' }}>{lbl}</label>
                   <input value={conc[k].m} onChange={e => updConc(k, { m: e.target.value })} inputMode="decimal" placeholder="0"
-                    style={{ ...INP, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: numUSD(conc[k].m) > 0 ? 700 : 400 }} />
+                    style={{ ...INP, padding: '0.4rem 0.55rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: numUSD(conc[k].m) > 0 ? 700 : 400 }} />
                   <FNToggle f={conc[k].f} onChange={f => updConc(k, { f })} small />
                 </div>
               ))}
             </div>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', padding: '0.6rem 0.75rem', background: '#f8fafc', borderRadius: 8, marginBottom: '1.25rem' }}>
-              <span style={{ fontSize: '0.7rem', color: '#64748b' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', padding: '0.5rem 0.1rem', borderTop: '1px solid #f1f5f9', marginBottom: '1.05rem' }}>
+              <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
                 {formTotals.fact > 0 && <>Te factura <b style={{ color: '#059669' }}>{fmtUSD(formTotals.fact)}</b></>}
                 {formTotals.fact > 0 && formTotals.negro > 0 && ' · '}
                 {formTotals.negro > 0 && <>En negro <b style={{ color: '#0f172a' }}>{fmtUSD(formTotals.negro)}</b></>}
               </span>
-              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0f172a' }}>Total <b style={{ fontSize: '1rem', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(formTotals.total)}</b></span>
+              <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#64748b' }}>Total <b style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(formTotals.total)}</b></span>
             </div>
 
-            <p style={SEC}>Comisión y factura</p>
-            <div className="track-cost-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: '1.25rem' }}>
-              <div><label style={LBL}>Tu comisión (USD)</label><input value={form.comision} onChange={e => upd('comision', e.target.value)} inputMode="decimal" style={INP} placeholder="0" /></div>
-              <div>
-                <label style={LBL}>¿Factura recibida?</label>
-                <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: 8, padding: 3, gap: 2 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: '0.74rem', fontWeight: 600, color: '#64748b' }}>Factura recibida</span>
+                <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: 7, padding: 2, gap: 2 }}>
                   {[[1, 'Sí'], [0, 'No']].map(([v, l]) => {
                     const on = !!form.facturado === !!v
-                    return <button key={l} onClick={() => upd('facturado', v)} style={{ flex: 1, padding: '0.34rem 0.4rem', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: '0.76rem', fontWeight: on ? 700 : 500, background: on ? '#fff' : 'transparent', color: on ? (v ? '#059669' : '#dc2626') : '#64748b', boxShadow: on ? '0 1px 2px rgba(15,23,42,0.10)' : 'none' }}>{l}</button>
+                    return <button key={l} onClick={() => upd('facturado', v)} style={{ padding: '0.26rem 0.7rem', borderRadius: 5, border: 'none', cursor: 'pointer', fontSize: '0.72rem', fontWeight: on ? 700 : 500, background: on ? '#fff' : 'transparent', color: on ? (v ? '#059669' : '#dc2626') : '#94a3b8', boxShadow: on ? '0 1px 2px rgba(15,23,42,0.10)' : 'none' }}>{l}</button>
                   })}
                 </div>
               </div>
-              <div><label style={LBL}>N° factura / comprobante</label><input value={form.factura_nro} onChange={e => upd('factura_nro', e.target.value)} style={INP} /></div>
+              <input value={form.factura_nro} onChange={e => upd('factura_nro', e.target.value)} style={{ ...INP, padding: '0.4rem 0.55rem' }} placeholder="N° factura / comprobante" />
             </div>
 
+            <input value={form.notas} onChange={e => upd('notas', e.target.value)} style={{ ...INP, marginBottom: '1.15rem' }} placeholder="Observaciones (opcional)" />
+
             {modal !== 'new' && numUSD(modal.total_pagado) > 0 && (
-              <p style={{ fontSize: '0.72rem', color: '#64748b', margin: '-0.5rem 0 1rem' }}>
-                Ya pagado <b style={{ color: '#334155' }}>{fmtUSD(numUSD(modal.total_pagado))}</b> → saldo tras guardar: <b style={{ color: '#0f172a' }}>{fmtUSD(formTotals.total - numUSD(modal.total_pagado) - numUSD(form.comision))}</b>. Los pagos se cargan desde la tarjeta con «Registrar pago».
+              <p style={{ fontSize: '0.7rem', color: '#94a3b8', margin: '-0.5rem 0 0.9rem' }}>
+                Ya pagado <b style={{ color: '#334155' }}>{fmtUSD(numUSD(modal.total_pagado))}</b> → saldo tras guardar: <b style={{ color: '#0f172a' }}>{fmtUSD(formTotals.total - numUSD(modal.total_pagado))}</b>
               </p>
             )}
 
-            <div style={{ marginBottom: '1.5rem' }}><label style={LBL}>Observaciones</label><textarea value={form.notas} onChange={e => upd('notas', e.target.value)} style={{ ...INP, minHeight: 56, resize: 'vertical' }} /></div>
-
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button onClick={() => setModal(null)} style={{ padding: '0.55rem 1.1rem', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={save} disabled={saving} style={{ padding: '0.55rem 1.3rem', borderRadius: 8, border: 'none', background: '#059669', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: saving ? 'wait' : 'pointer' }}>{saving ? 'Guardando…' : (modal === 'new' ? 'Crear operación' : 'Guardar cambios')}</button>
+              <button onClick={save} disabled={saving} style={{ padding: '0.55rem 1.3rem', borderRadius: 8, border: 'none', background: PRIMARY, color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: saving ? 'wait' : 'pointer' }}>{saving ? 'Guardando…' : (modal === 'new' ? 'Crear operación' : 'Guardar')}</button>
             </div>
           </div>
         </div>
