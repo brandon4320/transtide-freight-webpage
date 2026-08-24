@@ -51,6 +51,11 @@ export async function GET(request: Request) {
         `SELECT * FROM pagos_registro WHERE scope = ? AND ref_id = ? ORDER BY fecha DESC, id DESC`,
         [scope, refId]
       )
+    } else if (scope) {
+      rows = await d1Query<any>(
+        `SELECT * FROM pagos_registro WHERE scope = ? ORDER BY fecha DESC, id DESC LIMIT 500`,
+        [scope]
+      )
     } else {
       rows = await d1Query<any>(`SELECT * FROM pagos_registro ORDER BY id DESC LIMIT 200`)
     }

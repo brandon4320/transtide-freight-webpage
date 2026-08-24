@@ -7,12 +7,22 @@ export const dynamic = 'force-dynamic'
 
 const FIELDS = [
   'bl', 'descripcion', 'estado', 'hon_regulares', 'adu_extras', 'otros_gastos', 'total_honorarios',
-  'fecha_pago', 'pago_transferencia', 'pago_cash', 'total_pagado', 'comision', 'facturado', 'factura_nro', 'saldo', 'notas',
+  'fecha_pago', 'pago_transferencia', 'pago_cash', 'total_pagado', 'comision', 'facturado', 'factura_nro', 'saldo', 'notas', 'conceptos',
 ]
+
+// La columna conceptos (JSON con el desglose factura/negro) se agrega on-the-fly:
+// no hay migraciones versionadas en este proyecto (mismo criterio que pagos_registro).
+let ensured = false
+async function ensureConceptos() {
+  if (ensured) return
+  try { await d1Exec(`ALTER TABLE despachante_pagos ADD COLUMN conceptos TEXT DEFAULT ''`) } catch {}
+  ensured = true
+}
 
 export async function GET() {
   const s = await getSessionInfo()
   if (!s) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  await ensureConceptos()
   const rows = await d1Query(
     `SELECT id, ${FIELDS.join(', ')}, updated_at FROM despachante_pagos ORDER BY id DESC`
   )
@@ -23,6 +33,7 @@ export async function POST(request: Request) {
   const g = await requireWrite('despachante')
   if (!g.ok) return g.res
 
+  await ensureConceptos()
   const body = await request.json()
   if (!String(body.descripcion || '').trim()) {
     return NextResponse.json({ error: 'La descripción es obligatoria' }, { status: 400 })

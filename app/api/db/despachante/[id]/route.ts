@@ -7,13 +7,21 @@ export const dynamic = 'force-dynamic'
 
 const FIELDS = [
   'bl', 'descripcion', 'estado', 'hon_regulares', 'adu_extras', 'otros_gastos', 'total_honorarios',
-  'fecha_pago', 'pago_transferencia', 'pago_cash', 'total_pagado', 'comision', 'facturado', 'factura_nro', 'saldo', 'notas',
+  'fecha_pago', 'pago_transferencia', 'pago_cash', 'total_pagado', 'comision', 'facturado', 'factura_nro', 'saldo', 'notas', 'conceptos',
 ]
+
+let ensured = false
+async function ensureConceptos() {
+  if (ensured) return
+  try { await d1Exec(`ALTER TABLE despachante_pagos ADD COLUMN conceptos TEXT DEFAULT ''`) } catch {}
+  ensured = true
+}
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const g = await requireWrite('despachante')
   if (!g.ok) return g.res
   const { id } = await params
+  await ensureConceptos()
   const body = await request.json()
 
   const existing = await d1Query<any>(`SELECT id FROM despachante_pagos WHERE id = ?`, [id])

@@ -13,11 +13,42 @@ const PRIMARY = '#0f172a'
 
 const ESTADOS_IMP = ['En curso', 'Terminada', 'Demorada']
 
+// Los conceptos que se le pagan al despachante, con su marca factura/negro.
+// El desglose vive en la columna `conceptos` (JSON: { clave: { m: monto, f: 1|0 } });
+// total_honorarios sigue guardando la suma para que ficha/operaciones no cambien.
+const CONCEPTOS = [
+  ['honorarios', 'Honorarios'],
+  ['gastos_admin', 'Gastos administrativos'],
+  ['riesgo', 'Riesgo'],
+  ['invest', 'Invest'],
+  ['dif_aduana', 'Dif. aduana'],
+]
+const CONC_LBL = Object.fromEntries(CONCEPTOS)
+// Al crear: honorarios y gastos admin arrancan como facturados; el resto en negro.
+const EMPTY_CONC = () => ({ honorarios: { m: '', f: 1 }, gastos_admin: { m: '', f: 1 }, riesgo: { m: '', f: 0 }, invest: { m: '', f: 0 }, dif_aduana: { m: '', f: 0 } })
+
+const EMPTY = { bl: '', descripcion: '', estado: 'En curso', comision: '', facturado: 0, factura_nro: '', notas: '' }
+
 const blNorm = (b) => (b || '').replace(/[\s-]/g, '').toUpperCase()
 const numUSD = (v) => { const n = parseFloat(String(v || '').replace(/\./g, '').replace(',', '.')); return isNaN(n) ? 0 : n }
 const fmtUSD = (n) => 'USD ' + Math.round(n).toLocaleString('es-AR')
 // Formatea un número calculado a string es-AR (compatible con numUSD al re-parsear).
 const fmtCalc = (n) => { if (!isFinite(n)) return ''; const r = Math.round(n * 100) / 100; return r === 0 ? '' : r.toLocaleString('es-AR', { maximumFractionDigits: 2 }) }
+
+// Desglose de una fila. Filas viejas sin JSON caen al mapeo de los campos legacy.
+function parseConc(r) {
+  try { const j = JSON.parse(r.conceptos || ''); if (j && typeof j === 'object' && !Array.isArray(j)) return j } catch {}
+  const c = {}
+  if (numUSD(r.hon_regulares)) c.honorarios = { m: r.hon_regulares, f: 1 }
+  if (numUSD(r.otros_gastos)) c.gastos_admin = { m: r.otros_gastos, f: 1 }
+  if (numUSD(r.adu_extras)) c.dif_aduana = { m: r.adu_extras, f: 1 }
+  return c
+}
+function concSplit(c) {
+  let fact = 0, negro = 0
+  CONCEPTOS.forEach(([k]) => { const e = c[k]; if (!e) return; const m = numUSD(e.m); if (e.f) fact += m; else negro += m })
+  return { fact, negro, total: fact + negro }
+}
 
 // Semántica del saldo: honorarios − pagado − comisión.
 //  > 0 → le debés al despachante · < 0 → saldo a tu favor · 0 → saldado
@@ -25,56 +56,62 @@ function saldoStyle(saldo, totalHon) {
   if (saldo > 0)  return { key: 'debe',    bg: '#fef2f2', dot: '#dc2626', c: '#dc2626', label: 'Debés' }
   if (saldo < 0)  return { key: 'favor',   bg: '#fffbeb', dot: '#d97706', c: '#b45309', label: 'A tu favor' }
   if (totalHon > 0) return { key: 'saldado', bg: '#f0fdf4', dot: '#16a34a', c: '#16a34a', label: 'Saldado' }
-  return { key: 'vacio', bg: '#fff', dot: '#cbd5e1', c: '#94a3b8', label: '—' }
+  return { key: 'curso', bg: '#f8fafc', dot: '#94a3b8', c: '#64748b', label: 'En curso' }
 }
 
-// Chip auto/manual para campos calculados (mismo patrón que tracking).
-function CalcChip({ auto, onToggle }) {
-  return (
-    <button type="button" onClick={onToggle}
-      title={auto ? 'Calculado automáticamente — tocá para editar manual' : 'Manual — tocá para volver a automático'}
-      style={{
-        marginLeft: 6, fontSize: '0.54rem', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase',
-        padding: '0.05rem 0.4rem', borderRadius: 5, cursor: 'pointer', verticalAlign: 'middle',
-        border: `1px solid ${auto ? '#bfdbfe' : '#fed7aa'}`, background: auto ? '#eff6ff' : '#fff7ed', color: auto ? '#1e40af' : '#c2410c',
-      }}>
-      {auto ? 'auto' : 'manual'}
+function FNToggle({ f, onChange, small }) {
+  const B = (on, lbl, col) => (
+    <button onClick={() => onChange(lbl === 'Factura' ? 1 : 0)}
+      style={{ flex: 1, padding: small ? '0.22rem 0.3rem' : '0.3rem 0.4rem', borderRadius: 5, border: 'none', cursor: 'pointer', fontSize: small ? '0.64rem' : '0.7rem', fontWeight: on ? 700 : 500, background: on ? '#fff' : 'transparent', color: on ? col : '#94a3b8', boxShadow: on ? '0 1px 2px rgba(15,23,42,0.12)' : 'none', whiteSpace: 'nowrap' }}>
+      {lbl}
     </button>
+  )
+  return (
+    <div style={{ display: 'flex', gap: 2, background: '#f1f5f9', borderRadius: 7, padding: 2 }}>
+      {B(!!f, 'Factura', '#059669')}
+      {B(!f, 'Negro', '#0f172a')}
+    </div>
   )
 }
 
-const EMPTY = { bl: '', descripcion: '', estado: 'En curso', hon_regulares: '', adu_extras: '', otros_gastos: '', total_honorarios: '', fecha_pago: '', pago_transferencia: '', pago_cash: '', total_pagado: '', comision: '', facturado: 0, factura_nro: '', saldo: '', notas: '' }
-
-export default function DespachantePage({ devRows = null, devShips = null } = {}) {
+export default function DespachantePage({ devRows = null, devShips = null, devPagos = null } = {}) {
   const [rows, setRows] = useState([])
   const [ships, setShips] = useState([])
+  const [pagos, setPagos] = useState({})           // { [ref_id]: [pagos del ledger] }
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState('todos')
   const [modal, setModal] = useState(null)   // null | 'new' | rowObj
   const [form, setForm] = useState(EMPTY)
+  const [conc, setConc] = useState(EMPTY_CONC())
   const [confirmDel, setConfirmDel] = useState(null)
+  const [confirmPago, setConfirmPago] = useState(null) // { row, pg } → borrar un pago
   const [saving, setSaving] = useState(false)
-  const [honAuto, setHonAuto] = useState(true)     // total honorarios = reg + extras + otros
-  const [pagAuto, setPagAuto] = useState(true)     // total pagado = transferencia + cash
-  const [salAuto, setSalAuto] = useState(true)     // saldo = honorarios − pagado − comisión
   const [ficha, setFicha] = useState(null)         // B/L abierto en la ficha integral
   const [pagoModal, setPagoModal] = useState(null) // registro de pago (cuenta corriente)
   const [pagoBusy, setPagoBusy] = useState(false)
-  const [expandId, setExpandId] = useState(null)   // fila expandida (historial de pagos)
-  const [histPagos, setHistPagos] = useState({})   // { [rowId]: [pagos] }
 
   const load = async () => {
     // Inyección para preview de diseño (dev): evita auth/D1.
-    if (devRows) { setRows(devRows); setShips(devShips || []); setLoading(false); return }
+    if (devRows) { setRows(devRows); setShips(devShips || []); setPagos(devPagos || {}); setLoading(false); return }
     setLoading(true)
     setLoadError(false)
     try {
-      const [d, t] = await Promise.all([fetch('/api/db/despachante'), fetch('/api/tracking')])
+      const [d, t, p] = await Promise.all([
+        fetch('/api/db/despachante'),
+        fetch('/api/tracking'),
+        fetch('/api/db/pagos?scope=despachante'),
+      ])
       if (!d.ok) throw new Error('despachante')
       setRows(await d.json())
       if (t.ok) { const td = await t.json(); setShips(td.shipments || []) }
+      if (p.ok) {
+        const list = await p.json()
+        const m = {}
+        ;(Array.isArray(list) ? list : []).forEach(pg => { (m[pg.ref_id] = m[pg.ref_id] || []).push(pg) })
+        setPagos(m)
+      }
     } catch {
       setLoadError(true)
       gToast.error('No se pudieron cargar los pagos al despachante.')
@@ -82,29 +119,9 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
   }
   useEffect(() => { load() }, [])
 
-  // Embarque por B/L (para vincular con el tracking).
   const shipByBL = useMemo(() => {
     const m = {}; ships.forEach(s => { if (s.bl) m[blNorm(s.bl)] = s }); return m
   }, [ships])
-
-  // ── autocálculos (mismo esquema que tracking; el usuario puede pasar a manual) ──
-  useEffect(() => {
-    if (modal === null || !honAuto) return
-    const v = fmtCalc(numUSD(form.hon_regulares) + numUSD(form.adu_extras) + numUSD(form.otros_gastos))
-    setForm(p => p.total_honorarios === v ? p : ({ ...p, total_honorarios: v }))
-  }, [form.hon_regulares, form.adu_extras, form.otros_gastos, honAuto, modal])
-
-  useEffect(() => {
-    if (modal === null || !pagAuto) return
-    const v = fmtCalc(numUSD(form.pago_transferencia) + numUSD(form.pago_cash))
-    setForm(p => p.total_pagado === v ? p : ({ ...p, total_pagado: v }))
-  }, [form.pago_transferencia, form.pago_cash, pagAuto, modal])
-
-  useEffect(() => {
-    if (modal === null || !salAuto) return
-    const v = fmtCalc(numUSD(form.total_honorarios) - numUSD(form.total_pagado) - numUSD(form.comision))
-    setForm(p => p.saldo === v ? p : ({ ...p, saldo: v }))
-  }, [form.total_honorarios, form.total_pagado, form.comision, salAuto, modal])
 
   const filtered = useMemo(() => {
     let l = rows
@@ -115,21 +132,26 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
     if (filter === 'debe')     l = l.filter(r => numUSD(r.saldo) > 0)
     if (filter === 'favor')    l = l.filter(r => numUSD(r.saldo) < 0)
     if (filter === 'saldado')  l = l.filter(r => numUSD(r.saldo) === 0 && numUSD(r.total_honorarios) > 0)
-    if (filter === 'sinfact')  l = l.filter(r => !r.facturado && numUSD(r.total_honorarios) > 0)
+    if (filter === 'sinfact')  l = l.filter(r => !r.facturado && concSplit(parseConc(r)).fact > 0)
     return l
   }, [rows, query, filter])
 
   const stats = useMemo(() => {
     const debe = rows.reduce((a, r) => a + Math.max(0, numUSD(r.saldo)), 0)
     const favor = rows.reduce((a, r) => a + Math.max(0, -numUSD(r.saldo)), 0)
-    const sinFact = rows.filter(r => !r.facturado && numUSD(r.total_honorarios) > 0).length
     // Cuenta corriente con el despachante: cargos (honorarios − tu comisión) − pagos.
     const totalHon = rows.reduce((a, r) => a + numUSD(r.total_honorarios), 0)
     const totalCom = rows.reduce((a, r) => a + numUSD(r.comision), 0)
     const totalPag = rows.reduce((a, r) => a + numUSD(r.total_pagado), 0)
     const neto = debe - favor  // > 0 le debés · < 0 a tu favor
     const saldadas = rows.filter(r => numUSD(r.saldo) === 0 && numUSD(r.total_honorarios) > 0).length
-    return { total: rows.length, debe, favor, sinFact, totalHon, totalCom, totalPag, neto, saldadas }
+    let fact = 0, negro = 0, sinFact = 0
+    rows.forEach(r => {
+      const s = concSplit(parseConc(r))
+      fact += s.fact; negro += s.negro
+      if (!r.facturado && s.fact > 0) sinFact++
+    })
+    return { total: rows.length, debe, favor, sinFact, totalHon, totalCom, totalPag, neto, saldadas, fact, negro }
   }, [rows])
 
   // Alerta del flujo: despacho con saldo cuando la mercadería ya arribó
@@ -145,22 +167,19 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
       const days = eta && !isNaN(eta.getTime()) ? Math.round((today.getTime() - eta.getTime()) / 86400000) : null
       const arrived = /deliver|paid/i.test(ship.status || '') || (days != null && days > 0)
       if (arrived && (days == null || days >= 7)) {
-        out.push({ bl: r.bl, desc: r.descripcion, sem: days != null ? Math.floor(days / 7) : null, monto: numUSD(r.saldo) })
+        out.push({ row: r, sem: days != null ? Math.floor(days / 7) : null, monto: numUSD(r.saldo) })
       }
     })
     return out
   }, [rows, shipByBL])
 
-  const openNew = () => { setForm({ ...EMPTY }); setHonAuto(true); setPagAuto(true); setSalAuto(true); setModal('new') }
+  const openNew = () => { setForm({ ...EMPTY }); setConc(EMPTY_CONC()); setModal('new') }
   const openEdit = (r) => {
     setForm({ ...EMPTY, ...r })
-    // Igual que tracking: si el valor guardado coincide con el cálculo (o está vacío), queda en auto.
-    const calcH = fmtCalc(numUSD(r.hon_regulares) + numUSD(r.adu_extras) + numUSD(r.otros_gastos))
-    const calcP = fmtCalc(numUSD(r.pago_transferencia) + numUSD(r.pago_cash))
-    const calcS = fmtCalc(numUSD(r.total_honorarios) - numUSD(r.total_pagado) - numUSD(r.comision))
-    setHonAuto(!r.total_honorarios || String(r.total_honorarios) === calcH)
-    setPagAuto(!r.total_pagado || String(r.total_pagado) === calcP)
-    setSalAuto(!r.saldo || String(r.saldo) === calcS)
+    const base = EMPTY_CONC()
+    const saved = parseConc(r)
+    CONCEPTOS.forEach(([k]) => { if (saved[k]) base[k] = { m: String(saved[k].m ?? ''), f: saved[k].f ? 1 : 0 } })
+    setConc(base)
     setModal(r)
   }
 
@@ -172,12 +191,27 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
     if (!form.descripcion.trim()) { gToast.error('La descripción es obligatoria.'); return }
     setSaving(true)
     try {
+      // El desglose manda: total y saldo salen siempre calculados, nunca tipeados.
+      const clean = {}
+      CONCEPTOS.forEach(([k]) => { if (numUSD(conc[k].m) > 0) clean[k] = { m: conc[k].m, f: conc[k].f ? 1 : 0 } })
+      const total = concSplit(clean).total
+      const pagado = modal === 'new' ? 0 : numUSD(modal.total_pagado)
+      const payload = {
+        ...(modal === 'new' ? {} : modal),
+        ...form,
+        conceptos: JSON.stringify(clean),
+        total_honorarios: fmtCalc(total),
+        total_pagado: modal === 'new' ? '' : modal.total_pagado,
+        saldo: fmtCalc(total - pagado - numUSD(form.comision)),
+        // El desglose ya vive en `conceptos`; los campos viejos quedan vacíos.
+        hon_regulares: '', adu_extras: '', otros_gastos: '',
+      }
       if (modal === 'new') {
-        const r = await fetch('/api/db/despachante', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
+        const r = await fetch('/api/db/despachante', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
         if (!r.ok) throw new Error(await errMsg(r, 'Error al crear'))
-        gToast.success('Pago registrado.')
+        gToast.success('Operación creada.')
       } else {
-        const r = await fetch(`/api/db/despachante/${modal.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
+        const r = await fetch(`/api/db/despachante/${modal.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
         if (!r.ok) throw new Error(await errMsg(r, 'Error al guardar'))
         gToast.success('Cambios guardados.')
       }
@@ -199,6 +233,7 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
     } finally { setConfirmDel(null) }
   }
 
+  const updConc = (k, patch) => setConc(p => ({ ...p, [k]: { ...p[k], ...patch } }))
   const upd = (f, v) => setForm(p => ({ ...p, [f]: v }))
 
   const hoy = () => new Date().toISOString().slice(0, 10)
@@ -227,27 +262,35 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
       if (!res.ok) throw new Error(await errMsg(res, 'No se pudo registrar el pago'))
       gToast.success('Pago registrado.')
       setPagoModal(null)
-      setHistPagos(h => { const n = { ...h }; delete n[r.id]; return n })  // invalida el historial cacheado
       load()
     } catch (e) {
       gToast.error(e.message || 'Error al registrar el pago.')
     } finally { setPagoBusy(false) }
   }
 
-  // Historial de pagos de una importación (se trae al expandir).
-  const toggleHist = async (r) => {
-    if (expandId === r.id) { setExpandId(null); return }
-    setExpandId(r.id)
-    if (!histPagos[r.id]) {
-      try {
-        const res = await fetch(`/api/db/pagos?scope=despachante&ref_id=${encodeURIComponent(r.id)}`)
-        const j = res.ok ? await res.json() : []
-        setHistPagos(h => ({ ...h, [r.id]: Array.isArray(j) ? j : [] }))
-      } catch { setHistPagos(h => ({ ...h, [r.id]: [] })) }
-    }
+  // Borrar un pago mal cargado: sale del ledger y el saldo se recalcula.
+  const delPago = async () => {
+    const { row: r, pg } = confirmPago
+    try {
+      const res = await fetch(`/api/db/pagos/${pg.id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error(await errMsg(res, 'No se pudo borrar el pago'))
+      const cash = Math.max(0, numUSD(r.pago_cash) - (pg.metodo === 'cash' ? numUSD(pg.monto) : 0))
+      const transf = Math.max(0, numUSD(r.pago_transferencia) - (pg.metodo === 'cash' ? 0 : numUSD(pg.monto)))
+      const pagado = cash + transf
+      const saldo = numUSD(r.total_honorarios) - pagado - numUSD(r.comision)
+      const res2 = await fetch(`/api/db/despachante/${r.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...r, pago_cash: fmtCalc(cash), pago_transferencia: fmtCalc(transf), total_pagado: fmtCalc(pagado), saldo: fmtCalc(saldo) }),
+      })
+      if (!res2.ok) throw new Error(await errMsg(res2, 'No se pudo actualizar el saldo'))
+      gToast.success('Pago eliminado.')
+      load()
+    } catch (e) {
+      gToast.error(e.message || 'Error al borrar el pago.')
+    } finally { setConfirmPago(null) }
   }
 
-  const TH = { fontSize: '0.58rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '0.6rem 0.7rem', borderBottom: '1px solid #e8ecf1', whiteSpace: 'nowrap', background: '#f8fafc', position: 'sticky', top: 0, zIndex: 3, textAlign: 'left' }
+  const formTotals = concSplit(Object.fromEntries(CONCEPTOS.map(([k]) => [k, conc[k]]).filter(([, e]) => numUSD(e.m) > 0)))
 
   return (
     <div>
@@ -255,11 +298,11 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#1e293b', marginBottom: '0.2rem' }}>Despachante de aduana</h2>
-          <p style={{ fontSize: '0.82rem', color: '#94a3b8' }}>Control de honorarios, pagos y comisiones · {rows.length} importaciones</p>
+          <p style={{ fontSize: '0.82rem', color: '#94a3b8' }}>Cada operación con sus costos, su factura o negro, y sus pagos · {rows.length} operaciones</p>
         </div>
         <button onClick={openNew} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0.55rem 1.1rem', borderRadius: 8, border: 'none', background: PRIMARY, color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Nueva importación
+          Nueva operación
         </button>
       </div>
 
@@ -269,8 +312,8 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
           <p style={{ fontSize: '0.6rem', fontWeight: 800, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>Alertas · {alertas.length}</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
             {alertas.slice(0, 6).map((a, i) => (
-              <button key={i} onClick={() => a.bl && setFicha(a.bl)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: '0.1rem 0', cursor: 'pointer', textAlign: 'left', fontSize: '0.78rem', color: '#78350f' }}>
-                <span>💸 <b>{a.desc}</b> — mercadería arribó{a.sem != null ? ` hace ${a.sem} semana${a.sem === 1 ? '' : 's'}` : ''}, saldo <b>{fmtUSD(a.monto)}</b> al despachante</span>
+              <button key={i} onClick={() => a.row.bl && setFicha({ bl: a.row.bl, desp: a.row, ship: shipByBL[blNorm(a.row.bl)] })} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: '0.1rem 0', cursor: 'pointer', textAlign: 'left', fontSize: '0.78rem', color: '#78350f' }}>
+                <span>💸 <b>{a.row.descripcion}</b> — mercadería arribó{a.sem != null ? ` hace ${a.sem} semana${a.sem === 1 ? '' : 's'}` : ''}, saldo <b>{fmtUSD(a.monto)}</b> al despachante</span>
               </button>
             ))}
           </div>
@@ -288,9 +331,12 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
             </span>
           </div>
           <div style={{ display: 'flex', gap: 18, marginTop: 12, flexWrap: 'wrap', fontSize: '0.74rem' }}>
-            <span><span style={{ color: '#94a3b8' }}>Honorarios</span> <b style={{ color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(stats.totalHon)}</b></span>
+            <span><span style={{ color: '#94a3b8' }}>Costos</span> <b style={{ color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(stats.totalHon)}</b></span>
             {stats.totalCom > 0 && <span><span style={{ color: '#94a3b8' }}>− tu comisión</span> <b style={{ color: '#7c3aed', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(stats.totalCom)}</b></span>}
             <span><span style={{ color: '#94a3b8' }}>− pagado</span> <b style={{ color: '#334155', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(stats.totalPag)}</b></span>
+            {(stats.fact > 0 || stats.negro > 0) && (
+              <span><span style={{ color: '#94a3b8' }}>Te factura</span> <b style={{ color: '#059669', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(stats.fact)}</b> <span style={{ color: '#94a3b8' }}>· en negro</span> <b style={{ color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(stats.negro)}</b></span>
+            )}
           </div>
           {stats.debe > 0 && stats.favor > 0 && (
             <p style={{ fontSize: '0.66rem', color: '#94a3b8', marginTop: 8 }}>Debés {fmtUSD(stats.debe)} en unas · {fmtUSD(stats.favor)} a favor en otras → se compensan.</p>
@@ -298,7 +344,7 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div style={{ ...CARD, padding: '0.75rem 0.95rem' }}>
-            <p style={{ fontSize: '0.56rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Importaciones</p>
+            <p style={{ fontSize: '0.56rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Operaciones</p>
             <p style={{ fontSize: '1.35rem', fontWeight: 800, color: '#334155', lineHeight: 1 }}>{stats.total}</p>
             <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 3 }}>{stats.saldadas} saldadas</p>
           </div>
@@ -323,7 +369,7 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
         </div>
       </div>
 
-      {/* Table */}
+      {/* Cards por operación */}
       {loading ? (
         <div style={{ ...CARD, padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>
           <div style={{ width: 36, height: 36, border: '3px solid #e8ecf1', borderTopColor: PRIMARY, borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 0.8s linear infinite' }} />
@@ -335,7 +381,14 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
           <button onClick={load} style={{ marginTop: '0.6rem', padding: '0.5rem 1.2rem', borderRadius: 8, border: 'none', background: PRIMARY, color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>Reintentar</button>
         </div>
       ) : filtered.length === 0 ? (
-        <div style={{ ...CARD, padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>Sin registros que coincidan.</div>
+        <div style={{ ...CARD, padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>
+          {rows.length === 0 ? (
+            <>
+              <p style={{ fontWeight: 600, color: '#64748b', marginBottom: 4 }}>Todavía no hay operaciones.</p>
+              <p style={{ fontSize: '0.8rem' }}>Creá una con «Nueva operación» (solo descripción y B/L) y después cargale los costos.</p>
+            </>
+          ) : 'Sin registros que coincidan.'}
+        </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
           {(() => {
@@ -343,7 +396,7 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
               { key: 'debe',    label: 'Le debés al despachante', dot: '#dc2626', test: r => numUSD(r.saldo) > 0 },
               { key: 'favor',   label: 'A tu favor (compensar)',  dot: '#d97706', test: r => numUSD(r.saldo) < 0 },
               { key: 'saldado', label: 'Saldadas',                dot: '#16a34a', test: r => numUSD(r.saldo) === 0 && numUSD(r.total_honorarios) > 0 },
-              { key: 'curso',   label: 'En curso / sin honorarios', dot: '#94a3b8', test: r => numUSD(r.total_honorarios) === 0 },
+              { key: 'curso',   label: 'En curso / sin costos',   dot: '#94a3b8', test: r => numUSD(r.saldo) === 0 && numUSD(r.total_honorarios) === 0 },
             ]
             return GRUPOS.map(g => {
               const items = filtered.filter(g.test)
@@ -365,8 +418,9 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
                       const hon = numUSD(r.total_honorarios), pag = numUSD(r.total_pagado), com = numUSD(r.comision)
                       const objetivo = hon - com
                       const pct = objetivo > 0 ? Math.max(0, Math.min(1, pag / objetivo)) : (pag > 0 ? 1 : 0)
-                      const exp = expandId === r.id
-                      const hist = histPagos[r.id]
+                      const rc = parseConc(r)
+                      const rs = concSplit(rc)
+                      const hist = pagos[String(r.id)] || []
                       return (
                         <div key={r.id} style={{ ...CARD, borderLeft: `3px solid ${st.dot}`, padding: '0.75rem 0.9rem' }}>
                           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
@@ -376,12 +430,30 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
                                 <span style={{ fontSize: '0.6rem', fontWeight: 700, padding: '0.12rem 0.45rem', borderRadius: 5, border: '1px solid', color: r.estado === 'Terminada' ? '#065f46' : '#1d4ed8', borderColor: r.estado === 'Terminada' ? '#a7f3d0' : '#bfdbfe', background: '#fff' }}>{r.estado || '—'}</span>
                                 {r.facturado
                                   ? <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#065f46', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 5, padding: '0.12rem 0.45rem' }}>Facturado{r.factura_nro ? ` · ${r.factura_nro}` : ''}</span>
-                                  : hon > 0 ? <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 5, padding: '0.12rem 0.45rem' }}>Sin facturar</span> : null}
+                                  : rs.fact > 0 ? <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 5, padding: '0.12rem 0.45rem' }}>Sin facturar</span> : null}
                               </div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, fontSize: '0.66rem', color: '#94a3b8' }}>
                                 {r.bl && <span style={{ fontFamily: 'ui-monospace,monospace', color: '#64748b' }}>{r.bl}</span>}
                                 {ship && <span onClick={e => { e.stopPropagation(); window.location.href = '/gestion/tracking' }} style={{ fontSize: '0.58rem', fontWeight: 700, color: '#1d4ed8', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 4, padding: '0.03rem 0.35rem', cursor: 'pointer' }}>🚢 #{ship.num}</span>}
                               </div>
+                              {/* Desglose por concepto, con su marca factura/negro */}
+                              {rs.total > 0 && (
+                                <div style={{ display: 'flex', gap: 5, marginTop: 7, flexWrap: 'wrap', alignItems: 'center' }}>
+                                  {CONCEPTOS.map(([k, lbl]) => {
+                                    const e = rc[k]
+                                    if (!e || numUSD(e.m) <= 0) return null
+                                    const negro = !e.f
+                                    return (
+                                      <span key={k} title={negro ? 'En negro' : 'Te lo factura'} style={{ fontSize: '0.62rem', fontWeight: 600, padding: '0.14rem 0.5rem', borderRadius: 5, border: '1px solid', background: negro ? '#0f172a' : '#fff', color: negro ? '#e2e8f0' : '#334155', borderColor: negro ? '#0f172a' : '#e2e8f0' }}>
+                                        {lbl} <b style={{ fontVariantNumeric: 'tabular-nums', color: negro ? '#fff' : '#0f172a' }}>{fmtUSD(numUSD(e.m)).replace('USD ', '')}</b>
+                                      </span>
+                                    )
+                                  })}
+                                  {rs.fact > 0 && rs.negro > 0 && (
+                                    <span style={{ fontSize: '0.62rem', color: '#94a3b8' }}>factura <b style={{ color: '#059669' }}>{fmtUSD(rs.fact)}</b> · negro <b style={{ color: '#0f172a' }}>{fmtUSD(rs.negro)}</b></span>
+                                  )}
+                                </div>
+                              )}
                             </div>
                             <div style={{ textAlign: 'right', flex: '0 0 auto' }}>
                               <p style={{ fontSize: '0.58rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{saldo > 0 ? 'Debés' : saldo < 0 ? 'A favor' : 'Saldo'}</p>
@@ -392,12 +464,27 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
                           {hon > 0 && (
                             <div style={{ marginTop: 9 }}>
                               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: '#64748b', marginBottom: 4 }}>
-                                <span>Honorarios <b style={{ color: '#0f172a' }}>{fmtUSD(hon)}</b>{com > 0 && <> · − comisión <b style={{ color: '#7c3aed' }}>{fmtUSD(com)}</b></>}</span>
+                                <span>Total <b style={{ color: '#0f172a' }}>{fmtUSD(hon)}</b>{com > 0 && <> · − comisión <b style={{ color: '#7c3aed' }}>{fmtUSD(com)}</b></>}</span>
                                 <span>Pagado <b style={{ color: '#334155' }}>{fmtUSD(pag)}</b> de {fmtUSD(objetivo)}</span>
                               </div>
                               <div style={{ height: 6, background: '#f1f5f9', borderRadius: 4, overflow: 'hidden' }}>
                                 <div style={{ height: '100%', width: `${Math.round(pct * 100)}%`, background: saldo > 0 ? '#f59e0b' : '#16a34a', borderRadius: 4, transition: 'width .2s' }} />
                               </div>
+                            </div>
+                          )}
+
+                          {/* Pagos parciales, siempre a la vista */}
+                          {hist.length > 0 && (
+                            <div style={{ marginTop: 9, paddingTop: 7, borderTop: '1px solid #f1f5f9' }}>
+                              {hist.map(pg => (
+                                <div key={pg.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.22rem 0', fontSize: '0.74rem' }}>
+                                  <span style={{ color: '#64748b', fontVariantNumeric: 'tabular-nums' }}>{pg.fecha || '—'}</span>
+                                  <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#475569', background: '#f1f5f9', borderRadius: 4, padding: '0.05rem 0.4rem' }}>{metodoLabel(pg.metodo)}</span>
+                                  {pg.nota && <span style={{ color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pg.nota}</span>}
+                                  <span style={{ marginLeft: 'auto', fontWeight: 700, color: '#16a34a', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(numUSD(pg.monto))}</span>
+                                  <button onClick={() => setConfirmPago({ row: r, pg })} title="Borrar pago" aria-label="Borrar pago" style={{ width: 20, height: 20, borderRadius: 5, border: 'none', background: 'none', color: '#cbd5e1', cursor: 'pointer', fontSize: '0.85rem', lineHeight: 1, padding: 0 }}>×</button>
+                                </div>
+                              ))}
                             </div>
                           )}
 
@@ -408,10 +495,11 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
                                 Registrar pago
                               </button>
                             )}
-                            <button onClick={() => toggleHist(r)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '0.34rem 0.7rem', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer' }}>
-                              Historial{Array.isArray(hist) ? ` (${hist.length})` : ''}
-                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: exp ? 'rotate(180deg)' : 'none' }}><polyline points="6 9 12 15 18 9"/></svg>
-                            </button>
+                            {hon === 0 && (
+                              <button onClick={() => openEdit(r)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '0.34rem 0.75rem', borderRadius: 7, border: '1px dashed #cbd5e1', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, background: '#fff', color: '#475569' }}>
+                                Cargar costos
+                              </button>
+                            )}
                             <div style={{ marginLeft: 'auto', display: 'inline-flex', gap: 4 }}>
                               <button onClick={() => openEdit(r)} title="Editar" aria-label="Editar" style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -421,23 +509,6 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
                               </button>
                             </div>
                           </div>
-
-                          {exp && (
-                            <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid #f1f5f9' }}>
-                              {!Array.isArray(hist) ? (
-                                <p style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Cargando…</p>
-                              ) : hist.length === 0 ? (
-                                <p style={{ fontSize: '0.72rem', color: '#cbd5e1' }}>Sin pagos registrados. Los pagos que registres acá quedan como historial.</p>
-                              ) : hist.map(pg => (
-                                <div key={pg.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.28rem 0', fontSize: '0.74rem' }}>
-                                  <span style={{ color: '#64748b', fontVariantNumeric: 'tabular-nums' }}>{pg.fecha || '—'}</span>
-                                  <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#475569', background: '#f1f5f9', borderRadius: 4, padding: '0.05rem 0.4rem' }}>{metodoLabel(pg.metodo)}</span>
-                                  {pg.nota && <span style={{ color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pg.nota}</span>}
-                                  <span style={{ marginLeft: 'auto', fontWeight: 700, color: '#16a34a', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(numUSD(pg.monto))}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
                         </div>
                       )
                     })}
@@ -452,13 +523,13 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
       {/* Edit / new modal */}
       {modal !== null && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }} onClick={() => setModal(null)}>
-          <div style={{ ...CARD, width: '100%', maxWidth: 720, maxHeight: '90vh', overflowY: 'auto', padding: '1.5rem', boxShadow: '0 24px 64px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
+          <div style={{ ...CARD, width: '100%', maxWidth: 640, maxHeight: '90vh', overflowY: 'auto', padding: '1.5rem', boxShadow: '0 24px 64px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-              <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>{modal === 'new' ? 'Nueva importación' : (form.descripcion || 'Editar')}</h3>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>{modal === 'new' ? 'Nueva operación' : (form.descripcion || 'Editar')}</h3>
               <button onClick={() => setModal(null)} aria-label="Cerrar" style={{ background: 'none', border: 'none', fontSize: '1.4rem', color: '#94a3b8', cursor: 'pointer', lineHeight: 1 }}>×</button>
             </div>
 
-            <p style={SEC}>Importación</p>
+            <p style={SEC}>Operación</p>
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 10, marginBottom: '1.25rem' }}>
               <div><label style={LBL}>Descripción de la carga *</label><input value={form.descripcion} onChange={e => upd('descripcion', e.target.value)} style={INP} placeholder="Ej: Módulos + mix varios" /></div>
               <div><label style={LBL}>N° B/L / Referencia</label><input value={form.bl} onChange={e => upd('bl', e.target.value)} style={{ ...INP, fontFamily: 'ui-monospace,monospace' }} /></div>
@@ -470,84 +541,52 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
               </div>
             </div>
 
-            <p style={SEC}>Costos y pago</p>
-            <div className="track-cost-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-
-              {/* Panel 1 — honorarios → total */}
-              <div style={{ background: '#fff', border: '1px solid #e8ecf1', borderRadius: 10, padding: '0.9rem 1rem' }}>
-                <p style={{ fontSize: '0.74rem', fontWeight: 700, color: '#334155', marginBottom: '0.75rem' }}>Honorarios del despachante</p>
-                <div><label style={LBL}>Honorarios regulares (USD)</label><input value={form.hon_regulares} onChange={e => upd('hon_regulares', e.target.value)} inputMode="decimal" style={{ ...INP, marginBottom: '0.6rem' }} placeholder="0" /></div>
-                <div><label style={LBL}>Aduana extras (USD)</label><input value={form.adu_extras} onChange={e => upd('adu_extras', e.target.value)} inputMode="decimal" style={{ ...INP, marginBottom: '0.6rem' }} placeholder="0" /></div>
-                <div><label style={LBL}>Otros gastos (USD)</label><input value={form.otros_gastos} onChange={e => upd('otros_gastos', e.target.value)} inputMode="decimal" style={INP} placeholder="0" /></div>
-                <div style={{ borderTop: '1px solid #f1f5f9', margin: '0.85rem 0 0.65rem' }} />
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0f172a', display: 'inline-flex', alignItems: 'center' }}>Total <CalcChip auto={honAuto} onToggle={() => setHonAuto(a => !a)} /></label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 600 }}>USD</span>
-                    <input value={form.total_honorarios} onChange={e => { setHonAuto(false); upd('total_honorarios', e.target.value) }} readOnly={honAuto} inputMode="decimal"
-                      style={{ ...INP, width: 130, textAlign: 'right', fontWeight: 800, fontSize: '0.95rem', fontVariantNumeric: 'tabular-nums', background: honAuto ? '#f8fafc' : '#fff', color: honAuto ? '#334155' : '#0f172a' }} />
-                  </div>
+            <p style={SEC}>Costos del despachante <span style={{ fontWeight: 500, color: '#94a3b8' }}>· cargá solo los que apliquen</span></p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 10 }}>
+              {CONCEPTOS.map(([k, lbl]) => (
+                <div key={k} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 105px 138px', gap: 8, alignItems: 'center' }}>
+                  <label style={{ fontSize: '0.78rem', fontWeight: 600, color: numUSD(conc[k].m) > 0 ? '#0f172a' : '#64748b' }}>{lbl}</label>
+                  <input value={conc[k].m} onChange={e => updConc(k, { m: e.target.value })} inputMode="decimal" placeholder="0"
+                    style={{ ...INP, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: numUSD(conc[k].m) > 0 ? 700 : 400 }} />
+                  <FNToggle f={conc[k].f} onChange={f => updConc(k, { f })} small />
                 </div>
-              </div>
-
-              {/* Panel 2 — pago → total pagado */}
-              <div style={{ background: '#fff', border: '1px solid #e8ecf1', borderRadius: 10, padding: '0.9rem 1rem' }}>
-                <p style={{ fontSize: '0.74rem', fontWeight: 700, color: '#334155', marginBottom: '0.75rem' }}>Pago al despachante</p>
-                <div><label style={LBL}>Por transferencia (USD)</label><input value={form.pago_transferencia} onChange={e => upd('pago_transferencia', e.target.value)} inputMode="decimal" style={{ ...INP, marginBottom: '0.6rem' }} placeholder="0" /></div>
-                <div><label style={LBL}>En efectivo (USD)</label><input value={form.pago_cash} onChange={e => upd('pago_cash', e.target.value)} inputMode="decimal" style={INP} placeholder="0" /></div>
-                <div style={{ borderTop: '1px solid #f1f5f9', margin: '0.85rem 0 0.65rem' }} />
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0f172a', display: 'inline-flex', alignItems: 'center' }}>Pagado <CalcChip auto={pagAuto} onToggle={() => setPagAuto(a => !a)} /></label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 600 }}>USD</span>
-                    <input value={form.total_pagado} onChange={e => { setPagAuto(false); upd('total_pagado', e.target.value) }} readOnly={pagAuto} inputMode="decimal"
-                      style={{ ...INP, width: 130, textAlign: 'right', fontWeight: 800, fontSize: '0.95rem', fontVariantNumeric: 'tabular-nums', background: pagAuto ? '#f8fafc' : '#fff', color: pagAuto ? '#334155' : '#0f172a' }} />
-                  </div>
-                </div>
-                <div style={{ marginTop: '0.7rem' }}><label style={LBL}>Fecha de pago</label><input type="date" value={form.fecha_pago} onChange={e => upd('fecha_pago', e.target.value)} style={INP} /></div>
-              </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', padding: '0.6rem 0.75rem', background: '#f8fafc', borderRadius: 8, marginBottom: '1.25rem' }}>
+              <span style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                {formTotals.fact > 0 && <>Te factura <b style={{ color: '#059669' }}>{fmtUSD(formTotals.fact)}</b></>}
+                {formTotals.fact > 0 && formTotals.negro > 0 && ' · '}
+                {formTotals.negro > 0 && <>En negro <b style={{ color: '#0f172a' }}>{fmtUSD(formTotals.negro)}</b></>}
+              </span>
+              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0f172a' }}>Total <b style={{ fontSize: '1rem', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(formTotals.total)}</b></span>
             </div>
 
-            {/* Panel 3 — comisión, facturación y saldo */}
-            <div style={{ background: '#fff', border: '1px solid #e8ecf1', borderRadius: 10, padding: '0.9rem 1rem', marginBottom: '1.25rem' }}>
-              <p style={{ fontSize: '0.74rem', fontWeight: 700, color: '#334155', marginBottom: '0.75rem' }}>Comisión y facturación</p>
-              <div className="track-cost-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-                <div><label style={LBL}>Tu comisión (USD)</label><input value={form.comision} onChange={e => upd('comision', e.target.value)} inputMode="decimal" style={INP} placeholder="0" /></div>
-                <div>
-                  <label style={LBL}>¿Facturado?</label>
-                  <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: 8, padding: 3, gap: 2 }}>
-                    {[[1, 'Sí'], [0, 'No']].map(([v, l]) => {
-                      const on = !!form.facturado === !!v
-                      return <button key={l} onClick={() => upd('facturado', v)} style={{ flex: 1, padding: '0.34rem 0.4rem', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: '0.76rem', fontWeight: on ? 700 : 500, background: on ? '#fff' : 'transparent', color: on ? (v ? '#059669' : '#dc2626') : '#64748b', boxShadow: on ? '0 1px 2px rgba(15,23,42,0.10)' : 'none' }}>{l}</button>
-                    })}
-                  </div>
+            <p style={SEC}>Comisión y factura</p>
+            <div className="track-cost-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: '1.25rem' }}>
+              <div><label style={LBL}>Tu comisión (USD)</label><input value={form.comision} onChange={e => upd('comision', e.target.value)} inputMode="decimal" style={INP} placeholder="0" /></div>
+              <div>
+                <label style={LBL}>¿Factura recibida?</label>
+                <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: 8, padding: 3, gap: 2 }}>
+                  {[[1, 'Sí'], [0, 'No']].map(([v, l]) => {
+                    const on = !!form.facturado === !!v
+                    return <button key={l} onClick={() => upd('facturado', v)} style={{ flex: 1, padding: '0.34rem 0.4rem', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: '0.76rem', fontWeight: on ? 700 : 500, background: on ? '#fff' : 'transparent', color: on ? (v ? '#059669' : '#dc2626') : '#64748b', boxShadow: on ? '0 1px 2px rgba(15,23,42,0.10)' : 'none' }}>{l}</button>
+                  })}
                 </div>
-                <div><label style={LBL}>N° factura / comprobante</label><input value={form.factura_nro} onChange={e => upd('factura_nro', e.target.value)} style={INP} /></div>
               </div>
-              <div style={{ borderTop: '1px solid #f1f5f9', margin: '0.85rem 0 0.65rem' }} />
-              {(() => {
-                const s = numUSD(form.saldo)
-                const st = saldoStyle(s, numUSD(form.total_honorarios))
-                return (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0f172a', display: 'inline-flex', alignItems: 'center' }}>Saldo <CalcChip auto={salAuto} onToggle={() => setSalAuto(a => !a)} /></label>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: '0.68rem', fontWeight: 700, color: st.c }}>{s > 0 ? 'le debés' : s < 0 ? 'a tu favor' : numUSD(form.total_honorarios) > 0 ? 'saldado ✓' : ''}</span>
-                      <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 600 }}>USD</span>
-                      <input value={form.saldo} onChange={e => { setSalAuto(false); upd('saldo', e.target.value) }} readOnly={salAuto} inputMode="decimal"
-                        title={salAuto ? 'Calculado: honorarios − pagado − comisión' : 'Ingreso manual'}
-                        style={{ ...INP, width: 130, textAlign: 'right', fontWeight: 800, fontSize: '0.95rem', fontVariantNumeric: 'tabular-nums', background: salAuto ? '#f8fafc' : '#fff', color: st.c }} />
-                    </div>
-                  </div>
-                )
-              })()}
+              <div><label style={LBL}>N° factura / comprobante</label><input value={form.factura_nro} onChange={e => upd('factura_nro', e.target.value)} style={INP} /></div>
             </div>
+
+            {modal !== 'new' && numUSD(modal.total_pagado) > 0 && (
+              <p style={{ fontSize: '0.72rem', color: '#64748b', margin: '-0.5rem 0 1rem' }}>
+                Ya pagado <b style={{ color: '#334155' }}>{fmtUSD(numUSD(modal.total_pagado))}</b> → saldo tras guardar: <b style={{ color: '#0f172a' }}>{fmtUSD(formTotals.total - numUSD(modal.total_pagado) - numUSD(form.comision))}</b>. Los pagos se cargan desde la tarjeta con «Registrar pago».
+              </p>
+            )}
 
             <div style={{ marginBottom: '1.5rem' }}><label style={LBL}>Observaciones</label><textarea value={form.notas} onChange={e => upd('notas', e.target.value)} style={{ ...INP, minHeight: 56, resize: 'vertical' }} /></div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button onClick={() => setModal(null)} style={{ padding: '0.55rem 1.1rem', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={save} disabled={saving} style={{ padding: '0.55rem 1.3rem', borderRadius: 8, border: 'none', background: '#059669', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: saving ? 'wait' : 'pointer' }}>{saving ? 'Guardando…' : (modal === 'new' ? 'Registrar' : 'Guardar cambios')}</button>
+              <button onClick={save} disabled={saving} style={{ padding: '0.55rem 1.3rem', borderRadius: 8, border: 'none', background: '#059669', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: saving ? 'wait' : 'pointer' }}>{saving ? 'Guardando…' : (modal === 'new' ? 'Crear operación' : 'Guardar cambios')}</button>
             </div>
           </div>
         </div>
@@ -567,12 +606,29 @@ export default function DespachantePage({ devRows = null, devShips = null } = {}
         </div>
       )}
 
+      {/* Borrar pago confirm */}
+      {confirmPago && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }} onClick={() => setConfirmPago(null)}>
+          <div style={{ ...CARD, maxWidth: 360, padding: '1.75rem', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+            <p style={{ fontWeight: 700, color: '#1e293b', marginBottom: 6 }}>¿Borrar este pago?</p>
+            <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '1.25rem' }}>
+              {confirmPago.pg.fecha || 's/fecha'} · {metodoLabel(confirmPago.pg.metodo)} · <b>{fmtUSD(numUSD(confirmPago.pg.monto))}</b><br />
+              Sale del historial y el saldo se recalcula.
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+              <button onClick={() => setConfirmPago(null)} style={{ padding: '0.5rem 1rem', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={delPago} style={{ padding: '0.5rem 1.2rem', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>Borrar pago</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Registrar pago (cuenta corriente): evento en el ledger + actualiza el saldo */}
       {pagoModal && (
         <div onClick={e => { if (e.target === e.currentTarget) setPagoModal(null) }} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
           <div style={{ ...CARD, width: '100%', maxWidth: 380, padding: '1.25rem' }}>
             <p style={{ fontWeight: 800, color: '#0f172a', marginBottom: 3, fontSize: '0.95rem' }}>Registrar pago al despachante</p>
-            <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginBottom: 12 }}>{pagoModal.row.descripcion} · saldo {fmtUSD(numUSD(pagoModal.row.saldo))}</p>
+            <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginBottom: 12 }}>{pagoModal.row.descripcion} · saldo {fmtUSD(numUSD(pagoModal.row.saldo))} · puede ser parcial</p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
               <div><label style={LBL}>Fecha</label><input type="date" value={pagoModal.fecha} onChange={e => setPagoModal(f => ({ ...f, fecha: e.target.value }))} style={INP} /></div>
               <div><label style={LBL}>Monto (USD)</label><input inputMode="decimal" value={pagoModal.monto} onChange={e => setPagoModal(f => ({ ...f, monto: e.target.value }))} style={INP} placeholder="0" /></div>
