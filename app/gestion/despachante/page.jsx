@@ -5,11 +5,11 @@ import { gToast } from '../toast'
 import FichaImportacion from '../ficha-importacion'
 import { metodoLabel } from '../pagos-metodos'
 
-const CARD = { background: '#fff', borderRadius: 10, border: '1px solid #e8ecf1', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }
-const INP = { width: '100%', padding: '0.5rem 0.65rem', border: '1px solid #e2e8f0', borderRadius: 7, fontSize: '16px', color: '#0f172a', background: '#fff', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }
-const LBL = { display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#64748b', letterSpacing: 0, marginBottom: 5 }
-const SEC = { fontSize: '0.82rem', fontWeight: 700, color: '#0f172a', margin: '0 0 0.85rem', paddingBottom: '0.45rem', borderBottom: '1px solid #f1f5f9' }
-const PRIMARY = '#0f172a'
+const INP = { width: '100%', padding: '0.5rem 0.65rem', border: '1px solid #e5e7eb', borderRadius: 6, fontSize: '16px', color: '#111827', background: '#fff', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }
+const LBL = { display: 'block', fontSize: '0.68rem', fontWeight: 500, color: '#9ca3af', marginBottom: 4 }
+const PANEL = { background: '#fff', borderRadius: 12, padding: '1.5rem 1.75rem' }
+const TXTBTN = { background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '0.74rem', fontWeight: 500, color: '#6b7280', fontFamily: 'inherit' }
+const PRIMARY = '#111827'
 
 const ESTADOS_IMP = ['En curso', 'Terminada', 'Demorada']
 
@@ -52,24 +52,28 @@ function concSplit(c) {
 
 // Semántica del saldo: total de costos − pagado.
 //  > 0 → le debés al despachante · < 0 → saldo a tu favor · 0 → saldado
-function saldoStyle(saldo, totalHon) {
-  if (saldo > 0)  return { key: 'debe',    bg: '#fef2f2', dot: '#dc2626', c: '#dc2626', label: 'Debés' }
-  if (saldo < 0)  return { key: 'favor',   bg: '#fffbeb', dot: '#d97706', c: '#b45309', label: 'A tu favor' }
-  if (totalHon > 0) return { key: 'saldado', bg: '#f0fdf4', dot: '#16a34a', c: '#16a34a', label: 'Saldado' }
-  return { key: 'curso', bg: '#f8fafc', dot: '#94a3b8', c: '#64748b', label: 'En curso' }
+function saldoInfo(saldo, totalHon) {
+  if (saldo > 0)  return { c: '#dc2626', label: 'debés' }
+  if (saldo < 0)  return { c: '#d97706', label: 'a tu favor' }
+  if (totalHon > 0) return { c: '#059669', label: 'saldado' }
+  return { c: '#9ca3af', label: 'sin costos' }
 }
 
+// Punto negro de 5px: marca de concepto "en negro".
+const Dot = () => <span style={{ display: 'inline-block', width: 5, height: 5, borderRadius: '50%', background: '#111827', marginRight: 4, verticalAlign: 'middle' }} />
+
+// Toggle Factura/Negro como texto plano (sin pills).
 function FNToggle({ f, onChange, small }) {
-  const B = (on, lbl, col) => (
-    <button onClick={() => onChange(lbl === 'Factura' ? 1 : 0)}
-      style={{ flex: 1, padding: small ? '0.22rem 0.3rem' : '0.3rem 0.4rem', borderRadius: 5, border: 'none', cursor: 'pointer', fontSize: small ? '0.64rem' : '0.7rem', fontWeight: on ? 700 : 500, background: on ? '#fff' : 'transparent', color: on ? col : '#94a3b8', boxShadow: on ? '0 1px 2px rgba(15,23,42,0.12)' : 'none', whiteSpace: 'nowrap' }}>
+  const B = (on, lbl, col, val) => (
+    <button key={lbl} onClick={() => onChange(val)}
+      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 3px', fontFamily: 'inherit', fontSize: small ? '0.68rem' : '0.72rem', fontWeight: on ? 600 : 400, color: on ? col : '#9ca3af', borderBottom: on ? `2px solid ${col}` : '2px solid transparent', whiteSpace: 'nowrap' }}>
       {lbl}
     </button>
   )
   return (
-    <div style={{ display: 'flex', gap: 2, background: '#f1f5f9', borderRadius: 7, padding: 2 }}>
-      {B(!!f, 'Factura', '#059669')}
-      {B(!f, 'Negro', '#0f172a')}
+    <div style={{ display: 'flex', gap: 14, justifyContent: 'flex-end' }}>
+      {B(!!f, 'Factura', '#059669', 1)}
+      {B(!f, 'Negro', '#111827', 0)}
     </div>
   )
 }
@@ -93,6 +97,7 @@ export default function DespachantePage({ devRows = null, devShips = null, devPa
   const [ficha, setFicha] = useState(null)         // B/L abierto en la ficha integral
   const [pagoModal, setPagoModal] = useState(null) // registro de pago (cuenta corriente)
   const [pagoBusy, setPagoBusy] = useState(false)
+  const [showSaldadas, setShowSaldadas] = useState(false) // saldadas colapsadas al fondo
 
   const load = async () => {
     // Inyección para preview de diseño (dev): evita auth/D1.
@@ -297,233 +302,238 @@ export default function DespachantePage({ devRows = null, devShips = null, devPa
 
   const formTotals = concSplit(Object.fromEntries(CONCEPTOS.map(([k]) => [k, conc[k]]).filter(([, e]) => numUSD(e.m) > 0)))
 
+  // Una fila plana de la lista (closed → saldada, atenuada).
+  const renderRow = (r, closed = false) => {
+    const saldo = numUSD(r.saldo)
+    const st = saldoInfo(saldo, numUSD(r.total_honorarios))
+    const ship = shipByBL[blNorm(r.bl)]
+    const hon = numUSD(r.total_honorarios), pag = numUSD(r.total_pagado)
+    const pct = hon > 0 ? Math.max(0, Math.min(1, pag / hon)) : (pag > 0 ? 1 : 0)
+    const rc = parseConc(r)
+    const rs = concSplit(rc)
+    const hist = pagos[String(r.id)] || []
+    const partes = CONCEPTOS.filter(([k]) => rc[k] && numUSD(rc[k].m) > 0)
+    return (
+      <div key={r.id} className="dsp-row" style={{ padding: '0.8rem 0.25rem', borderBottom: '1px solid #f1f5f9', opacity: closed ? 0.55 : 1 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <div onClick={() => r.bl ? setFicha({ bl: r.bl, desp: r, ship }) : openEdit(r)} style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}>
+            <p style={{ fontSize: '0.88rem', fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.descripcion || '— sin descripción —'}</p>
+            <p style={{ marginTop: 2, fontSize: '0.68rem', color: '#9ca3af', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {r.bl && <><span style={{ fontFamily: 'ui-monospace,monospace' }}>{r.bl}</span> · </>}
+              {r.estado || 'En curso'}
+              {ship && <> · <span onClick={e => { e.stopPropagation(); window.location.href = '/gestion/tracking' }} style={{ cursor: 'pointer', color: '#6b7280' }}>embarque #{ship.num}</span></>}
+              {r.facturado
+                ? <> · <span style={{ color: '#059669' }}>Facturado{r.factura_nro ? ` ${r.factura_nro}` : ''}</span></>
+                : rs.fact > 0 ? <> · <span style={{ color: '#dc2626' }}>Sin facturar</span></> : null}
+            </p>
+          </div>
+          <div style={{ textAlign: 'right', flex: '0 0 auto' }}>
+            <p style={{ fontSize: '0.95rem', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: st.c, lineHeight: 1.15 }}>
+              {saldo !== 0 ? fmtUSD(Math.abs(saldo)) : (hon > 0 ? fmtUSD(hon) : '—')}
+            </p>
+            <p style={{ fontSize: '0.6rem', color: '#9ca3af', marginTop: 2 }}>{st.label}</p>
+          </div>
+          <div className="dsp-acts" style={{ display: 'flex', gap: 2, flex: '0 0 auto', marginTop: 1 }}>
+            <button onClick={() => openEdit(r)} title="Editar" aria-label="Editar" className="dsp-ico" style={{ width: 24, height: 24, border: 'none', background: 'none', color: '#c4c9d4', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+            <button onClick={() => setConfirmDel(r.id)} title="Eliminar" aria-label="Eliminar" className="dsp-ico" style={{ width: 24, height: 24, border: 'none', background: 'none', color: '#c4c9d4', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Desglose de conceptos: detalle indentado, dot negro = en negro */}
+        {partes.length > 0 && (
+          <p style={{ marginTop: 6, paddingLeft: 12, fontSize: '0.72rem', color: '#6b7280', lineHeight: 1.9 }}>
+            {partes.map(([k, lbl], i) => {
+              const negro = !rc[k].f
+              return (
+                <span key={k} title={negro ? 'En negro' : 'Te lo factura'} style={{ whiteSpace: 'nowrap' }}>
+                  {i > 0 && <span style={{ color: '#d1d5db' }}>  ·  </span>}
+                  {negro && <Dot />}
+                  {lbl} <span style={{ color: '#374151', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{fmtUSD(numUSD(rc[k].m)).replace('USD ', '')}</span>
+                </span>
+              )
+            })}
+          </p>
+        )}
+
+        {/* Progreso: solo cuando hay pagos parciales en curso */}
+        {pag > 0 && saldo > 0 && (
+          <div style={{ marginTop: 8, paddingLeft: 12 }}>
+            <div style={{ height: 3, background: '#f1f5f9' }}>
+              <div style={{ height: '100%', width: `${Math.round(pct * 100)}%`, background: '#d97706', transition: 'width .2s' }} />
+            </div>
+            <p style={{ marginTop: 3, fontSize: '0.64rem', color: '#9ca3af', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>Pagado {fmtUSD(pag)} de {fmtUSD(hon)}</p>
+          </div>
+        )}
+
+        {/* Historial de pagos (ledger) */}
+        {hist.length > 0 && (
+          <div style={{ marginTop: 8, paddingTop: 6, paddingLeft: 12, borderTop: '1px solid #f8fafc' }}>
+            {hist.map(pg => (
+              <div key={pg.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.15rem 0', fontSize: '0.72rem', color: '#9ca3af' }}>
+                <span style={{ fontVariantNumeric: 'tabular-nums' }}>{pg.fecha || '—'}</span>
+                <span>{metodoLabel(pg.metodo)}</span>
+                {pg.nota && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pg.nota}</span>}
+                <span style={{ marginLeft: 'auto', fontWeight: 600, color: '#374151', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(numUSD(pg.monto))}</span>
+                <button onClick={() => setConfirmPago({ row: r, pg })} title="Borrar pago" aria-label="Borrar pago" className="dsp-ico" style={{ width: 18, height: 18, border: 'none', background: 'none', color: '#c4c9d4', cursor: 'pointer', fontSize: '0.85rem', lineHeight: 1, padding: 0 }}>×</button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {(saldo > 0 || hon === 0) && (
+          <div style={{ display: 'flex', gap: 16, marginTop: 8, paddingLeft: 12 }}>
+            {saldo > 0 && (
+              <button onClick={() => setPagoModal({ row: r, fecha: hoy(), monto: fmtCalc(saldo), metodo: 'transferencia', nota: '' })} className="dsp-txtbtn" style={TXTBTN}>+ Registrar pago</button>
+            )}
+            {hon === 0 && (
+              <button onClick={() => openEdit(r)} className="dsp-txtbtn" style={TXTBTN}>Cargar costos</button>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // Métrica de la línea de cuenta corriente.
+  const Met = ({ v, l, c, dot }) => (
+    <div>
+      <p style={{ fontSize: '1.15rem', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: c || '#111827', lineHeight: 1.2 }}>{dot && <Dot />}{v}</p>
+      <p style={{ fontSize: '0.62rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#9ca3af', marginTop: 2 }}>{l}</p>
+    </div>
+  )
+
+  const cerradas = filtered.filter(r => numUSD(r.saldo) === 0 && numUSD(r.total_honorarios) > 0)
+  const saldadasOpen = showSaldadas || filter === 'saldado' || query.trim() !== ''
+
   return (
     <div>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#1e293b', marginBottom: '0.2rem' }}>Despachante de aduana</h2>
-          <p style={{ fontSize: '0.82rem', color: '#94a3b8' }}>Cada operación con sus costos, su factura o negro, y sus pagos · {rows.length} operaciones</p>
+          <h2 style={{ fontSize: '1.45rem', fontWeight: 350, letterSpacing: '-0.02em', color: '#111827', marginBottom: '0.2rem' }}>Despachante de aduana</h2>
+          <p style={{ fontSize: '0.74rem', color: '#9ca3af' }}>Costos, factura o negro y pagos por operación · {rows.length} operaciones{stats.saldadas > 0 ? ` · ${stats.saldadas} saldadas` : ''}</p>
         </div>
-        <button onClick={openNew} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0.55rem 1.1rem', borderRadius: 8, border: 'none', background: PRIMARY, color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <button onClick={openNew} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0.5rem 1rem', borderRadius: 6, border: 'none', background: PRIMARY, color: '#fff', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'inherit' }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Nueva operación
         </button>
       </div>
 
+      {/* Cuenta corriente con el despachante: una línea de métricas, sin cajas */}
+      <div className="dsp-metrics" style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem 2.5rem', marginBottom: '1.75rem' }}>
+        <Met
+          v={fmtUSD(Math.abs(stats.neto))}
+          l={stats.neto > 0 ? 'Le debés (neto)' : stats.neto < 0 ? 'A tu favor (neto)' : 'Todo saldado'}
+          c={stats.neto > 0 ? '#dc2626' : stats.neto < 0 ? '#d97706' : '#059669'}
+        />
+        <Met v={fmtUSD(stats.totalHon)} l="Costos" />
+        <Met v={fmtUSD(stats.totalPag)} l="Pagado" />
+        {stats.fact > 0 && <Met v={fmtUSD(stats.fact)} l="Te factura" c="#059669" />}
+        {stats.negro > 0 && <Met v={fmtUSD(stats.negro)} l="En negro" dot />}
+        {stats.sinFact > 0 && <Met v={stats.sinFact} l="Sin facturar" c="#d97706" />}
+      </div>
+      {stats.debe > 0 && stats.favor > 0 && (
+        <p style={{ fontSize: '0.66rem', color: '#9ca3af', margin: '-1.25rem 0 1.5rem' }}>Debés {fmtUSD(stats.debe)} en unas · {fmtUSD(stats.favor)} a favor en otras → se compensan.</p>
+      )}
+
       {/* Alertas del flujo */}
       {alertas.length > 0 && (
-        <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '0.65rem 0.95rem', marginBottom: '1rem' }}>
-          <p style={{ fontSize: '0.6rem', fontWeight: 800, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>Alertas · {alertas.length}</p>
+        <div style={{ borderLeft: '2px solid #d97706', paddingLeft: 12, marginBottom: '1.5rem' }}>
+          <p style={{ fontSize: '0.62rem', fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Alertas · {alertas.length}</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
             {alertas.slice(0, 6).map((a, i) => (
-              <button key={i} onClick={() => a.row.bl && setFicha({ bl: a.row.bl, desp: a.row, ship: shipByBL[blNorm(a.row.bl)] })} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: '0.1rem 0', cursor: 'pointer', textAlign: 'left', fontSize: '0.78rem', color: '#78350f' }}>
-                <span><b>{a.row.descripcion}</b> — mercadería arribó{a.sem != null ? ` hace ${a.sem} semana${a.sem === 1 ? '' : 's'}` : ''}, saldo <b>{fmtUSD(a.monto)}</b> al despachante</span>
+              <button key={i} onClick={() => a.row.bl && setFicha({ bl: a.row.bl, desp: a.row, ship: shipByBL[blNorm(a.row.bl)] })} style={{ background: 'none', border: 'none', padding: '0.1rem 0', cursor: 'pointer', textAlign: 'left', fontSize: '0.78rem', color: '#6b7280', fontFamily: 'inherit' }}>
+                <span style={{ color: '#111827', fontWeight: 600 }}>{a.row.descripcion}</span> — mercadería arribó{a.sem != null ? ` hace ${a.sem} semana${a.sem === 1 ? '' : 's'}` : ''}, saldo <span style={{ color: '#d97706', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(a.monto)}</span> al despachante
               </button>
             ))}
           </div>
         </div>
       )}
 
-      {/* Cuenta corriente con el despachante — la posición NETA, no una grilla de celdas */}
-      <div className="desp-cuenta" style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 12, marginBottom: '1rem' }}>
-        <div style={{ ...CARD, padding: '1rem 1.15rem' }}>
-          <p style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Cuenta con el despachante</p>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-            <p style={{ fontSize: '1.9rem', fontWeight: 900, fontVariantNumeric: 'tabular-nums', lineHeight: 1, color: stats.neto > 0 ? '#dc2626' : stats.neto < 0 ? '#b45309' : '#16a34a' }}>{fmtUSD(Math.abs(stats.neto))}</p>
-            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: stats.neto > 0 ? '#dc2626' : stats.neto < 0 ? '#b45309' : '#16a34a' }}>
-              {stats.neto > 0 ? 'le debés (neto)' : stats.neto < 0 ? 'a tu favor (neto)' : 'todo saldado ✓'}
-            </span>
-          </div>
-          <div style={{ display: 'flex', gap: 18, marginTop: 12, flexWrap: 'wrap', fontSize: '0.74rem' }}>
-            <span><span style={{ color: '#94a3b8' }}>Costos</span> <b style={{ color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(stats.totalHon)}</b></span>
-            <span><span style={{ color: '#94a3b8' }}>− pagado</span> <b style={{ color: '#334155', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(stats.totalPag)}</b></span>
-            {stats.fact > 0 && <span><span style={{ color: '#94a3b8' }}>Te factura</span> <b style={{ color: '#059669', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(stats.fact)}</b></span>}
-            {stats.negro > 0 && <span><span style={{ color: '#94a3b8' }}>En negro</span> <b style={{ color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(stats.negro)}</b></span>}
-          </div>
-          {stats.debe > 0 && stats.favor > 0 && (
-            <p style={{ fontSize: '0.66rem', color: '#94a3b8', marginTop: 8 }}>Debés {fmtUSD(stats.debe)} en unas · {fmtUSD(stats.favor)} a favor en otras → se compensan.</p>
-          )}
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <div style={{ ...CARD, padding: '0.75rem 0.95rem' }}>
-            <p style={{ fontSize: '0.56rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Operaciones</p>
-            <p style={{ fontSize: '1.35rem', fontWeight: 800, color: '#334155', lineHeight: 1 }}>{stats.total}</p>
-            <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 3 }}>{stats.saldadas} saldadas</p>
-          </div>
-          <div style={{ ...CARD, padding: '0.75rem 0.95rem' }}>
-            <p style={{ fontSize: '0.56rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Sin facturar</p>
-            <p style={{ fontSize: '1.35rem', fontWeight: 800, color: stats.sinFact > 0 ? '#2563eb' : '#334155', lineHeight: 1 }}>{stats.sinFact}</p>
-            <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 3 }}>pedir factura</p>
-          </div>
+      {/* Buscador + filtros: una única línea fina */}
+      <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+        <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar BL, descripción, factura…" className="dsp-search"
+          style={{ flex: 1, minWidth: 200, border: 'none', borderBottom: '1px solid #e5e7eb', borderRadius: 0, background: 'transparent', padding: '0.35rem 0', fontSize: '16px', color: '#111827', outline: 'none', fontFamily: 'inherit' }} />
+        <div style={{ display: 'flex', gap: '1.1rem', flexWrap: 'wrap' }}>
+          {[['todos', 'Todos'], ['debe', 'Debés'], ['favor', 'A favor'], ['saldado', 'Saldados'], ['sinfact', 'Sin facturar']].map(([id, lbl]) => {
+            const on = filter === id
+            return (
+              <button key={id} onClick={() => setFilter(id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 4px', fontFamily: 'inherit', fontSize: '0.74rem', fontWeight: on ? 600 : 400, color: on ? '#111827' : '#9ca3af', borderBottom: on ? '2px solid #111827' : '2px solid transparent', whiteSpace: 'nowrap' }}>{lbl}</button>
+            )
+          })}
         </div>
       </div>
 
-      {/* Controls */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ position: 'relative', flex: 1, minWidth: 220 }}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar BL, descripción, factura…" style={{ ...INP, paddingLeft: '2.2rem' }} />
-        </div>
-        <div style={{ display: 'flex', gap: 3, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 9, padding: 3 }}>
-          {[['todos', 'Todos'], ['debe', 'Debés'], ['favor', 'A favor'], ['saldado', 'Saldados'], ['sinfact', 'Sin facturar']].map(([id, lbl]) => (
-            <button key={id} onClick={() => setFilter(id)} style={{ padding: '0.4rem 0.85rem', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: '0.76rem', fontWeight: 600, background: filter === id ? PRIMARY : 'transparent', color: filter === id ? '#fff' : '#64748b' }}>{lbl}</button>
-          ))}
-        </div>
-      </div>
-
-      {/* Cards por operación */}
+      {/* Listas: filas planas agrupadas */}
       {loading ? (
-        <div style={{ ...CARD, padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>
-          <div style={{ width: 36, height: 36, border: '3px solid #e8ecf1', borderTopColor: PRIMARY, borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 0.8s linear infinite' }} />
+        <div style={{ padding: '3.5rem 0', textAlign: 'center', color: '#9ca3af', fontSize: '0.8rem' }}>
+          <div style={{ width: 28, height: 28, border: '2px solid #f1f5f9', borderTopColor: '#111827', borderRadius: '50%', margin: '0 auto 0.8rem', animation: 'spin 0.8s linear infinite' }} />
           Cargando…
         </div>
       ) : loadError ? (
-        <div style={{ ...CARD, padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>
-          <p style={{ fontWeight: 600, marginBottom: '0.3rem', color: '#b91c1c' }}>No se pudieron cargar los datos</p>
-          <button onClick={load} style={{ marginTop: '0.6rem', padding: '0.5rem 1.2rem', borderRadius: 8, border: 'none', background: PRIMARY, color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>Reintentar</button>
+        <div style={{ padding: '3.5rem 0', textAlign: 'center' }}>
+          <p style={{ fontWeight: 600, marginBottom: '0.5rem', color: '#dc2626', fontSize: '0.85rem' }}>No se pudieron cargar los datos</p>
+          <button onClick={load} className="dsp-txtbtn" style={{ ...TXTBTN, fontSize: '0.78rem', fontWeight: 600, color: '#111827', borderBottom: '1px solid #111827', paddingBottom: 2 }}>Reintentar</button>
         </div>
       ) : filtered.length === 0 ? (
-        <div style={{ ...CARD, padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>
+        <div style={{ padding: '3.5rem 0', textAlign: 'center', color: '#9ca3af', fontSize: '0.8rem' }}>
           {rows.length === 0 ? (
             <>
-              <p style={{ fontWeight: 600, color: '#64748b', marginBottom: 4 }}>Todavía no hay operaciones.</p>
-              <p style={{ fontSize: '0.8rem' }}>Creá una con «Nueva operación» (solo descripción y B/L) y después cargale los costos.</p>
+              <p style={{ fontWeight: 600, color: '#6b7280', marginBottom: 4, fontSize: '0.85rem' }}>Todavía no hay operaciones.</p>
+              <p>Creá una con «Nueva operación» (solo descripción y B/L) y después cargale los costos.</p>
             </>
           ) : 'Sin registros que coincidan.'}
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
-          {(() => {
-            const GRUPOS = [
-              { key: 'debe',    label: 'Le debés al despachante', dot: '#dc2626', test: r => numUSD(r.saldo) > 0 },
-              { key: 'favor',   label: 'A tu favor (compensar)',  dot: '#d97706', test: r => numUSD(r.saldo) < 0 },
-              { key: 'saldado', label: 'Saldadas',                dot: '#16a34a', test: r => numUSD(r.saldo) === 0 && numUSD(r.total_honorarios) > 0 },
-              { key: 'curso',   label: 'En curso / sin costos',   dot: '#94a3b8', test: r => numUSD(r.saldo) === 0 && numUSD(r.total_honorarios) === 0 },
-            ]
-            return GRUPOS.map(g => {
-              const items = filtered.filter(g.test)
-              if (!items.length) return null
-              const sub = items.reduce((a, r) => a + numUSD(r.saldo), 0)
-              return (
-                <div key={g.key}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 0.55rem 0.1rem' }}>
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: g.dot, flex: '0 0 auto' }} />
-                    <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{g.label}</span>
-                    <span style={{ fontSize: '0.64rem', fontWeight: 700, color: '#fff', background: '#94a3b8', borderRadius: 50, padding: '0.05rem 0.45rem' }}>{items.length}</span>
-                    {g.key !== 'curso' && Math.abs(sub) > 0 && <span style={{ marginLeft: 'auto', fontSize: '0.72rem', fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: g.dot }}>{fmtUSD(Math.abs(sub))}{g.key === 'favor' ? ' a favor' : ''}</span>}
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {items.map(r => {
-                      const saldo = numUSD(r.saldo)
-                      const st = saldoStyle(saldo, numUSD(r.total_honorarios))
-                      const ship = shipByBL[blNorm(r.bl)]
-                      const hon = numUSD(r.total_honorarios), pag = numUSD(r.total_pagado)
-                      const pct = hon > 0 ? Math.max(0, Math.min(1, pag / hon)) : (pag > 0 ? 1 : 0)
-                      const rc = parseConc(r)
-                      const rs = concSplit(rc)
-                      const hist = pagos[String(r.id)] || []
-                      const partes = CONCEPTOS.filter(([k]) => rc[k] && numUSD(rc[k].m) > 0)
-                      return (
-                        <div key={r.id} style={{ ...CARD, padding: '0.9rem 1.1rem' }}>
-                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                            <div onClick={() => r.bl ? setFicha({ bl: r.bl, desp: r, ship }) : openEdit(r)} style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}>
-                              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-                                <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.9rem' }}>{r.descripcion || '— sin descripción —'}</span>
-                                <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>{r.estado || ''}</span>
-                                {r.facturado
-                                  ? <span style={{ fontSize: '0.68rem', fontWeight: 600, color: '#059669' }}>✓ Facturado{r.factura_nro ? ` ${r.factura_nro}` : ''}</span>
-                                  : rs.fact > 0 ? <span style={{ fontSize: '0.68rem', fontWeight: 600, color: '#dc2626' }}>Sin facturar</span> : null}
-                              </div>
-                              {(r.bl || ship) && (
-                                <p style={{ marginTop: 2, fontSize: '0.66rem', color: '#94a3b8' }}>
-                                  {r.bl && <span style={{ fontFamily: 'ui-monospace,monospace' }}>{r.bl}</span>}
-                                  {ship && <span onClick={e => { e.stopPropagation(); window.location.href = '/gestion/tracking' }} style={{ cursor: 'pointer', color: '#64748b' }}>{r.bl ? ' · ' : ''}embarque #{ship.num}</span>}
-                                </p>
-                              )}
-                              {partes.length > 0 && (
-                                <p style={{ marginTop: 7, fontSize: '0.73rem', color: '#64748b', lineHeight: 1.8 }}>
-                                  {partes.map(([k, lbl], i) => {
-                                    const negro = !rc[k].f
-                                    return (
-                                      <span key={k} title={negro ? 'En negro' : 'Te lo factura'} style={{ whiteSpace: 'nowrap' }}>
-                                        {i > 0 && <span style={{ color: '#cbd5e1' }}>  ·  </span>}
-                                        {negro && <span style={{ display: 'inline-block', width: 5, height: 5, borderRadius: '50%', background: '#0f172a', marginRight: 4, verticalAlign: 'middle' }} />}
-                                        {lbl} <b style={{ color: '#334155', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{fmtUSD(numUSD(rc[k].m)).replace('USD ', '')}</b>
-                                      </span>
-                                    )
-                                  })}
-                                </p>
-                              )}
-                            </div>
-                            <div style={{ textAlign: 'right', flex: '0 0 auto' }}>
-                              <p style={{ fontSize: '1.05rem', fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: st.c, lineHeight: 1.1 }}>{saldo !== 0 ? fmtUSD(Math.abs(saldo)) : (hon > 0 ? '✓' : '—')}</p>
-                              <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 2 }}>{saldo > 0 ? 'debés' : saldo < 0 ? 'a tu favor' : hon > 0 ? 'saldado' : 'sin costos'}</p>
-                            </div>
-                          </div>
-
-                          {/* Progreso: solo cuando hay pagos parciales en curso */}
-                          {pag > 0 && saldo > 0 && (
-                            <div style={{ marginTop: 10 }}>
-                              <div style={{ height: 4, background: '#f1f5f9', borderRadius: 3, overflow: 'hidden' }}>
-                                <div style={{ height: '100%', width: `${Math.round(pct * 100)}%`, background: saldo > 0 ? '#f59e0b' : '#16a34a', borderRadius: 3, transition: 'width .2s' }} />
-                              </div>
-                              <p style={{ marginTop: 4, fontSize: '0.66rem', color: '#94a3b8', textAlign: 'right' }}>Pagado {fmtUSD(pag)} de {fmtUSD(hon)}</p>
-                            </div>
-                          )}
-
-                          {hist.length > 0 && (
-                            <div style={{ marginTop: 8, paddingTop: 6, borderTop: '1px solid #f8fafc' }}>
-                              {hist.map(pg => (
-                                <div key={pg.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.18rem 0', fontSize: '0.72rem', color: '#94a3b8' }}>
-                                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>{pg.fecha || '—'}</span>
-                                  <span>{metodoLabel(pg.metodo)}</span>
-                                  {pg.nota && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pg.nota}</span>}
-                                  <span style={{ marginLeft: 'auto', fontWeight: 600, color: '#334155', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(numUSD(pg.monto))}</span>
-                                  <button onClick={() => setConfirmPago({ row: r, pg })} title="Borrar pago" aria-label="Borrar pago" style={{ width: 20, height: 20, borderRadius: 5, border: 'none', background: 'none', color: '#cbd5e1', cursor: 'pointer', fontSize: '0.85rem', lineHeight: 1, padding: 0 }}>×</button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
-                            {saldo > 0 && (
-                              <button onClick={() => setPagoModal({ row: r, fecha: hoy(), monto: fmtCalc(saldo), metodo: 'transferencia', nota: '' })} style={{ padding: '0.32rem 0.8rem', borderRadius: 7, border: '1px solid #e2e8f0', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 600, background: '#fff', color: '#0f172a' }}>
-                                + Registrar pago
-                              </button>
-                            )}
-                            {hon === 0 && (
-                              <button onClick={() => openEdit(r)} style={{ padding: '0.32rem 0.8rem', borderRadius: 7, border: '1px solid #e2e8f0', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 600, background: '#fff', color: '#475569' }}>
-                                Cargar costos
-                              </button>
-                            )}
-                            <div style={{ marginLeft: 'auto', display: 'inline-flex', gap: 2 }}>
-                              <button onClick={() => openEdit(r)} title="Editar" aria-label="Editar" style={{ width: 26, height: 26, borderRadius: 6, border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                              </button>
-                              <button onClick={() => setConfirmDel(r.id)} title="Eliminar" aria-label="Eliminar" style={{ width: 26, height: 26, borderRadius: 6, border: 'none', background: 'none', color: '#cbd5e1', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
+        <div>
+          {[
+            { key: 'debe',  label: 'Le debés al despachante', c: '#dc2626', test: r => numUSD(r.saldo) > 0 },
+            { key: 'favor', label: 'A tu favor (compensar)',  c: '#d97706', test: r => numUSD(r.saldo) < 0 },
+            { key: 'curso', label: 'En curso / sin costos',   c: '#9ca3af', test: r => numUSD(r.saldo) === 0 && numUSD(r.total_honorarios) === 0 },
+          ].map(g => {
+            const items = filtered.filter(g.test)
+            if (!items.length) return null
+            const sub = items.reduce((a, r) => a + numUSD(r.saldo), 0)
+            return (
+              <div key={g.key}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, margin: '1.5rem 0 0.1rem' }}>
+                  <span style={{ fontSize: '0.64rem', fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{g.label}</span>
+                  <span style={{ fontSize: '0.64rem', color: '#9ca3af' }}>· {items.length}</span>
+                  {g.key !== 'curso' && Math.abs(sub) > 0 && (
+                    <span style={{ marginLeft: 'auto', fontSize: '0.72rem', color: '#9ca3af' }}>
+                      <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: g.c }}>{fmtUSD(Math.abs(sub))}</span>{g.key === 'favor' ? ' a favor' : ''}
+                    </span>
+                  )}
                 </div>
-              )
-            })
-          })()}
+                {items.map(r => renderRow(r))}
+              </div>
+            )
+          })}
+
+          {/* Saldadas: al fondo, colapsadas por defecto */}
+          {cerradas.length > 0 && (
+            <div style={{ marginTop: '2rem' }}>
+              <button onClick={() => setShowSaldadas(s => !s)} className="dsp-txtbtn" style={{ ...TXTBTN, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.72rem', color: '#9ca3af' }}>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ transform: saldadasOpen ? 'rotate(90deg)' : 'none', transition: 'transform .12s' }}><polyline points="9 18 15 12 9 6"/></svg>
+                Saldadas · {cerradas.length}
+              </button>
+              {saldadasOpen && <div style={{ marginTop: '0.1rem' }}>{cerradas.map(r => renderRow(r, true))}</div>}
+            </div>
+          )}
         </div>
       )}
 
       {/* Edit / new modal — minimal: vincular, describir, 5 conceptos, listo */}
       {modal !== null && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }} onClick={() => setModal(null)}>
-          <div style={{ ...CARD, width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', padding: '1.35rem 1.5rem', boxShadow: '0 24px 64px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h3 style={{ fontSize: '1.02rem', fontWeight: 800, color: '#0f172a' }}>{modal === 'new' ? 'Nueva operación' : (form.descripcion || 'Editar')}</h3>
-              <button onClick={() => setModal(null)} aria-label="Cerrar" style={{ background: 'none', border: 'none', fontSize: '1.4rem', color: '#94a3b8', cursor: 'pointer', lineHeight: 1 }}>×</button>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }} onClick={() => setModal(null)}>
+          <div style={{ ...PANEL, width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#111827' }}>{modal === 'new' ? 'Nueva operación' : (form.descripcion || 'Editar')}</h3>
+              <button onClick={() => setModal(null)} aria-label="Cerrar" style={{ background: 'none', border: 'none', fontSize: '1.4rem', color: '#9ca3af', cursor: 'pointer', lineHeight: 1, padding: 0 }}>×</button>
             </div>
 
             {ops.length > 0 && (
@@ -531,67 +541,67 @@ export default function DespachantePage({ devRows = null, devShips = null, devPa
                 const v = e.target.value; setLinkOp(v)
                 const o = ops.find(x => String(x.id) === v)
                 if (o) setForm(f => ({ ...f, bl: o.bl || f.bl, descripcion: f.descripcion.trim() ? f.descripcion : (o.nombre || '') }))
-              }} style={{ ...INP, cursor: 'pointer', marginBottom: 10, color: linkOp ? '#0f172a' : '#94a3b8', background: '#f8fafc' }}>
+              }} className="dsp-inp" style={{ ...INP, cursor: 'pointer', marginBottom: 10, color: linkOp ? '#111827' : '#9ca3af' }}>
                 <option value="">Vincular a una operación de Operaciones…</option>
                 {ops.map(o => <option key={o.id} value={String(o.id)}>{o.nombre || '(sin nombre)'}{o.bl ? ` · ${o.bl}` : ''}</option>)}
               </select>
             )}
 
             <div style={{ marginBottom: 8 }}>
-              <input value={form.descripcion} onChange={e => upd('descripcion', e.target.value)} style={INP} placeholder="Descripción de la carga *" />
+              <input value={form.descripcion} onChange={e => upd('descripcion', e.target.value)} className="dsp-inp" style={INP} placeholder="Descripción de la carga *" />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 8, marginBottom: '1.15rem' }}>
-              <input value={form.bl} onChange={e => upd('bl', e.target.value)} style={{ ...INP, fontFamily: 'ui-monospace,monospace' }} placeholder="N° B/L / Referencia" />
-              <select value={form.estado} onChange={e => upd('estado', e.target.value)} style={{ ...INP, cursor: 'pointer' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 8, marginBottom: '1.25rem' }}>
+              <input value={form.bl} onChange={e => upd('bl', e.target.value)} className="dsp-inp" style={{ ...INP, fontFamily: 'ui-monospace,monospace' }} placeholder="N° B/L / Referencia" />
+              <select value={form.estado} onChange={e => upd('estado', e.target.value)} className="dsp-inp" style={{ ...INP, cursor: 'pointer' }}>
                 {ESTADOS_IMP.map(s => <option key={s} value={s}>{s}</option>)}
                 {form.estado && !ESTADOS_IMP.includes(form.estado) && <option value={form.estado}>{form.estado}</option>}
               </select>
             </div>
 
-            <p style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Costos <span style={{ fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>· solo los que apliquen</span></p>
+            <p style={{ fontSize: '0.68rem', color: '#9ca3af', marginBottom: 8 }}>Costos · solo los que apliquen</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
               {CONCEPTOS.map(([k, lbl]) => (
-                <div key={k} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 100px 132px', gap: 8, alignItems: 'center' }}>
-                  <label style={{ fontSize: '0.78rem', fontWeight: 600, color: numUSD(conc[k].m) > 0 ? '#0f172a' : '#64748b' }}>{lbl}</label>
-                  <input value={conc[k].m} onChange={e => updConc(k, { m: e.target.value })} inputMode="decimal" placeholder="0"
-                    style={{ ...INP, padding: '0.4rem 0.55rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: numUSD(conc[k].m) > 0 ? 700 : 400 }} />
+                <div key={k} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 100px 120px', gap: 10, alignItems: 'center' }}>
+                  <label style={{ fontSize: '0.78rem', fontWeight: numUSD(conc[k].m) > 0 ? 600 : 400, color: numUSD(conc[k].m) > 0 ? '#111827' : '#6b7280' }}>{lbl}</label>
+                  <input value={conc[k].m} onChange={e => updConc(k, { m: e.target.value })} inputMode="decimal" placeholder="0" className="dsp-inp"
+                    style={{ ...INP, padding: '0.4rem 0.55rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: numUSD(conc[k].m) > 0 ? 600 : 400 }} />
                   <FNToggle f={conc[k].f} onChange={f => updConc(k, { f })} small />
                 </div>
               ))}
             </div>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', padding: '0.5rem 0.1rem', borderTop: '1px solid #f1f5f9', marginBottom: '1.05rem' }}>
-              <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
-                {formTotals.fact > 0 && <>Te factura <b style={{ color: '#059669' }}>{fmtUSD(formTotals.fact)}</b></>}
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', padding: '0.6rem 0 0', borderTop: '1px solid #f1f5f9', marginBottom: '1.25rem' }}>
+              <span style={{ fontSize: '0.7rem', color: '#9ca3af' }}>
+                {formTotals.fact > 0 && <>Te factura <b style={{ color: '#059669', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(formTotals.fact)}</b></>}
                 {formTotals.fact > 0 && formTotals.negro > 0 && ' · '}
-                {formTotals.negro > 0 && <>En negro <b style={{ color: '#0f172a' }}>{fmtUSD(formTotals.negro)}</b></>}
+                {formTotals.negro > 0 && <><Dot />En negro <b style={{ color: '#111827', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(formTotals.negro)}</b></>}
               </span>
-              <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#64748b' }}>Total <b style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(formTotals.total)}</b></span>
+              <span style={{ fontSize: '0.74rem', color: '#6b7280' }}>Total <b style={{ fontSize: '0.95rem', fontWeight: 700, color: '#111827', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(formTotals.total)}</b></span>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: '0.74rem', fontWeight: 600, color: '#64748b' }}>Factura recibida</span>
-                <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: 7, padding: 2, gap: 2 }}>
-                  {[[1, 'Sí'], [0, 'No']].map(([v, l]) => {
-                    const on = !!form.facturado === !!v
-                    return <button key={l} onClick={() => upd('facturado', v)} style={{ padding: '0.26rem 0.7rem', borderRadius: 5, border: 'none', cursor: 'pointer', fontSize: '0.72rem', fontWeight: on ? 700 : 500, background: on ? '#fff' : 'transparent', color: on ? (v ? '#059669' : '#dc2626') : '#94a3b8', boxShadow: on ? '0 1px 2px rgba(15,23,42,0.10)' : 'none' }}>{l}</button>
-                  })}
-                </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 12, alignItems: 'center', marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: '0.74rem', color: '#6b7280' }}>Factura recibida</span>
+                {[[1, 'Sí'], [0, 'No']].map(([v, l]) => {
+                  const on = !!form.facturado === !!v
+                  return (
+                    <button key={l} onClick={() => upd('facturado', v)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 3px', fontFamily: 'inherit', fontSize: '0.74rem', fontWeight: on ? 600 : 400, color: on ? '#111827' : '#9ca3af', borderBottom: on ? '2px solid #111827' : '2px solid transparent' }}>{l}</button>
+                  )
+                })}
               </div>
-              <input value={form.factura_nro} onChange={e => upd('factura_nro', e.target.value)} style={{ ...INP, padding: '0.4rem 0.55rem' }} placeholder="N° factura / comprobante" />
+              <input value={form.factura_nro} onChange={e => upd('factura_nro', e.target.value)} className="dsp-inp" style={{ ...INP, padding: '0.4rem 0.55rem' }} placeholder="N° factura / comprobante" />
             </div>
 
-            <input value={form.notas} onChange={e => upd('notas', e.target.value)} style={{ ...INP, marginBottom: '1.15rem' }} placeholder="Observaciones (opcional)" />
+            <input value={form.notas} onChange={e => upd('notas', e.target.value)} className="dsp-inp" style={{ ...INP, marginBottom: '1.25rem' }} placeholder="Observaciones (opcional)" />
 
             {modal !== 'new' && numUSD(modal.total_pagado) > 0 && (
-              <p style={{ fontSize: '0.7rem', color: '#94a3b8', margin: '-0.5rem 0 0.9rem' }}>
-                Ya pagado <b style={{ color: '#334155' }}>{fmtUSD(numUSD(modal.total_pagado))}</b> → saldo tras guardar: <b style={{ color: '#0f172a' }}>{fmtUSD(formTotals.total - numUSD(modal.total_pagado))}</b>
+              <p style={{ fontSize: '0.7rem', color: '#9ca3af', margin: '-0.6rem 0 1rem' }}>
+                Ya pagado <b style={{ color: '#374151', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(numUSD(modal.total_pagado))}</b> → saldo tras guardar: <b style={{ color: '#111827', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(formTotals.total - numUSD(modal.total_pagado))}</b>
               </p>
             )}
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <button onClick={() => setModal(null)} style={{ padding: '0.55rem 1.1rem', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={save} disabled={saving} style={{ padding: '0.55rem 1.3rem', borderRadius: 8, border: 'none', background: PRIMARY, color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: saving ? 'wait' : 'pointer' }}>{saving ? 'Guardando…' : (modal === 'new' ? 'Crear operación' : 'Guardar')}</button>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 18 }}>
+              <button onClick={() => setModal(null)} className="dsp-txtbtn" style={{ ...TXTBTN, fontSize: '0.78rem' }}>Cancelar</button>
+              <button onClick={save} disabled={saving} style={{ padding: '0.5rem 1.1rem', borderRadius: 6, border: 'none', background: PRIMARY, color: '#fff', fontWeight: 600, fontSize: '0.78rem', cursor: saving ? 'wait' : 'pointer', fontFamily: 'inherit' }}>{saving ? 'Guardando…' : (modal === 'new' ? 'Crear operación' : 'Guardar')}</button>
             </div>
           </div>
         </div>
@@ -599,13 +609,13 @@ export default function DespachantePage({ devRows = null, devShips = null, devPa
 
       {/* Delete confirm */}
       {confirmDel && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }} onClick={() => setConfirmDel(null)}>
-          <div style={{ ...CARD, maxWidth: 340, padding: '1.75rem', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
-            <p style={{ fontWeight: 700, color: '#1e293b', marginBottom: 6 }}>¿Eliminar registro?</p>
-            <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '1.25rem' }}>Esta acción no se puede deshacer.</p>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-              <button onClick={() => setConfirmDel(null)} style={{ padding: '0.5rem 1rem', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={() => del(confirmDel)} style={{ padding: '0.5rem 1.2rem', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>Eliminar</button>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }} onClick={() => setConfirmDel(null)}>
+          <div style={{ ...PANEL, maxWidth: 340, width: '100%', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+            <p style={{ fontSize: '0.95rem', fontWeight: 600, color: '#111827', marginBottom: 6 }}>¿Eliminar registro?</p>
+            <p style={{ fontSize: '0.78rem', color: '#6b7280', marginBottom: '1.25rem' }}>Esta acción no se puede deshacer.</p>
+            <div style={{ display: 'flex', gap: 22, justifyContent: 'center', alignItems: 'center' }}>
+              <button onClick={() => setConfirmDel(null)} className="dsp-txtbtn" style={{ ...TXTBTN, fontSize: '0.78rem' }}>Cancelar</button>
+              <button onClick={() => del(confirmDel)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600, color: '#dc2626', fontFamily: 'inherit' }}>Eliminar</button>
             </div>
           </div>
         </div>
@@ -613,16 +623,16 @@ export default function DespachantePage({ devRows = null, devShips = null, devPa
 
       {/* Borrar pago confirm */}
       {confirmPago && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }} onClick={() => setConfirmPago(null)}>
-          <div style={{ ...CARD, maxWidth: 360, padding: '1.75rem', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
-            <p style={{ fontWeight: 700, color: '#1e293b', marginBottom: 6 }}>¿Borrar este pago?</p>
-            <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '1.25rem' }}>
-              {confirmPago.pg.fecha || 's/fecha'} · {metodoLabel(confirmPago.pg.metodo)} · <b>{fmtUSD(numUSD(confirmPago.pg.monto))}</b><br />
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }} onClick={() => setConfirmPago(null)}>
+          <div style={{ ...PANEL, maxWidth: 360, width: '100%', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+            <p style={{ fontSize: '0.95rem', fontWeight: 600, color: '#111827', marginBottom: 6 }}>¿Borrar este pago?</p>
+            <p style={{ fontSize: '0.78rem', color: '#6b7280', marginBottom: '1.25rem' }}>
+              {confirmPago.pg.fecha || 's/fecha'} · {metodoLabel(confirmPago.pg.metodo)} · <b style={{ color: '#111827', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(numUSD(confirmPago.pg.monto))}</b><br />
               Sale del historial y el saldo se recalcula.
             </p>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-              <button onClick={() => setConfirmPago(null)} style={{ padding: '0.5rem 1rem', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={delPago} style={{ padding: '0.5rem 1.2rem', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>Borrar pago</button>
+            <div style={{ display: 'flex', gap: 22, justifyContent: 'center', alignItems: 'center' }}>
+              <button onClick={() => setConfirmPago(null)} className="dsp-txtbtn" style={{ ...TXTBTN, fontSize: '0.78rem' }}>Cancelar</button>
+              <button onClick={delPago} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600, color: '#dc2626', fontFamily: 'inherit' }}>Borrar pago</button>
             </div>
           </div>
         </div>
@@ -630,27 +640,29 @@ export default function DespachantePage({ devRows = null, devShips = null, devPa
 
       {/* Registrar pago (cuenta corriente): evento en el ledger + actualiza el saldo */}
       {pagoModal && (
-        <div onClick={e => { if (e.target === e.currentTarget) setPagoModal(null) }} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-          <div style={{ ...CARD, width: '100%', maxWidth: 380, padding: '1.25rem' }}>
-            <p style={{ fontWeight: 800, color: '#0f172a', marginBottom: 3, fontSize: '0.95rem' }}>Registrar pago al despachante</p>
-            <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginBottom: 12 }}>{pagoModal.row.descripcion} · saldo {fmtUSD(numUSD(pagoModal.row.saldo))} · puede ser parcial</p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-              <div><label style={LBL}>Fecha</label><input type="date" value={pagoModal.fecha} onChange={e => setPagoModal(f => ({ ...f, fecha: e.target.value }))} style={INP} /></div>
-              <div><label style={LBL}>Monto (USD)</label><input inputMode="decimal" value={pagoModal.monto} onChange={e => setPagoModal(f => ({ ...f, monto: e.target.value }))} style={INP} placeholder="0" /></div>
+        <div onClick={e => { if (e.target === e.currentTarget) setPagoModal(null) }} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.35)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div style={{ ...PANEL, width: '100%', maxWidth: 380 }}>
+            <p style={{ fontSize: '1rem', fontWeight: 600, color: '#111827', marginBottom: 3 }}>Registrar pago al despachante</p>
+            <p style={{ fontSize: '0.72rem', color: '#9ca3af', marginBottom: '1.25rem' }}>{pagoModal.row.descripcion} · saldo {fmtUSD(numUSD(pagoModal.row.saldo))} · puede ser parcial</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+              <div><label style={LBL}>Fecha</label><input type="date" value={pagoModal.fecha} onChange={e => setPagoModal(f => ({ ...f, fecha: e.target.value }))} className="dsp-inp" style={INP} /></div>
+              <div><label style={LBL}>Monto (USD)</label><input inputMode="decimal" value={pagoModal.monto} onChange={e => setPagoModal(f => ({ ...f, monto: e.target.value }))} className="dsp-inp" style={{ ...INP, fontVariantNumeric: 'tabular-nums' }} placeholder="0" /></div>
             </div>
-            <div style={{ marginBottom: 10 }}>
+            <div style={{ marginBottom: 12 }}>
               <label style={LBL}>Método</label>
-              <div style={{ display: 'flex', gap: 3, background: '#f1f5f9', borderRadius: 8, padding: 3 }}>
+              <div style={{ display: 'flex', gap: 16 }}>
                 {[['transferencia', 'Transferencia'], ['cash', 'Efectivo']].map(([v, l]) => {
                   const on = pagoModal.metodo === v
-                  return <button key={v} onClick={() => setPagoModal(f => ({ ...f, metodo: v }))} style={{ flex: 1, padding: '0.35rem', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: '0.76rem', fontWeight: on ? 700 : 500, background: on ? '#fff' : 'transparent', color: on ? '#0f172a' : '#64748b', boxShadow: on ? '0 1px 2px rgba(15,23,42,0.1)' : 'none' }}>{l}</button>
+                  return (
+                    <button key={v} onClick={() => setPagoModal(f => ({ ...f, metodo: v }))} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 3px', fontFamily: 'inherit', fontSize: '0.76rem', fontWeight: on ? 600 : 400, color: on ? '#111827' : '#9ca3af', borderBottom: on ? '2px solid #111827' : '2px solid transparent' }}>{l}</button>
+                  )
                 })}
               </div>
             </div>
-            <div style={{ marginBottom: 14 }}><label style={LBL}>Nota (opcional)</label><input value={pagoModal.nota} onChange={e => setPagoModal(f => ({ ...f, nota: e.target.value }))} style={INP} placeholder="Ej: adelanto 50%" /></div>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={() => setPagoModal(null)} style={{ padding: '0.5rem 1rem', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={savePagoDesp} disabled={pagoBusy} style={{ padding: '0.5rem 1.1rem', borderRadius: 8, border: 'none', background: '#059669', color: '#fff', fontWeight: 700, fontSize: '0.8rem', cursor: pagoBusy ? 'wait' : 'pointer' }}>{pagoBusy ? 'Guardando…' : 'Registrar'}</button>
+            <div style={{ marginBottom: '1.25rem' }}><label style={LBL}>Nota (opcional)</label><input value={pagoModal.nota} onChange={e => setPagoModal(f => ({ ...f, nota: e.target.value }))} className="dsp-inp" style={INP} placeholder="Ej: adelanto 50%" /></div>
+            <div style={{ display: 'flex', gap: 18, justifyContent: 'flex-end', alignItems: 'center' }}>
+              <button onClick={() => setPagoModal(null)} className="dsp-txtbtn" style={{ ...TXTBTN, fontSize: '0.78rem' }}>Cancelar</button>
+              <button onClick={savePagoDesp} disabled={pagoBusy} style={{ padding: '0.5rem 1.1rem', borderRadius: 6, border: 'none', background: PRIMARY, color: '#fff', fontWeight: 600, fontSize: '0.78rem', cursor: pagoBusy ? 'wait' : 'pointer', fontFamily: 'inherit' }}>{pagoBusy ? 'Guardando…' : 'Registrar'}</button>
             </div>
           </div>
         </div>
@@ -658,7 +670,21 @@ export default function DespachantePage({ devRows = null, devShips = null, devPa
 
       {ficha && <FichaImportacion bl={ficha.bl} seed={{ desp: ficha.desp, ship: ficha.ship }} onClose={() => setFicha(null)} onChanged={load} />}
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .dsp-row:hover { background: #fafafa; }
+        .dsp-search:focus { border-bottom-color: #111827 !important; }
+        .dsp-inp:focus { border-color: #111827 !important; }
+        .dsp-txtbtn:hover { color: #111827 !important; }
+        .dsp-ico:hover { color: #6b7280 !important; }
+        @media (hover: hover) {
+          .dsp-acts { opacity: 0; transition: opacity .12s; }
+          .dsp-row:hover .dsp-acts, .dsp-row:focus-within .dsp-acts { opacity: 1; }
+        }
+        @media (max-width: 640px) {
+          .dsp-metrics { gap: 0.85rem 1.5rem !important; }
+        }
+      `}</style>
     </div>
   )
 }

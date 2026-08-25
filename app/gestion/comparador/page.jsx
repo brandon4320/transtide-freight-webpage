@@ -2,10 +2,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import { gToast } from '../toast';
 
-const CARD = { background: '#fff', borderRadius: 10, padding: '1.25rem', boxShadow: '0 1px 3px rgba(15,23,42,0.04)', border: '1px solid #e8ecf1' };
-const PRIMARY = '#0f172a';
-const INP  = { width: '100%', padding: '0.55rem 0.75rem', border: '1px solid #e8ecf1', borderRadius: '8px', fontSize: '16px', color: '#0f172a', background: '#fff', outline: 'none', boxSizing: 'border-box' };
-const LBL  = { display: 'block', fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' };
+// ---- Transtide Flat: tokens ----
+const INK   = '#111827';
+const MUTED = '#9ca3af';
+const SOFT  = '#6b7280';
+const LINE  = '#f1f5f9';
+const OK    = '#059669';
+const BAD   = '#dc2626';
+
+const INP  = { width: '100%', padding: '0.5rem 0.7rem', border: '1px solid #e5e7eb', borderRadius: 6, fontSize: '16px', color: INK, background: '#fff', outline: 'none', boxSizing: 'border-box' };
+const LBL  = { display: 'block', fontSize: '0.68rem', fontWeight: 500, color: MUTED, marginBottom: '0.3rem' };
+const TXTBTN = { background: 'none', border: 'none', cursor: 'pointer', color: SOFT, fontSize: '0.74rem', fontWeight: 500, padding: '0.35rem 0.2rem' };
 
 // Estados como texto plano (sin badges de colores); "cerrado" manda el proyecto a la sección de abajo.
 const ESTADOS_LBL = { cotizando: 'Cotizando', decidido: 'Decidido', cerrado: 'Cerrado' };
@@ -42,6 +49,26 @@ const MAX_SIZE = 10 * 1024 * 1024;
 const ACCEPT = '.pdf,.png,.jpg,.jpeg,.webp';
 const ALLOWED_MIME = ['application/pdf','image/png','image/jpeg','image/jpg','image/webp'];
 const fmtSize = (b) => b == null ? '' : b < 1024 ? `${b} B` : b < 1024*1024 ? `${(b/1024).toFixed(0)} KB` : `${(b/1024/1024).toFixed(1)} MB`;
+
+// <style> de página: hover/focus/media queries (los inline styles no los cubren)
+function FlatStyle() {
+  return (
+    <style>{`
+      .gestion-root .main-content { background: #fff; }
+      .cmp-row:hover { background: #fafafa; }
+      .cmp-trow:hover td { background: #fafafa; }
+      .cmp-act { opacity: 0; transition: opacity .12s; }
+      .cmp-row:hover .cmp-act, .cmp-trow:hover .cmp-act { opacity: 1; }
+      @media (hover: none) { .cmp-act { opacity: 1; } }
+      .cmp-txtbtn { transition: color .12s; }
+      .cmp-txtbtn:hover:not(:disabled) { color: #111827 !important; }
+      .cmp-inp:focus { border-color: #111827 !important; }
+      .cmp-flat:focus { border-bottom-color: #111827 !important; }
+      @keyframes cmpspin { to { transform: rotate(360deg); } }
+      @media (max-width: 640px) { .cmp-hide-m { display: none; } }
+    `}</style>
+  );
+}
 
 export default function ComparadorPage() {
   // ----- list state -----
@@ -379,71 +406,95 @@ export default function ComparadorPage() {
   }
 
   // ---------- LIST VIEW ----------
+  const activas = compras.filter(c => !esCerrado(c));
+  const cerradas = compras.filter(esCerrado);
+  const nCotizando = activas.filter(c => (c.estado || 'cotizando') === 'cotizando').length;
+  const nDecididos = activas.filter(c => c.estado === 'decidido').length;
+
+  const renderCompra = (c, cerrada = false) => (
+    <div key={c.id} className="cmp-row" onClick={() => openDetail(c.id)}
+      style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.8rem 0.25rem', borderBottom: `1px solid ${LINE}`, cursor: 'pointer', opacity: cerrada ? 0.55 : 1 }}>
+      <div style={{ flex: '1 1 auto', minWidth: 0 }}>
+        <p style={{ fontSize: '0.88rem', fontWeight: 600, color: INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nombre || 'Sin nombre'}</p>
+        <p style={{ fontSize: '0.68rem', color: MUTED, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {estadoLabel(c.estado)}{c.created_at ? ` · ${fmtDate(c.created_at)}` : ''}{c.created_by ? ` · ${c.created_by}` : ''}
+        </p>
+      </div>
+      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+        <p style={{ fontSize: '0.95rem', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: INK }}>{c.n_proveedores ?? 0}</p>
+        <p style={{ fontSize: '0.6rem', color: MUTED }}>proveedores</p>
+      </div>
+      <button className="cmp-act" onClick={(e) => { e.stopPropagation(); setConfirmDel(c.id); }} aria-label={`Eliminar proyecto ${c.nombre || ''}`} title="Eliminar"
+        style={{ border: 'none', background: 'none', color: '#c4c9d4', cursor: 'pointer', flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 4 }}>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+      </button>
+    </div>
+  );
+
   return (
     <div style={{ paddingBottom: '3rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+      <FlatStyle />
+
+      {/* header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.2rem' }}>Comparador de proveedores</h2>
-          <p style={{ fontSize: '0.82rem', color: '#94a3b8' }}>Compará cotizaciones de proveedores antes de importar · {compras.length} proyectos</p>
+          <h2 style={{ fontSize: '1.45rem', fontWeight: 350, letterSpacing: '-0.02em', color: INK, marginBottom: '0.2rem' }}>Comparador de proveedores</h2>
+          <p style={{ fontSize: '0.74rem', color: MUTED }}>Compará cotizaciones de proveedores antes de importar · {compras.length} proyectos</p>
         </div>
-        <button onClick={() => { setNewForm({ nombre: '', descripcion: '' }); setNewModal(true); }} style={{ padding: '0.55rem 1.1rem', borderRadius: 8, border: 'none', cursor: 'pointer', background: PRIMARY, color: '#fff', fontWeight: 700, fontSize: '0.82rem' }}>
-          + Nuevo proyecto
+        <button onClick={() => { setNewForm({ nombre: '', descripcion: '' }); setNewModal(true); }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0.5rem 1rem', borderRadius: 6, border: 'none', cursor: 'pointer', background: INK, color: '#fff', fontWeight: 600, fontSize: '0.78rem' }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Nuevo proyecto
         </button>
       </div>
 
+      {/* métricas */}
+      {!loadingList && compras.length > 0 && (
+        <div style={{ display: 'flex', gap: '2.5rem', flexWrap: 'wrap', margin: '1.5rem 0 0.5rem', paddingBottom: '1.25rem', borderBottom: `1px solid ${LINE}` }}>
+          <Metric value={activas.length} label="Activos" />
+          <Metric value={nCotizando} label="Cotizando" />
+          <Metric value={nDecididos} label="Decididos" />
+          <Metric value={cerradas.length} label="Cerrados" />
+        </div>
+      )}
+
       {listErr && (
-        <div style={{ ...CARD, borderColor: '#fecaca', background: '#fef2f2', color: '#dc2626', marginBottom: '1rem', fontSize: '0.85rem' }}>{listErr}</div>
+        <div style={{ borderLeft: `2px solid ${BAD}`, paddingLeft: 12, margin: '1.25rem 0', fontSize: '0.78rem', color: SOFT }}>
+          <span style={{ color: BAD, fontWeight: 600 }}>{listErr}</span>
+        </div>
       )}
 
       {loadingList ? (
-        <div style={{ ...CARD, textAlign: 'center', padding: '3rem', color: '#64748b' }}>
-          <Spinner /><p style={{ fontSize: '0.85rem', marginTop: '0.75rem' }}>Cargando proyectos...</p>
+        <div style={{ textAlign: 'center', padding: '3.5rem 0', color: SOFT }}>
+          <Spinner /><p style={{ fontSize: '0.78rem', marginTop: '0.75rem', color: MUTED }}>Cargando proyectos...</p>
         </div>
       ) : compras.length === 0 ? (
-        <div style={{ ...CARD, textAlign: 'center', padding: '3rem', color: '#64748b' }}>
-          <p style={{ fontWeight: 600, marginBottom: '0.3rem', color: '#0f172a' }}>No hay proyectos de compra todavía</p>
-          <p style={{ fontSize: '0.82rem' }}>Creá tu primer proyecto para empezar a comparar proveedores.</p>
+        <div style={{ textAlign: 'center', padding: '3.5rem 0' }}>
+          <p style={{ fontWeight: 600, marginBottom: '0.3rem', color: INK, fontSize: '0.88rem' }}>No hay proyectos de compra todavía</p>
+          <p style={{ fontSize: '0.74rem', color: MUTED }}>Creá tu primer proyecto para empezar a comparar proveedores.</p>
         </div>
-      ) : (() => {
-        // Cerradas separadas de activas: las activas arriba, las cerradas al fondo colapsadas.
-        const activas = compras.filter(c => !esCerrado(c));
-        const cerradas = compras.filter(esCerrado);
-        const renderCompra = (c, cerrada = false) => (
-          <div key={c.id} onClick={() => openDetail(c.id)} style={{ ...CARD, padding: cerrada ? '0.65rem 1.1rem' : '0.9rem 1.1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '1rem', opacity: cerrada ? 0.65 : 1 }}>
-            <div style={{ flex: '1 1 auto', minWidth: 0 }}>
-              <span style={{ fontWeight: cerrada ? 600 : 700, color: '#0f172a', fontSize: cerrada ? '0.85rem' : '0.95rem' }}>{c.nombre || 'Sin nombre'}</span>
-              <p style={{ fontSize: '0.73rem', color: '#94a3b8', marginTop: 2 }}>
-                {estadoLabel(c.estado)} · {c.n_proveedores ?? 0} proveedores{c.created_at ? ` · ${fmtDate(c.created_at)}` : ''}{c.created_by ? ` · ${c.created_by}` : ''}
-              </p>
+      ) : (
+        <div>
+          {activas.map(c => renderCompra(c))}
+          {activas.length === 0 && cerradas.length > 0 && (
+            <p style={{ fontSize: '0.74rem', color: MUTED, padding: '0.8rem 0.25rem' }}>No hay proyectos activos.</p>
+          )}
+          {cerradas.length > 0 && (
+            <div style={{ marginTop: '1.5rem' }}>
+              <button className="cmp-txtbtn" onClick={() => setShowCerradas(v => !v)}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', padding: '0.35rem 0.1rem', color: MUTED, fontSize: '0.72rem', fontWeight: 500 }}>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: showCerradas ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}><polyline points="9 18 15 12 9 6"/></svg>
+                Cerradas · {cerradas.length}
+              </button>
+              {showCerradas && (
+                <div style={{ marginTop: '0.25rem' }}>
+                  {cerradas.map(c => renderCompra(c, true))}
+                </div>
+              )}
             </div>
-            <button onClick={(e) => { e.stopPropagation(); setConfirmDel(c.id); }} aria-label={`Eliminar proyecto ${c.nombre || ''}`} title="Eliminar" style={{ width: 26, height: 26, borderRadius: 6, border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
-            </button>
-          </div>
-        );
-        return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-            {activas.map(c => renderCompra(c))}
-            {activas.length === 0 && cerradas.length > 0 && (
-              <p style={{ fontSize: '0.8rem', color: '#94a3b8', padding: '0.4rem 0.2rem' }}>No hay proyectos activos.</p>
-            )}
-            {cerradas.length > 0 && (
-              <div style={{ marginTop: activas.length ? '0.9rem' : 0 }}>
-                <button onClick={() => setShowCerradas(v => !v)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: '0.35rem 0.1rem', color: '#94a3b8', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: showCerradas ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}><polyline points="9 18 15 12 9 6"/></svg>
-                  Cerradas · {cerradas.length}
-                  <span style={{ flex: 1, borderTop: '1px solid #e8ecf1' }} />
-                </button>
-                {showCerradas && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
-                    {cerradas.map(c => renderCompra(c, true))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        );
-      })()}
+          )}
+        </div>
+      )}
 
       {/* New project modal */}
       {newModal && (
@@ -452,11 +503,11 @@ export default function ComparadorPage() {
           <div style={{ display: 'grid', gap: '0.85rem' }}>
             <div>
               <label style={LBL}>Nombre *</label>
-              <input value={newForm.nombre} onChange={e => setNewForm(f => ({ ...f, nombre: e.target.value }))} style={INP} placeholder="Ej: Compresores Atlas Q2" autoFocus />
+              <input className="cmp-inp" value={newForm.nombre} onChange={e => setNewForm(f => ({ ...f, nombre: e.target.value }))} style={INP} placeholder="Ej: Compresores Atlas Q2" autoFocus />
             </div>
             <div>
               <label style={LBL}>Descripción</label>
-              <textarea value={newForm.descripcion} onChange={e => setNewForm(f => ({ ...f, descripcion: e.target.value }))} rows={2} style={{ ...INP, resize: 'vertical', fontFamily: 'inherit' }} placeholder="Opcional..." />
+              <textarea className="cmp-inp" value={newForm.descripcion} onChange={e => setNewForm(f => ({ ...f, descripcion: e.target.value }))} rows={2} style={{ ...INP, resize: 'vertical', fontFamily: 'inherit' }} placeholder="Opcional..." />
             </div>
           </div>
           <ModalActions>
@@ -468,10 +519,10 @@ export default function ComparadorPage() {
 
       {/* Confirm delete project */}
       {confirmDel && (
-        <Modal onClose={() => setConfirmDel(null)} maxWidth={360}>
-          <p style={{ fontWeight: 700, color: '#0f172a', marginBottom: '0.4rem', textAlign: 'center' }}>¿Eliminar proyecto?</p>
-          <p style={{ fontSize: '0.82rem', color: '#64748b', marginBottom: '1.25rem', textAlign: 'center' }}>Se borran sus proveedores y documentos. No se puede deshacer.</p>
-          <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+        <Modal onClose={() => setConfirmDel(null)} maxWidth={380}>
+          <p style={{ fontSize: '1rem', fontWeight: 600, color: INK, marginBottom: '0.4rem' }}>¿Eliminar proyecto?</p>
+          <p style={{ fontSize: '0.78rem', color: SOFT, marginBottom: '1.25rem' }}>Se borran sus proveedores y documentos. No se puede deshacer.</p>
+          <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
             <BtnGhost onClick={() => setConfirmDel(null)}>Cancelar</BtnGhost>
             <BtnDanger onClick={() => deleteCompra(confirmDel)}>Eliminar</BtnDanger>
           </div>
@@ -498,6 +549,7 @@ function DetailView(props) {
   const provs = detail?.proveedores || [];
   const docs = detail?.docs || [];
   const hasElegido = provs.some(p => p.elegido);
+  const elegidoProv = provs.find(p => p.elegido);
 
   // best metrics
   const best = (key) => {
@@ -511,32 +563,43 @@ function DetailView(props) {
   const bestTotal = best('precio_total');
   const bestUnit = best('precio_unitario');
   const bestLead = best('lead_time');
+  const bestTotalProv = provs.find(p => p.id === bestTotal);
+
+  const canConvert = hasElegido && !converting;
+
+  // celda "mejor valor": solo texto verde, sin fondos
+  const bestCell = (isBest) => isBest ? { color: OK, fontWeight: 700 } : {};
 
   return (
     <div style={{ paddingBottom: '3rem' }}>
+      <FlatStyle />
+
       {/* header */}
-      <div style={{ position: 'sticky', top: 0, zIndex: 5, background: 'rgba(248,250,252,0.92)', backdropFilter: 'blur(6px)', paddingBottom: '0.75rem', marginBottom: '1rem', borderBottom: '1px solid #e8ecf1' }}>
-        <button onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontWeight: 600, fontSize: '0.82rem', padding: '0.35rem 0', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>← Volver</button>
+      <div style={{ position: 'sticky', top: 0, zIndex: 5, background: '#fff', paddingBottom: '0.6rem', marginBottom: '1rem', borderBottom: `1px solid ${LINE}` }}>
+        <button className="cmp-txtbtn" onClick={onBack} style={{ ...TXTBTN, padding: '0.35rem 0', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>← Volver</button>
         {loading && !detail ? (
-          <div style={{ padding: '0.5rem 0', color: '#64748b' }}><Spinner /></div>
+          <div style={{ padding: '0.5rem 0' }}><Spinner /></div>
         ) : err && !detail ? (
-          <div style={{ color: '#dc2626', fontSize: '0.85rem', padding: '0.5rem 0' }}>{err}</div>
+          <div style={{ borderLeft: `2px solid ${BAD}`, paddingLeft: 12, margin: '0.5rem 0', fontSize: '0.78rem', color: BAD, fontWeight: 600 }}>{err}</div>
         ) : detail ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.35rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
             <input
+              className="cmp-flat"
               value={nombreDraft}
               onChange={e => setNombreDraft(e.target.value)}
               onBlur={() => { const v = nombreDraft.trim(); if (v && v !== detail.nombre) onPutCompra({ nombre: v }); else setNombreDraft(detail.nombre || ''); }}
-              style={{ ...INP, width: 'auto', flex: '1 1 240px', fontWeight: 700, fontSize: '1.1rem', maxWidth: 460 }}
+              title="Editá el nombre y salí del campo para guardar"
+              style={{ border: 'none', borderBottom: '1px solid transparent', borderRadius: 0, background: 'transparent', outline: 'none', padding: '0.1rem 0', flex: '1 1 240px', minWidth: 0, maxWidth: 460, fontSize: '1.45rem', fontWeight: 350, letterSpacing: '-0.02em', color: INK, boxSizing: 'border-box' }}
             />
-            <select value={detail.estado || 'cotizando'} onChange={e => onPutCompra({ estado: e.target.value })} style={{ ...INP, width: 'auto', fontWeight: 600 }}>
+            <select className="cmp-flat" value={detail.estado || 'cotizando'} onChange={e => onPutCompra({ estado: e.target.value })}
+              style={{ border: 'none', borderBottom: '1px solid #e5e7eb', borderRadius: 0, background: 'transparent', outline: 'none', padding: '0.3rem 0.1rem', fontSize: '0.78rem', fontWeight: 600, color: INK, cursor: 'pointer' }}>
               <option value="cotizando">Cotizando</option>
               <option value="decidido">Decidido</option>
               <option value="cerrado">Cerrado</option>
             </select>
-            {savingHeader && <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Guardando...</span>}
+            {savingHeader && <span style={{ fontSize: '0.68rem', color: MUTED }}>Guardando...</span>}
             {detail.operation_id && (
-              <a href={`/gestion/operaciones?op=${detail.operation_id}`} style={{ marginLeft: 'auto', color: '#0f172a', fontWeight: 600, fontSize: '0.8rem', textDecoration: 'none', padding: '0.45rem 0.85rem', border: '1px solid #e2e8f0', background: '#fff', borderRadius: 8 }}>Ver operación →</a>
+              <a className="cmp-txtbtn" href={`/gestion/operaciones?op=${detail.operation_id}`} style={{ marginLeft: 'auto', color: SOFT, fontWeight: 500, fontSize: '0.74rem', textDecoration: 'none', padding: '0.35rem 0' }}>Ver operación →</a>
             )}
           </div>
         ) : null}
@@ -544,96 +607,107 @@ function DetailView(props) {
 
       {detail && (
         <>
-          {/* actions bar */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.85rem' }}>
-            <button onClick={onNewProv} style={{ padding: '0.5rem 1rem', borderRadius: 8, border: 'none', cursor: 'pointer', background: PRIMARY, color: '#fff', fontWeight: 700, fontSize: '0.8rem' }}>+ Agregar proveedor</button>
-            <button onClick={onConvert} disabled={!hasElegido || converting}
-              title={hasElegido ? 'Convertir en operación' : 'Elegí un proveedor primero'}
-              style={{ padding: '0.5rem 1rem', borderRadius: 8, border: '1px solid #e2e8f0', cursor: hasElegido && !converting ? 'pointer' : 'not-allowed', background: '#fff', color: hasElegido ? '#0f172a' : '#94a3b8', fontWeight: 600, fontSize: '0.8rem', opacity: converting ? 0.6 : 1 }}>
-              {converting ? 'Convirtiendo...' : 'Convertir en operación'}
-            </button>
+          {/* métricas + acciones */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: '1.5rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+            <div style={{ display: 'flex', gap: '2.5rem', flexWrap: 'wrap' }}>
+              <Metric value={provs.length} label="Proveedores" />
+              <Metric value={bestTotalProv ? joinMoney(bestTotalProv.moneda, bestTotalProv.precio_total) : '—'} label="Mejor total" color={bestTotalProv ? OK : undefined} />
+              <Metric value={elegidoProv ? (elegidoProv.nombre || 'Sin nombre') : '—'} label="Elegido" color={elegidoProv ? OK : undefined} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+              <button className="cmp-txtbtn" onClick={onConvert} disabled={!canConvert}
+                title={hasElegido ? 'Convertir en operación' : 'Elegí un proveedor primero'}
+                style={{ ...TXTBTN, color: canConvert ? SOFT : '#d1d5db', cursor: canConvert ? 'pointer' : 'not-allowed' }}>
+                {converting ? 'Convirtiendo...' : 'Convertir en operación'}
+              </button>
+              <button onClick={onNewProv} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0.5rem 1rem', borderRadius: 6, border: 'none', cursor: 'pointer', background: INK, color: '#fff', fontWeight: 600, fontSize: '0.78rem' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Agregar proveedor
+              </button>
+            </div>
           </div>
 
           {/* comparison table */}
-          <div style={{ ...CARD, padding: 0, overflow: 'hidden' }}>
-            {provs.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '2.5rem', color: '#64748b' }}>
-                <p style={{ fontWeight: 600, color: '#0f172a', marginBottom: '0.3rem' }}>Sin proveedores</p>
-                <p style={{ fontSize: '0.82rem' }}>Agregá tu primer proveedor para empezar a comparar.</p>
-              </div>
-            ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
-                  <thead>
-                    <tr style={{ background: '#f8fafc', color: '#64748b', textAlign: 'left' }}>
-                      {['Proveedor','Producto','Precio unit.','Cant./MOQ','Precio total','Lead time','Incoterm','m³','Peso','Docs','Elegido',''].map((h, i) => (
-                        <th key={i} style={{ padding: '0.6rem 0.7rem', fontWeight: 700, fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap', borderBottom: '1px solid #e8ecf1' }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {provs.map(p => {
-                      const numCell = { padding: '0.55rem 0.7rem', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', borderBottom: '1px solid #f1f5f9' };
-                      const txtCell = { padding: '0.55rem 0.7rem', whiteSpace: 'nowrap', borderBottom: '1px solid #f1f5f9' };
-                      const goodBg = '#f0fdf4';
-                      return (
-                        <tr key={p.id} style={{ borderLeft: p.elegido ? '3px solid #059669' : '3px solid transparent', background: p.elegido ? '#f6fef9' : '#fff' }}>
-                          <td style={{ ...txtCell, fontWeight: 700, color: '#0f172a' }}>
-                            {p.nombre || '—'}
-                            {p.contacto ? <span style={{ display: 'block', fontWeight: 400, fontSize: '0.7rem', color: '#94a3b8' }}>{p.contacto}</span> : null}
-                          </td>
-                          <td style={{ ...txtCell, whiteSpace: 'normal', minWidth: 170, maxWidth: 260 }}>
-                            {p.producto || '—'}
-                            {p.notas ? <span title={p.notas} style={{ display: 'block', fontSize: '0.68rem', color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 250 }}>{p.notas}</span> : null}
-                          </td>
-                          <td style={{ ...numCell, background: bestUnit === p.id ? goodBg : undefined, fontWeight: bestUnit === p.id ? 700 : 400 }}>{joinMoney(p.moneda, p.precio_unitario)}</td>
-                          <td style={numCell}>{p.cantidad || '—'}{p.moq ? <span style={{ color: '#94a3b8' }}> / MOQ {p.moq}</span> : null}</td>
-                          <td style={{ ...numCell, background: bestTotal === p.id ? goodBg : undefined, fontWeight: bestTotal === p.id ? 700 : 400, color: bestTotal === p.id ? '#059669' : undefined }}>{joinMoney(p.moneda, p.precio_total)}</td>
-                          <td style={{ ...numCell, background: bestLead === p.id ? goodBg : undefined, fontWeight: bestLead === p.id ? 700 : 400 }}>{p.lead_time || '—'}</td>
-                          <td style={txtCell}>{p.incoterm || '—'}</td>
-                          <td style={numCell}>{p.m3 || '—'}</td>
-                          <td style={numCell}>{p.peso_kg ? `${p.peso_kg} kg` : '—'}</td>
-                          <td style={{ ...txtCell, whiteSpace: 'normal', minWidth: 120, maxWidth: 190 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                              {docs.filter(d => d.proveedor_id === p.id).map(d => (
-                                <a key={d.id} href={`/api/db/compras/${detail.id}/docs/${d.id}`} target="_blank" rel="noreferrer" title={`${d.filename} — abrir`}
-                                  style={{ display: 'inline-flex', alignItems: 'center', gap: 3, maxWidth: 130, padding: '0.12rem 0.2rem', color: '#64748b', fontSize: '0.66rem', fontWeight: 600, textDecoration: 'none' }}>
-                                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" style={{ flexShrink: 0 }}><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-                                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.filename}</span>
-                                </a>
-                              ))}
-                              <label title="Adjuntar archivo a este proveedor (cotización, ficha técnica, fotos)" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '0.12rem 0.45rem', borderRadius: 5, border: '1px dashed #cbd5e1', background: '#fff', color: quickDocProv === p.id ? '#94a3b8' : '#64748b', fontSize: '0.64rem', fontWeight: 700, cursor: quickDocProv ? 'wait' : 'pointer' }}>
-                                {quickDocProv === p.id ? 'Subiendo…' : '+ archivo'}
-                                <input type="file" disabled={!!quickDocProv} onChange={e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) onQuickDoc(p.id, f); }} style={{ display: 'none' }} />
-                              </label>
-                            </div>
-                          </td>
-                          <td style={{ ...txtCell, textAlign: 'center' }}>
-                            {p.elegido ? (
-                              <span title="Elegido" style={{ color: '#059669', fontSize: '0.7rem', fontWeight: 700 }}>Elegido</span>
-                            ) : (
-                              <button onClick={() => onElegir(p)} title="Elegir como ganador" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6, padding: '0.2rem 0.55rem', cursor: 'pointer', color: '#64748b', fontSize: '0.72rem', fontWeight: 600 }}>Elegir</button>
-                            )}
-                          </td>
-                          <td style={{ ...txtCell, textAlign: 'right' }}>
-                            <button onClick={() => onEditProv(p)} title="Editar" aria-label={`Editar ${p.nombre || 'proveedor'}`} style={{ width: 26, height: 26, borderRadius: 6, border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', verticalAlign: 'middle' }}>
-                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                            </button>
-                            <button onClick={() => onAskDelProv(p.id)} title="Eliminar" aria-label={`Eliminar ${p.nombre || 'proveedor'}`} style={{ width: 26, height: 26, borderRadius: 6, border: 'none', background: 'none', color: '#cbd5e1', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', verticalAlign: 'middle' }}>
-                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+          {provs.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '3rem 0' }}>
+              <p style={{ fontWeight: 600, color: INK, marginBottom: '0.3rem', fontSize: '0.88rem' }}>Sin proveedores</p>
+              <p style={{ fontSize: '0.74rem', color: MUTED }}>Agregá tu primer proveedor para empezar a comparar.</p>
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                <thead>
+                  <tr style={{ textAlign: 'left' }}>
+                    {[['Proveedor'], ['Producto'], ['Precio unit.', true], ['Cant./MOQ', true], ['Precio total'], ['Lead time', true], ['Incoterm', true], ['m³', true], ['Peso', true], ['Docs'], ['Elegido'], ['']].map(([h, hide], i) => (
+                      <th key={i} className={hide ? 'cmp-hide-m' : undefined} style={{ padding: '0.5rem 0.6rem 0.5rem 0.25rem', fontWeight: 700, fontSize: '0.64rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: MUTED, whiteSpace: 'nowrap', borderBottom: '1px solid #e5e7eb' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {provs.map(p => {
+                    const numCell = { padding: '0.7rem 0.6rem 0.7rem 0.25rem', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', borderBottom: `1px solid ${LINE}`, color: SOFT };
+                    const txtCell = { padding: '0.7rem 0.6rem 0.7rem 0.25rem', whiteSpace: 'nowrap', borderBottom: `1px solid ${LINE}`, color: SOFT };
+                    return (
+                      <tr key={p.id} className="cmp-trow">
+                        <td style={{ ...txtCell, fontWeight: 600, color: INK }}>
+                          {p.nombre || '—'}
+                          {p.contacto ? <span style={{ display: 'block', fontWeight: 400, fontSize: '0.68rem', color: MUTED }}>{p.contacto}</span> : null}
+                        </td>
+                        <td style={{ ...txtCell, whiteSpace: 'normal', minWidth: 170, maxWidth: 260 }}>
+                          {p.producto || '—'}
+                          {p.notas ? <span title={p.notas} style={{ display: 'block', fontSize: '0.68rem', color: MUTED, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 250 }}>{p.notas}</span> : null}
+                        </td>
+                        <td className="cmp-hide-m" style={{ ...numCell, ...bestCell(bestUnit === p.id) }}>{joinMoney(p.moneda, p.precio_unitario)}</td>
+                        <td className="cmp-hide-m" style={numCell}>{p.cantidad || '—'}{p.moq ? <span style={{ color: MUTED }}> / MOQ {p.moq}</span> : null}</td>
+                        <td style={{ ...numCell, fontWeight: 700, color: INK, fontSize: '0.85rem', ...bestCell(bestTotal === p.id) }}>{joinMoney(p.moneda, p.precio_total)}</td>
+                        <td className="cmp-hide-m" style={{ ...numCell, ...bestCell(bestLead === p.id) }}>{p.lead_time || '—'}</td>
+                        <td className="cmp-hide-m" style={txtCell}>{p.incoterm || '—'}</td>
+                        <td className="cmp-hide-m" style={numCell}>{p.m3 || '—'}</td>
+                        <td className="cmp-hide-m" style={numCell}>{p.peso_kg ? `${p.peso_kg} kg` : '—'}</td>
+                        <td style={{ ...txtCell, whiteSpace: 'normal', minWidth: 120, maxWidth: 190 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                            {docs.filter(d => d.proveedor_id === p.id).map(d => (
+                              <a key={d.id} className="cmp-txtbtn" href={`/api/db/compras/${detail.id}/docs/${d.id}`} target="_blank" rel="noreferrer" title={`${d.filename} — abrir`}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 3, maxWidth: 130, padding: '0.12rem 0.2rem', color: SOFT, fontSize: '0.66rem', fontWeight: 600, textDecoration: 'none' }}>
+                                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" style={{ flexShrink: 0 }}><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.filename}</span>
+                              </a>
+                            ))}
+                            <label className="cmp-txtbtn" title="Adjuntar archivo a este proveedor (cotización, ficha técnica, fotos)"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '0.12rem 0.2rem', color: MUTED, fontSize: '0.66rem', fontWeight: 600, cursor: quickDocProv ? 'wait' : 'pointer' }}>
+                              {quickDocProv === p.id ? 'Subiendo…' : '+ archivo'}
+                              <input type="file" disabled={!!quickDocProv} onChange={e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) onQuickDoc(p.id, f); }} style={{ display: 'none' }} />
+                            </label>
+                          </div>
+                        </td>
+                        <td style={{ ...txtCell, textAlign: 'center' }}>
+                          {p.elegido ? (
+                            <span title="Elegido" style={{ color: OK, fontSize: '0.72rem', fontWeight: 700 }}>Elegido</span>
+                          ) : (
+                            <button className="cmp-txtbtn" onClick={() => onElegir(p)} title="Elegir como ganador"
+                              style={{ background: 'none', border: 'none', padding: '0.2rem 0.3rem', cursor: 'pointer', color: SOFT, fontSize: '0.72rem', fontWeight: 500 }}>Elegir</button>
+                          )}
+                        </td>
+                        <td style={{ ...txtCell, textAlign: 'right' }}>
+                          <button className="cmp-act" onClick={() => onEditProv(p)} title="Editar" aria-label={`Editar ${p.nombre || 'proveedor'}`}
+                            style={{ border: 'none', background: 'none', color: '#c4c9d4', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 4, verticalAlign: 'middle' }}>
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                          </button>
+                          <button className="cmp-act" onClick={() => onAskDelProv(p.id)} title="Eliminar" aria-label={`Eliminar ${p.nombre || 'proveedor'}`}
+                            style={{ border: 'none', background: 'none', color: '#c4c9d4', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 4, verticalAlign: 'middle' }}>
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {docs.length > 0 && (
-            <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '0.75rem' }}>
+            <p style={{ fontSize: '0.68rem', color: MUTED, marginTop: '0.75rem' }}>
               {docs.length} documento{docs.length === 1 ? '' : 's'} adjunto{docs.length === 1 ? '' : 's'} · clic en el nombre para abrirlo · se eliminan desde "Editar"
             </p>
           )}
@@ -655,10 +729,10 @@ function DetailView(props) {
 
       {/* confirm delete proveedor */}
       {confirmProvDel && (
-        <Modal onClose={onCancelDelProv} maxWidth={360}>
-          <p style={{ fontWeight: 700, color: '#0f172a', marginBottom: '0.4rem', textAlign: 'center' }}>¿Eliminar proveedor?</p>
-          <p style={{ fontSize: '0.82rem', color: '#64748b', marginBottom: '1.25rem', textAlign: 'center' }}>Esta acción no se puede deshacer.</p>
-          <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+        <Modal onClose={onCancelDelProv} maxWidth={380}>
+          <p style={{ fontSize: '1rem', fontWeight: 600, color: INK, marginBottom: '0.4rem' }}>¿Eliminar proveedor?</p>
+          <p style={{ fontSize: '0.78rem', color: SOFT, marginBottom: '1.25rem' }}>Esta acción no se puede deshacer.</p>
+          <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
             <BtnGhost onClick={onCancelDelProv}>Cancelar</BtnGhost>
             <BtnDanger onClick={() => onDelProv(confirmProvDel)}>Eliminar</BtnDanger>
           </div>
@@ -673,13 +747,13 @@ function ProvModal({ mode, form, setPF, onClose, onSave, saving, aiState, onAiFi
   const num = (field, label, ph) => (
     <div>
       <label style={LBL}>{label}</label>
-      <input value={form[field]} onChange={e => setPF(field, e.target.value)} inputMode="decimal" style={INP} placeholder={ph} />
+      <input className="cmp-inp" value={form[field]} onChange={e => setPF(field, e.target.value)} inputMode="decimal" style={INP} placeholder={ph} />
     </div>
   );
   const txt = (field, label, ph) => (
     <div>
       <label style={LBL}>{label}</label>
-      <input value={form[field]} onChange={e => setPF(field, e.target.value)} style={INP} placeholder={ph} />
+      <input className="cmp-inp" value={form[field]} onChange={e => setPF(field, e.target.value)} style={INP} placeholder={ph} />
     </div>
   );
 
@@ -687,22 +761,22 @@ function ProvModal({ mode, form, setPF, onClose, onSave, saving, aiState, onAiFi
     <Modal onClose={() => !saving && onClose()} maxWidth={640}>
       <ModalHead title={mode === 'new' ? 'Nuevo proveedor' : 'Editar proveedor'} onClose={() => !saving && onClose()} />
 
-      {/* AI import */}
-      <div style={{ border: '1px dashed #e2e8f0', background: '#f8fafc', borderRadius: 10, padding: '0.85rem', marginBottom: '1rem' }}>
+      {/* AI import: bloque plano separado por línea, sin caja */}
+      <div style={{ paddingBottom: '1rem', marginBottom: '1.25rem', borderBottom: `1px solid ${LINE}` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
           <div>
-            <p style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.82rem' }}>Importar de PDF (IA)</p>
-            <p style={{ fontSize: '0.72rem', color: '#64748b' }}>Subí el invoice/packing y la IA completa los campos · o cargá a mano</p>
+            <p style={{ fontWeight: 600, color: INK, fontSize: '0.8rem' }}>Importar de PDF (IA)</p>
+            <p style={{ fontSize: '0.68rem', color: MUTED }}>Subí el invoice/packing y la IA completa los campos · o cargá a mano</p>
           </div>
-          <label style={{ padding: '0.4rem 0.85rem', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#0f172a', fontWeight: 600, fontSize: '0.78rem', cursor: aiState === 'loading' ? 'wait' : 'pointer' }}>
+          <label className="cmp-txtbtn" style={{ ...TXTBTN, fontWeight: 600, cursor: aiState === 'loading' ? 'wait' : 'pointer' }}>
             {aiState === 'loading' ? 'Analizando…' : 'Elegir archivo'}
             <input type="file" accept={ACCEPT} disabled={aiState === 'loading'} onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; onAiFile(f); }} style={{ display: 'none' }} />
           </label>
         </div>
-        {aiState && aiState !== 'loading' && <p style={{ fontSize: '0.72rem', color: '#dc2626', marginTop: '0.5rem' }}>{aiState}</p>}
+        {aiState && aiState !== 'loading' && <p style={{ fontSize: '0.72rem', color: BAD, marginTop: '0.5rem' }}>{aiState}</p>}
       </div>
 
-      <div style={{ display: 'grid', gap: '1rem' }}>
+      <div style={{ display: 'grid', gap: '1.25rem' }}>
         <Section title="Identidad">
           <Grid>
             {txt('nombre', 'Nombre *', 'Ej: Shenzhen XYZ Co.')}
@@ -715,7 +789,7 @@ function ProvModal({ mode, form, setPF, onClose, onSave, saving, aiState, onAiFi
           <Grid>
             <div>
               <label style={LBL}>Moneda</label>
-              <select value={form.moneda} onChange={e => setPF('moneda', e.target.value)} style={INP}>
+              <select className="cmp-inp" value={form.moneda} onChange={e => setPF('moneda', e.target.value)} style={INP}>
                 {['USD','CNY','EUR'].includes(form.moneda) ? null : <option value={form.moneda}>{form.moneda}</option>}
                 <option value="USD">USD</option>
                 <option value="CNY">CNY</option>
@@ -734,7 +808,7 @@ function ProvModal({ mode, form, setPF, onClose, onSave, saving, aiState, onAiFi
             {txt('lead_time', 'Lead time', 'Ej: 25 días')}
             <div>
               <label style={LBL}>Incoterm</label>
-              <input list="incoterm-list" value={form.incoterm} onChange={e => setPF('incoterm', e.target.value)} style={INP} placeholder="FOB" />
+              <input className="cmp-inp" list="incoterm-list" value={form.incoterm} onChange={e => setPF('incoterm', e.target.value)} style={INP} placeholder="FOB" />
               <datalist id="incoterm-list">
                 <option value="FOB" /><option value="EXW" /><option value="CIF" /><option value="DDP" />
               </datalist>
@@ -748,38 +822,39 @@ function ProvModal({ mode, form, setPF, onClose, onSave, saving, aiState, onAiFi
 
         <div>
           <label style={LBL}>Notas</label>
-          <textarea value={form.notas} onChange={e => setPF('notas', e.target.value)} rows={2} style={{ ...INP, resize: 'vertical', fontFamily: 'inherit' }} placeholder="Observaciones..." />
+          <textarea className="cmp-inp" value={form.notas} onChange={e => setPF('notas', e.target.value)} rows={2} style={{ ...INP, resize: 'vertical', fontFamily: 'inherit' }} placeholder="Observaciones..." />
         </div>
 
         {/* Documentos (edit mode only) */}
         {mode === 'edit' && (
           <Section title="Documentos">
             {docs.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '0.75rem' }}>
+              <div style={{ marginBottom: '0.85rem' }}>
                 {docs.map(d => (
-                  <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.45rem 0.6rem', border: '1px solid #e8ecf1', borderRadius: '8px', fontSize: '0.78rem' }}>
-                    <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{d.tipo || 'Doc'}</span>
-                    <span style={{ flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#0f172a' }}>{d.filename}</span>
-                    <span style={{ color: '#94a3b8', flexShrink: 0 }}>{fmtSize(d.size)}</span>
-                    <a href={`/api/db/compras/${compraId}/docs/${d.id}`} target="_blank" rel="noopener noreferrer" style={{ color: '#0f172a', fontWeight: 600, textDecoration: 'none', flexShrink: 0 }}>Ver</a>
-                    <button onClick={() => onDeleteDoc(d.id)} aria-label={`Eliminar documento ${d.filename || ''}`} title="Eliminar" style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 700, flexShrink: 0 }}>×</button>
+                  <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.5rem 0.1rem', borderBottom: `1px solid ${LINE}`, fontSize: '0.78rem' }}>
+                    <span style={{ fontSize: '0.62rem', fontWeight: 700, color: MUTED, textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0 }}>{d.tipo || 'Doc'}</span>
+                    <span style={{ flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: INK }}>{d.filename}</span>
+                    <span style={{ color: MUTED, flexShrink: 0, fontSize: '0.72rem', fontVariantNumeric: 'tabular-nums' }}>{fmtSize(d.size)}</span>
+                    <a className="cmp-txtbtn" href={`/api/db/compras/${compraId}/docs/${d.id}`} target="_blank" rel="noopener noreferrer" style={{ color: SOFT, fontWeight: 500, fontSize: '0.74rem', textDecoration: 'none', flexShrink: 0 }}>Ver</a>
+                    <button className="cmp-txtbtn" onClick={() => onDeleteDoc(d.id)} aria-label={`Eliminar documento ${d.filename || ''}`} title="Eliminar" style={{ background: 'none', border: 'none', color: '#c4c9d4', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 700, flexShrink: 0, padding: '0 0.2rem' }}>×</button>
                   </div>
                 ))}
               </div>
             )}
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-              <select value={docTipo} onChange={e => setDocTipo(e.target.value)} style={{ ...INP, width: 'auto' }}>
+            <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <select className="cmp-inp" value={docTipo} onChange={e => setDocTipo(e.target.value)} style={{ ...INP, width: 'auto', fontSize: '0.78rem' }}>
                 <option value="Invoice">Invoice</option>
                 <option value="Packing">Packing</option>
                 <option value="Otro">Otro</option>
               </select>
-              <label style={{ padding: '0.5rem 0.85rem', borderRadius: '8px', border: '1px solid #e8ecf1', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>
+              <label className="cmp-txtbtn" style={{ ...TXTBTN, fontWeight: 500, cursor: 'pointer', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {docFile ? docFile.name : 'Elegir archivo'}
                 <input type="file" accept={ACCEPT} onChange={e => onPickDoc(e.target.files?.[0])} style={{ display: 'none' }} />
               </label>
-              <button onClick={onUploadDoc} disabled={!docFile || uploadingDoc} style={{ padding: '0.5rem 0.95rem', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: !docFile || uploadingDoc ? '#94a3b8' : '#0f172a', fontWeight: 600, fontSize: '0.78rem', cursor: !docFile || uploadingDoc ? 'not-allowed' : 'pointer' }}>{uploadingDoc ? 'Subiendo...' : 'Subir'}</button>
+              <button className="cmp-txtbtn" onClick={onUploadDoc} disabled={!docFile || uploadingDoc}
+                style={{ ...TXTBTN, fontWeight: 600, color: !docFile || uploadingDoc ? '#d1d5db' : SOFT, cursor: !docFile || uploadingDoc ? 'not-allowed' : 'pointer' }}>{uploadingDoc ? 'Subiendo...' : 'Subir'}</button>
             </div>
-            {docErr && <p style={{ fontSize: '0.72rem', color: '#dc2626', marginTop: '0.5rem' }}>{docErr}</p>}
+            {docErr && <p style={{ fontSize: '0.72rem', color: BAD, marginTop: '0.5rem' }}>{docErr}</p>}
           </Section>
         )}
       </div>
@@ -793,17 +868,24 @@ function ProvModal({ mode, form, setPF, onClose, onSave, saving, aiState, onAiFi
 }
 
 // ============================ small UI helpers ============================
+function Metric({ value, label, color }) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <p style={{ fontSize: '1.15rem', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: color || INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 220 }}>{value}</p>
+      <p style={{ fontSize: '0.62rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: MUTED, marginTop: 2 }}>{label}</p>
+    </div>
+  );
+}
 function Spinner() {
   return (
-    <span style={{ display: 'inline-block', width: 22, height: 22, border: '3px solid #e8ecf1', borderTopColor: PRIMARY, borderRadius: '50%', animation: 'cmpspin 0.7s linear infinite' }}>
-      <style>{`@keyframes cmpspin{to{transform:rotate(360deg)}}`}</style>
-    </span>
+    <span style={{ display: 'inline-block', width: 18, height: 18, border: `2px solid ${LINE}`, borderTopColor: INK, borderRadius: '50%', animation: 'cmpspin 0.7s linear infinite' }} />
   );
 }
 function Modal({ children, onClose, maxWidth = 480 }) {
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }} onClick={onClose}>
-      <div style={{ ...CARD, width: '100%', maxWidth, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }} onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: 12, padding: '1.5rem 1.75rem', width: '100%', maxWidth, maxHeight: '90vh', overflowY: 'auto', boxSizing: 'border-box' }} onClick={e => e.stopPropagation()}>
+        <FlatStyle />
         {children}
       </div>
     </div>
@@ -811,19 +893,19 @@ function Modal({ children, onClose, maxWidth = 480 }) {
 }
 function ModalHead({ title, onClose }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.1rem' }}>
-      <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a' }}>{title}</h3>
-      <button onClick={onClose} aria-label="Cerrar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '1.2rem' }}>×</button>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+      <h3 style={{ fontSize: '1rem', fontWeight: 600, color: INK }}>{title}</h3>
+      <button onClick={onClose} aria-label="Cerrar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: MUTED, fontSize: '1.2rem' }}>×</button>
     </div>
   );
 }
 function ModalActions({ children }) {
-  return <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.25rem' }}>{children}</div>;
+  return <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '0.75rem', marginTop: '1.5rem' }}>{children}</div>;
 }
 function Section({ title, children }) {
   return (
     <div>
-      <p style={{ fontSize: '0.7rem', fontWeight: 800, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.55rem' }}>{title}</p>
+      <p style={{ fontSize: '0.64rem', fontWeight: 700, color: MUTED, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.55rem' }}>{title}</p>
       {children}
     </div>
   );
@@ -832,13 +914,13 @@ function Grid({ children }) {
   return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.75rem' }}>{children}</div>;
 }
 function BtnPrimary({ children, onClick, disabled }) {
-  return <button onClick={onClick} disabled={disabled} style={{ padding: '0.5rem 1.2rem', borderRadius: 8, border: 'none', background: disabled ? '#94a3b8' : PRIMARY, color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: disabled ? 'not-allowed' : 'pointer' }}>{children}</button>;
+  return <button onClick={onClick} disabled={disabled} style={{ padding: '0.5rem 1rem', borderRadius: 6, border: 'none', background: INK, opacity: disabled ? 0.35 : 1, color: '#fff', fontWeight: 600, fontSize: '0.78rem', cursor: disabled ? 'not-allowed' : 'pointer' }}>{children}</button>;
 }
 function BtnGhost({ children, onClick, disabled }) {
-  return <button onClick={onClick} disabled={disabled} style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid #e8ecf1', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.82rem', cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.6 : 1 }}>{children}</button>;
+  return <button className="cmp-txtbtn" onClick={onClick} disabled={disabled} style={{ ...TXTBTN, opacity: disabled ? 0.5 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}>{children}</button>;
 }
 function BtnDanger({ children, onClick }) {
-  return <button onClick={onClick} style={{ padding: '0.5rem 1.2rem', borderRadius: '8px', border: 'none', background: '#dc2626', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>{children}</button>;
+  return <button onClick={onClick} style={{ padding: '0.35rem 0.5rem', border: 'none', background: 'none', color: BAD, fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>{children}</button>;
 }
 
 function joinMoney(moneda, val) {

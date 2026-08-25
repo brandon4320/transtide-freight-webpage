@@ -198,7 +198,7 @@ export default function GestionLayoutClient({
 
         <aside className="sidebar">
           <div className="sidebar-logo">
-            <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900, fontSize: '1.2rem', letterSpacing: '0.06em', color: '#0f172a', lineHeight: 1 }}>
+            <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800, fontSize: '1.05rem', letterSpacing: '0.08em', color: '#111827', lineHeight: 1 }}>
               TRANSTIDE<span style={{ color: '#ea580c' }}>.</span>
             </span>
           </div>
@@ -258,14 +258,14 @@ export default function GestionLayoutClient({
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8,
                   background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px 6px',
-                  borderRadius: 8, transition: 'background 0.15s',
+                  borderRadius: 6, transition: 'background 0.15s',
                 }}
-                onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'}
+                onMouseEnter={e => e.currentTarget.style.background = '#fafafa'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 aria-label="Menú de usuario"
               >
                 <div className="avatar">{initial}</div>
-                <span className="username-text" style={{ fontSize: '0.78rem', color: '#475569', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <span className="username-text" style={{ fontSize: '0.76rem', color: '#6b7280', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                   {userName}
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: menuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
                     <polyline points="6 9 12 15 18 9"/>
@@ -276,12 +276,12 @@ export default function GestionLayoutClient({
               {menuOpen && (
                 <div style={{
                   position: 'absolute', top: 'calc(100% + 6px)', right: 0, minWidth: 180,
-                  background: '#fff', borderRadius: 10, boxShadow: '0 12px 32px rgba(15,23,42,0.12)',
-                  border: '1px solid #e8ecf1', overflow: 'hidden', zIndex: 100,
+                  background: '#fff', borderRadius: 8,
+                  border: '1px solid #e5e7eb', overflow: 'hidden', zIndex: 100,
                 }}>
                   <div style={{ padding: '0.7rem 0.85rem', borderBottom: '1px solid #f1f5f9' }}>
-                    <p style={{ fontSize: '0.78rem', fontWeight: 700, color: '#0f172a' }}>{userName}</p>
-                    <p style={{ fontSize: '0.66rem', color: '#94a3b8', marginTop: 1 }}>{ROLE_LABEL[role] || 'Editor'}</p>
+                    <p style={{ fontSize: '0.78rem', fontWeight: 600, color: '#111827' }}>{userName}</p>
+                    <p style={{ fontSize: '0.66rem', color: '#9ca3af', marginTop: 1 }}>{ROLE_LABEL[role] || 'Editor'}</p>
                   </div>
                   <form action={logoutAction} style={{ margin: 0 }}>
                     <button
@@ -292,7 +292,7 @@ export default function GestionLayoutClient({
                         fontSize: '0.78rem', color: '#dc2626', fontWeight: 600,
                         display: 'flex', alignItems: 'center', gap: 8, transition: 'background 0.1s',
                       }}
-                      onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
+                      onMouseEnter={e => e.currentTarget.style.background = '#fafafa'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                     >
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">

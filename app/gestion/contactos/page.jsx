@@ -2,10 +2,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { gToast } from '../toast';
 
-const CARD = { background: '#fff', borderRadius: 10, padding: '0.9rem 1.1rem', border: '1px solid #e8ecf1', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' };
-const INP  = { width: '100%', padding: '0.5rem 0.65rem', border: '1px solid #e2e8f0', borderRadius: 7, fontSize: '16px', color: '#0f172a', background: '#fff', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' };
-const LBL  = { display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#64748b', letterSpacing: 0, marginBottom: 5 };
-const PRIMARY = '#0f172a';
+const INK = '#111827';
+
+// Input de modal: caja fina 1px, radius 6, focus oscuro via className ct-min.
+const MINP = { width: '100%', padding: '0.5rem 0.65rem', border: '1px solid #e5e7eb', borderRadius: 6, fontSize: '16px', color: INK, background: '#fff', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' };
+const LBL  = { display: 'block', fontSize: '0.68rem', fontWeight: 500, color: '#9ca3af', marginBottom: 5 };
 
 const TIPOS = [
   { id: 'naviera',     label: 'Navieras',         sing: 'Naviera' },
@@ -98,95 +99,98 @@ export default function ContactosPage() {
   });
   const grupos = TIPOS.map(t => ({ ...t, list: filtered.filter(c => (c.tipo || 'otro') === t.id) })).filter(g => g.list.length > 0);
 
-  // Estilo compartido de los links de contacto (web/email/teléfono): texto plano slate.
-  const LNK = { color: '#475569', textDecoration: 'none' };
+  // Links de la línea de meta: mismo gris que el resto, oscurecen al hover (ct-lnk).
+  const LNK = { color: '#9ca3af', textDecoration: 'none' };
 
   return (
-    <div style={{ paddingBottom: '3rem' }}>
+    <div style={{ background: '#fff', paddingBottom: '3rem' }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#1e293b', marginBottom: '0.2rem' }}>Contactos</h2>
-          <p style={{ fontSize: '0.82rem', color: '#94a3b8' }}>Navieras, terminales, despachantes y agentes · {items.length} contactos</p>
+          <h2 style={{ fontSize: '1.45rem', fontWeight: 350, letterSpacing: '-0.02em', color: INK, marginBottom: '0.25rem' }}>Contactos</h2>
+          <p style={{ fontSize: '0.74rem', color: '#9ca3af' }}>Navieras, terminales, despachantes y agentes · {items.length} contactos</p>
         </div>
-        <button onClick={openNew} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0.55rem 1.1rem', borderRadius: 8, border: 'none', background: PRIMARY, color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <button onClick={openNew} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0.5rem 1rem', borderRadius: 6, border: 'none', background: INK, color: '#fff', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Nuevo contacto
         </button>
       </div>
 
-      {/* Controls: búsqueda + filtro por tipo */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ position: 'relative', flex: 1, minWidth: 220 }}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar contacto…" style={{ ...INP, paddingLeft: '2.2rem' }} />
-        </div>
-        <div style={{ display: 'flex', gap: 3, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 9, padding: 3, flexWrap: 'wrap' }}>
-          {[['todos', 'Todos'], ...TIPOS.map(t => [t.id, t.label])].map(([id, label]) => (
-            <button key={id} onClick={() => setTipoFilter(id)} style={{ padding: '0.4rem 0.85rem', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: '0.76rem', fontWeight: 600, background: tipoFilter === id ? PRIMARY : 'transparent', color: tipoFilter === id ? '#fff' : '#64748b' }}>{label}</button>
-          ))}
+      {/* Buscador + filtros: una sola línea fina */}
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1.5rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Buscar contacto…"
+          className="ct-in"
+          style={{ flex: 1, minWidth: 200, border: 'none', borderBottom: '1px solid #e5e7eb', borderRadius: 0, background: 'transparent', padding: '0.4rem 0', fontSize: '16px', color: INK, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+        />
+        <div style={{ display: 'flex', gap: '1.1rem', flexWrap: 'wrap' }}>
+          {[['todos', 'Todos'], ...TIPOS.map(t => [t.id, t.label])].map(([id, label]) => {
+            const active = tipoFilter === id;
+            return (
+              <button key={id} onClick={() => setTipoFilter(id)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: '0 0 4px', fontSize: '0.74rem', fontFamily: 'inherit', fontWeight: active ? 600 : 400, color: active ? INK : '#9ca3af', borderBottom: active ? `2px solid ${INK}` : '2px solid transparent' }}>{label}</button>
+            );
+          })}
         </div>
       </div>
 
       {loading ? (
-        <div style={{ ...CARD, padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>
-          <div style={{ width: 36, height: 36, border: '3px solid #e8ecf1', borderTopColor: PRIMARY, borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 0.8s linear infinite' }} />
+        <div style={{ padding: '4rem 0', textAlign: 'center', color: '#9ca3af', fontSize: '0.8rem' }}>
+          <div style={{ width: 28, height: 28, border: '2px solid #f1f5f9', borderTopColor: INK, borderRadius: '50%', margin: '0 auto 0.9rem', animation: 'spin 0.8s linear infinite' }} />
           Cargando contactos…
         </div>
       ) : loadError ? (
-        <div style={{ ...CARD, padding: '3rem', textAlign: 'center' }}>
-          <p style={{ fontWeight: 600, color: '#b91c1c', marginBottom: '0.3rem' }}>No se pudieron cargar los contactos</p>
-          <button onClick={load} style={{ marginTop: '0.6rem', padding: '0.5rem 1.2rem', borderRadius: 8, border: 'none', background: PRIMARY, color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>Reintentar</button>
+        <div style={{ padding: '4rem 0', textAlign: 'center' }}>
+          <p style={{ fontSize: '0.88rem', fontWeight: 600, color: INK, marginBottom: '0.3rem' }}>No se pudieron cargar los contactos</p>
+          <button onClick={load} className="ct-retry" style={{ marginTop: '0.6rem', border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.78rem', fontWeight: 600, color: INK, borderBottom: `1px solid ${INK}`, paddingBottom: 2 }}>Reintentar</button>
         </div>
       ) : grupos.length === 0 ? (
-        <div style={{ ...CARD, padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>
-          <p style={{ fontWeight: 600, color: '#64748b', marginBottom: '0.3rem' }}>{search || tipoFilter !== 'todos' ? 'Sin resultados' : 'No hay contactos aún'}</p>
-          <p style={{ fontSize: '0.82rem' }}>{search || tipoFilter !== 'todos' ? 'Probá con otro filtro' : 'Agregá tu primer contacto'}</p>
+        <div style={{ padding: '4rem 0', textAlign: 'center' }}>
+          <p style={{ fontSize: '0.88rem', fontWeight: 600, color: '#6b7280', marginBottom: '0.3rem' }}>{search || tipoFilter !== 'todos' ? 'Sin resultados' : 'No hay contactos aún'}</p>
+          <p style={{ fontSize: '0.78rem', color: '#9ca3af' }}>{search || tipoFilter !== 'todos' ? 'Probá con otro filtro' : 'Agregá tu primer contacto'}</p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
+        <div>
           {grupos.map(g => (
             <div key={g.id}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 0.55rem 0.1rem' }}>
-                <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{g.label}</span>
-                <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>· {g.list.length}</span>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, margin: '1.5rem 0 0.1rem' }}>
+                <span style={{ fontSize: '0.64rem', fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{g.label}</span>
+                <span style={{ fontSize: '0.68rem', color: '#9ca3af' }}>{g.list.length}</span>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '0.6rem' }}>
-                {g.list.map(c => (
-                  <div key={c.id} style={CARD}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.6rem' }}>
-                      <p style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.9rem', minWidth: 0 }}>{c.nombre}</p>
-                      <div style={{ display: 'inline-flex', gap: 2, flexShrink: 0 }}>
-                        <button onClick={() => openEdit(c)} title="Editar" aria-label={`Editar ${c.nombre}`} style={{ width: 26, height: 26, borderRadius: 6, border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                        </button>
-                        <button onClick={() => setConfirm(c.id)} title="Eliminar" aria-label={`Eliminar ${c.nombre}`} style={{ width: 26, height: 26, borderRadius: 6, border: 'none', background: 'none', color: '#cbd5e1', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
-                        </button>
-                      </div>
-                    </div>
-                    {/* Una línea de meta: persona · web · email · teléfono */}
+              {g.list.map(c => (
+                <div key={c.id} className="ct-row" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', padding: '0.8rem 0.25rem', borderBottom: '1px solid #f1f5f9' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: '0.88rem', fontWeight: 600, color: INK }}>{c.nombre}</p>
                     {(c.contacto || c.web || c.email || c.telefono) && (
-                      <p style={{ marginTop: 4, fontSize: '0.74rem', color: '#64748b', lineHeight: 1.8 }}>
+                      <p style={{ marginTop: 2, fontSize: '0.68rem', color: '#9ca3af', lineHeight: 1.8 }}>
                         {[
                           c.contacto ? <span key="p">{c.contacto}</span> : null,
-                          c.web ? <a key="w" href={fmtWeb(c.web)} target="_blank" rel="noopener noreferrer" style={LNK}>{webLabel(c.web)}</a> : null,
-                          c.email ? <a key="e" href={`mailto:${c.email}`} style={LNK}>{c.email}</a> : null,
-                          c.telefono ? <a key="t" href={`tel:${c.telefono}`} style={LNK}>{c.telefono}</a> : null,
+                          c.web ? <a key="w" href={fmtWeb(c.web)} target="_blank" rel="noopener noreferrer" className="ct-lnk" style={LNK}>{webLabel(c.web)}</a> : null,
+                          c.email ? <a key="e" href={`mailto:${c.email}`} className="ct-lnk" style={LNK}>{c.email}</a> : null,
+                          c.telefono ? <a key="t" href={`tel:${c.telefono}`} className="ct-lnk" style={LNK}>{c.telefono}</a> : null,
                         ].filter(Boolean).map((el, i) => (
                           <span key={i} style={{ whiteSpace: 'nowrap' }}>
-                            {i > 0 && <span style={{ color: '#cbd5e1' }}>  ·  </span>}
+                            {i > 0 && <span> · </span>}
                             {el}
                           </span>
                         ))}
                       </p>
                     )}
                     {c.observaciones && (
-                      <p style={{ marginTop: '0.55rem', paddingTop: '0.5rem', borderTop: '1px solid #f1f5f9', fontSize: '0.74rem', color: '#94a3b8', lineHeight: 1.45 }}>{c.observaciones}</p>
+                      <p style={{ marginTop: '0.4rem', paddingTop: '0.35rem', borderTop: '1px solid #f8fafc', fontSize: '0.72rem', color: '#9ca3af', lineHeight: 1.45 }}>{c.observaciones}</p>
                     )}
                   </div>
-                ))}
-              </div>
+                  <div className="ct-acts" style={{ display: 'inline-flex', gap: 2, flexShrink: 0, paddingTop: 2 }}>
+                    <button onClick={() => openEdit(c)} title="Editar" aria-label={`Editar ${c.nombre}`} style={{ width: 26, height: 26, border: 'none', background: 'none', color: '#c4c9d4', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    </button>
+                    <button onClick={() => setConfirm(c.id)} title="Eliminar" aria-label={`Eliminar ${c.nombre}`} style={{ width: 26, height: 26, border: 'none', background: 'none', color: '#c4c9d4', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           ))}
         </div>
@@ -194,33 +198,33 @@ export default function ContactosPage() {
 
       {/* Modal nuevo / editar */}
       {modal !== null && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }} onClick={() => setModal(null)}>
-          <div style={{ ...CARD, width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto', padding: '1.35rem 1.5rem', boxShadow: '0 24px 64px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.1rem' }}>
-              <h3 style={{ fontSize: '1.02rem', fontWeight: 800, color: '#0f172a' }}>{modal === 'new' ? 'Nuevo contacto' : 'Editar contacto'}</h3>
-              <button onClick={() => setModal(null)} aria-label="Cerrar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '1.4rem', lineHeight: 1 }}>×</button>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }} onClick={() => setModal(null)}>
+          <div style={{ background: '#fff', borderRadius: 12, width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto', padding: '1.5rem 1.75rem' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 600, color: INK }}>{modal === 'new' ? 'Nuevo contacto' : 'Editar contacto'}</h3>
+              <button onClick={() => setModal(null)} aria-label="Cerrar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: '1.4rem', lineHeight: 1 }}>×</button>
             </div>
             <div style={{ display: 'grid', gap: '0.8rem' }}>
               <div>
                 <label style={LBL}>Tipo</label>
-                <select value={form.tipo} onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))} style={{ ...INP, cursor: 'pointer' }}>
+                <select value={form.tipo} onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))} className="ct-min" style={{ ...MINP, cursor: 'pointer' }}>
                   {TIPOS.map(t => <option key={t.id} value={t.id}>{t.sing}</option>)}
                 </select>
               </div>
-              <div><label style={LBL}>Nombre *</label><input value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} style={INP} placeholder="Ej: MSC" autoFocus /></div>
+              <div><label style={LBL}>Nombre *</label><input value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} className="ct-min" style={MINP} placeholder="Ej: MSC" autoFocus /></div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
-                <div><label style={LBL}>Persona de contacto</label><input value={form.contacto} onChange={e => setForm(f => ({ ...f, contacto: e.target.value }))} style={INP} placeholder="Ej: Juan Pérez" /></div>
-                <div><label style={LBL}>Web</label><input value={form.web} onChange={e => setForm(f => ({ ...f, web: e.target.value }))} style={INP} placeholder="www.msc.com" /></div>
+                <div><label style={LBL}>Persona de contacto</label><input value={form.contacto} onChange={e => setForm(f => ({ ...f, contacto: e.target.value }))} className="ct-min" style={MINP} placeholder="Ej: Juan Pérez" /></div>
+                <div><label style={LBL}>Web</label><input value={form.web} onChange={e => setForm(f => ({ ...f, web: e.target.value }))} className="ct-min" style={MINP} placeholder="www.msc.com" /></div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
-                <div><label style={LBL}>Email</label><input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} style={INP} placeholder="info@empresa.com" /></div>
-                <div><label style={LBL}>Teléfono</label><input value={form.telefono} onChange={e => setForm(f => ({ ...f, telefono: e.target.value }))} style={INP} placeholder="+54 11 ..." /></div>
+                <div><label style={LBL}>Email</label><input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} className="ct-min" style={MINP} placeholder="info@empresa.com" /></div>
+                <div><label style={LBL}>Teléfono</label><input value={form.telefono} onChange={e => setForm(f => ({ ...f, telefono: e.target.value }))} className="ct-min" style={MINP} placeholder="+54 11 ..." /></div>
               </div>
-              <div><label style={LBL}>Observaciones</label><textarea value={form.observaciones} onChange={e => setForm(f => ({ ...f, observaciones: e.target.value }))} rows={3} style={{ ...INP, resize: 'vertical', fontFamily: 'inherit' }} placeholder="Notas útiles para contactar (cobertura, tiempos, a quién escribir, etc.)" /></div>
+              <div><label style={LBL}>Observaciones</label><textarea value={form.observaciones} onChange={e => setForm(f => ({ ...f, observaciones: e.target.value }))} rows={3} className="ct-min" style={{ ...MINP, resize: 'vertical', fontFamily: 'inherit' }} placeholder="Notas útiles para contactar (cobertura, tiempos, a quién escribir, etc.)" /></div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: '1.25rem' }}>
-              <button onClick={() => setModal(null)} style={{ padding: '0.5rem 1rem', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={submit} disabled={saving} style={{ padding: '0.5rem 1.2rem', borderRadius: 8, border: 'none', background: PRIMARY, color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: saving ? 'wait' : 'pointer' }}>{saving ? 'Guardando…' : (modal === 'new' ? 'Agregar' : 'Guardar cambios')}</button>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '1rem', marginTop: '1.25rem' }}>
+              <button onClick={() => setModal(null)} className="ct-ghost" style={{ border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.74rem', color: '#6b7280', padding: '0.4rem 0' }}>Cancelar</button>
+              <button onClick={submit} disabled={saving} style={{ padding: '0.5rem 1.1rem', borderRadius: 6, border: 'none', background: INK, color: '#fff', fontWeight: 600, fontSize: '0.78rem', cursor: saving ? 'wait' : 'pointer' }}>{saving ? 'Guardando…' : (modal === 'new' ? 'Agregar' : 'Guardar cambios')}</button>
             </div>
           </div>
         </div>
@@ -228,19 +232,32 @@ export default function ContactosPage() {
 
       {/* Confirm delete */}
       {confirm && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }} onClick={() => setConfirm(null)}>
-          <div style={{ ...CARD, maxWidth: 360, padding: '1.75rem', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
-            <p style={{ fontWeight: 700, color: '#1e293b', marginBottom: '0.4rem' }}>¿Eliminar contacto?</p>
-            <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '1.25rem' }}>Esta acción no se puede deshacer.</p>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-              <button onClick={() => setConfirm(null)} style={{ padding: '0.5rem 1rem', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={() => remove(confirm)} style={{ padding: '0.5rem 1.2rem', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>Eliminar</button>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }} onClick={() => setConfirm(null)}>
+          <div style={{ background: '#fff', borderRadius: 12, maxWidth: 360, width: '100%', padding: '1.5rem 1.75rem' }} onClick={e => e.stopPropagation()}>
+            <p style={{ fontSize: '1rem', fontWeight: 600, color: INK, marginBottom: '0.4rem' }}>¿Eliminar contacto?</p>
+            <p style={{ fontSize: '0.78rem', color: '#6b7280', marginBottom: '1.25rem' }}>Esta acción no se puede deshacer.</p>
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', alignItems: 'center' }}>
+              <button onClick={() => setConfirm(null)} className="ct-ghost" style={{ border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.74rem', color: '#6b7280', padding: '0.4rem 0' }}>Cancelar</button>
+              <button onClick={() => remove(confirm)} style={{ border: 'none', background: 'none', padding: '0.4rem 0', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.78rem', fontWeight: 600, color: '#dc2626' }}>Eliminar</button>
             </div>
           </div>
         </div>
       )}
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .ct-in::placeholder { color: #9ca3af; }
+        .ct-in:focus { border-bottom-color: ${INK}; }
+        .ct-min:focus { border-color: ${INK}; }
+        .ct-row:hover { background: #fafafa; }
+        .ct-lnk:hover { color: ${INK}; }
+        .ct-ghost:hover { color: ${INK}; }
+        .ct-acts button:hover { color: #6b7280; }
+        @media (hover: hover) {
+          .ct-acts { opacity: 0; transition: opacity 0.12s; }
+          .ct-row:hover .ct-acts, .ct-row:focus-within .ct-acts { opacity: 1; }
+        }
+      `}</style>
     </div>
   );
 }

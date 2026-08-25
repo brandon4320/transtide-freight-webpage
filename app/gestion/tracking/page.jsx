@@ -7,10 +7,15 @@ import { EmbarqueModal, AGENTES } from '../embarque-form'
 import { importFlowState, MiniFlow } from '../flujo-importacion'
 import { METODOS_PAGO, METODO_DEFAULT_AGENTE, metodoLabel } from '../pagos-metodos'
 
-const CARD = { background: '#fff', borderRadius: 10, border: '1px solid #e8ecf1', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }
-const INP = { width: '100%', padding: '0.5rem 0.65rem', border: '1px solid #e2e8f0', borderRadius: 7, fontSize: '16px', color: '#0f172a', background: '#fff', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }
-const LBL = { display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#64748b', letterSpacing: 0, marginBottom: 5 }
-const SEC = { fontSize: '0.82rem', fontWeight: 700, color: '#0f172a', margin: '0 0 0.85rem', paddingBottom: '0.45rem', borderBottom: '1px solid #f1f5f9' }
+// ——— Transtide Flat: hoja blanca, tipografía protagonista, líneas finas ———
+const INP = { width: '100%', padding: '0.5rem 0.65rem', border: '1px solid #e5e7eb', borderRadius: 6, fontSize: '16px', color: '#111827', background: '#fff', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }
+const LBL = { display: 'block', fontSize: '0.68rem', fontWeight: 500, color: '#9ca3af', marginBottom: 5 }
+const PANEL = { background: '#fff', borderRadius: 12, padding: '1.5rem 1.75rem', width: '100%', boxSizing: 'border-box' }
+const BTN_PRIMARY = { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0.5rem 1rem', borderRadius: 6, border: 'none', background: '#111827', color: '#fff', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'inherit' }
+const BTN_SEC = { display: 'inline-flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '0.74rem', fontWeight: 500, color: '#6b7280', fontFamily: 'inherit' }
+const BTN_ICO = { width: 24, height: 24, border: 'none', background: 'none', color: '#c4c9d4', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0 }
+// Filtro como texto: activo negro con subrayado, inactivo gris.
+const ftxt = (sel) => ({ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 4px', fontSize: '0.74rem', fontWeight: sel ? 600 : 400, color: sel ? '#111827' : '#9ca3af', borderBottom: sel ? '2px solid #111827' : '2px solid transparent', fontFamily: 'inherit', whiteSpace: 'nowrap' })
 
 // STATUSES y AGENTES viven en embarque-form (formulario compartido con Operaciones)
 
@@ -19,9 +24,9 @@ const SEC = { fontSize: '0.82rem', fontWeight: 700, color: '#0f172a', margin: '0
 function statusTone(raw) {
   const s = (raw || '').toLowerCase()
   if (/cancel/.test(s))                    return '#dc2626'
-  if (/paid|pagad|deliver|entreg/.test(s)) return '#16a34a'
+  if (/paid|pagad|deliver|entreg/.test(s)) return '#059669'
   if (/pending|pendiente/.test(s))         return '#d97706'
-  return '#94a3b8'
+  return '#9ca3af'
 }
 
 // Cerrada = cancelada, o entregada/pagada con el agente ya saldado.
@@ -46,12 +51,11 @@ function etaInfo(eta) {
   if (isNaN(d.getTime())) return null
   const today = new Date(); today.setHours(0, 0, 0, 0)
   const days = Math.round((d.getTime() - today.getTime()) / 86400000)
-  if (days < 0) return { rel: `hace ${-days}d`, tone: '#94a3b8' }
+  if (days < 0) return { rel: `hace ${-days}d`, tone: '#9ca3af' }
   if (days === 0) return { rel: 'hoy', tone: '#dc2626' }
   if (days <= 7) return { rel: `en ${days}d`, tone: '#d97706' }
-  return { rel: `en ${days}d`, tone: '#94a3b8' }
+  return { rel: `en ${days}d`, tone: '#9ca3af' }
 }
-const PRIMARY = '#0f172a'  // acento único (slate-900); el color de datos lo dan los estados
 
 
 
@@ -66,7 +70,6 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
   const [confirmDel, setConfirmDel] = useState(null)
   const [saving, setSaving] = useState(false)
   const [loadError, setLoadError] = useState(false)
-  const [sort, setSort] = useState({ key: 'num', dir: 'desc' })  // orden de la tabla
   const [ficha, setFicha] = useState(null)   // B/L abierto en la ficha integral
   const [desps, setDesps] = useState([])     // despachos (estado de aduana por fila)
   const [hechas, setHechas] = useState(() => new Set())  // akeys de alertas ya resueltas
@@ -142,32 +145,6 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
     return l
   }, [ships, query, filter, agenteFilter])
 
-  const sorted = useMemo(() => {
-    const dir = sort.dir === 'asc' ? 1 : -1
-    const key = sort.key
-    const val = (s) => {
-      if (key === 'eta' || key === 'etd') return s[key] || ''
-      if (key === 'num') return parseInt(s.num, 10) || 0
-      if (key === 'total') return numUSD(s.total_usd)
-      if (key === 'saldo') return numUSD(s.balance_usd)
-      return (s[key] || '').toString().toLowerCase()
-    }
-    return [...filtered].sort((a, b) => { const x = val(a), y = val(b); return x < y ? -1 * dir : x > y ? 1 * dir : 0 })
-  }, [filtered, sort])
-
-  const toggleSort = (key) => setSort(p => p.key === key ? { key, dir: p.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: key === 'num' || key === 'eta' ? 'desc' : 'asc' })
-
-  const TH_BASE = { fontSize: '0.58rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '0.6rem 0.7rem', borderBottom: '1px solid #e8ecf1', whiteSpace: 'nowrap', background: '#f8fafc', position: 'sticky', top: 0, zIndex: 3 }
-  const sortTh = (label, k, align = 'left') => {
-    const active = sort.key === k
-    return (
-      <th onClick={k ? () => toggleSort(k) : undefined} aria-sort={!k ? undefined : active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
-        style={{ ...TH_BASE, color: active ? '#475569' : '#94a3b8', textAlign: align, cursor: k ? 'pointer' : 'default', userSelect: 'none' }}>
-        {label}{k && <span style={{ marginLeft: 4, opacity: active ? 1 : 0.3, color: '#64748b' }}>{active ? (sort.dir === 'asc' ? '↑' : '↓') : '↕'}</span>}
-      </th>
-    )
-  }
-
   // Alertas del flujo (todas derivadas; los días son ajustables acá):
   //  naviera D-5 · transporte D-7 · sin liberar +5d · despacho sin cargar +7d ·
   //  pago agente semanal post-arribo.
@@ -218,23 +195,16 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
     try { await fetch('/api/db/alertas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ akey: a.key, undo: !done }) }) } catch {}
   }
 
-  // Texto de cada alerta (una sola fuente para el panel).
+  // Texto de cada alerta (una sola fuente para el panel). Lo importante en
+  // oscuro (via .tk-alert b), los montos en ámbar.
   const alertText = (a) => {
     if (a.tipo === 'bl_china') return <><b>#{a.num}</b> llega {a.dias === 0 ? 'hoy' : `en ${a.dias} día${a.dias === 1 ? '' : 's'}`} — pedile a {a.agente} la liberación del B/L desde China</>
     if (a.tipo === 'naviera') return <><b>#{a.num}</b> llega {a.dias === 0 ? 'hoy' : `en ${a.dias} día${a.dias === 1 ? '' : 's'}`} — pagá naviera/terminal para liberar el contenedor a tiempo</>
     if (a.tipo === 'transporte') return <><b>#{a.num}</b> llega {a.dias === 0 ? 'hoy' : `en ${a.dias} día${a.dias === 1 ? '' : 's'}`}{a.destino ? ` a ${a.destino}` : ''} — coordiná el transporte interno</>
     if (a.tipo === 'liberar') return <><b>#{a.num}</b> arribó hace {a.dias} días y sigue sin liberar — riesgo de demoras/almacenaje</>
     if (a.tipo === 'despacho') return <><b>#{a.num}</b> arribó hace {a.sem} semana{a.sem === 1 ? '' : 's'} — cargá el despacho del despachante</>
-    return <><b>#{a.num}</b> arribó{a.sem != null ? ` hace ${a.sem} semana${a.sem === 1 ? '' : 's'}` : ''} — saldo <b>{fmtUSD(a.monto)}</b> a {a.agente}</>
+    return <><b>#{a.num}</b> arribó{a.sem != null ? ` hace ${a.sem} semana${a.sem === 1 ? '' : 's'}` : ''} — saldo <span style={{ color: '#d97706', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(a.monto)}</span> a {a.agente}</>
   }
-
-  const stats = useMemo(() => {
-    const base = agenteFilter === 'todos' ? ships : ships.filter(s => (s.agente || 'Bruce') === agenteFilter)
-    const transito = base.filter(s => /transit/i.test(s.status)).length
-    const pendientePago = base.filter(s => /pending|pendiente/i.test(s.status)).length
-    const saldoPagar = base.reduce((a, s) => a + numUSD(s.balance_usd), 0)
-    return { total: base.length, transito, pendientePago, saldoPagar }
-  }, [ships, agenteFilter])
 
   const hoyStr = () => new Date().toISOString().slice(0, 10)
 
@@ -293,52 +263,84 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
     } finally { setConfirmDel(null) }
   }
 
+  // Métrica de la línea horizontal: valor arriba, label chiquito debajo. Sin cajas.
+  const metric = (val, label, color = '#111827') => (
+    <div>
+      <p style={{ fontSize: '1.15rem', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color, lineHeight: 1.2 }}>{val}</p>
+      <p style={{ fontSize: '0.62rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#9ca3af', marginTop: 2 }}>{label}</p>
+    </div>
+  )
+  const metricDivider = <span style={{ width: 1, alignSelf: 'stretch', background: '#f1f5f9', flex: '0 0 auto' }} aria-hidden="true" />
+
 
   return (
-    <div>
+    <div style={{ background: '#fff' }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.4rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#1e293b', marginBottom: '0.2rem' }}>Forwarding</h2>
-          <p style={{ fontSize: '0.82rem', color: '#94a3b8' }}>Cuenta corriente con tus agentes de carga — la carga vive en cada operación · {ships.length} embarques</p>
+          <h2 style={{ fontSize: '1.45rem', fontWeight: 350, letterSpacing: '-0.02em', color: '#111827', marginBottom: '0.25rem' }}>Forwarding</h2>
+          <p style={{ fontSize: '0.74rem', color: '#9ca3af' }}>Cuenta corriente con tus agentes de carga — la carga vive en cada operación · {ships.length} embarques</p>
         </div>
-        <button onClick={openNew} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0.55rem 1.1rem', borderRadius: 8, border: 'none', background: PRIMARY, color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <button onClick={openNew} style={BTN_PRIMARY}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Nuevo embarque
         </button>
       </div>
 
-      {/* Alertas del flujo — panel accionable (tachá lo hecho, tocá para actuar) */}
+      {/* Cuenta corriente con los forwarders — una sola línea de métricas, sin cajas */}
+      {(() => {
+        const base = agenteFilter === 'todos' ? ships : ships.filter(x => (x.agente || 'Bruce') === agenteFilter)
+        const debe = base.reduce((a, x) => a + Math.max(0, numUSD(x.balance_usd)), 0)
+        const favor = base.reduce((a, x) => a + Math.max(0, -numUSD(x.balance_usd)), 0)
+        const neto = debe - favor
+        const due = base.reduce((a, x) => a + numUSD(x.amount_due_usd), 0)
+        const pag = base.reduce((a, x) => a + numUSD(x.amount_rec_usd), 0)
+        const transito = base.filter(x => /transit/i.test(x.status || '')).length
+        const quien = agenteFilter === 'todos' ? 'les debés' : `debés a ${agenteFilter}`
+        return (
+          <div style={{ display: 'flex', gap: '2.5rem', rowGap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end', paddingBottom: '1.1rem', borderBottom: '1px solid #f1f5f9', marginBottom: '1.4rem' }}>
+            {metric(fmtUSD(Math.abs(neto)), neto > 0 ? `${quien} (neto)` : neto < 0 ? 'a tu favor (neto)' : 'todo saldado', neto > 0 ? '#dc2626' : neto < 0 ? '#d97706' : '#059669')}
+            {metricDivider}
+            {metric(fmtUSD(due), 'a pagar')}
+            {metric(fmtUSD(pag), 'pagado')}
+            {metricDivider}
+            {metric(base.length, 'embarques')}
+            {metric(transito, 'en tránsito')}
+          </div>
+        )
+      })()}
+
+      {/* Alertas del flujo — bloque con filete ámbar (tachá lo hecho, tocá para actuar) */}
       {alertasVis.length > 0 && (() => {
         const mostrar = alertsOpen ? alertasVis : alertasVis.slice(0, 5)
         return (
-          <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 12, marginBottom: '1rem', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.6rem 0.95rem', borderBottom: '1px solid #fde68a' }}>
-              <p style={{ fontSize: '0.62rem', fontWeight: 800, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          <div className="tk-alert" style={{ borderLeft: '2px solid #d97706', paddingLeft: 12, marginBottom: '1.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+              <p style={{ fontSize: '0.64rem', fontWeight: 700, color: '#d97706', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                 Alertas · {alertasVis.length} pendiente{alertasVis.length === 1 ? '' : 's'}
               </p>
               {alertasVis.length > 5 && (
-                <button onClick={() => setAlertsOpen(o => !o)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#b45309', fontSize: '0.7rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <button className="tk-sec" onClick={() => setAlertsOpen(o => !o)} style={{ ...BTN_SEC, fontSize: '0.7rem' }}>
                   {alertsOpen ? 'Ver menos' : `Ver todas (${alertasVis.length})`}
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: alertsOpen ? 'rotate(180deg)' : 'none' }}><polyline points="6 9 12 15 18 9"/></svg>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: alertsOpen ? 'rotate(180deg)' : 'none' }}><polyline points="6 9 12 15 18 9"/></svg>
                 </button>
               )}
             </div>
             <div style={{ maxHeight: alertsOpen ? 340 : 'none', overflowY: alertsOpen ? 'auto' : 'visible' }}>
               {mostrar.map((a) => (
-                <div key={a.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.5rem 0.95rem', borderBottom: '1px solid #fef3c7' }}>
-                  <button onClick={() => toggleHecha(a, true)} title="Marcar como hecho" aria-label="Marcar como hecho"
-                    style={{ flex: '0 0 auto', width: 22, height: 22, borderRadius: 6, border: '1.5px solid #d97706', background: '#fff', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#d97706' }}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
+                <div key={a.key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0.32rem 0' }}>
+                  <button className="tk-check" onClick={() => toggleHecha(a, true)} title="Marcar como hecho" aria-label="Marcar como hecho"
+                    style={{ ...BTN_ICO, width: 20, height: 20, flex: '0 0 auto' }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="9"/><polyline points="8.5 12.5 11 15 15.5 9.5"/></svg>
                   </button>
-                  <button onClick={() => a.bl && setFicha(a.bl)} style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'none', border: 'none', cursor: a.bl ? 'pointer' : 'default', fontSize: '0.8rem', color: '#78350f', lineHeight: 1.35, padding: 0 }}>
+                  <button onClick={() => a.bl && setFicha(a.bl)} style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'none', border: 'none', cursor: a.bl ? 'pointer' : 'default', fontSize: '0.78rem', color: '#6b7280', lineHeight: 1.4, padding: 0, fontFamily: 'inherit' }}>
                     {alertText(a)}
                   </button>
                   {a.bl && (
-                    <button onClick={() => setFicha(a.bl)} title={a.tipo === 'pago' ? 'Registrar pago' : a.tipo === 'despacho' ? 'Cargar despacho' : 'Abrir ficha'}
-                      style={{ flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', gap: 4, padding: '0.28rem 0.6rem', borderRadius: 6, border: '1px solid #fcd34d', background: '#fff', color: '#b45309', fontSize: '0.68rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    <button className="tk-sec" onClick={() => setFicha(a.bl)} title={a.tipo === 'pago' ? 'Registrar pago' : a.tipo === 'despacho' ? 'Cargar despacho' : 'Abrir ficha'}
+                      style={{ ...BTN_SEC, flex: '0 0 auto', whiteSpace: 'nowrap' }}>
                       {a.tipo === 'pago' ? 'Registrar pago' : a.tipo === 'despacho' ? 'Cargar despacho' : 'Abrir'}
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 18l6-6-6-6"/></svg>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 18l6-6-6-6"/></svg>
                     </button>
                   )}
                 </div>
@@ -348,94 +350,45 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
         )
       })()}
 
-      {/* Cuenta corriente con los forwarders — posición neta, no celdas */}
-      {(() => {
-        const base = agenteFilter === 'todos' ? ships : ships.filter(x => (x.agente || 'Bruce') === agenteFilter)
-        const debe = base.reduce((a, x) => a + Math.max(0, numUSD(x.balance_usd)), 0)
-        const favor = base.reduce((a, x) => a + Math.max(0, -numUSD(x.balance_usd)), 0)
-        const neto = debe - favor
-        const due = base.reduce((a, x) => a + numUSD(x.amount_due_usd), 0)
-        const pag = base.reduce((a, x) => a + numUSD(x.amount_rec_usd), 0)
-        const transito = base.filter(x => /transit/i.test(x.status || '')).length
-        return (
-          <div className="desp-cuenta" style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 12, marginBottom: '1rem' }}>
-            <div style={{ ...CARD, padding: '1rem 1.15rem' }}>
-              <p style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
-                Cuenta con {agenteFilter === 'todos' ? 'tus forwarders' : agenteFilter}
-              </p>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-                <p style={{ fontSize: '1.9rem', fontWeight: 900, fontVariantNumeric: 'tabular-nums', lineHeight: 1, color: neto > 0 ? '#dc2626' : neto < 0 ? '#b45309' : '#16a34a' }}>{fmtUSD(Math.abs(neto))}</p>
-                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: neto > 0 ? '#dc2626' : neto < 0 ? '#b45309' : '#16a34a' }}>
-                  {neto > 0 ? 'les debés (neto)' : neto < 0 ? 'a tu favor (neto)' : 'todo saldado ✓'}
-                </span>
-              </div>
-              <div style={{ display: 'flex', gap: 18, marginTop: 12, flexWrap: 'wrap', fontSize: '0.74rem' }}>
-                <span><span style={{ color: '#94a3b8' }}>A pagar</span> <b style={{ color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(due)}</b></span>
-                <span><span style={{ color: '#94a3b8' }}>− pagado</span> <b style={{ color: '#334155', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(pag)}</b></span>
-              </div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div style={{ ...CARD, padding: '0.75rem 0.95rem' }}>
-                <p style={{ fontSize: '0.56rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Embarques</p>
-                <p style={{ fontSize: '1.35rem', fontWeight: 800, color: '#334155', lineHeight: 1 }}>{base.length}</p>
-              </div>
-              <div style={{ ...CARD, padding: '0.75rem 0.95rem' }}>
-                <p style={{ fontSize: '0.56rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>En tránsito</p>
-                <p style={{ fontSize: '1.35rem', fontWeight: 800, color: '#334155', lineHeight: 1 }}>{transito}</p>
-              </div>
-            </div>
-          </div>
-        )
-      })()}
-
-      {/* Selector de agente */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: '0.85rem', alignItems: 'center', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2 }}>Agente</span>
-        <div style={{ display: 'flex', gap: 3, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 3 }}>
-          {['todos', ...agentesFiltro].map(a => {
-            const sel = agenteFilter === a
-            return (
-              <button key={a} onClick={() => setAgenteFilter(a)} style={{
-                padding: '0.32rem 0.75rem', borderRadius: 6, cursor: 'pointer', fontSize: '0.74rem', fontWeight: 600, border: 'none',
-                background: sel ? PRIMARY : 'transparent',
-                color: sel ? '#fff' : '#64748b',
-              }}>
-                {a === 'todos' ? 'Todos' : a}{a === 'Yachao' ? ' · aéreo' : (a === 'Bruce' || a === 'Shaina') ? ' · marítimo' : ''}
-              </button>
-            )
-          })}
+      {/* Buscador + filtros — una sola línea fina, filtros como texto */}
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1.5rem', rowGap: '0.75rem', flexWrap: 'wrap' }}>
+        <div style={{ position: 'relative', flex: '1 1 220px', minWidth: 200 }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c4c9d4" strokeWidth="2" style={{ position: 'absolute', left: 2, top: '50%', transform: 'translateY(-50%)' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input className="tk-search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar BL, carrier, origen, proveedor…"
+            style={{ width: '100%', border: 'none', borderBottom: '1px solid #e5e7eb', borderRadius: 0, background: 'transparent', padding: '0.4rem 0.25rem 0.4rem 1.5rem', fontSize: '16px', color: '#111827', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }} />
         </div>
-      </div>
-
-      {/* Controls */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ position: 'relative', flex: 1, minWidth: 220 }}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar BL, carrier, origen, proveedor…" style={{ ...INP, paddingLeft: '2.2rem' }} />
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '0.6rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#c4c9d4', paddingBottom: 6 }}>Agente</span>
+          {['todos', ...agentesFiltro].map(a => (
+            <button key={a} onClick={() => setAgenteFilter(a)} style={ftxt(agenteFilter === a)}>
+              {a === 'todos' ? 'Todos' : a}{a === 'Yachao' ? ' · aéreo' : (a === 'Bruce' || a === 'Shaina') ? ' · marítimo' : ''}
+            </button>
+          ))}
         </div>
-        <div style={{ display: 'flex', gap: 3, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 9, padding: 3 }}>
+        <span style={{ width: 1, height: 16, background: '#f1f5f9', marginBottom: 3, flex: '0 0 auto' }} aria-hidden="true" />
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14, flexWrap: 'wrap' }}>
           {[['todos','Todos'],['transito','En tránsito'],['pendiente','Pend. pago'],['pagado','Pagados']].map(([id, lbl]) => (
-            <button key={id} onClick={() => setFilter(id)} style={{ padding: '0.4rem 0.85rem', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: '0.76rem', fontWeight: 600, background: filter === id ? '#0f172a' : 'transparent', color: filter === id ? '#fff' : '#64748b' }}>{lbl}</button>
+            <button key={id} onClick={() => setFilter(id)} style={ftxt(filter === id)}>{lbl}</button>
           ))}
         </div>
       </div>
 
-      {/* Table */}
+      {/* Lista */}
       {loading ? (
-        <div style={{ ...CARD, padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>
-          <div style={{ width: 36, height: 36, border: '3px solid #e8ecf1', borderTopColor: PRIMARY, borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 0.8s linear infinite' }} />
+        <div style={{ padding: '4rem 0', textAlign: 'center', color: '#9ca3af', fontSize: '0.8rem' }}>
+          <div style={{ width: 28, height: 28, border: '2px solid #f1f5f9', borderTopColor: '#111827', borderRadius: '50%', margin: '0 auto 0.9rem', animation: 'spin 0.8s linear infinite' }} />
           Cargando embarques…
         </div>
       ) : loadError ? (
-        <div style={{ ...CARD, padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>
-          <p style={{ fontWeight: 600, marginBottom: '0.3rem', color: '#b91c1c' }}>No se pudieron cargar los embarques</p>
-          <p style={{ fontSize: '0.8rem', marginBottom: '1rem' }}>Puede ser un problema de conexión.</p>
-          <button onClick={load} style={{ padding: '0.5rem 1.2rem', borderRadius: 8, border: 'none', background: PRIMARY, color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>Reintentar</button>
+        <div style={{ padding: '4rem 0', textAlign: 'center', color: '#9ca3af' }}>
+          <p style={{ fontWeight: 600, marginBottom: '0.3rem', color: '#dc2626', fontSize: '0.88rem' }}>No se pudieron cargar los embarques</p>
+          <p style={{ fontSize: '0.78rem', marginBottom: '1.25rem' }}>Puede ser un problema de conexión.</p>
+          <button onClick={load} className="tk-sec" style={{ ...BTN_SEC, fontSize: '0.78rem', fontWeight: 600, color: '#111827', borderBottom: '1px solid #111827', paddingBottom: 2 }}>Reintentar</button>
         </div>
       ) : filtered.length === 0 ? (
-        <div style={{ ...CARD, padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>Sin embarques que coincidan.</div>
+        <div style={{ padding: '4rem 0', textAlign: 'center', color: '#9ca3af', fontSize: '0.8rem' }}>Sin embarques que coincidan.</div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
+        <div>
           {(() => {
             // Activas arriba (agrupadas por agente); cerradas todas al fondo, colapsadas.
             const activos = filtered.filter(s => !esCerrada(s))
@@ -451,15 +404,19 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
               const neto = debe - favor
               return (
                 <div key={g.key}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 0.55rem 0.1rem' }}>
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#94a3b8', flex: '0 0 auto' }} />
-                    <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{g.key}</span>
-                    <span style={{ fontSize: '0.64rem', fontWeight: 700, color: '#fff', background: '#94a3b8', borderRadius: 50, padding: '0.05rem 0.45rem' }}>{g.items.length}</span>
-                    <span style={{ marginLeft: 'auto', fontSize: '0.72rem', fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: neto > 0 ? '#dc2626' : '#16a34a' }}>
-                      {neto > 0 ? `Le debés ${fmtUSD(neto)}` : neto < 0 ? `${fmtUSD(-neto)} a tu favor` : 'Saldado ✓'}
+                  {/* Header de grupo: label chiquito, contador en gris, subtotal a la derecha */}
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, margin: '1.5rem 0 0.1rem', padding: '0 0.25rem' }}>
+                    <span style={{ fontSize: '0.64rem', fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{g.key}</span>
+                    <span style={{ fontSize: '0.64rem', color: '#c4c9d4', fontVariantNumeric: 'tabular-nums' }}>{g.items.length}</span>
+                    <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: '#9ca3af' }}>
+                      {neto > 0
+                        ? <>le debés <span style={{ fontWeight: 700, color: '#dc2626', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(neto)}</span></>
+                        : neto < 0
+                          ? <><span style={{ fontWeight: 700, color: '#d97706', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(-neto)}</span> a tu favor</>
+                          : <>saldado <span style={{ color: '#059669', fontWeight: 700 }}>✓</span></>}
                     </span>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <div>
                     {g.items.map(sh => {
                       const bal = numUSD(sh.balance_usd)
                       const due = numUSD(sh.amount_due_usd), rec = numUSD(sh.amount_rec_usd)
@@ -470,77 +427,88 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
                       const eta = etaInfo(sh.eta)
                       const exp = expandId === sh.id
                       const hist = histPagos[sh.id]
+                      // Una sola línea de meta separada por puntos
+                      const meta = []
+                      if (sh.bl) meta.push(<span key="bl" style={{ fontFamily: 'ui-monospace,monospace' }}>{sh.bl}</span>)
+                      if (sh.carrier) meta.push(<span key="ca">{sh.carrier}</span>)
+                      if (sh.status) meta.push(<span key="st" style={{ fontWeight: 500, color: statusTone(sh.status) }}>{sh.status}</span>)
+                      if (sh.eta) meta.push(<span key="eta" style={{ color: eta ? eta.tone : '#9ca3af', fontVariantNumeric: 'tabular-nums' }}>ETA {sh.eta}{eta ? ` · ${eta.rel}` : ''}</span>)
+                      meta.push(<MiniFlow key="mf" state={importFlowState({ op, ship: sh, desp: d })} />)
+                      if (op) meta.push(
+                        <span key="op" className="tk-sec" onClick={e => { e.stopPropagation(); window.location.href = '/gestion/operaciones?op=' + encodeURIComponent(op.id) }}
+                          style={{ cursor: 'pointer', color: '#6b7280', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block', verticalAlign: 'bottom' }}>{op.nombre || 'Operación'}</span>
+                      )
+                      if (d) meta.push(dSaldo > 0
+                        ? <span key="ad" style={{ fontWeight: 600, color: '#dc2626', whiteSpace: 'nowrap' }}>Aduana USD {d.saldo}</span>
+                        : <span key="ad" style={{ fontWeight: 600, color: '#059669', whiteSpace: 'nowrap' }}>Aduana ✓</span>)
                       return (
-                        <div key={sh.id} style={{ ...CARD, padding: '0.9rem 1.1rem' }}>
-                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                            <div onClick={() => sh.bl ? setFicha({ bl: sh.bl, ship: sh }) : openEdit(sh)} style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}>
-                              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-                                <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.9rem' }}>#{sh.num || '—'} · {sh.origen || '—'} <span style={{ color: '#cbd5e1' }}>→</span> {sh.destino || '—'}</span>
-                                <span style={{ fontSize: '0.68rem', fontWeight: 600, color: statusTone(sh.status) }}>{sh.status || ''}</span>
-                                {sh.eta && <span style={{ fontSize: '0.68rem', color: eta ? eta.tone : '#94a3b8' }}>ETA {sh.eta}{eta ? ` · ${eta.rel}` : ''}</span>}
-                              </div>
-                              {/* Una sola línea de meta: referencia, carrier, flujo, operación y aduana como texto plano */}
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5, flexWrap: 'wrap', fontSize: '0.66rem', color: '#94a3b8' }}>
-                                {sh.bl && <span style={{ fontFamily: 'ui-monospace,monospace' }}>{sh.bl}</span>}
-                                {sh.carrier && <span>{sh.carrier}</span>}
-                                {sh.total_usd && <span>Total USD {sh.total_usd}</span>}
-                                <MiniFlow state={importFlowState({ op, ship: sh, desp: d })} />
-                                {op && (
-                                  <span onClick={e => { e.stopPropagation(); window.location.href = '/gestion/operaciones?op=' + encodeURIComponent(op.id) }} style={{ cursor: 'pointer', color: '#64748b', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{op.nombre || 'Operación'}</span>
-                                )}
-                                {d && (dSaldo > 0
-                                  ? <span style={{ fontWeight: 600, color: '#dc2626', whiteSpace: 'nowrap' }}>Aduana USD {d.saldo}</span>
-                                  : <span style={{ fontWeight: 600, color: '#16a34a', whiteSpace: 'nowrap' }}>Aduana ✓</span>)}
+                        <div key={sh.id} className="tk-row" onClick={() => sh.bl ? setFicha({ bl: sh.bl, ship: sh }) : openEdit(sh)}
+                          style={{ padding: '0.8rem 0.25rem', borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }}>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <p style={{ fontSize: '0.88rem', fontWeight: 600, color: '#111827' }}>
+                                #{sh.num || '—'} · {sh.origen || '—'} <span style={{ color: '#d1d5db' }}>→</span> {sh.destino || '—'}
+                              </p>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap', fontSize: '0.68rem', color: '#9ca3af' }}>
+                                {meta.map((p, i) => <Fragment key={i}>{i > 0 && <span style={{ color: '#e5e7eb' }} aria-hidden="true">·</span>}{p}</Fragment>)}
                               </div>
                             </div>
-                            <div style={{ textAlign: 'right', flex: '0 0 auto' }}>
-                              <p style={{ fontSize: '1.05rem', fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: bal > 0 ? '#dc2626' : bal < 0 ? '#b45309' : '#16a34a', lineHeight: 1.1 }}>{bal !== 0 ? fmtUSD(Math.abs(bal)) : (due > 0 ? '✓' : '—')}</p>
-                              <p style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 2 }}>{bal > 0 ? 'debés' : bal < 0 ? 'a tu favor' : due > 0 ? 'pagado' : 'sin monto'}</p>
+                            <div className="tk-col-mid" style={{ flex: '0 0 auto', textAlign: 'right', minWidth: 80 }}>
+                              <p style={{ fontSize: '0.74rem', color: '#6b7280', fontVariantNumeric: 'tabular-nums', lineHeight: 1.3 }}>{sh.total_usd ? `USD ${sh.total_usd}` : '—'}</p>
+                              <p style={{ fontSize: '0.6rem', color: '#9ca3af', marginTop: 2 }}>total</p>
+                            </div>
+                            <div style={{ flex: '0 0 auto', textAlign: 'right', minWidth: 92 }}>
+                              <p style={{ fontSize: '0.95rem', fontWeight: 700, fontVariantNumeric: 'tabular-nums', lineHeight: 1.15, color: bal > 0 ? '#dc2626' : bal < 0 ? '#d97706' : due > 0 ? '#059669' : '#d1d5db' }}>
+                                {bal !== 0 ? fmtUSD(Math.abs(bal)) : (due > 0 ? '✓' : '—')}
+                              </p>
+                              <p style={{ fontSize: '0.6rem', color: '#9ca3af', marginTop: 2 }}>{bal > 0 ? 'debés' : bal < 0 ? 'a tu favor' : due > 0 ? 'pagado' : 'sin monto'}</p>
+                            </div>
+                            <div className="tk-icons" style={{ flex: '0 0 auto', display: 'inline-flex', gap: 2, marginTop: 1 }}>
+                              <button className="tk-ico" onClick={e => { e.stopPropagation(); openEdit(sh) }} title="Editar" aria-label={`Editar embarque ${sh.num || ''}`} style={BTN_ICO}>
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                              </button>
+                              <button className="tk-ico" onClick={e => { e.stopPropagation(); setConfirmDel(sh.id) }} title="Eliminar" aria-label={`Eliminar embarque ${sh.num || ''}`} style={BTN_ICO}>
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+                              </button>
                             </div>
                           </div>
 
                           {/* Progreso: solo cuando hay pagos parciales en curso */}
                           {rec > 0 && bal > 0 && (
-                            <div style={{ marginTop: 10 }}>
-                              <div style={{ height: 4, background: '#f1f5f9', borderRadius: 3, overflow: 'hidden' }}>
-                                <div style={{ height: '100%', width: `${Math.round(pct * 100)}%`, background: '#f59e0b', borderRadius: 3, transition: 'width .2s' }} />
+                            <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <div style={{ flex: 1, height: 3, background: '#f1f5f9', overflow: 'hidden' }}>
+                                <div style={{ height: '100%', width: `${Math.round(pct * 100)}%`, background: '#d97706', transition: 'width .2s' }} />
                               </div>
-                              <p style={{ marginTop: 4, fontSize: '0.66rem', color: '#94a3b8', textAlign: 'right' }}>Pagado {fmtUSD(rec)} de {fmtUSD(due)}</p>
+                              <p style={{ fontSize: '0.62rem', color: '#9ca3af', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>pagado {fmtUSD(rec)} de {fmtUSD(due)}</p>
                             </div>
                           )}
 
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
+                          {/* Acciones secundarias como texto plano */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 18, marginTop: 7 }}>
                             {bal > 0 && (
-                              <button onClick={() => setPagoModal({ ship: sh, fecha: hoyStr(), monto: fmtCalc(bal), metodo: ultMetodo[sh.agente || 'Bruce'] || METODO_DEFAULT_AGENTE, nota: '' })} style={{ padding: '0.32rem 0.8rem', borderRadius: 7, border: '1px solid #e2e8f0', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 600, background: '#fff', color: '#0f172a' }}>
+                              <button className="tk-sec" onClick={e => { e.stopPropagation(); setPagoModal({ ship: sh, fecha: hoyStr(), monto: fmtCalc(bal), metodo: ultMetodo[sh.agente || 'Bruce'] || METODO_DEFAULT_AGENTE, nota: '' }) }} style={BTN_SEC}>
                                 + Registrar pago
                               </button>
                             )}
-                            <button onClick={() => toggleHist(sh)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '0.32rem 0.7rem', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer' }}>
+                            <button className="tk-sec" onClick={e => { e.stopPropagation(); toggleHist(sh) }} style={BTN_SEC}>
                               Historial{Array.isArray(hist) ? ` (${hist.length})` : ''}
-                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: exp ? 'rotate(180deg)' : 'none' }}><polyline points="6 9 12 15 18 9"/></svg>
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: exp ? 'rotate(180deg)' : 'none' }}><polyline points="6 9 12 15 18 9"/></svg>
                             </button>
-                            <div style={{ marginLeft: 'auto', display: 'inline-flex', gap: 2 }}>
-                              <button onClick={() => openEdit(sh)} title="Editar" aria-label={`Editar embarque ${sh.num || ''}`} style={{ width: 26, height: 26, borderRadius: 6, border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                              </button>
-                              <button onClick={() => setConfirmDel(sh.id)} title="Eliminar" aria-label={`Eliminar embarque ${sh.num || ''}`} style={{ width: 26, height: 26, borderRadius: 6, border: 'none', background: 'none', color: '#cbd5e1', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
-                              </button>
-                            </div>
                           </div>
 
+                          {/* Historial expandido: texto gris indentado, sin cajas */}
                           {exp && (
-                            <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid #f1f5f9' }}>
+                            <div onClick={e => e.stopPropagation()} style={{ marginTop: 8, paddingTop: 8, paddingLeft: 12, borderTop: '1px solid #f8fafc', cursor: 'default' }}>
                               {!Array.isArray(hist) ? (
-                                <p style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Cargando…</p>
+                                <p style={{ fontSize: '0.72rem', color: '#9ca3af' }}>Cargando…</p>
                               ) : hist.length === 0 ? (
-                                <p style={{ fontSize: '0.72rem', color: '#cbd5e1' }}>Sin pagos registrados para este embarque.</p>
+                                <p style={{ fontSize: '0.72rem', color: '#c4c9d4' }}>Sin pagos registrados para este embarque.</p>
                               ) : hist.map(pg => (
-                                <div key={pg.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.18rem 0', fontSize: '0.72rem', color: '#94a3b8' }}>
+                                <div key={pg.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0.18rem 0', fontSize: '0.72rem', color: '#9ca3af' }}>
                                   <span style={{ fontVariantNumeric: 'tabular-nums' }}>{pg.fecha || '—'}</span>
                                   <span>{metodoLabel(pg.metodo)}</span>
                                   {pg.nota && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pg.nota}</span>}
-                                  <span style={{ marginLeft: 'auto', fontWeight: 600, color: '#334155', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(numUSD(pg.monto))}</span>
+                                  <span style={{ marginLeft: 'auto', fontWeight: 600, color: '#374151', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(numUSD(pg.monto))}</span>
                                 </div>
                               ))}
                             </div>
@@ -559,32 +527,33 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
                 {/* Cerradas: canceladas o entregadas/pagadas ya saldadas — colapsadas por defecto */}
                 {cerradas.length > 0 && (
                   <div>
-                    <button onClick={() => setCerradasOpen(o => !o)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', borderTop: '1px solid #e8ecf1', padding: '0.8rem 0.1rem 0', cursor: 'pointer', color: '#94a3b8', textAlign: 'left' }}>
+                    <button onClick={() => setCerradasOpen(o => !o)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: '0.8rem 0.25rem 0.2rem', marginTop: '1.75rem', cursor: 'pointer', color: '#9ca3af', textAlign: 'left', fontSize: '0.72rem', fontWeight: 500, fontFamily: 'inherit' }}>
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: mostrarCerradas ? 'rotate(180deg)' : 'none', flex: '0 0 auto' }}><polyline points="6 9 12 15 18 9"/></svg>
-                      <span style={{ fontSize: '0.68rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cerradas · {cerradas.length}</span>
+                      Cerradas · {cerradas.length}
                     </button>
                     {mostrarCerradas && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.6rem' }}>
+                      <div style={{ marginTop: '0.2rem' }}>
                         {cerradas.map(sh => {
                           const due = numUSD(sh.amount_due_usd)
                           const cancelada = /cancel/i.test(sh.status || '')
                           const meta = [sh.bl, sh.agente || 'Bruce', sh.status || '', sh.eta ? `ETA ${sh.eta}` : ''].filter(Boolean).join(' · ')
                           return (
-                            <div key={sh.id} style={{ ...CARD, padding: '0.55rem 1.1rem', opacity: 0.65 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                <div onClick={() => sh.bl ? setFicha({ bl: sh.bl, ship: sh }) : openEdit(sh)} style={{ flex: 1, minWidth: 0, cursor: 'pointer', display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-                                  <span style={{ fontWeight: 600, color: '#475569', fontSize: '0.8rem' }}>#{sh.num || '—'} · {sh.origen || '—'} → {sh.destino || '—'}</span>
-                                  <span style={{ fontSize: '0.64rem', color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meta}</span>
+                            <div key={sh.id} className="tk-row" onClick={() => sh.bl ? setFicha({ bl: sh.bl, ship: sh }) : openEdit(sh)}
+                              style={{ padding: '0.55rem 0.25rem', borderBottom: '1px solid #f1f5f9', opacity: 0.55, cursor: 'pointer' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                                  <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151' }}>#{sh.num || '—'} · {sh.origen || '—'} → {sh.destino || '—'}</span>
+                                  <span style={{ fontSize: '0.66rem', color: '#9ca3af', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meta}</span>
                                 </div>
-                                <span style={{ flex: '0 0 auto', fontSize: '0.74rem', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: cancelada ? '#dc2626' : '#16a34a' }}>
+                                <span style={{ flex: '0 0 auto', fontSize: '0.74rem', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: cancelada ? '#dc2626' : '#059669' }}>
                                   {cancelada ? 'Cancelada' : due > 0 ? `${fmtUSD(due)} ✓` : '✓'}
                                 </span>
-                                <div style={{ flex: '0 0 auto', display: 'inline-flex', gap: 2 }}>
-                                  <button onClick={() => openEdit(sh)} title="Editar" aria-label={`Editar embarque ${sh.num || ''}`} style={{ width: 24, height: 24, borderRadius: 6, border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                <div className="tk-icons" style={{ flex: '0 0 auto', display: 'inline-flex', gap: 2 }}>
+                                  <button className="tk-ico" onClick={e => { e.stopPropagation(); openEdit(sh) }} title="Editar" aria-label={`Editar embarque ${sh.num || ''}`} style={BTN_ICO}>
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                                   </button>
-                                  <button onClick={() => setConfirmDel(sh.id)} title="Eliminar" aria-label={`Eliminar embarque ${sh.num || ''}`} style={{ width: 24, height: 24, borderRadius: 6, border: 'none', background: 'none', color: '#cbd5e1', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+                                  <button className="tk-ico" onClick={e => { e.stopPropagation(); setConfirmDel(sh.id) }} title="Eliminar" aria-label={`Eliminar embarque ${sh.num || ''}`} style={BTN_ICO}>
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
                                   </button>
                                 </div>
                               </div>
@@ -612,13 +581,13 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
 
       {/* Delete confirm */}
       {confirmDel && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }} onClick={() => setConfirmDel(null)}>
-          <div style={{ ...CARD, maxWidth: 340, padding: '1.75rem', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
-            <p style={{ fontWeight: 700, color: '#1e293b', marginBottom: 6 }}>¿Eliminar embarque?</p>
-            <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '1.25rem' }}>Esta acción no se puede deshacer.</p>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-              <button onClick={() => setConfirmDel(null)} style={{ padding: '0.5rem 1rem', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={() => del(confirmDel)} style={{ padding: '0.5rem 1.2rem', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>Eliminar</button>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }} onClick={() => setConfirmDel(null)}>
+          <div style={{ ...PANEL, maxWidth: 340 }} onClick={e => e.stopPropagation()}>
+            <p style={{ fontSize: '1rem', fontWeight: 600, color: '#111827', marginBottom: 6 }}>¿Eliminar embarque?</p>
+            <p style={{ fontSize: '0.78rem', color: '#6b7280', marginBottom: '1.25rem' }}>Esta acción no se puede deshacer.</p>
+            <div style={{ display: 'flex', gap: 20, justifyContent: 'flex-end', alignItems: 'center' }}>
+              <button className="tk-sec" onClick={() => setConfirmDel(null)} style={BTN_SEC}>Cancelar</button>
+              <button onClick={() => del(confirmDel)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600, color: '#dc2626', fontFamily: 'inherit' }}>Eliminar</button>
             </div>
           </div>
         </div>
@@ -626,38 +595,37 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
 
       {/* Registrar pago al forwarder: evento en el ledger + actualiza el saldo */}
       {pagoModal && (
-        <div onClick={e => { if (e.target === e.currentTarget) setPagoModal(null) }} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-          <div style={{ ...CARD, width: '100%', maxWidth: 380, padding: '1.25rem' }}>
-            <p style={{ fontWeight: 800, color: '#0f172a', marginBottom: 3, fontSize: '0.95rem' }}>Registrar pago a {pagoModal.ship.agente || 'Bruce'}</p>
-            <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginBottom: 12 }}>#{pagoModal.ship.num} · {pagoModal.ship.origen} → {pagoModal.ship.destino} · saldo {fmtUSD(numUSD(pagoModal.ship.balance_usd))}</p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-              <div><label style={LBL}>Fecha</label><input type="date" value={pagoModal.fecha} onChange={e => setPagoModal(f => ({ ...f, fecha: e.target.value }))} style={INP} /></div>
-              <div><label style={LBL}>Monto (USD)</label><input inputMode="decimal" value={pagoModal.monto} onChange={e => setPagoModal(f => ({ ...f, monto: e.target.value }))} style={INP} placeholder="0" /></div>
+        <div onClick={e => { if (e.target === e.currentTarget) setPagoModal(null) }} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.35)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div style={{ ...PANEL, maxWidth: 400 }}>
+            <p style={{ fontSize: '1rem', fontWeight: 600, color: '#111827', marginBottom: 3 }}>Registrar pago a {pagoModal.ship.agente || 'Bruce'}</p>
+            <p style={{ fontSize: '0.72rem', color: '#9ca3af', marginBottom: '1.25rem' }}>#{pagoModal.ship.num} · {pagoModal.ship.origen} → {pagoModal.ship.destino} · saldo <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(numUSD(pagoModal.ship.balance_usd))}</span></p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: '1.25rem' }}>
+              <div><label style={LBL}>Fecha</label><input className="tk-inp" type="date" value={pagoModal.fecha} onChange={e => setPagoModal(f => ({ ...f, fecha: e.target.value }))} style={INP} /></div>
+              <div><label style={LBL}>Monto (USD)</label><input className="tk-inp" inputMode="decimal" value={pagoModal.monto} onChange={e => setPagoModal(f => ({ ...f, monto: e.target.value }))} style={INP} placeholder="0" /></div>
             </div>
-            <div style={{ marginBottom: 10 }}>
+            <div style={{ marginBottom: '1.25rem' }}>
               <label style={LBL}>Pagado desde</label>
-              <div style={{ display: 'flex', gap: 3, background: '#f1f5f9', borderRadius: 8, padding: 3 }}>
-                {METODOS_PAGO.map(([v, l]) => {
-                  const on = pagoModal.metodo === v
-                  return <button key={v} onClick={() => setPagoModal(f => ({ ...f, metodo: v }))} style={{ flex: 1, padding: '0.35rem', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: '0.74rem', fontWeight: on ? 700 : 500, background: on ? '#fff' : 'transparent', color: on ? '#0f172a' : '#64748b', boxShadow: on ? '0 1px 2px rgba(15,23,42,0.1)' : 'none', whiteSpace: 'nowrap' }}>{l}</button>
-                })}
+              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', paddingTop: 2 }}>
+                {METODOS_PAGO.map(([v, l]) => (
+                  <button key={v} onClick={() => setPagoModal(f => ({ ...f, metodo: v }))} style={{ ...ftxt(pagoModal.metodo === v), fontSize: '0.76rem' }}>{l}</button>
+                ))}
               </div>
               {(() => {
                 const ag = pagoModal.ship.agente || 'Bruce'
                 const prev = ultMetodo[ag]
                 return (
-                  <p style={{ fontSize: '0.64rem', color: '#94a3b8', marginTop: 5 }}>
+                  <p style={{ fontSize: '0.66rem', color: '#9ca3af', marginTop: 8 }}>
                     {prev
-                      ? <>así le pagaste la última vez a <b style={{ color: '#64748b' }}>{ag}</b> — cambialo si esta vez fue distinto</>
+                      ? <>así le pagaste la última vez a <b style={{ color: '#6b7280', fontWeight: 600 }}>{ag}</b> — cambialo si esta vez fue distinto</>
                       : <>los pagos a agentes salen de la cuenta de USA por defecto</>}
                   </p>
                 )
               })()}
             </div>
-            <div style={{ marginBottom: 14 }}><label style={LBL}>Nota (opcional)</label><input value={pagoModal.nota} onChange={e => setPagoModal(f => ({ ...f, nota: e.target.value }))} style={INP} placeholder="Ej: adelanto 50%" /></div>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={() => setPagoModal(null)} style={{ padding: '0.5rem 1rem', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={savePagoAgente} disabled={pagoBusy} style={{ padding: '0.5rem 1.1rem', borderRadius: 8, border: 'none', background: '#059669', color: '#fff', fontWeight: 700, fontSize: '0.8rem', cursor: pagoBusy ? 'wait' : 'pointer' }}>{pagoBusy ? 'Guardando…' : 'Registrar'}</button>
+            <div style={{ marginBottom: '1.25rem' }}><label style={LBL}>Nota (opcional)</label><input className="tk-inp" value={pagoModal.nota} onChange={e => setPagoModal(f => ({ ...f, nota: e.target.value }))} style={INP} placeholder="Ej: adelanto 50%" /></div>
+            <div style={{ display: 'flex', gap: 20, justifyContent: 'flex-end', alignItems: 'center' }}>
+              <button className="tk-sec" onClick={() => setPagoModal(null)} style={BTN_SEC}>Cancelar</button>
+              <button onClick={savePagoAgente} disabled={pagoBusy} style={{ ...BTN_PRIMARY, cursor: pagoBusy ? 'wait' : 'pointer', opacity: pagoBusy ? 0.7 : 1 }}>{pagoBusy ? 'Guardando…' : 'Registrar'}</button>
             </div>
           </div>
         </div>
@@ -671,7 +639,23 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
         return <FichaImportacion bl={fbl} seed={fship ? { ship: fship } : {}} onClose={() => setFicha(null)} onChanged={load} />
       })()}
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg) } }
+        .tk-row:hover { background: #fafafa }
+        .tk-sec:hover { color: #111827 !important }
+        .tk-check:hover { color: #d97706 !important }
+        .tk-ico:hover { color: #6b7280 !important }
+        .tk-search:focus { border-bottom-color: #111827 !important }
+        .tk-inp:focus { border-color: #111827 !important }
+        .tk-alert b { color: #111827; font-weight: 600 }
+        @media (hover: hover) {
+          .tk-icons { opacity: 0; transition: opacity .12s }
+          .tk-row:hover .tk-icons, .tk-icons:focus-within { opacity: 1 }
+        }
+        @media (max-width: 640px) {
+          .tk-col-mid { display: none }
+        }
+      `}</style>
     </div>
   )
 }

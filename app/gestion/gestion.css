@@ -2,8 +2,8 @@
 
 .gestion-root {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background-color: #f4f6f9;
-  color: #0f172a;
+  background-color: #ffffff;
+  color: #111827;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
@@ -34,7 +34,7 @@
 .gestion-root .sidebar {
   width: 240px;
   background-color: #ffffff;
-  border-right: 1px solid var(--g-border);
+  border-right: 1px solid #f1f5f9;
   padding: 1.75rem 1.25rem;
   display: flex;
   flex-direction: column;
@@ -57,28 +57,25 @@
   align-items: center;
   gap: 0.4rem;
   font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--g-text-subtle);
+  font-weight: 500;
+  color: #9ca3af;
   padding: 0.35rem 0.75rem;
-  border-radius: 8px;
   margin-bottom: 1.5rem;
-  transition: color 0.15s, background 0.15s;
-  border: 1px solid var(--g-border);
-  background: #f8fafc;
+  transition: color 0.15s;
+  border: none;
+  background: transparent;
 }
 
 .gestion-root .sidebar-back:hover {
-  color: var(--g-primary);
-  border-color: #fed7aa;
-  background: var(--g-primary-light);
+  color: #111827;
 }
 
 .gestion-root .nav-section-label {
   font-size: 0.6rem;
   font-weight: 700;
-  color: var(--g-text-subtle);
+  color: #9ca3af;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   padding: 0 0.75rem;
   margin-bottom: 0.4rem;
   margin-top: 1.25rem;
@@ -88,37 +85,26 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.65rem 0.75rem;
-  border-radius: var(--g-radius-md);
-  color: var(--g-text-muted);
-  font-weight: 500;
-  font-size: 0.875rem;
-  transition: all 0.15s ease;
-  margin-bottom: 0.2rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 0;
+  color: #6b7280;
+  font-weight: 400;
+  font-size: 0.85rem;
+  transition: color 0.12s ease;
+  margin-bottom: 0.1rem;
   cursor: pointer;
   position: relative;
 }
 
 .gestion-root .nav-item:hover {
-  background-color: #f8fafc;
-  color: #0f172a;
+  background-color: transparent;
+  color: #111827;
 }
 
 .gestion-root .nav-item.active {
-  background-color: var(--g-primary-light);
-  color: var(--g-primary);
-}
-
-.gestion-root .nav-item.active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 60%;
-  background: var(--g-primary);
-  border-radius: 0 3px 3px 0;
+  background-color: transparent;
+  color: #111827;
+  font-weight: 600;
 }
 
 /* ── Main Content ── */
@@ -136,21 +122,23 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
-  padding-bottom: 1.25rem;
-  border-bottom: 1px solid var(--g-border);
+  margin-bottom: 1.75rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #f1f5f9;
+  box-shadow: none;
 }
 
 .gestion-root .top-header h1 {
-  font-size: 1.25rem;
-  font-weight: 800;
-  color: #0f172a;
+  font-size: 1.05rem;
+  font-weight: 350;
+  letter-spacing: -0.02em;
+  color: #111827;
   margin: 0 0 0.1rem;
 }
 
 .gestion-root p.muted {
-  color: var(--g-text-subtle);
-  font-size: 0.78rem;
+  color: #9ca3af;
+  font-size: 0.74rem;
   margin: 0;
 }
 
@@ -161,31 +149,17 @@
 }
 
 .gestion-root .avatar {
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #ea580c, #c2410c);
-  color: white;
+  background: #111827;
+  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
-  font-size: 0.82rem;
+  font-weight: 600;
+  font-size: 0.72rem;
   cursor: pointer;
-}
-
-/* ── Nav item improvements ── */
-.gestion-root .nav-item {
-  transition: background 0.12s ease, color 0.12s ease;
-}
-
-.gestion-root .nav-item:hover {
-  background-color: #f1f5f9;
-  color: #0f172a;
-}
-
-.gestion-root .nav-item.active:hover {
-  background-color: var(--g-primary-light);
 }
 
 /* Scrollbar */
@@ -212,12 +186,12 @@
     padding: 1.5rem 0.7rem;
     overflow-x: hidden;
     white-space: nowrap;
-    transition: width 0.18s ease, padding 0.18s ease, box-shadow 0.18s ease;
+    transition: width 0.18s ease, padding 0.18s ease, border-color 0.18s ease;
   }
   .gestion-root .sidebar:hover {
     width: 240px;
     padding: 1.5rem 1.25rem;
-    box-shadow: 6px 0 28px rgba(15, 23, 42, 0.10);
+    border-right-color: #e5e7eb;
   }
   /* Colapsado: ocultar labels con display:none (si quedan con opacity siguen
      ocupando ancho y empujan el ícono fuera del área visible). */
@@ -260,7 +234,7 @@
     width: 260px;
     transform: translateX(-100%);
     transition: transform 0.25s ease;
-    box-shadow: 4px 0 20px rgba(15,23,42,0.10);
+    border-right: 1px solid #e5e7eb;
   }
   .gestion-root.sidebar-open .sidebar { transform: translateX(0); }
 
@@ -286,10 +260,10 @@
     position: sticky;
     top: 0;
     z-index: 100;
-    background: #f4f6f9;
+    background: #ffffff;
     margin: -0.85rem -0.9rem 1rem;
     padding: 0.55rem 0.75rem;
-    border-bottom: 1px solid var(--g-border);
+    border-bottom: 1px solid #f1f5f9;
   }
   .gestion-root .top-header h1,
   .gestion-root .top-header p.muted { display: none; }
@@ -300,20 +274,20 @@
     justify-content: center;
     width: 38px;
     height: 38px;
-    border-radius: 8px;
-    border: 1px solid var(--g-border);
-    background: #fff;
-    color: #0f172a;
+    border: none;
+    background: transparent;
+    color: #111827;
     cursor: pointer;
     flex-shrink: 0;
-    margin-right: 0.6rem;
+    margin-right: 0.4rem;
+    padding: 0;
   }
   .gestion-root .mobile-brand {
     display: inline-block;
-    font-weight: 900;
+    font-weight: 800;
     font-size: 0.85rem;
     letter-spacing: 0.06em;
-    color: #0f172a;
+    color: #111827;
     margin-left: 0.1rem;
   }
   .gestion-root .mobile-brand .dot { color: #ea580c; }
@@ -464,8 +438,8 @@
 .gestion-root input:focus,
 .gestion-root select:focus,
 .gestion-root textarea:focus {
-  border-color: #94a3b8 !important;
-  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.07);
+  border-color: #111827 !important;
+  box-shadow: none;
 }
 
 /* Hoja de impresión del cotizador: fuera de pantalla en la app; al imprimir, sale SOLO la hoja */
