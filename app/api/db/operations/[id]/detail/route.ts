@@ -1,10 +1,41 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
-import { d1Query, d1Batch } from '@/lib/d1'
+import { d1Query, d1Batch, d1Exec } from '@/lib/d1'
 import { requireWrite } from '@/lib/perms'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+// Campos agregados después del alta original de las tablas. El proyecto no tiene
+// migraciones versionadas: se garantizan on-the-fly (mismo patrón ya probado con
+// despachante_pagos.conceptos). Los extras de cobranza van en UNA columna JSON para
+// no multiplicar ALTERs, y `ready` deja constancia de si la columna quedó disponible:
+// si un ALTER fallara, se guarda sin ese campo en vez de romper todo el guardado.
+const EXTRA_COLS: [string, string][] = [
+  ['proveedores_op', 'cobrar_extra'],
+  ['gastos', 'pagado_por'],
+]
+let ready: Record<string, boolean> | null = null
+async function ensureCols(): Promise<Record<string, boolean>> {
+  if (ready) return ready
+  const out: Record<string, boolean> = {}
+  for (const [table, col] of EXTRA_COLS) {
+    try {
+      const info = await d1Query<{ name: string }>(`PRAGMA table_info(${table})`)
+      if (info.some(c => c.name === col)) { out[col] = true; continue }
+      await d1Exec(`ALTER TABLE ${table} ADD COLUMN ${col} TEXT DEFAULT NULL`)
+      out[col] = true
+    } catch {
+      out[col] = false
+      console.warn(`[detail] no se pudo agregar ${table}.${col}; se guarda sin ese campo`)
+    }
+  }
+  ready = out
+  return out
+}
+
+// Extras de cobranza que viven en el JSON de cobrar_extra.
+const COBRAR_EXTRA = ['giroMonto', 'giroPct', 'giroFijo', 'giroTotal', 'ganancia', 'honMin'] as const
 
 const BUILTIN_CATS = ['naviera', 'terminal', 'aduana', 'transporte', 'despachante', 'admin', 'fleteIntl']
 
@@ -18,6 +49,7 @@ type GastoRow = {
   usd: string | null
   tc: string | null
   pesos: string | null
+  pagado_por: string | null
 }
 
 type ProvRow = {
@@ -37,6 +69,7 @@ type ProvRow = {
   desp_adic: string | null
   cobrado: number | null
   fecha_cobro: string | null
+  cobrar_extra: string | null
 }
 
 type CustomCatRow = {
@@ -54,6 +87,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { id } = await params
+  await ensureCols()
 
   const [opInfo, gastos, provs, customCats] = await Promise.all([
     d1Query<OpInfoRow>(`SELECT puerto_origen, total_cotizado_usd, cotizacion_id, compra_id FROM operations WHERE id = ?`, [id]),
@@ -90,6 +124,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       usd: g.usd || '',
       tc: g.tc || '',
       pesos: g.pesos || '',
+      pagadoPor: g.pagado_por || '',
     })
   }
 
@@ -112,10 +147,25 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       despAdic: p.desp_adic || '',
       cobrado: !!p.cobrado,
       fechaCobro: p.fecha_cobro || '',
+      ...parseExtra(p.cobrar_extra),
     })
   }
 
   return NextResponse.json(detail)
+}
+
+// Extras de cobranza guardados como JSON. Fila vieja o JSON roto → sin extras.
+function parseExtra(raw: string | null): Record<string, any> {
+  const out: Record<string, any> = { exigirPago: false }
+  for (const k of COBRAR_EXTRA) out[k] = ''
+  try {
+    const j = JSON.parse(raw || '')
+    if (j && typeof j === 'object') {
+      for (const k of COBRAR_EXTRA) if (j[k] != null) out[k] = String(j[k])
+      out.exigirPago = !!j.exigirPago
+    }
+  } catch {}
+  return out
 }
 
 // Normaliza un valor numérico de entrada: acepta coma decimal, devuelve null si vacío.
@@ -126,11 +176,20 @@ function num(v: any): string | null {
 
 const sqlList = (arr: string[]) => arr.map(() => '?').join(', ')
 
+// Serializa los extras de cobranza. Si no hay ninguno cargado, guarda null.
+function buildExtra(cb: any): string | null {
+  const e: Record<string, any> = {}
+  for (const k of COBRAR_EXTRA) { const v = num(cb[k]); if (v != null) e[k] = v }
+  if (cb.exigirPago) e.exigirPago = true
+  return Object.keys(e).length ? JSON.stringify(e) : null
+}
+
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const g = await requireWrite('operaciones')
   if (!g.ok) return g.res
 
   const { id } = await params
+  const cols = await ensureCols()
   const body = await request.json()
 
   // Estrategia no-destructiva: primero UPSERT de todo lo nuevo (por clave estable),
@@ -166,9 +225,14 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     const rows: any[] = body[cat] || []
     rows.forEach((row, idx) => {
       upserts.push({
-        sql: `INSERT OR REPLACE INTO gastos (operation_id, categoria, position, descripcion, factura, usd, tc, pesos, created_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
-        params: [id, cat, idx, row.desc || null, row.factura || null, num(row.usd), num(row.tc), num(row.pesos)],
+        sql: cols.pagado_por
+          ? `INSERT OR REPLACE INTO gastos (operation_id, categoria, position, descripcion, factura, usd, tc, pesos, pagado_por, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
+          : `INSERT OR REPLACE INTO gastos (operation_id, categoria, position, descripcion, factura, usd, tc, pesos, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+        params: cols.pagado_por
+          ? [id, cat, idx, row.desc || null, row.factura || null, num(row.usd), num(row.tc), num(row.pesos), row.pagadoPor || null]
+          : [id, cat, idx, row.desc || null, row.factura || null, num(row.usd), num(row.tc), num(row.pesos)],
       })
     })
     // Borrar las posiciones que sobran de esta categoría
@@ -188,8 +252,8 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     upserts.push({
       sql: `INSERT OR REPLACE INTO proveedores_op
             (operation_id, position, nombre, tipo, cliente_id, m3, fob_usd, gastos_origen_usd, tributos_usd, tributos_tc,
-             cobrar_tc, honorarios, desp_adic, cobrado, fecha_cobro, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+             cobrar_tc, honorarios, desp_adic, cobrado, fecha_cobro${cols.cobrar_extra ? ', cobrar_extra' : ''}, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?${cols.cobrar_extra ? ', ?' : ''}, datetime('now'))`,
       params: [
         id, idx,
         p.nombre || null,
@@ -201,6 +265,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         num(cb.despAdic),
         cb.cobrado ? 1 : 0,
         cb.fechaCobro || null,
+        ...(cols.cobrar_extra ? [buildExtra(cb)] : []),
       ],
     })
   })

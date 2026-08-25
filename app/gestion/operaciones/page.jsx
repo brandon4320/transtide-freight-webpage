@@ -57,6 +57,10 @@ const rowPesos = (r) => n(r.usd) > 0 && n(r.tc) > 0 ? n(r.usd) * n(r.tc) : n(r.p
 const rowUSD   = (r) => n(r.usd) > 0 && n(r.tc) === 0 ? n(r.usd) : 0;
 const catTot   = (rows) => ({ pesos: rows.reduce((s, r) => s + rowPesos(r), 0), usd: rows.reduce((s, r) => s + rowUSD(r), 0) });
 const newRow   = () => ({ id: Date.now() + Math.random(), desc: '', factura: '', usd: '', tc: '', pesos: '' });
+// Valores de siempre al sumar un proveedor: honorarios 4% con mínimo USD 500 y,
+// si se usa el giro de divisas, 1,5% + USD 45 de gasto fijo. Se editan por fila.
+const newCobrar = () => ({ tc: '', honorarios: true, despAdic: '', cobrado: false, fechaCobro: '', giroMonto: '', giroPct: '1.5', giroFijo: '45', giroTotal: '', ganancia: '', honMin: '500', exigirPago: false });
+
 const newProv  = () => ({ id: Date.now() + Math.random(), nombre: '', tipo: 'Cliente', clienteId: '', m3: '', fobUSD: '', gastosOrigenUSD: '', tributosUSD: '', tributosTC: '' });
 
 // ─── checklist de tareas ──────────────────────────────────────────────────────
@@ -719,7 +723,7 @@ function OperationDetail({ op, onBack }) {
     setDetail(d => ({
       ...d,
       proveedores: [...(d.proveedores || []), newProv()],
-      cobrar:      [...(d.cobrar || []),      { tc: '', honorarios: false, despAdic: '', cobrado: false, fechaCobro: '' }],
+      cobrar:      [...(d.cobrar || []),      newCobrar()],
     }));
     D();
   };
