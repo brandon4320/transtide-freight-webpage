@@ -2897,7 +2897,8 @@ function CategoryEditor({ cat, rows: initRows, onChange, onClose, onDelete }) {
               {rows.map((row, i) => {
                 const calcPesos = n(row.usd) > 0 && n(row.tc) > 0;
                 return (
-                  <tr key={row.id}>
+                  // Las filas recién agregadas todavía no tienen id de la base.
+                  <tr key={row.id ?? `nueva-${i}`}>
                     <td style={{ padding: '0.25rem 0.3rem' }}>
                       <input value={row.desc} onChange={e => updRow(i, 'desc', e.target.value)} className="tt-inp" style={INP_MODAL} placeholder="Descripción" />
                     </td>

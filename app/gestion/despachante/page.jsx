@@ -156,7 +156,9 @@ export default function DespachantePage({ devRows = null, devShips = null, devPa
   )
   const selm = useSeleccionMultiple({
     items: aLaVista,
-    onEliminar: delMuchos,
+    // Se llama dentro de una arrow: delMuchos se declara más abajo y referenciarlo
+    // directo acá rompe al montar (zona muerta temporal).
+    onEliminar: (ids) => delMuchos(ids),
     nombre: ['operación', 'operaciones'],
   })
 

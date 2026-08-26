@@ -183,7 +183,9 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
   }, [filtered, cerradasAbiertas])
   const selm = useSeleccionMultiple({
     items: aLaVista,
-    onEliminar: delMuchos,
+    // Se llama dentro de una arrow: delMuchos se declara más abajo y referenciarlo
+    // directo acá rompe al montar (zona muerta temporal).
+    onEliminar: (ids) => delMuchos(ids),
     nombre: ['embarque', 'embarques'],
   })
 
