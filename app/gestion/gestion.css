@@ -162,6 +162,125 @@
   cursor: pointer;
 }
 
+/* ── Buscador global del header (⌘K) ──
+   Caja fina en desktop; en el celular queda solo la lupa (el header ahí es una
+   barra sticky angosta y el teclado ocupa media pantalla). */
+.gestion-root .gsearch-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 1 300px;
+  min-width: 0;
+  margin-left: auto;
+  margin-right: 0.9rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #f1f5f9;
+  border-radius: 8px;
+  background: #fff;
+  cursor: text;
+  font-family: inherit;
+  color: #9ca3af;
+  transition: border-color 0.15s;
+}
+.gestion-root .gsearch-box:hover { border-color: #e5e7eb; }
+.gestion-root .gsearch-ph {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  font-size: 0.76rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gestion-root .gsearch-kbd {
+  flex: 0 0 auto;
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: #c4c9d4;
+  letter-spacing: 0.02em;
+}
+.gestion-root .gsearch-ico {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  flex: 0 0 auto;
+  padding: 0;
+  margin-left: auto;
+}
+
+.gestion-root .gsearch-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: rgba(15, 23, 42, 0.35);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 10vh 1rem 1rem;
+}
+.gestion-root .gsearch-panel {
+  width: 100%;
+  max-width: 560px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+@media (max-width: 900px) {
+  .gestion-root .gsearch-box { display: none; }
+  .gestion-root .gsearch-ico { display: inline-flex; }
+  .gestion-root .gsearch-overlay { padding: 0.6rem 0.6rem 1rem; align-items: flex-start; }
+}
+
+/* En el celular, globals.css engorda TODO botón (44px + padding + 1rem). Para
+   las filas del buscador y de la agenda eso rompe la densidad: se repone la
+   medida real, cuidando que el área táctil siga siendo cómoda. */
+@media (max-width: 640px) {
+  .gestion-root .gsearch-item {
+    min-height: 0 !important;
+    min-width: 0 !important;
+    padding: 0.7rem 1rem !important;
+    font-size: inherit !important;
+    border-radius: 0 !important;
+  }
+  .gestion-root .gsearch-esc,
+  .gestion-root .ini-row .ini-sec {
+    min-height: 32px !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    font-size: inherit !important;
+    border-radius: 0 !important;
+  }
+  .gestion-root .ini-row .ini-body {
+    min-height: 0 !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    font-size: inherit !important;
+    border-radius: 0 !important;
+  }
+  .gestion-root .ini-row .ini-check {
+    min-height: 30px !important;
+    min-width: 30px !important;
+    width: 30px !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+  }
+  /* El campo del buscador es una línea limpia, no una caja con borde grueso. */
+  .gestion-root .gsearch-panel input {
+    border: none !important;
+    padding: 0 !important;
+    min-height: 26px !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+}
+
 /* Scrollbar */
 .gestion-root ::-webkit-scrollbar { width: 6px; height: 6px; }
 .gestion-root ::-webkit-scrollbar-track { background: transparent; }

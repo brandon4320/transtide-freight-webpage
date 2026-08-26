@@ -14,6 +14,13 @@ export const dynamic = 'force-dynamic'
 const EXTRA_COLS: [string, string][] = [
   ['proveedores_op', 'cobrar_extra'],
   ['gastos', 'pagado_por'],
+  // NCM + descripción de la mercadería: la operación no los tenía en ningún lado y
+  // es el dato que más plata cuesta cuando el despacho sale distinto a lo declarado.
+  ['operations', 'ncm'],
+  ['operations', 'mercaderia'],
+  // Foto de lo cotizado al convertir (costos por categoría, honorarios y ganancia
+  // esperada), para poder cotejar estimado vs real. La escribe convertir/route.ts.
+  ['operations', 'cotizado_detalle'],
 ]
 let ready: Record<string, boolean> | null = null
 async function ensureCols(): Promise<Record<string, boolean>> {
@@ -26,8 +33,13 @@ async function ensureCols(): Promise<Record<string, boolean>> {
       await d1Exec(`ALTER TABLE ${table} ADD COLUMN ${col} TEXT DEFAULT NULL`)
       out[col] = true
     } catch {
-      out[col] = false
-      console.warn(`[detail] no se pudo agregar ${table}.${col}; se guarda sin ese campo`)
+      // El ALTER puede fallar porque otra ruta lo corrió en el mismo momento
+      // (columna duplicada): si la columna quedó, sirve igual.
+      try {
+        const info = await d1Query<{ name: string }>(`PRAGMA table_info(${table})`)
+        out[col] = info.some(c => c.name === col)
+      } catch { out[col] = false }
+      if (!out[col]) console.warn(`[detail] no se pudo agregar ${table}.${col}; se guarda sin ese campo`)
     }
   }
   ready = out
@@ -35,7 +47,9 @@ async function ensureCols(): Promise<Record<string, boolean>> {
 }
 
 // Extras de cobranza que viven en el JSON de cobrar_extra.
-const COBRAR_EXTRA = ['giroMonto', 'giroPct', 'giroFijo', 'giroTotal', 'ganancia', 'honMin'] as const
+// `honPct` viaja desde la cotización convertida (el % de honorarios pactado); hoy la
+// pantalla calcula 4% fijo, así que se guarda y se devuelve sin perderse.
+const COBRAR_EXTRA = ['giroMonto', 'giroPct', 'giroFijo', 'giroTotal', 'ganancia', 'honMin', 'honPct'] as const
 
 const BUILTIN_CATS = ['naviera', 'terminal', 'aduana', 'transporte', 'despachante', 'admin', 'fleteIntl']
 
@@ -80,17 +94,27 @@ type CustomCatRow = {
   kind: string
 }
 
-type OpInfoRow = { puerto_origen: string | null; total_cotizado_usd: string | null; cotizacion_id: string | null; compra_id: string | null }
+type OpInfoRow = {
+  puerto_origen: string | null
+  total_cotizado_usd: string | null
+  cotizacion_id: string | null
+  compra_id: string | null
+  ncm?: string | null
+  mercaderia?: string | null
+  cotizado_detalle?: string | null
+}
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { id } = await params
-  await ensureCols()
+  const cols = await ensureCols()
+  // Si algún ALTER falló, esa columna no se pide (evita romper el GET entero).
+  const opExtra = (['ncm', 'mercaderia', 'cotizado_detalle'] as const).filter(c => cols[c]).map(c => `, ${c}`).join('')
 
   const [opInfo, gastos, provs, customCats] = await Promise.all([
-    d1Query<OpInfoRow>(`SELECT puerto_origen, total_cotizado_usd, cotizacion_id, compra_id FROM operations WHERE id = ?`, [id]),
+    d1Query<OpInfoRow>(`SELECT puerto_origen, total_cotizado_usd, cotizacion_id, compra_id${opExtra} FROM operations WHERE id = ?`, [id]),
     d1Query<GastoRow>(`SELECT * FROM gastos WHERE operation_id = ? ORDER BY categoria, position ASC`, [id]),
     d1Query<ProvRow>(`SELECT * FROM proveedores_op WHERE operation_id = ? ORDER BY position ASC`, [id]),
     d1Query<CustomCatRow>(`SELECT * FROM custom_categories WHERE operation_id = ?`, [id]),
@@ -106,6 +130,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     totalCotizadoUsd: opInfo[0]?.total_cotizado_usd || '',
     cotizacionId: opInfo[0]?.cotizacion_id || '',
     compraId: opInfo[0]?.compra_id || '',
+    ncm: opInfo[0]?.ncm || '',
+    mercaderia: opInfo[0]?.mercaderia || '',
+    // Solo lectura: es la foto de la cotización al convertir, no se edita desde acá.
+    cotizadoDetalle: parseJson(opInfo[0]?.cotizado_detalle),
   }
 
   // Pre-seed custom cat arrays
@@ -154,6 +182,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   return NextResponse.json(detail)
 }
 
+// JSON opcional guardado en una columna. Vacío o roto → null (nunca rompe el GET).
+function parseJson(raw: string | null | undefined): any {
+  try {
+    const j = JSON.parse(raw || '')
+    return j && typeof j === 'object' ? j : null
+  } catch { return null }
+}
+
 // Extras de cobranza guardados como JSON. Fila vieja o JSON roto → sin extras.
 function parseExtra(raw: string | null): Record<string, any> {
   const out: Record<string, any> = { exigirPago: false }
@@ -200,7 +236,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   const cleanup: { sql: string; params?: any[] }[] = []
 
   // --- Custom categories ---
-  const RESERVED = new Set([...BUILTIN_CATS, 'proveedores', 'cobrar', 'customGastos', 'puertoOrigen', 'totalCotizadoUsd', 'cotizacionId', 'compraId'])
+  const RESERVED = new Set([...BUILTIN_CATS, 'proveedores', 'cobrar', 'customGastos', 'puertoOrigen', 'totalCotizadoUsd', 'cotizacionId', 'compraId', 'ncm', 'mercaderia', 'cotizadoDetalle'])
   const customGastos: any[] = (body.customGastos || []).filter((c: any) => c && c.id && !RESERVED.has(c.id))
   const customIds = customGastos.map(c => c.id)
   for (const c of customGastos) {
@@ -271,10 +307,16 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   })
   cleanup.push({ sql: `DELETE FROM proveedores_op WHERE operation_id = ? AND position >= ?`, params: [id, proveedores.length] })
 
-  // Update operation's puerto_origen + updated_at
+  // Update operation's puerto_origen (+ NCM y mercadería) + updated_at.
+  // Los campos nuevos SOLO se tocan si vienen en el body: un cliente viejo que no
+  // los manda no puede borrar lo que sembró la conversión de la cotización.
+  const opSets = ['puerto_origen = ?']
+  const opParams: any[] = [body.puertoOrigen || null]
+  if (cols.ncm && 'ncm' in body) { opSets.push('ncm = ?'); opParams.push(body.ncm || null) }
+  if (cols.mercaderia && 'mercaderia' in body) { opSets.push('mercaderia = ?'); opParams.push(body.mercaderia || null) }
   upserts.push({
-    sql: `UPDATE operations SET puerto_origen = ?, updated_at = datetime('now') WHERE id = ?`,
-    params: [body.puertoOrigen || null, id],
+    sql: `UPDATE operations SET ${opSets.join(', ')}, updated_at = datetime('now') WHERE id = ?`,
+    params: [...opParams, id],
   })
 
   // Upserts PRIMERO, borrados acotados AL FINAL.

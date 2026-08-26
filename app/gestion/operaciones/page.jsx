@@ -1,15 +1,26 @@
 'use client';
-import { useState, useMemo, useEffect, useRef, Suspense } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { gToast } from '../toast';
 import { importFlowState, FlowTimeline, MiniFlow } from '../flujo-importacion';
 import { EmbarqueModal } from '../embarque-form';
+import FichaImportacion from '../ficha-importacion';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 const n    = (v) => parseFloat(v) || 0;
 // Montos del módulo Despachante: guardados como strings es-AR ("11.886" = 11886).
 const numDesp = (v) => { const x = parseFloat(String(v || '').replace(/\./g, '').replace(',', '.')); return isNaN(x) ? 0 : x; };
-const toTitle = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase().replace(/\b\w/g, c => c.toUpperCase()) : s;
+// Capitaliza por palabra respetando acentos (con \b\w los acentos cuentan como fin
+// de palabra y "Módulos policía" salía "MóDulos PolicíA") y dejando en mayúscula las
+// siglas del negocio: los nombres se cargan TODO EN MAYÚSCULAS.
+const SIGLAS = new Set(['SA', 'SRL', 'SAS', 'SL', 'SACIF', 'CNC', 'BL', 'HC', 'USA', 'EEUU', 'NCM', 'VEP', 'IVA', 'FOB', 'CIF', 'EXW', 'FCA', 'LCL', 'FCL', 'THC', 'ARCA', 'AFIP', 'CUIT', 'PRFV', 'ADC']);
+const toTitle = (s) => s
+  ? String(s).split(/(\s+)/).map(w => {
+      const limpio = w.replace(/[^\p{L}\p{N}]/gu, '');
+      if (limpio && SIGLAS.has(limpio.toUpperCase())) return w.toUpperCase();
+      return w.toLowerCase().replace(/(^|[(/-])(\p{L})/gu, (_, sep, ch) => sep + ch.toUpperCase());
+    }).join('')
+  : s;
 const fmtP = (v) => v == null || isNaN(v) ? '—' : '$ ' + Math.round(v).toLocaleString('es-AR');
 const fmtU = (v) => v == null || isNaN(v) ? '—' : 'USD ' + (Math.round(v * 100) / 100).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtUcompact = (v) => v == null || isNaN(v) ? '—' : Math.round(v * 100) / 100 < 1000 ? (Math.round(v * 100) / 100).toLocaleString('es-AR', { minimumFractionDigits: 2 }) : Math.round(v).toLocaleString('es-AR');
@@ -51,6 +62,57 @@ const PAGE_CSS = `
   .tt-icon { color: ${FAINT}; transition: color 0.12s; }
   .tt-icon:hover { color: ${INK}; }
 `;
+
+// ─── fechas · una sola ETA, un solo formato ──────────────────────────────────
+// Regla: se GUARDA siempre en ISO (yyyy-mm-dd) y se MUESTRA siempre dd/mm/aaaa.
+// El parseo acepta los dos formatos porque las filas viejas quedaron en
+// dd/mm/aaaa y no se migran — se leen bien igual.
+const toISODate = (v) => {
+  const s = String(v ?? '').trim();
+  if (!s) return '';
+  const iso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (iso) return `${iso[1]}-${iso[2].padStart(2, '0')}-${iso[3].padStart(2, '0')}`;
+  const ar = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (ar) return `${ar[3]}-${ar[2].padStart(2, '0')}-${ar[1].padStart(2, '0')}`;
+  return '';
+};
+// Para pantalla. Si el formato es desconocido devuelve el texto crudo (nunca oculta el dato).
+const fmtFecha = (v) => {
+  const iso = toISODate(v);
+  if (!iso) return String(v ?? '').trim();
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+};
+const dateFromAny = (v) => {
+  const iso = toISODate(v);
+  if (!iso) return null;
+  const d = new Date(iso + 'T00:00:00');
+  return isNaN(d.getTime()) ? null : d;
+};
+// >0 = faltan N días · 0 = hoy · <0 = arribó hace N días
+const daysTo = (v) => {
+  const d = dateFromAny(v);
+  if (!d) return null;
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  return Math.round((d.getTime() - t.getTime()) / 86400000);
+};
+// "llega en 4 días / arribó hace 6 días" — mismo criterio que Forwarding.
+// Color solo semántico: ámbar = se viene / recién arribó, rojo = arribó hace
+// una semana y la operación sigue abierta (ahí empieza a costar plata).
+const etaRel = (v, apagada) => {
+  const dd = daysTo(v);
+  if (dd == null) return null;
+  const dias = (k) => `${k} día${k === 1 ? '' : 's'}`;
+  if (dd === 0) return { text: 'llega hoy', color: apagada ? MUTED : AMBER, days: dd };
+  if (dd > 0)   return { text: `llega en ${dias(dd)}`, color: apagada || dd > 7 ? MUTED : AMBER, days: dd };
+  const k = -dd;
+  return { text: `arribó hace ${dias(k)}`, color: apagada ? MUTED : (k >= 7 ? RED : AMBER), days: dd };
+};
+// Orden por urgencia: ETA más vieja/próxima primero, sin ETA al fondo.
+const urgenciaKey = (o) => {
+  const d = dateFromAny(o?.eta);
+  return d ? d.getTime() : Number.POSITIVE_INFINITY;
+};
 
 // ─── row calculations ─────────────────────────────────────────────────────────
 const rowPesos = (r) => n(r.usd) > 0 && n(r.tc) > 0 ? n(r.usd) * n(r.tc) : n(r.pesos);
@@ -109,6 +171,14 @@ const estadoObj   = (e) => ESTADOS.find(s => s.label === e) || ESTADOS[0];
 const estadoColor = (e) => estadoObj(e).color;
 // Criterio de "cerrada": el mismo que ya usaba el KPI de Completadas.
 const ESTADOS_CERRADOS = ['Entregado', 'Liquidado', 'Cancelado'];
+// Filtros de la lista: agrupan los estados del flujo real (null = todas).
+const FILTROS = [
+  ['todas',    'Todas',       null],
+  ['transito', 'En tránsito', ['Consolidando', 'En tránsito']],
+  ['destino',  'En destino',  ['Arribado', 'En aduana', 'Listo p/ retiro', 'En tránsito local']],
+  ['cobrar',   'Por cobrar',  ['Entregado']],
+  ['cerradas', 'Cerradas',    ESTADOS_CERRADOS],
+];
 const PRIMARY = '#111827';
 const CONTENEDORES = ['20 Pies', '40 Pies', '40HQ', 'Flat Rack', 'LCL'];
 const CONTAINER_M3 = { '20 Pies': 28, '40 Pies': 56, '40HQ': 76, 'Flat Rack': 76, 'LCL': null };
@@ -128,8 +198,214 @@ const trackingStatusColor = (raw) => {
 };
 const trackBalNum = (v) => { const x = parseFloat(String(v || '').replace(/\./g, '').replace(',', '.')); return isNaN(x) ? 0 : x; };
 
+// ─── Successi Ing SA · el tercer bolsillo ─────────────────────────────────────
+// Cada línea de gasto sale de uno de tres lados: la sociedad importadora
+// (facturado), Successi Ing SA (la sociedad propia, que después se reintegra) o
+// tu bolsillo en efectivo. Successi no existía en el sistema: los gastos que
+// pagaba quedaban mezclados con los de la sociedad del cliente y nadie llevaba
+// la cuenta de cuánto había que devolverle.
+const PAGADORES = [['blanco', 'Sociedad'], ['successi', 'Successi'], ['cash', 'Vos']];
+const esPagador = (v) => v === 'blanco' || v === 'cash' || v === 'successi';
+// Montos tipeados a mano: mismo criterio es-AR que el resto del sistema
+// ("1.234,56" = 1234,56). El formulario muestra en vivo cómo queda interpretado.
+const fmtMontoAR = (v) => { if (!isFinite(v)) return ''; const r = Math.round(v * 100) / 100; return r === 0 ? '' : r.toLocaleString('es-AR', { maximumFractionDigits: 2 }); };
+const hoyISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+
+// Cuenta de Successi en una operación: cuánto puso, cuánto se le reintegró y
+// cuánto falta. Ese "falta" es una de las condiciones de cierre.
+const successiCuenta = (succPesos, tc, reintegros) => {
+  const puestoUSD = tc > 0 ? Math.round((succPesos / tc) * 100) / 100 : 0;
+  const reintegradoUSD = Math.round((reintegros || []).reduce((s, r) => s + numDesp(r.monto), 0) * 100) / 100;
+  return {
+    puestoPesos: succPesos, puestoUSD, reintegradoUSD,
+    faltaUSD: Math.round((puestoUSD - reintegradoUSD) * 100) / 100,
+    // Puso plata pero la operación todavía no tiene T.C.: no se puede pasar a USD.
+    sinTC: succPesos > 0 && !(tc > 0),
+  };
+};
+
+// Los reintegros viven en el ledger de pagos (scope 'successi'). Si esa ruta no
+// acepta el scope, el plan B los guarda en la propia operación: cada reintegro
+// está en UN solo lado y la lista es la unión de los dos (nunca se duplica).
+const mapReintegroLedger = (x) => ({
+  id: String(x.id), fecha: x.fecha || '', monto: x.monto || '',
+  metodo: x.metodo || '', nota: x.nota || '', por: x.created_by || '', origen: 'ledger',
+});
+const mergeReintegros = (ledger, opRow) => {
+  const a = (Array.isArray(ledger) ? ledger : []).filter(x => String(x.scope || '') === 'successi').map(mapReintegroLedger);
+  const b = (opRow && Array.isArray(opRow.successiReintegros) ? opRow.successiReintegros : []).map(x => ({ ...x, origen: 'op' }));
+  return [...a, ...b].sort((x, y) => String(y.fecha || '').localeCompare(String(x.fecha || '')));
+};
+
+// ─── condiciones de cierre ────────────────────────────────────────────────────
+// Las 5 cosas que tienen que estar en cero para liquidar una operación. Se puede
+// cerrar igual: las que queden abiertas se guardan en el acta de cierre con su
+// monto, y la operación sigue a la vista hasta que se resuelvan.
+const condicionesCierre = ({ calc, checkDone, checkTotal, ship, desp, reintegros }) => {
+  const succ = successiCuenta(calc.succPesos, calc.fallbackTC, reintegros);
+  const agente = ship ? trackBalNum(ship.balance_usd) : 0;
+  const dsp = desp ? numDesp(desp.saldo) : 0;
+  const pendClientes = Math.round((calc.totalACobrar - calc.totalCobrado) * 100) / 100;
+  const nPend = calc.perProv.filter(p => !p.cb.cobrado).length;
+  return [
+    {
+      id: 'checklist', label: 'Checklist al 100%', monto: 0,
+      ok: checkTotal > 0 && checkDone >= checkTotal,
+      detalle: `${checkDone} de ${checkTotal} tareas`,
+    },
+    {
+      id: 'agente', label: 'Saldo del agente en cero', monto: Math.max(agente, 0),
+      ok: agente <= 0,
+      detalle: !ship ? 'sin embarque cargado' : agente > 0 ? `${ship.agente || 'el agente'} · falta pagarle` : 'saldado',
+    },
+    {
+      id: 'despachante', label: 'Despachante saldado', monto: Math.max(dsp, 0),
+      ok: dsp <= 0,
+      detalle: !desp ? 'sin despacho cargado' : dsp > 0 ? 'su cuenta corriente sigue con saldo' : 'saldado',
+    },
+    {
+      id: 'clientes', label: 'Todos los clientes cobrados', monto: Math.max(pendClientes, 0),
+      ok: nPend === 0,
+      detalle: calc.perProv.length === 0 ? 'sin proveedores cargados' : nPend === 0 ? `${calc.perProv.length} cobrados` : `${nPend} de ${calc.perProv.length} sin cobrar`,
+    },
+    {
+      id: 'successi', label: 'Reintegro a Successi hecho', monto: Math.max(succ.faltaUSD, 0),
+      ok: !succ.sinTC && succ.faltaUSD <= 0,
+      detalle: succ.sinTC
+        ? `puso ${fmtP(succ.puestoPesos)} — cargá un T.C. para pasarlo a USD`
+        : succ.puestoUSD > 0 ? `puso ${fmtU(succ.puestoUSD)} · reintegrado ${fmtU(succ.reintegradoUSD)}` : 'no puso plata en esta operación',
+    },
+  ];
+};
+
+// ─── cálculo de la operación ─────────────────────────────────────────────────
+// Vive fuera del componente: la pantalla lo usa vía useMemo y el control de
+// cierre lo usa sobre un detalle recién bajado del servidor (misma cuenta, un
+// solo lugar donde se define la plata).
+function computeCalc(detail, clientes = []) {
+  const { naviera = [], terminal = [], aduana = [], transporte = [], despachante = [], admin = [], fleteIntl = [], proveedores = [], cobrar = [], customGastos = [] } = detail;
+  const tNav = catTot(naviera).pesos, tTerm = catTot(terminal).pesos, tAdu = catTot(aduana).pesos;
+  const tTra = catTot(transporte).pesos, tDes = catTot(despachante).pesos, tAdm = catTot(admin).pesos;
+  const tFlt = catTot(fleteIntl).pesos;
+
+  // Split por LÍNEA: cada gasto se paga desde uno de TRES bolsillos — "sociedad"
+  // (blanco/facturado), "successi" (Successi Ing SA, plata propia que después se
+  // reintegra) o "vos" (cash de tu bolsillo). Sin marca, hereda el default de su
+  // categoría (flete intl → cash, el resto → sociedad). VEP Aduana es siempre
+  // sociedad. Reclasificar una línea NO cambia el costo total ni el "a cobrar"
+  // por proveedor (la suma prorrateada es la misma): solo cambia de qué bolsillo
+  // salió, lo que recuperás en cash y lo que hay que devolverle a Successi.
+  const splitRows = (rows, defKind) => rows.reduce((a, r) => {
+    const kind = esPagador(r.pagadoPor) ? r.pagadoPor : defKind;
+    a[kind] += rowPesos(r);
+    return a;
+  }, { blanco: 0, cash: 0, successi: 0 });
+
+  let enBlanco = tAdu, cash = 0, succPesos = 0; // VEP siempre sociedad
+  // catsBlanco: desglose de lo que paga la SOCIEDAD IMPORTADORA (tributos,
+  // naviera, terminal…) para la banda "Reparto de la plata". El DESPACHANTE
+  // va aparte (despBlanco): es SU factura, no de la sociedad — si estuviera
+  // acá y en su propia tarjeta se sumaría dos veces. Lo que puso Successi sale
+  // de catsBlanco y va a su propia cuenta (catsSucc).
+  const catsBlanco = tAdu > 0 ? [{ label: 'VEP Aduana (tributos)', monto: tAdu }] : [];
+  const catsSucc = [];
+  let despBlanco = 0, despSucc = 0;
+  // `enBlanco` = todo lo facturado (sociedad + Successi): el prorrateo al cliente
+  // es idéntico al de antes, marcar Successi no le cambia el costo a nadie.
+  const acum = (s, label) => {
+    enBlanco += s.blanco + s.successi; cash += s.cash; succPesos += s.successi;
+    if (s.blanco > 0) catsBlanco.push({ label, monto: s.blanco });
+    if (s.successi > 0) catsSucc.push({ label, monto: s.successi });
+  };
+  [[naviera, 'blanco', 'Naviera'], [terminal, 'blanco', 'Terminal'], [transporte, 'blanco', 'Transporte'], [despachante, 'blanco', null], [admin, 'blanco', 'Admin'], [fleteIntl, 'cash', 'Flete Internacional']].forEach(([rows, def, label]) => {
+    const s = splitRows(rows, def);
+    if (label === null) {
+      // Despachante: su tarjeta muestra todo lo que le pagás, lo haya puesto la
+      // sociedad o Successi.
+      enBlanco += s.blanco + s.successi; cash += s.cash; succPesos += s.successi;
+      despBlanco = s.blanco + s.successi; despSucc = s.successi;
+      if (s.successi > 0) catsSucc.push({ label: 'Despachante', monto: s.successi });
+      return;
+    }
+    acum(s, label);
+  });
+  customGastos.forEach(cg => {
+    acum(splitRows(detail[cg.id] || [], cg.kind === 'cash' ? 'cash' : 'blanco'), cg.label || 'Otro');
+  });
+  // Lo que queda para la sociedad importadora: el desglose que se muestra.
+  const socPesos = catsBlanco.reduce((s, c) => s + c.monto, 0);
+
+  // Líneas cargadas en USD sin T.C.: no entran al total en pesos ni al
+  // prorrateo — se avisa en el panel en vez de perderse en silencio.
+  const usdSinTC = [naviera, terminal, aduana, transporte, despachante, admin, fleteIntl, ...customGastos.map(cg => detail[cg.id] || [])]
+    .reduce((s, rows) => s + catTot(rows).usd, 0);
+  const prorBase = enBlanco - tAdu + cash;
+  const totalGastos = enBlanco + cash;
+  const totalM3 = proveedores.reduce((s, p) => s + n(p.m3), 0);
+
+  // TC de la operación: primer TC disponible entre todos los proveedores (cobro o VEP).
+  // Permite calcular "a cobrar" de proveedores SIN VEP propio (cuando el VEP se
+  // agrupa en uno solo), sin obligar a cargar TC en cada fila.
+  const fallbackTC = proveedores.reduce((tc, p, i) => {
+    if (tc > 0) return tc;
+    const cb = cobrar[i] || {};
+    return n(cb.tc) > 0 ? n(cb.tc) : (n(p.tributosTC) > 0 ? n(p.tributosTC) : 0);
+  }, 0);
+
+  const perProv = proveedores.map((p, i) => {
+    const clienteNombre = p.clienteId ? clientes.find(c => c.id === p.clienteId)?.nombre || '' : '';
+    const ratio = totalM3 > 0 ? n(p.m3) / totalM3 : 0;
+    const prorBlancoPesos = Math.round(ratio * (enBlanco - tAdu));
+    const prorCashPesos   = Math.round(ratio * cash);
+    const prorPesos       = prorBlancoPesos + prorCashPesos;
+    const vepPesos = Math.round(n(p.tributosUSD) * n(p.tributosTC));
+    const costoFinal = prorPesos + vepPesos;
+    const cb = cobrar[i] || { tc: 0, honorarios: false, despAdic: 0 };
+    const tcOwn = n(cb.tc) > 0 ? n(cb.tc) : n(p.tributosTC);
+    const tcUsed = tcOwn > 0 ? tcOwn : fallbackTC;
+    const tcInherited = tcOwn <= 0 && fallbackTC > 0;
+    const gastosUSD = tcUsed > 0 ? Math.round((costoFinal / tcUsed) * 100) / 100 : 0;
+    const cashUSD   = tcUsed > 0 ? Math.round((prorCashPesos / tcUsed) * 100) / 100 : 0;
+    const origenUSD = n(p.gastosOrigenUSD);
+    // Honorarios = máx(4%, mínimo USD si está cargado). Vacío = solo 4% (compat
+    // con operaciones viejas).
+    const honPct4 = Math.round((gastosUSD + origenUSD) * 0.04 * 100) / 100;
+    const honorarios = cb.honorarios ? Math.max(honPct4, n(cb.honMin)) : 0;
+    // Giro de divisas al exterior: servicio cobrado al cliente cuando Brandon
+    // hace el pago al proveedor. % sobre lo girado + gasto fijo (ej. USD 45 de
+    // transferencia); un total manual pisa el cálculo. Todas las opciones.
+    const giroBase = n(cb.giroMonto) * (n(cb.giroPct) / 100) + n(cb.giroFijo);
+    const giroUSD = n(cb.giroTotal) > 0 ? n(cb.giroTotal) : Math.round(giroBase * 100) / 100;
+    // Ganancia: monto interno que se suma al total a cobrar SIN desglosarse
+    // en la vista general ni en el estado de cuenta del cliente.
+    const totalUSD = Math.round((gastosUSD + origenUSD + honorarios + n(cb.despAdic) + n(cb.ganancia) + giroUSD) * 100) / 100;
+    // Lo que te queda a VOS de esta fila: honorarios + giro + ganancia cargada.
+    // No entran gastos de origen, VEP ni adicionales del despachante: eso se
+    // pasa al cliente tal cual (por eso "Servicios" no sirve como margen).
+    const gananciaUSD = Math.round((honorarios + giroUSD + n(cb.ganancia)) * 100) / 100;
+    return { ...p, clienteNombre, ratio, prorPesos, prorBlancoPesos, prorCashPesos, cashUSD, vepPesos, costoFinal, tcUsed, tcInherited, gastosUSD, origenUSD, honorarios, giroUSD, gananciaUSD, totalUSD, cb, idx: i };
+  });
+  return {
+    tNav, tTerm, tAdu, tTra, tDes, tAdm, tFlt, usdSinTC, fallbackTC,
+    enBlanco, cash, prorBase, totalGastos, totalM3, perProv, catsBlanco, despBlanco,
+    // Successi Ing SA: cuánto puso en esta operación (y cuánto de eso fue al
+    // despachante, que se muestra en su propia tarjeta).
+    succPesos, despSucc, catsSucc, socPesos,
+    totalACobrar:  perProv.reduce((s, p) => s + p.totalUSD, 0),
+    totalCobrado:  perProv.reduce((s, p) => s + (p.cb.cobrado ? p.totalUSD : 0), 0),
+    totalCashUSD:  perProv.reduce((s, p) => s + p.cashUSD, 0),
+    // Cuánto te dejó la operación (y cuánto de eso ya entró).
+    totalGanancia:    perProv.reduce((s, p) => s + p.gananciaUSD, 0),
+    gananciaCobrada:  perProv.reduce((s, p) => s + (p.cb.cobrado ? p.gananciaUSD : 0), 0),
+    totalHonorarios:  perProv.reduce((s, p) => s + p.honorarios, 0),
+    totalGiro:        perProv.reduce((s, p) => s + p.giroUSD, 0),
+    totalGananciaMan: perProv.reduce((s, p) => s + n(p.cb.ganancia), 0),
+    cobrados:      perProv.filter(p => p.cb.cobrado).length,
+  };
+}
+
 // ─── OperationsList ───────────────────────────────────────────────────────────
-function OperationsList({ onSelect, deepLinkId }) {
+function OperationsList({ onSelect, deepLinkId, query, setQuery, filter, setFilter }) {
   const [ops,       setOps]       = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [modal,     setModal]     = useState(null); // null | 'new' | opObj
@@ -138,6 +414,10 @@ function OperationsList({ onSelect, deepLinkId }) {
   const [statusPop, setStatusPop] = useState(null); // op.id with open status picker
   const [showCerradas, setShowCerradas] = useState(false); // sección de cerradas: colapsada por defecto
   const [deepLinkDone, setDeepLinkDone] = useState(false);
+  // Actas de cierre de TODAS las operaciones, en una sola request: la lista
+  // necesita saber cuáles se cerraron con plata pendiente para no esconderlas.
+  const [cierres,   setCierres]   = useState({});
+  const [cierreFor, setCierreFor] = useState(null); // operación que se está por liquidar
 
   const [loadError, setLoadError] = useState(false);
 
@@ -148,6 +428,7 @@ function OperationsList({ onSelect, deepLinkId }) {
     let cancelled = false;
     fetch('/api/tracking').then(r => r.ok ? r.json() : null).then(j => { if (!cancelled && j) setFlowShips(j.shipments || []); }).catch(() => {});
     fetch('/api/db/despachante').then(r => r.ok ? r.json() : null).then(j => { if (!cancelled && Array.isArray(j)) setFlowDesps(j); }).catch(() => {});
+    fetch('/api/db/operations/__cierres').then(r => r.ok ? r.json() : null).then(j => { if (!cancelled && j && typeof j === 'object') setCierres(j); }).catch(() => {});
     return () => { cancelled = true; };
   }, []);
   const flowShipByBL = useMemo(() => { const m = {}; flowShips.forEach(x => { if (x.bl) m[blNorm(x.bl)] = x; }); return m; }, [flowShips]);
@@ -195,11 +476,27 @@ function OperationsList({ onSelect, deepLinkId }) {
   const openEdit = (op, e) => { e.stopPropagation(); setForm({ ...emptyOp(), ...op }); setModal(op); };
   const askDel   = (id, e) => { e.stopPropagation(); setConfirm(id); };
 
+  // El acta de cierre de una operación (lo que quedó abierto al liquidarla).
+  const cierreDe      = (o) => (o && (o.cierre || cierres[o.id])) || null;
+  const conPendientes = (o) => { const c = cierreDe(o); return !!(c && !c.completo && c.totalUsd > 0); };
+  // "Cerrada" a los efectos de la lista: cerrada Y sin plata pendiente. Si quedó
+  // con saldo, sigue arriba con las activas en vez de irse a la sección colapsada.
+  const esCerrada = (o) => ESTADOS_CERRADOS.includes(o.estado) && !conPendientes(o);
+
   const setEstado = async (id, estado) => {
     const op = ops.find(o => o.id === id);
     if (!op) return;
+    // Liquidar no puede ser elegir una opción de un desplegable: primero se revisa
+    // qué queda abierto y por cuánta plata. Se puede cerrar igual, pero registrado.
+    if (estado === 'Liquidado') { setStatusPop(null); setCierreFor(op); return; }
     const prev = op.estado;
     const next = { ...op, estado };
+    // Vuelve a un estado abierto: el acta de cierre anterior deja de aplicar
+    // (el servidor la borra sola cuando el estado no es de cierre).
+    if (!ESTADOS_CERRADOS.includes(estado)) {
+      delete next.cierre;
+      setCierres(c => { if (!c[id]) return c; const x = { ...c }; delete x[id]; return x; });
+    }
     setOps(ops.map(o => o.id === id ? next : o)); // optimista
     setStatusPop(null);
     try {
@@ -222,15 +519,24 @@ function OperationsList({ onSelect, deepLinkId }) {
         const r = await fetch('/api/db/operations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newOp) });
         if (!r.ok) { gToast.error('No se pudo crear la operación.'); return; }
         const created = await r.json();
-        setOps([{ ...created, m3_total: 0 }, ...ops]);
+        const row = { ...created, m3_total: 0 };
+        setOps([row, ...ops]);
         gToast.success('Operación creada.');
+        setModal(null);
+        onSelect(row); // la lista ordena por urgencia: sin esto la nueva queda al fondo
+        return;
       } else {
         const id = modal.id;
-        const updated = { ...form, id };
+        // Liquidar desde el selector de estado del modal tampoco puede ser
+        // directo: se guarda el resto y se abre el control de condiciones.
+        const quiereLiquidar = form.estado === 'Liquidado' && modal.estado !== 'Liquidado';
+        const updated = { ...form, id, ...(quiereLiquidar ? { estado: modal.estado } : {}) };
         const r = await fetch(`/api/db/operations/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) });
         if (!r.ok) { gToast.error('No se pudieron guardar los cambios.'); return; }
-        setOps(ops.map(o => o.id === id ? { ...o, ...updated } : o));
+        const row = { ...(ops.find(o => o.id === id) || {}), ...updated };
+        setOps(ops.map(o => o.id === id ? row : o));
         gToast.success('Operación actualizada.');
+        if (quiereLiquidar) { setModal(null); setCierreFor(row); return; }
       }
       setModal(null);
     } catch {
@@ -253,9 +559,31 @@ function OperationsList({ onSelect, deepLinkId }) {
   const INP2 = { ...INP, padding: '0.5rem 0.75rem', boxSizing: 'border-box' };
   const SEL  = { ...INP2, cursor: 'pointer', appearance: 'auto' };
 
-  // Activas arriba, cerradas al fondo (colapsadas). Mismo orden que devuelve la API.
-  const opsActivas  = ops.filter(o => !ESTADOS_CERRADOS.includes(o.estado));
-  const opsCerradas = ops.filter(o => ESTADOS_CERRADOS.includes(o.estado));
+  // Buscador + filtro por estado, y orden por urgencia real (ETA más próxima o
+  // ya vencida arriba) en vez de por fecha de alta.
+  const q   = query.trim().toLowerCase();
+  const qBL = blNorm(query);
+  const visibles = useMemo(() => {
+    const grupo = (FILTROS.find(f => f[0] === filter) || FILTROS[0])[2];
+    let l = grupo ? ops.filter(o => grupo.includes(o.estado)) : ops;
+    if (q) {
+      l = l.filter(o =>
+        [o.nombre, o.bl, o.clientes_txt, o.proveedores_txt, o.estado, o.contenedor].some(v => (v || '').toLowerCase().includes(q))
+        // B/L sin espacios ni guiones: "MAEU 754-33" encuentra MAEU75433
+        || (qBL.length >= 3 && blNorm(o.bl).includes(qBL))
+      );
+    }
+    return [...l].sort((a, b) => urgenciaKey(a) - urgenciaKey(b));
+  }, [ops, q, qBL, filter]);
+
+  // Activas arriba, cerradas al fondo (colapsadas por defecto; si estás buscando
+  // se abren solas, si no parece que el resultado no existe).
+  const opsActivas  = visibles.filter(o => !esCerrada(o));
+  const opsCerradas = visibles.filter(o => esCerrada(o));
+  const cerradasOpen = showCerradas || !!q || filter === 'cerradas';
+  const filtrando    = !!q || filter !== 'todas';
+  const totalActivas  = ops.filter(o => !esCerrada(o)).length;
+  const totalCerradas = ops.length - totalActivas;
 
   return (
     <div>
@@ -263,13 +591,37 @@ function OperationsList({ onSelect, deepLinkId }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.75rem' }}>
         <div>
           <h2 style={{ fontSize: '1.45rem', fontWeight: 350, letterSpacing: '-0.02em', color: INK, margin: 0 }}>Operaciones</h2>
-          <p style={{ fontSize: '0.74rem', color: MUTED, marginTop: 3 }}>{opsActivas.length} activa{opsActivas.length === 1 ? '' : 's'}{opsCerradas.length > 0 ? ` · ${opsCerradas.length} cerrada${opsCerradas.length === 1 ? '' : 's'}` : ''}</p>
+          <p style={{ fontSize: '0.74rem', color: MUTED, marginTop: 3 }}>
+            {totalActivas} activa{totalActivas === 1 ? '' : 's'}{totalCerradas > 0 ? ` · ${totalCerradas} cerrada${totalCerradas === 1 ? '' : 's'}` : ''}
+            {filtrando && ` · ${visibles.length} en pantalla`}
+          </p>
         </div>
         <button onClick={openNew} style={{ ...BTN_DARK, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Nueva operación
         </button>
       </div>
+
+      {/* Buscador + filtros: una única línea fina */}
+      {!loading && !loadError && ops.length > 0 && (
+        <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '1rem' }}>
+          <input value={query} onChange={e => setQuery(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); setQuery(''); } }}
+            placeholder="Buscar operación, B/L, cliente, proveedor…" aria-label="Buscar operaciones" className="tt-uinp"
+            style={{ flex: 1, minWidth: 200, border: 'none', borderBottom: `1px solid ${LINE}`, borderRadius: 0, background: 'transparent', padding: '0.35rem 0', fontSize: '16px', color: INK, outline: 'none', fontFamily: 'inherit' }} />
+          <div style={{ display: 'flex', gap: '1.1rem', flexWrap: 'wrap' }}>
+            {FILTROS.map(([id, lbl]) => {
+              const on = filter === id;
+              return (
+                <button key={id} onClick={() => setFilter(id)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 4px', fontFamily: 'inherit', fontSize: '0.74rem', fontWeight: on ? 600 : 400, color: on ? INK : MUTED, borderBottom: on ? `2px solid ${INK}` : '2px solid transparent', whiteSpace: 'nowrap' }}>
+                  {lbl}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* list */}
       <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -291,23 +643,49 @@ function OperationsList({ onSelect, deepLinkId }) {
               Crear la primera operación
             </button>
           </div>
+        ) : visibles.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '3.5rem 1rem' }}>
+            <p style={{ fontWeight: 600, color: INK, marginBottom: '0.35rem', fontSize: '0.9rem' }}>Sin resultados</p>
+            <p style={{ fontSize: '0.78rem', color: MUTED, marginBottom: '1.1rem' }}>Ninguna operación coincide con la búsqueda o el filtro.</p>
+            <button onClick={() => { setQuery(''); setFilter('todas'); }} className="tt-ghost" style={{ ...GHOST, fontSize: '0.78rem', fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: 3 }}>
+              Limpiar búsqueda
+            </button>
+          </div>
         ) : (
         <>
+        {/* Cerradas con plata pendiente: liquidadas dejando algo abierto. Antes se
+            iban a "Cerradas" (colapsada) y la deuda desaparecía de la pantalla. */}
+        {(() => {
+          const conDeuda = ops.filter(conPendientes).sort((a, b) => (cierreDe(b).totalUsd || 0) - (cierreDe(a).totalUsd || 0))
+          if (!conDeuda.length) return null
+          const total = conDeuda.reduce((s, o) => s + (cierreDe(o).totalUsd || 0), 0)
+          return (
+            <div style={{ borderLeft: `2px solid ${RED}`, paddingLeft: 12, marginBottom: '1.25rem' }}>
+              <p style={{ ...GROUP_H, marginBottom: 4 }}>Cerradas con plata pendiente · {conDeuda.length} · <span style={{ color: RED }}>{fmtU(total)}</span></p>
+              {conDeuda.slice(0, 5).map(o => {
+                const c = cierreDe(o)
+                return (
+                  <button key={o.id} onClick={() => onSelect(o)} className="tt-ghost" style={{ display: 'block', background: 'none', border: 'none', padding: '0.12rem 0', cursor: 'pointer', textAlign: 'left', fontSize: '0.78rem', color: BODY }}>
+                    <b style={{ color: INK, fontWeight: 600 }}>{o.nombre}</b> cerrada {fmtFecha(c.fecha) ? `el ${fmtFecha(c.fecha)}` : ''} con <b style={{ color: RED, fontWeight: 700, ...TAB }}>{fmtU(c.totalUsd)}</b> sin resolver — {(c.pendientes || []).filter(p => p.monto > 0).map(p => p.label.toLowerCase()).join(' · ') || 'revisá el detalle'}
+                  </button>
+                )
+              })}
+            </div>
+          )
+        })()}
+
         {/* Alertas: entregadas hace 1+ semana que siguen sin liquidar */}
         {(() => {
-          const today = new Date(); today.setHours(0, 0, 0, 0)
-          const viejas = ops.filter(o => {
-            if (o.estado !== 'Entregado') return false
-            const d = o.eta ? new Date(o.eta + 'T00:00:00') : null
-            return d && !isNaN(d.getTime()) && (today.getTime() - d.getTime()) / 86400000 >= 7
-          })
+          const viejas = ops
+            .filter(o => o.estado === 'Entregado' && (daysTo(o.eta) ?? 1) <= -7)
+            .sort((a, b) => urgenciaKey(a) - urgenciaKey(b))
           if (!viejas.length) return null
           return (
             <div style={{ borderLeft: `2px solid ${AMBER}`, paddingLeft: 12, marginBottom: '1.25rem' }}>
               <p style={{ ...GROUP_H, marginBottom: 4 }}>Cobranzas · {viejas.length}</p>
               {viejas.slice(0, 5).map(o => (
                 <button key={o.id} onClick={() => onSelect(o)} className="tt-ghost" style={{ display: 'block', background: 'none', border: 'none', padding: '0.12rem 0', cursor: 'pointer', textAlign: 'left', fontSize: '0.78rem', color: BODY }}>
-                  <b style={{ color: INK, fontWeight: 600 }}>{o.nombre}</b> entregada y sin liquidar — revisá cobros pendientes
+                  <b style={{ color: INK, fontWeight: 600 }}>{o.nombre}</b> arribó hace {-daysTo(o.eta)} días, entregada y sin liquidar — revisá cobros pendientes
                 </button>
               ))}
             </div>
@@ -348,7 +726,12 @@ function OperationsList({ onSelect, deepLinkId }) {
                 <div style={{ minWidth: 0 }}>
                   <p style={{ fontWeight: 600, color: INK, fontSize: '0.88rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{op.nombre}</p>
                   <p style={{ fontSize: '0.68rem', color: MUTED, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    ETA {op.eta || op.fecha || '—'}
+                    ETA {fmtFecha(op.eta) || fmtFecha(op.fecha) || '—'}
+                    {(() => {
+                      // Urgencia real de la fila: lo primero que se lee, también del celular.
+                      const rel = etaRel(op.eta, cerrada)
+                      return rel ? <> · <b style={{ color: rel.color, fontWeight: 600 }}>{rel.text}</b></> : null
+                    })()}
                     {(() => {
                       // Embarque en la fila: agente y estado como meta-texto; solo la deuda va en rojo
                       const sh = flowShipByBL[blNorm(op.bl)]
@@ -362,6 +745,21 @@ function OperationsList({ onSelect, deepLinkId }) {
                       )
                     })()}
                   </p>
+                  {/* Cerrada dejando algo abierto: línea propia (en el celular la
+                      meta de arriba se corta, y esto es justo lo que no se puede perder). */}
+                  {(() => {
+                    const c = cierreDe(op)
+                    if (!c || c.completo) return null
+                    const nPend = (c.pendientes || []).length
+                    return (
+                      <p style={{ fontSize: '0.7rem', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', ...TAB }}>
+                        {c.totalUsd > 0
+                          ? <b style={{ color: RED, fontWeight: 700 }}>Cerrada con {fmtU(c.totalUsd)} sin resolver</b>
+                          : <b style={{ color: AMBER, fontWeight: 600 }}>Cerrada con {nPend} pendiente{nPend === 1 ? '' : 's'}</b>}
+                        <span style={{ color: MUTED, fontWeight: 400 }}> · {(c.pendientes || []).map(x => x.label.toLowerCase()).join(' · ')}</span>
+                      </p>
+                    )
+                  })()}
                   {!cerrada && (
                     <div style={{ marginTop: 5 }}>
                       <MiniFlow state={importFlowState({ op, ship: flowShipByBL[blNorm(op.bl)], desp: flowDespByBL[blNorm(op.bl)] })} />
@@ -379,7 +777,7 @@ function OperationsList({ onSelect, deepLinkId }) {
                 </div>
 
                 {/* col 4: ETA */}
-                <p className="col-eta" style={{ fontSize: '0.74rem', color: op.eta ? BODY : FAINT, ...TAB }}>{op.eta || '—'}</p>
+                <p className="col-eta" style={{ fontSize: '0.74rem', color: op.eta ? BODY : FAINT, ...TAB }}>{fmtFecha(op.eta) || '—'}</p>
 
                 {/* col 5: actions */}
                 <div className="col-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }} onClick={e => e.stopPropagation()}>
@@ -428,12 +826,12 @@ function OperationsList({ onSelect, deepLinkId }) {
               {opsCerradas.length > 0 && (
                 <div style={{ marginTop: opsActivas.length ? '1.5rem' : 0 }}>
                   <button onClick={() => setShowCerradas(v => !v)} className="tt-ghost"
-                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '0.55rem 0.25rem', marginBottom: showCerradas ? '0.35rem' : 0, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={MUTED} strokeWidth="2.5" style={{ transform: showCerradas ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}><polyline points="6 9 12 15 18 9"/></svg>
+                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '0.55rem 0.25rem', marginBottom: cerradasOpen ? '0.35rem' : 0, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={MUTED} strokeWidth="2.5" style={{ transform: cerradasOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}><polyline points="6 9 12 15 18 9"/></svg>
                     <span style={{ fontSize: '0.72rem', fontWeight: 600, color: MUTED }}>Cerradas · {opsCerradas.length}</span>
                     <span style={{ fontSize: '0.66rem', color: FAINT }}>entregadas, liquidadas y canceladas</span>
                   </button>
-                  {showCerradas && opsCerradas.map(op => renderOpRow(op, true))}
+                  {cerradasOpen && opsCerradas.map(op => renderOpRow(op, true))}
                 </div>
               )}
             </>
@@ -484,11 +882,15 @@ function OperationsList({ onSelect, deepLinkId }) {
               </div>
               <div>
                 <label style={LBL}>Fecha de alta</label>
-                <input type="date" value={form.fecha?.split('/').reverse().join('-') || ''} onChange={e => { const [y,m,d] = e.target.value.split('-'); setForm(f => ({ ...f, fecha: `${d}/${m}/${y}` })); }} className="tt-inp" style={INP2} />
+                <input type="date" value={toISODate(form.fecha)} onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))} className="tt-inp" style={INP2} />
               </div>
               <div>
                 <label style={LBL}>ETA (Fecha estimada de llegada)</label>
-                <input type="date" value={form.eta?.split('/').reverse().join('-') || ''} onChange={e => { const [y,m,d] = e.target.value.split('-'); setForm(f => ({ ...f, eta: `${d}/${m}/${y}` })); }} className="tt-inp" style={INP2} />
+                <input type="date" value={toISODate(form.eta)} onChange={e => setForm(f => ({ ...f, eta: e.target.value }))} className="tt-inp" style={INP2} />
+                {(() => {
+                  const rel = etaRel(form.eta, false)
+                  return rel ? <p style={{ fontSize: '0.66rem', color: rel.color, marginTop: 3, fontWeight: 600 }}>{rel.text}</p> : null
+                })()}
               </div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '1.25rem', marginTop: '1.25rem' }}>
@@ -514,6 +916,23 @@ function OperationsList({ onSelect, deepLinkId }) {
           </div>
         </div>
       )}
+
+      {/* ── Cerrar con condiciones (al marcar Liquidado) ── */}
+      {cierreFor && (
+        <CierreModal
+          op={cierreFor}
+          ship={flowShipByBL[blNorm(cierreFor.bl)]}
+          desp={flowDespByBL[blNorm(cierreFor.bl)]}
+          preload={null}
+          onCancel={() => setCierreFor(null)}
+          onDone={(cierre) => {
+            const id = cierreFor.id;
+            setOps(curr => curr.map(o => o.id === id ? { ...o, estado: 'Liquidado', cierre } : o));
+            setCierres(c => ({ ...c, [id]: cierre }));
+            setCierreFor(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -537,9 +956,21 @@ function OperationDetail({ op, onBack }) {
   const [estadoCuenta, setEstadoCuenta] = useState(null); // grupo de cliente para el resumen imprimible
   const [addingCat,  setAddingCat]  = useState(false);
   const [isDirty,    setIsDirty]    = useState(false);
-  const [saveFlash,  setSaveFlash]  = useState(false);
-  const [saving,     setSaving]     = useState(false);
-  const savingRef = useRef(false);
+  // ── Autoguardado del detalle ───────────────────────────────────────────────
+  // Cargar los costos de una importación son varios minutos de tipeo. Antes todo
+  // vivía en memoria hasta apretar "Guardar": un corte de conexión o el celular
+  // descartando la pestaña se llevaba todo. Ahora se persiste solo con debounce
+  // (mismo mecanismo que el checklist) y el botón pasó a ser un indicador.
+  const [saveState,  setSaveState]  = useState('idle'); // idle | saving | saved | error
+  const savingRef   = useRef(false);   // guardado en vuelo (evita concurrentes)
+  const autoBlocked = useRef(false);   // tras un error no reintenta solo hasta que toques algo
+  const errShownRef = useRef(false);   // el aviso de error se muestra una vez, no en cada reintento
+  const detailRef   = useRef(detail);  // última versión tipeada, para guardar sin depender del render
+  const sentRef     = useRef(null);    // última versión confirmada por el server
+  const isDirtyRef  = useRef(false);
+  const salirRef    = useRef(null);    // salida con guardado, para los listeners
+  detailRef.current  = detail;
+  isDirtyRef.current = isDirty;
   const [showDiscard,setShowDiscard]= useState(false);
   const [pendingNav, setPendingNav] = useState(null);
   const [checked,    setChecked]    = useState(() => new Set());
@@ -548,24 +979,120 @@ function OperationDetail({ op, onBack }) {
   const [shipmentLoaded, setShipmentLoaded] = useState(false);
   const [despacho, setDespacho] = useState(null);
   const [shipModal, setShipModal] = useState(false); // editor de embarque embebido en la operación
-  // Despacho de aduana vinculado por B/L — alimenta el flujo del expediente.
+  // ETA de la operación, siempre en ISO. Estado local para poder adoptar la del embarque.
+  const [etaOp, setEtaOp] = useState(() => toISODate(op.eta));
+  const [adoptandoEta, setAdoptandoEta] = useState(false);
+  useEffect(() => { setEtaOp(toISODate(op.eta)); }, [op.id, op.eta]);
+  // Despacho de aduana vinculado por B/L — alimenta el flujo del expediente y el
+  // cotejo de la tarjeta "Al despachante". Recargable: registrar un pago desde la
+  // ficha del B/L tiene que refrescar el saldo sin recargar la pantalla entera.
+  const despReqRef = useRef(0);
+  const loadDespacho = useCallback(async () => {
+    const my = ++despReqRef.current;
+    if (!op.bl) { setDespacho(null); return; }
+    try {
+      const r = await fetch('/api/db/despachante');
+      if (!r.ok) return;
+      const list = await r.json();
+      if (my !== despReqRef.current) return; // llegó tarde: ya hay otra búsqueda en curso
+      setDespacho((Array.isArray(list) ? list : []).find(d => blNorm(d.bl) === blNorm(op.bl)) || null);
+    } catch {}
+  }, [op.bl]);
+  useEffect(() => { setDespacho(null); loadDespacho(); }, [op.id, loadDespacho]);
+  const [fichaBL, setFichaBL] = useState(false); // ficha integral del B/L abierta desde el cotejo
+  const [confirmDelCat, setConfirmDelCat] = useState(null); // catId pendiente de borrar
+  const [creatingShip, setCreatingShip] = useState(false);
+  // ── Successi Ing SA + acta de cierre ───────────────────────────────────────
+  const [estadoOp,    setEstadoOp]    = useState(op.estado);
+  const [cierreOp,    setCierreOp]    = useState(op.cierre || null);
+  const [cierreModal, setCierreModal] = useState(false);
+  const [succModal,   setSuccModal]   = useState(false);
+  const [reintLedger, setReintLedger] = useState([]); // reintegros en el ledger de pagos
+  const [reintLocal,  setReintLocal]  = useState([]); // reintegros guardados en la operación
+  useEffect(() => { setEstadoOp(op.estado); setCierreOp(op.cierre || null); }, [op.id, op.estado, op.cierre]);
+
+  // Cuenta de Successi (reintegros) y acta de cierre de ESTA operación.
   useEffect(() => {
     let cancelled = false;
-    setDespacho(null);
-    if (!op.bl) return;
+    setReintLedger([]); setReintLocal([]);
     (async () => {
+      const asJson = async (r) => (r && r.ok ? r.json().catch(() => null) : null);
       try {
-        const r = await fetch('/api/db/despachante');
-        if (!r.ok) return;
-        const list = await r.json();
-        const m = (Array.isArray(list) ? list : []).find(d => blNorm(d.bl) === blNorm(op.bl));
-        if (!cancelled) setDespacho(m || null);
+        const [rOp, rPag] = await Promise.all([
+          fetch(`/api/db/operations/${op.id}`),
+          fetch(`/api/db/pagos?scope=successi&ref_id=${encodeURIComponent(op.id)}`),
+        ]);
+        const opRow = await asJson(rOp);
+        const pag   = await asJson(rPag);
+        if (cancelled) return;
+        if (opRow) {
+          setReintLocal(Array.isArray(opRow.successiReintegros) ? opRow.successiReintegros.map(x => ({ ...x, origen: 'op' })) : []);
+          setCierreOp(opRow.cierre || null);
+        }
+        setReintLedger((Array.isArray(pag) ? pag : []).filter(x => String(x.scope || '') === 'successi').map(mapReintegroLedger));
       } catch {}
     })();
     return () => { cancelled = true; };
-  }, [op.id, op.bl]);
-  const [confirmDelCat, setConfirmDelCat] = useState(null); // catId pendiente de borrar
-  const [creatingShip, setCreatingShip] = useState(false);
+  }, [op.id]);
+
+  // Registrar un reintegro a Successi. Primero al ledger de pagos (scope
+  // 'successi'); si esa ruta no acepta el scope, se borra la fila que quedó mal
+  // clasificada y el reintegro se guarda en la operación en vez de perderse.
+  const guardarReintLocal = async (next, okMsg) => {
+    try {
+      const r = await fetch(`/api/db/operations/${op.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ successiReintegros: next.map(({ origen, ...x }) => x) }),
+      });
+      if (!r.ok) throw new Error('failed');
+      const j = await r.json().catch(() => null);
+      setReintLocal(j && Array.isArray(j.successiReintegros) ? j.successiReintegros.map(x => ({ ...x, origen: 'op' })) : next);
+      gToast.success(okMsg);
+      return true;
+    } catch {
+      gToast.error('No se pudo guardar el reintegro. Revisá la conexión.');
+      return false;
+    }
+  };
+
+  const addReintegro = async ({ fecha, monto, metodo, nota }) => {
+    try {
+      const r = await fetch('/api/db/pagos', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scope: 'successi', ref_id: String(op.id), bl: '', fecha, monto, metodo, nota }),
+      });
+      if (r.ok) {
+        const j = await r.json().catch(() => null);
+        // El ledger lo aceptó como 'successi' (la fila o el agregado lo confirman).
+        if (j && (String(j.scope || '') === 'successi' || String(j.agg?.scope || '') === 'successi')) {
+          const rr = await fetch(`/api/db/pagos?scope=successi&ref_id=${encodeURIComponent(op.id)}`).catch(() => null);
+          const list = rr && rr.ok ? await rr.json().catch(() => null) : null;
+          if (Array.isArray(list)) setReintLedger(list.filter(x => String(x.scope || '') === 'successi').map(mapReintegroLedger));
+          else if (j.id != null) setReintLedger(l => [mapReintegroLedger(j), ...l]);
+          gToast.success('Reintegro registrado.');
+          return true;
+        }
+        // Quedó guardado con otro scope: se borra para no ensuciar los pagos al agente.
+        if (j && j.id != null) fetch(`/api/db/pagos/${j.id}`, { method: 'DELETE' }).catch(() => {});
+      }
+    } catch {}
+    return guardarReintLocal([...reintLocal, { id: `loc-${Date.now()}`, fecha, monto, metodo, nota, origen: 'op' }], 'Reintegro registrado.');
+  };
+
+  const delReintegro = async (r) => {
+    if (r.origen === 'ledger') {
+      try {
+        const res = await fetch(`/api/db/pagos/${r.id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('failed');
+        setReintLedger(l => l.filter(x => x.id !== r.id));
+        gToast.success('Reintegro eliminado.');
+      } catch {
+        gToast.error('No se pudo borrar el reintegro.');
+      }
+      return;
+    }
+    await guardarReintLocal(reintLocal.filter(x => x.id !== r.id), 'Reintegro eliminado.');
+  };
 
   // Load detail from API
   useEffect(() => {
@@ -691,19 +1218,21 @@ function OperationDetail({ op, onBack }) {
     return () => window.removeEventListener('beforeunload', handler);
   }, [isDirty]);
 
-  // intercept sidebar nav
+  // intercept sidebar nav — con autoguardado ya no pregunta nada: manda lo que
+  // falte y sigue viaje. Solo frena si el guardado falla (lo resuelve `salir`).
   useEffect(() => {
     const handler = (e) => {
-      if (!isDirty) return;
+      if (!isDirtyRef.current) return;
       e.preventDefault();
-      setPendingNav(e.detail.href);
-      setShowDiscard(true);
+      salirRef.current?.(e.detail.href);
     };
     window.addEventListener('gestion:navigate', handler);
     return () => window.removeEventListener('gestion:navigate', handler);
-  }, [isDirty]);
+  }, []);
 
-  const D = () => setIsDirty(true);
+  // Marca "hay algo nuevo sin mandar". Cualquier cambio destraba el autoguardado
+  // aunque el intento anterior haya fallado.
+  const D = () => { autoBlocked.current = false; setIsDirty(true); };
   const updDetail = (patch) => { setDetail(d => ({ ...d, ...patch })); D(); };
   const updCategory = (catId, rows) => updDetail({ [catId]: rows });
   const updProveedor = (i, field, value) => {
@@ -752,32 +1281,79 @@ function OperationDetail({ op, onBack }) {
     return next;
   });
 
-  const saveAll = async () => {
-    if (savingRef.current) return; // evita guardados concurrentes (duplicaba datos)
+  // Guarda el detalle completo. `silent` = disparado por el autoguardado (sin
+  // cartel verde en cada tecla). Devuelve true/false para poder encadenar
+  // "guardá y salí" sin perder lo tipeado.
+  const saveAll = useCallback(async ({ silent = false } = {}) => {
+    if (savingRef.current) return false; // evita guardados concurrentes (duplicaba datos)
     savingRef.current = true;
-    setSaving(true);
+    setSaveState('saving');
+    const snapshot = detailRef.current; // exactamente lo que se manda
     try {
       const r = await fetch(`/api/db/operations/${op.id}/detail`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(detail),
+        body: JSON.stringify(snapshot),
       });
       if (!r.ok) throw new Error('failed');
-      setIsDirty(false);
-      setSaveFlash(true);
-      gToast.success('Operación guardada.');
-      setTimeout(() => setSaveFlash(false), 2200);
+      sentRef.current = snapshot;
+      // Si mientras se guardaba entró tipeo nuevo, sigue habiendo cambios sin
+      // mandar: el autoguardado los toma en la vuelta siguiente.
+      if (detailRef.current === snapshot) { isDirtyRef.current = false; setIsDirty(false); }
+      autoBlocked.current = false;
+      errShownRef.current = false;
+      setSaveState('saved');
+      if (!silent) gToast.success('Operación guardada.');
+      return true;
     } catch (e) {
-      gToast.error('Error al guardar. Reintentá — no se perdió lo que cargaste.');
+      autoBlocked.current = true; // no machacar un endpoint que está fallando
+      const yaAvisado = errShownRef.current;
+      errShownRef.current = true;
+      setSaveState('error');
+      if (!silent || !yaAvisado) gToast.error('Error al guardar. Reintentá — no se perdió lo que cargaste.');
+      return false;
     } finally {
       savingRef.current = false;
-      setSaving(false);
     }
-  };
-  const doNavigate     = () => { if (pendingNav) { router.push(pendingNav); setPendingNav(null); } else { onBack(); } };
-  const handleBack     = () => { if (isDirty) { setPendingNav(null); setShowDiscard(true); } else onBack(); };
-  const discardAndBack = () => { setIsDirty(false); setShowDiscard(false); doNavigate(); };
-  const saveAndBack    = async () => { await saveAll(); setShowDiscard(false); doNavigate(); };
+  }, [op.id]);
+
+  // Autoguardado con debounce — el mismo mecanismo que ya usa el checklist.
+  // Se re-dispara cuando termina un guardado en vuelo (dep. saveState), así que
+  // el tipeo que entró durante el guardado tampoco se pierde.
+  useEffect(() => {
+    if (detailLoading || !isDirty || autoBlocked.current) return;
+    const t = setTimeout(() => { saveAll({ silent: true }); }, 900);
+    return () => clearTimeout(t);
+  }, [detail, isDirty, detailLoading, saveState, saveAll]);
+
+  // Red de última milla: si te vas de la pantalla con tipeo sin mandar (Atrás del
+  // celular, otra sección), se manda igual. `keepalive` sobrevive al desmontaje.
+  useEffect(() => () => {
+    if (!isDirtyRef.current || sentRef.current === detailRef.current) return;
+    try {
+      fetch(`/api/db/operations/${op.id}/detail`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(detailRef.current),
+        keepalive: true,
+      }).catch(() => {});
+    } catch {}
+  }, [op.id]);
+
+  const doNavigate = () => { if (pendingNav) { router.push(pendingNav); setPendingNav(null); } else { onBack(); } };
+  // Salir sin fricción: lo que falte mandar se guarda y se sale. El cartel de
+  // "cambios sin guardar" queda solo para cuando el guardado falla de verdad.
+  const salir = useCallback(async (href = null) => {
+    const irse = () => { setPendingNav(null); if (href) router.push(href); else onBack(); };
+    if (!isDirtyRef.current) { irse(); return; }
+    setPendingNav(href);
+    const ok = await saveAll({ silent: true });
+    if (ok) irse(); else setShowDiscard(true);
+  }, [router, onBack, saveAll]);
+  salirRef.current = salir;
+  const handleBack     = () => { salir(null); };
+  const discardAndBack = () => { isDirtyRef.current = false; setIsDirty(false); setShowDiscard(false); doNavigate(); };
+  const saveAndBack    = async () => { const ok = await saveAll(); if (ok) { setShowDiscard(false); doNavigate(); } };
 
   const addCustomCategory = ({ label, color, kind }) => {
     const id = `custom-${Date.now()}`;
@@ -804,11 +1380,34 @@ function OperationDetail({ op, onBack }) {
   };
 
   // Crear un embarque en Tracking ya vinculado a esta operación (prefill desde la op).
+  // Una sola ETA por importación: la del embarque manda. Acá se puede adoptar
+  // de un toque sin volver a la lista a editarla a mano.
+  const adoptarEtaEmbarque = async () => {
+    const iso = toISODate(shipment?.eta);
+    if (!iso || iso === etaOp || adoptandoEta) return;
+    const prev = etaOp;
+    setAdoptandoEta(true);
+    setEtaOp(iso);
+    try {
+      const r = await fetch(`/api/db/operations/${op.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...op, eta: iso }),
+      });
+      if (!r.ok) throw new Error('failed');
+      gToast.success(`ETA actualizada: ${fmtFecha(iso)}`);
+    } catch {
+      setEtaOp(prev);
+      gToast.error('No se pudo actualizar la ETA.');
+    } finally {
+      setAdoptandoEta(false);
+    }
+  };
+
   const crearEmbarque = async () => {
     if (creatingShip) return;
     setCreatingShip(true);
     try {
-      const body = { bl: op.bl || '', contenedores: op.contenedor || '', eta: op.eta || '', agente: 'Bruce', status: 'In Transit', operation_id: op.id };
+      const body = { bl: op.bl || '', contenedores: op.contenedor || '', eta: etaOp, agente: 'Bruce', status: 'In Transit', operation_id: op.id };
       const r = await fetch('/api/tracking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!r.ok) { gToast.error('No se pudo crear el embarque.'); return; }
       const created = await r.json();
@@ -821,105 +1420,23 @@ function OperationDetail({ op, onBack }) {
     }
   };
 
-  const calc = useMemo(() => {
-    const { naviera = [], terminal = [], aduana = [], transporte = [], despachante = [], admin = [], fleteIntl = [], proveedores = [], cobrar = [], customGastos = [] } = detail;
-    const tNav = catTot(naviera).pesos, tTerm = catTot(terminal).pesos, tAdu = catTot(aduana).pesos;
-    const tTra = catTot(transporte).pesos, tDes = catTot(despachante).pesos, tAdm = catTot(admin).pesos;
-    const tFlt = catTot(fleteIntl).pesos;
+  const calc = useMemo(() => computeCalc(detail, clientes), [detail, clientes]);
 
-    // Split por LÍNEA: cada gasto puede marcarse "sociedad" (blanco/facturado) o
-    // "vos" (cash de tu bolsillo). Sin marca, hereda el default de su categoría
-    // (flete intl → cash, el resto → sociedad). VEP Aduana es siempre sociedad.
-    // Reclasificar una línea NO cambia el costo total ni el "a cobrar" por
-    // proveedor (la suma prorrateada es la misma); solo cambia el split y lo
-    // que recuperás en cash.
-    const splitRows = (rows, defKind) => rows.reduce((a, r) => {
-      const kind = r.pagadoPor === 'cash' || r.pagadoPor === 'blanco' ? r.pagadoPor : defKind;
-      if (kind === 'cash') a.cash += rowPesos(r); else a.blanco += rowPesos(r);
-      return a;
-    }, { blanco: 0, cash: 0 });
-
-    let enBlanco = tAdu, cash = 0; // VEP siempre sociedad
-    // catsBlanco: desglose de lo que paga la SOCIEDAD IMPORTADORA (tributos,
-    // naviera, terminal…) para la banda "Reparto de la plata". El DESPACHANTE
-    // va aparte (despBlanco): es SU factura, no de la sociedad — si estuviera
-    // acá y en su propia tarjeta se sumaría dos veces.
-    const catsBlanco = tAdu > 0 ? [{ label: 'VEP Aduana (tributos)', monto: tAdu }] : [];
-    let despBlanco = 0;
-    [[naviera, 'blanco', 'Naviera'], [terminal, 'blanco', 'Terminal'], [transporte, 'blanco', 'Transporte'], [despachante, 'blanco', null], [admin, 'blanco', 'Admin'], [fleteIntl, 'cash', 'Flete Internacional']].forEach(([rows, def, label]) => {
-      const s = splitRows(rows, def); enBlanco += s.blanco; cash += s.cash;
-      if (label === null) { despBlanco = s.blanco; return; }
-      if (s.blanco > 0) catsBlanco.push({ label, monto: s.blanco });
-    });
-    customGastos.forEach(cg => {
-      const s = splitRows(detail[cg.id] || [], cg.kind === 'cash' ? 'cash' : 'blanco');
-      enBlanco += s.blanco; cash += s.cash;
-      if (s.blanco > 0) catsBlanco.push({ label: cg.label || 'Otro', monto: s.blanco });
-    });
-
-    // Líneas cargadas en USD sin T.C.: no entran al total en pesos ni al
-    // prorrateo — se avisa en el panel en vez de perderse en silencio.
-    const usdSinTC = [naviera, terminal, aduana, transporte, despachante, admin, fleteIntl, ...customGastos.map(cg => detail[cg.id] || [])]
-      .reduce((s, rows) => s + catTot(rows).usd, 0);
-    const prorBase = enBlanco - tAdu + cash;
-    const totalGastos = enBlanco + cash;
-    const totalM3 = proveedores.reduce((s, p) => s + n(p.m3), 0);
-
-    // TC de la operación: primer TC disponible entre todos los proveedores (cobro o VEP).
-    // Permite calcular "a cobrar" de proveedores SIN VEP propio (cuando el VEP se
-    // agrupa en uno solo), sin obligar a cargar TC en cada fila.
-    const fallbackTC = proveedores.reduce((tc, p, i) => {
-      if (tc > 0) return tc;
-      const cb = cobrar[i] || {};
-      return n(cb.tc) > 0 ? n(cb.tc) : (n(p.tributosTC) > 0 ? n(p.tributosTC) : 0);
-    }, 0);
-
-    const perProv = proveedores.map((p, i) => {
-      const clienteNombre = p.clienteId ? clientes.find(c => c.id === p.clienteId)?.nombre || '' : '';
-      const ratio = totalM3 > 0 ? n(p.m3) / totalM3 : 0;
-      const prorBlancoPesos = Math.round(ratio * (enBlanco - tAdu));
-      const prorCashPesos   = Math.round(ratio * cash);
-      const prorPesos       = prorBlancoPesos + prorCashPesos;
-      const vepPesos = Math.round(n(p.tributosUSD) * n(p.tributosTC));
-      const costoFinal = prorPesos + vepPesos;
-      const cb = cobrar[i] || { tc: 0, honorarios: false, despAdic: 0 };
-      const tcOwn = n(cb.tc) > 0 ? n(cb.tc) : n(p.tributosTC);
-      const tcUsed = tcOwn > 0 ? tcOwn : fallbackTC;
-      const tcInherited = tcOwn <= 0 && fallbackTC > 0;
-      const gastosUSD = tcUsed > 0 ? Math.round((costoFinal / tcUsed) * 100) / 100 : 0;
-      const cashUSD   = tcUsed > 0 ? Math.round((prorCashPesos / tcUsed) * 100) / 100 : 0;
-      const origenUSD = n(p.gastosOrigenUSD);
-      // Honorarios = máx(4%, mínimo USD si está cargado). Vacío = solo 4% (compat
-      // con operaciones viejas).
-      const honPct4 = Math.round((gastosUSD + origenUSD) * 0.04 * 100) / 100;
-      const honorarios = cb.honorarios ? Math.max(honPct4, n(cb.honMin)) : 0;
-      // Giro de divisas al exterior: servicio cobrado al cliente cuando Brandon
-      // hace el pago al proveedor. % sobre lo girado + gasto fijo (ej. USD 45 de
-      // transferencia); un total manual pisa el cálculo. Todas las opciones.
-      const giroBase = n(cb.giroMonto) * (n(cb.giroPct) / 100) + n(cb.giroFijo);
-      const giroUSD = n(cb.giroTotal) > 0 ? n(cb.giroTotal) : Math.round(giroBase * 100) / 100;
-      // Ganancia: monto interno que se suma al total a cobrar SIN desglosarse
-      // en la vista general ni en el estado de cuenta del cliente.
-      const totalUSD = Math.round((gastosUSD + origenUSD + honorarios + n(cb.despAdic) + n(cb.ganancia) + giroUSD) * 100) / 100;
-      return { ...p, clienteNombre, ratio, prorPesos, prorBlancoPesos, prorCashPesos, cashUSD, vepPesos, costoFinal, tcUsed, tcInherited, gastosUSD, origenUSD, honorarios, giroUSD, totalUSD, cb, idx: i };
-    });
-    return {
-      tNav, tTerm, tAdu, tTra, tDes, tAdm, tFlt, usdSinTC, fallbackTC,
-      enBlanco, cash, prorBase, totalGastos, totalM3, perProv, catsBlanco, despBlanco,
-      totalACobrar:  perProv.reduce((s, p) => s + p.totalUSD, 0),
-      totalCobrado:  perProv.reduce((s, p) => s + (p.cb.cobrado ? p.totalUSD : 0), 0),
-      totalCashUSD:  perProv.reduce((s, p) => s + p.cashUSD, 0),
-      cobrados:      perProv.filter(p => p.cb.cobrado).length,
-    };
-  }, [detail, clientes]);
+  // Reintegros a Successi: los del ledger y los de la operación son la misma
+  // lista (cada uno vive en un solo lado), ordenados del más nuevo al más viejo.
+  const reintegros = useMemo(
+    () => [...reintLedger, ...reintLocal].sort((x, y) => String(y.fecha || '').localeCompare(String(x.fecha || ''))),
+    [reintLedger, reintLocal]
+  );
+  const succ = useMemo(() => successiCuenta(calc.succPesos, calc.fallbackTC, reintegros), [calc.succPesos, calc.fallbackTC, reintegros]);
 
   // Flujo macro derivado de datos reales (estado op + tracking + despacho + cobranzas).
   const flowState = useMemo(() => importFlowState({
-    op, ship: shipment, desp: despacho,
+    op: { ...op, estado: estadoOp }, ship: shipment, desp: despacho,
     cobranza: { cobrados: calc.cobrados, total: calc.perProv.length },
     giro: calc.perProv.some(pp => pp.giroUSD > 0) ? 'hecho' : undefined,
     lockEntrega: calc.perProv.some(x => x.cb.exigirPago && !x.cb.cobrado),
-  }), [op, shipment, despacho, calc]);
+  }), [op, estadoOp, shipment, despacho, calc]);
 
   const totalTasks = CHECKLIST.length;
   const doneTasks  = CHECKLIST.filter(t => checked.has(t.id)).length;
@@ -934,6 +1451,11 @@ function OperationDetail({ op, onBack }) {
   const vepDiff = Math.round(vepTotal - vepAsignado);
   const vepMatch = Math.abs(vepDiff) <= 1 && vepTotal > 0;
   const showVepBanner = vepTotal > 0 || vepAsignado > 0;
+
+  // Ganancia prometida al convertir la cotización (foto guardada en la operación).
+  // Si la operación se cargó a mano no existe y el KPI va solo.
+  const ganCotizada = n(detail.cotizadoDetalle?.gananciaUsd);
+  const ganDif = ganCotizada > 0 ? Math.round((calc.totalGanancia - ganCotizada) * 100) / 100 : null;
 
   if (detailLoading) {
     return (
@@ -974,33 +1496,78 @@ function OperationDetail({ op, onBack }) {
             <p style={{ display: 'flex', gap: '0.7rem', marginTop: 4, fontSize: '0.74rem', color: MUTED, flexWrap: 'wrap' }}>
               <span style={{ fontFamily: 'ui-monospace,monospace', ...TAB }}>{op.bl || '—'}</span>
               <span>{op.contenedor}</span>
-              <span>ETA {op.eta || '—'}</span>
-              <span>{op.estado}</span>
-              {isDirty && !saveFlash && <span style={{ color: AMBER, fontWeight: 600 }}>Sin guardar</span>}
-              {saveFlash && <span style={{ color: GREEN, fontWeight: 600 }}>Guardado</span>}
+              <span>ETA {fmtFecha(etaOp) || '—'}</span>
+              {(() => {
+                const rel = etaRel(etaOp, ESTADOS_CERRADOS.includes(estadoOp))
+                return rel ? <span style={{ color: rel.color, fontWeight: 600 }}>{rel.text}</span> : null
+              })()}
+              {(() => {
+                // Si el agente corrió el arribo, la del embarque manda: se adopta de un toque.
+                const shIso = toISODate(shipment?.eta)
+                if (!shIso || shIso === etaOp) return null
+                return (
+                  <button onClick={adoptarEtaEmbarque} disabled={adoptandoEta} className="tt-ghost"
+                    title="Copiar la ETA del embarque a la operación"
+                    style={{ ...GHOST, color: AMBER, fontWeight: 600, fontSize: '0.74rem', textDecoration: 'underline', textUnderlineOffset: 3 }}>
+                    el embarque dice {fmtFecha(shIso)} — usar
+                  </button>
+                )
+              })()}
+              <span>{estadoOp}</span>
             </p>
           </div>
-          <button onClick={saveAll} disabled={!isDirty || saving}
-            style={isDirty || saving
-              ? { ...BTN_DARK, background: saving ? BODY : INK, cursor: saving ? 'default' : 'pointer', marginTop: 4 }
-              : { background: 'none', border: 'none', color: FAINT, fontSize: '0.78rem', fontWeight: 600, padding: '0.5rem 0', cursor: 'default', marginTop: 4 }}>
-            {saving ? 'Guardando…' : (isDirty ? 'Guardar' : 'Guardado')}
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
+            {/* Cerrar la operación desde el expediente: los datos ya están en
+                pantalla, así que el control de condiciones sale al instante. */}
+            <button onClick={() => setCierreModal(true)} className="tt-ghost"
+              title="Revisar las condiciones y liquidar la operación"
+              style={{ ...GHOST, marginTop: 10, fontWeight: 600, whiteSpace: 'nowrap' }}>
+              {estadoOp === 'Liquidado' ? 'Revisar el cierre' : 'Cerrar operación'}
+            </button>
+            {/* El botón Guardar pasó a ser indicador: el detalle se guarda solo.
+                Vuelve a ser botón únicamente cuando el guardado falló. */}
+            {saveState === 'error' ? (
+              <button onClick={() => saveAll()} title="Volvé a intentar el guardado"
+                style={{ ...BTN_DARK, background: RED, marginTop: 4, whiteSpace: 'nowrap' }}>
+                Error al guardar · reintentar
+              </button>
+            ) : (
+              <p aria-live="polite" style={{ marginTop: 10, fontSize: '0.76rem', fontWeight: 500, whiteSpace: 'nowrap',
+                color: saveState === 'saving' || isDirty ? BODY : (saveState === 'saved' ? GREEN : FAINT) }}>
+                {saveState === 'saving' || isDirty ? 'Guardando…' : saveState === 'saved' ? 'Guardado ✓' : 'Se guarda solo'}
+              </p>
+            )}
+          </div>
         </div>
 
         {/* Métricas en línea (sin cajas) */}
         <div className="gestion-kpi-strip" style={{ display: 'flex', gap: '2.5rem', flexWrap: 'wrap', alignItems: 'flex-start', margin: '1.1rem 0 0.9rem' }}>
           {[
             { lbl: 'Costos totales', val: fmtP(calc.totalGastos), sub: `${fmtP(calc.enBlanco)} blanco + ${fmtP(calc.cash)} cash` },
+            // Lo que te dejó a VOS. Sin esto no había ningún número de margen:
+            // "Servicios (tuyos)" mezcla tu ganancia con gastos de origen que
+            // solo le pasás al cliente.
+            {
+              lbl: 'Ganancia', val: fmtU(calc.totalGanancia),
+              sub: [
+                calc.totalHonorarios  > 0 ? `hon. ${fmtUcompact(calc.totalHonorarios)}`  : null,
+                calc.totalGiro        > 0 ? `giro ${fmtUcompact(calc.totalGiro)}`        : null,
+                calc.totalGananciaMan > 0 ? `carg. ${fmtUcompact(calc.totalGananciaMan)}` : null,
+              ].filter(Boolean).join(' + ') || 'honorarios + giro + ganancia cargada',
+              sub2: ganDif != null
+                ? <span style={{ color: ganDif >= 0 ? GREEN : RED, fontWeight: 600 }}>cotizada {fmtU(ganCotizada)} · {ganDif >= 0 ? '+' : '−'}{fmtU(Math.abs(ganDif))}</span>
+                : (calc.totalGanancia > 0 ? `${fmtU(calc.gananciaCobrada)} ya cobrada` : null),
+            },
             { lbl: 'Por cobrar', val: fmtU(calc.totalACobrar - calc.totalCobrado), sub: `de ${fmtU(calc.totalACobrar)} total`, accent: calc.totalACobrar - calc.totalCobrado > 0 ? AMBER : INK },
             { lbl: 'Cobrado', val: fmtU(calc.totalCobrado), sub: `${calc.cobrados}/${calc.perProv.length} proveedores`, accent: GREEN },
             { lbl: 'Ocupación', val: cap ? `${calc.totalM3.toFixed(1)} / ${cap} m³` : `${calc.totalM3.toFixed(1)} m³`, sub: cap ? `${fillPct.toFixed(0)}% del contenedor` : '—', bar: cap ? fillPct : null, barColor: fillPct > 90 ? AMBER : INK },
             { lbl: 'Checklist', val: `${doneTasks}/${totalTasks}`, sub: `${progress}% completado`, accent: progress === 100 ? GREEN : INK, bar: progress, barColor: GREEN },
-          ].map(({ lbl, val, sub, accent = INK, bar, barColor }) => (
+          ].map(({ lbl, val, sub, sub2, accent = INK, bar, barColor }) => (
             <div key={lbl} style={{ minWidth: 0 }}>
               <p style={{ fontSize: '1.15rem', fontWeight: 700, color: accent, lineHeight: 1.15, whiteSpace: 'nowrap', ...TAB }}>{val}</p>
               <p style={{ fontSize: '0.62rem', fontWeight: 600, color: MUTED, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 3 }}>{lbl}</p>
               <p style={{ fontSize: '0.62rem', color: MUTED, marginTop: 1, ...TAB }}>{sub}</p>
+              {sub2 && <p style={{ fontSize: '0.62rem', color: MUTED, marginTop: 1, ...TAB }}>{sub2}</p>}
               {/* Barra solo con progreso parcial en curso (ni 0% ni 100%) */}
               {bar != null && bar > 0 && bar < 100 && (
                 <div style={{ marginTop: 5, height: 3, background: HAIR, maxWidth: 130 }}>
@@ -1015,9 +1582,22 @@ function OperationDetail({ op, onBack }) {
       {/* Línea de vida de la importación — derivada, no editable */}
       <div style={{ marginBottom: '1rem' }}>
         <FlowTimeline state={flowState} />
-        {flowState.lockEntrega && ['Listo p/ retiro', 'En tránsito local'].includes(op.estado) && (
+        {flowState.lockEntrega && ['Listo p/ retiro', 'En tránsito local'].includes(estadoOp) && (
           <div style={{ marginTop: 10, borderLeft: `2px solid ${RED}`, paddingLeft: 12 }}>
             <p style={{ fontSize: '0.78rem', color: BODY }}><b style={{ color: RED, fontWeight: 700 }}>NO ENTREGAR</b> — hay clientes con pago exigido antes de la entrega y saldo pendiente.</p>
+          </div>
+        )}
+        {/* Cerrada dejando cosas abiertas: queda escrito qué y por cuánta plata. */}
+        {cierreOp && !cierreOp.completo && (
+          <div style={{ marginTop: 10, borderLeft: `2px solid ${cierreOp.totalUsd > 0 ? RED : AMBER}`, paddingLeft: 12 }}>
+            <p style={{ fontSize: '0.78rem', color: BODY, lineHeight: 1.5, ...TAB }}>
+              Cerrada{fmtFecha(cierreOp.fecha) ? ` el ${fmtFecha(cierreOp.fecha)}` : ''}{cierreOp.por ? ` por ${cierreOp.por}` : ''} dejando abierto
+              {cierreOp.totalUsd > 0 ? <> <b style={{ color: RED, fontWeight: 700 }}>{fmtU(cierreOp.totalUsd)}</b></> : null}:{' '}
+              {(cierreOp.pendientes || []).map(p => `${p.label.toLowerCase()}${p.monto > 0 ? ` (${fmtU(p.monto)})` : ''}`).join(' · ') || '—'}
+            </p>
+            <button onClick={() => setCierreModal(true)} className="tt-ghost" style={{ ...GHOST, marginTop: 3, fontSize: '0.7rem', fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: 3 }}>
+              Revisar y actualizar el cierre
+            </button>
           </div>
         )}
       </div>
@@ -1026,7 +1606,7 @@ function OperationDetail({ op, onBack }) {
       {shipModal && (
         <EmbarqueModal
           initial={shipment}
-          defaults={{ bl: op.bl || '', contenedores: op.contenedor || '', eta: op.eta || '', agente: 'Bruce', operation_id: op.id, suppliers: '' }}
+          defaults={{ bl: op.bl || '', contenedores: op.contenedor || '', eta: etaOp, agente: 'Bruce', operation_id: op.id, suppliers: '' }}
           onClose={() => setShipModal(false)}
           onSaved={(sv) => { setShipModal(false); setShipment(sv); }}
         />
@@ -1210,8 +1790,9 @@ function OperationDetail({ op, onBack }) {
             {(() => {
               const tcOp = calc.fallbackTC;
               const uOf = (p) => tcOp > 0 ? p / tcOp : null;
-              // Sin el despachante: su factura tiene tarjeta propia (no sumar dos veces).
-              const socPesos = calc.enBlanco - calc.despBlanco;
+              // Sin el despachante ni lo que puso Successi: cada uno tiene su
+              // propia tarjeta (si estuvieran acá se contarían dos veces).
+              const socPesos = calc.socPesos;
               const uB = uOf(socPesos);
               return (
                 <div style={{ minWidth: 0 }}>
@@ -1237,6 +1818,16 @@ function OperationDetail({ op, onBack }) {
               const pag   = d ? numDesp(d.total_pagado) : 0;
               const saldo = d ? numDesp(d.saldo) : 0;
               const adicCobrados = calc.perProv.reduce((s, p) => s + n(p.cb.despAdic), 0);
+              // COTEJO: lo que le pagás al despachante se carga dos veces — acá
+              // (la categoría que se proratea al cliente) y en su módulo. Si no
+              // coinciden, o le estás cobrando de menos al cliente o pagaste de
+              // más. Antes se mostraban los dos números sin compararlos nunca.
+              // Se compara la categoría COMPLETA (calc.tDes: sociedad + cash),
+              // porque su cuenta suma los 5 conceptos con factura y en negro.
+              const enOpUSD = calc.tDes === 0 ? 0 : (calc.fallbackTC > 0 ? Math.round((calc.tDes / calc.fallbackTC) * 100) / 100 : null);
+              const cuentaUSD = d ? numDesp(d.total_honorarios) : 0;
+              const cotejoDif = d && cuentaUSD > 0 && enOpUSD != null ? Math.round((cuentaUSD - enOpUSD) * 100) / 100 : null;
+              const desfasado = cotejoDif != null && Math.abs(cotejoDif) >= 1;
               return (
                 <div style={{ minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
@@ -1257,6 +1848,22 @@ function OperationDetail({ op, onBack }) {
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: '0.68rem', padding: '0.22rem 0', color: BODY, borderTop: '1px solid #f8fafc' }}>
                       <span>Saldo</span><span style={{ fontWeight: 700, color: saldo > 0 ? RED : GREEN, ...TAB }}>{saldo > 0 ? `Le debés ${fmtU(saldo)}` : saldo < 0 ? `A tu favor ${fmtU(-saldo)}` : 'Saldado'}</span>
                     </div>
+                    {/* Si los dos números coinciden no molesta: solo aparece el desfasaje. */}
+                    {desfasado && (
+                      <div style={{ marginTop: 8, borderLeft: `2px solid ${cotejoDif > 0 ? RED : AMBER}`, paddingLeft: 10 }}>
+                        <p style={{ fontSize: '0.68rem', color: BODY, lineHeight: 1.45, ...TAB }}>
+                          Cargaste <b style={{ color: INK, fontWeight: 600 }}>{fmtU(enOpUSD)}</b> en la categoría Despachante, su cuenta dice <b style={{ color: INK, fontWeight: 600 }}>{fmtU(cuentaUSD)}</b> —{' '}
+                          {cotejoDif > 0
+                            ? <>faltan <b style={{ color: RED, fontWeight: 700 }}>{fmtU(cotejoDif)}</b> que no le estás prorrateando a ningún cliente</>
+                            : <>cargaste <b style={{ color: AMBER, fontWeight: 700 }}>{fmtU(-cotejoDif)}</b> de más que lo que dice su cuenta</>}
+                        </p>
+                        {op.bl && (
+                          <button onClick={() => setFichaBL(true)} className="tt-ghost" style={{ ...GHOST, marginTop: 3, fontSize: '0.66rem', fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: 3 }}>
+                            Abrir la ficha del B/L
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </>) : (
                     <p style={{ fontSize: '0.6rem', color: FAINT, marginTop: 6 }}>Su cuenta corriente (pagos y saldo) vive en Despachante — sin registro para este B/L todavía.</p>
                   )}
@@ -1296,11 +1903,57 @@ function OperationDetail({ op, onBack }) {
               );
             })()}
 
-            {/* 4 · Cobrás vos: total a clientes, cobrado y pendiente */}
+            {/* 4 · Successi Ing SA: la sociedad propia que pone plata y hay que
+                reintegrarle. Antes no existía en el sistema: lo que pagaba quedaba
+                mezclado con los gastos de la sociedad importadora del cliente. */}
+            {(() => {
+              const hayCuenta = calc.succPesos > 0 || reintegros.length > 0;
+              const pctRe = succ.puestoUSD > 0 ? (succ.reintegradoUSD / succ.puestoUSD) * 100 : 0;
+              return (
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+                    <p style={GROUP_H}><DotNegro />Successi Ing SA</p>
+                    <button onClick={() => setSuccModal(true)} className="tt-ghost"
+                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '0.62rem', fontWeight: 600, color: BODY, whiteSpace: 'nowrap' }}>
+                      {hayCuenta ? 'Reintegros →' : 'Registrar →'}
+                    </button>
+                  </div>
+                  {hayCuenta ? (<>
+                    <p style={{ fontSize: '1.15rem', fontWeight: 700, color: INK, lineHeight: 1.1, ...TAB }}>{succ.sinTC ? fmtP(succ.puestoPesos) : fmtU(succ.puestoUSD)}</p>
+                    <p style={{ fontSize: '0.62rem', color: MUTED, marginTop: 3, marginBottom: 8, ...TAB }}>
+                      {succ.sinTC ? 'puso · cargá un T.C. para verlo en USD' : `${fmtP(calc.succPesos)} puestos · al T.C. ${calc.fallbackTC}`}
+                    </p>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: '0.68rem', padding: '0.22rem 0', color: BODY, borderTop: '1px solid #f8fafc' }}>
+                      <span>Reintegrado</span><span style={{ fontWeight: 600, color: GREEN, ...TAB }}>{fmtU(succ.reintegradoUSD)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: '0.68rem', padding: '0.22rem 0', color: BODY, borderTop: '1px solid #f8fafc' }}>
+                      <span>Falta reintegrar</span><span style={{ fontWeight: 700, color: succ.faltaUSD > 0 ? RED : GREEN, ...TAB }}>{succ.faltaUSD > 0 ? fmtU(succ.faltaUSD) : 'Nada'}</span>
+                    </div>
+                    {calc.catsSucc.slice(0, 4).map((cs, ci) => (
+                      <div key={`${cs.label}-${ci}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: '0.64rem', padding: '0.18rem 0', color: MUTED, borderTop: '1px solid #f8fafc' }}>
+                        <span>{cs.label}</span><span style={{ ...TAB }}>{fmtP(cs.monto)}</span>
+                      </div>
+                    ))}
+                    {pctRe > 0 && pctRe < 100 && (
+                      <div style={{ height: 3, background: HAIR, marginTop: 6 }}>
+                        <div style={{ width: `${Math.min(pctRe, 100)}%`, height: '100%', background: GREEN }} />
+                      </div>
+                    )}
+                  </>) : (
+                    <p style={{ fontSize: '0.7rem', color: MUTED, lineHeight: 1.5 }}>Successi no puso plata acá. Marcá <b style={{ color: BODY, fontWeight: 600 }}>Successi</b> en las líneas de gasto que pagó.</p>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* 5 · Cobrás vos: total a clientes, cobrado y pendiente */}
             <div style={{ minWidth: 0 }}>
               <p style={{ ...GROUP_H, marginBottom: 6 }}>Cobrás a clientes</p>
               <p style={{ fontSize: '1.15rem', fontWeight: 700, color: INK, lineHeight: 1.1, ...TAB }}>{fmtU(calc.totalACobrar)}</p>
               <p style={{ fontSize: '0.62rem', color: MUTED, marginTop: 3, marginBottom: 8 }}>incluye gastos + servicios (con tu ganancia camuflada)</p>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: '0.68rem', padding: '0.22rem 0', color: BODY, borderTop: '1px solid #f8fafc' }}>
+                <span>De eso, tuyo</span><span style={{ fontWeight: 700, color: INK, ...TAB }}>{fmtU(calc.totalGanancia)}</span>
+              </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: '0.68rem', padding: '0.22rem 0', color: BODY, borderTop: '1px solid #f8fafc' }}>
                 <span>Cobrado</span><span style={{ fontWeight: 600, color: GREEN, ...TAB }}>{fmtU(calc.totalCobrado)} · {calc.cobrados}/{calc.perProv.length}</span>
               </div>
@@ -1321,17 +1974,27 @@ function OperationDetail({ op, onBack }) {
               (sociedad + despachante + bolsillo + servicios). Necesita T.C. */}
           {calc.fallbackTC > 0 && calc.perProv.length > 0 && (() => {
             const tc = calc.fallbackTC;
-            const socBase = calc.enBlanco - calc.tAdu - calc.despBlanco; // prorrateable sin VEP ni despachante
+            // Lo que puso Successi (sin la parte del despachante, que va en su
+            // propia columna) sale como columna aparte para que se vea quién
+            // financió cada cliente. La fila sigue cerrando exacta.
+            const succBase = calc.succPesos - calc.despSucc;
+            const haySucc = succBase > 0;
+            const socBase = calc.enBlanco - calc.tAdu - calc.despBlanco - succBase; // prorrateable sin VEP, despachante ni Successi
             const groups = [];
             calc.perProv.forEach(p => {
               const key = p.tipo === 'Propio' ? 'Propio' : (p.clienteNombre || 'Cliente s/asignar');
               let g = groups.find(x => x.key === key);
-              if (!g) { g = { key, soc: 0, desp: 0, bols: 0, serv: 0, cobrar: 0, cobrados: 0, n: 0 }; groups.push(g); }
+              if (!g) { g = { key, soc: 0, succ: 0, desp: 0, bols: 0, orig: 0, gan: 0, cobrar: 0, cobrados: 0, n: 0 }; groups.push(g); }
               const soc  = (p.vepPesos + p.ratio * socBase) / tc;
+              const succU = (p.ratio * succBase) / tc;
               const desp = (p.ratio * calc.despBlanco) / tc + n(p.cb.despAdic);
               const bols = p.cashUSD;
-              const serv = p.totalUSD - soc - desp - bols; // honorarios+ganancia+giro+origen (cierra la fila)
-              g.soc += soc; g.desp += desp; g.bols += bols; g.serv += serv;
+              const serv = p.totalUSD - soc - succU - desp - bols; // origen + honorarios + giro + ganancia (cierra la fila)
+              // "Servicios" mezclaba tu margen con los gastos de origen, que solo
+              // le pasás al cliente. Se parten: origen (pasás) y ganancia (tuya).
+              // El residuo va a origen para que la fila siga cerrando exacta.
+              const gan  = p.gananciaUSD;
+              g.soc += soc; g.succ += succU; g.desp += desp; g.bols += bols; g.gan += gan; g.orig += serv - gan;
               g.cobrar += p.totalUSD; g.n++; if (p.cb.cobrado) g.cobrados++;
             });
             const TH2 = { fontSize: '0.58rem', fontWeight: 700, color: MUTED, textTransform: 'uppercase', letterSpacing: '0.05em', padding: '0.4rem 0.6rem', textAlign: 'right', whiteSpace: 'nowrap', borderBottom: `1px solid ${HAIR}` };
@@ -1343,9 +2006,11 @@ function OperationDetail({ op, onBack }) {
                     <tr>
                       <th style={{ ...TH2, textAlign: 'left' }}>Por cliente · USD</th>
                       <th style={TH2}>Sociedad</th>
+                      {haySucc && <th style={TH2}>Successi</th>}
                       <th style={TH2}>Despachante</th>
                       <th style={TH2}>Tu bolsillo</th>
-                      <th style={TH2}>Servicios (tuyos)</th>
+                      <th style={TH2}>Gs. origen</th>
+                      <th style={TH2}>Tu ganancia</th>
                       <th style={TH2}>= A cobrar</th>
                       <th style={TH2}>Cobrado</th>
                     </tr>
@@ -1355,9 +2020,11 @@ function OperationDetail({ op, onBack }) {
                       <tr key={g.key} className="tt-row">
                         <td style={{ ...TD2, textAlign: 'left', fontWeight: 600, color: INK }}>{g.key}</td>
                         <td style={TD2}>{fmtUcompact(g.soc)}</td>
+                        {haySucc && <td style={TD2}>{fmtUcompact(g.succ)}</td>}
                         <td style={TD2}>{fmtUcompact(g.desp)}</td>
                         <td style={TD2}>{fmtUcompact(g.bols)}</td>
-                        <td style={TD2}>{fmtUcompact(g.serv)}</td>
+                        <td style={TD2}>{fmtUcompact(g.orig)}</td>
+                        <td style={{ ...TD2, fontWeight: 600, color: g.gan > 0 ? INK : MUTED }}>{fmtUcompact(g.gan)}</td>
                         <td style={{ ...TD2, fontWeight: 700, color: INK }}>{fmtUcompact(g.cobrar)}</td>
                         <td style={{ ...TD2, color: g.cobrados === g.n ? GREEN : MUTED }}>{g.cobrados}/{g.n}</td>
                       </tr>
@@ -1387,6 +2054,14 @@ function OperationDetail({ op, onBack }) {
                 {GASTOS_BLANCO.map(g => (
                   <CategoryBtn key={g.id} g={g} onClick={() => setEditingCat(g)} />
                 ))}
+                {/* Lo facturado incluye lo que puso Successi: se aclara acá para
+                    que el número de arriba no se lea como "todo lo puso la sociedad". */}
+                {calc.succPesos > 0 && (
+                  <button onClick={() => setSuccModal(true)} className="tt-ghost"
+                    style={{ background: 'none', border: 'none', padding: '0.35rem 0.25rem 0', cursor: 'pointer', textAlign: 'left', fontSize: '0.62rem', color: MUTED, lineHeight: 1.4, width: '100%' }}>
+                    De eso, <b style={{ color: BODY, fontWeight: 600, ...TAB }}>{fmtP(calc.succPesos)}</b> los puso Successi{succ.faltaUSD > 0 ? <> · falta reintegrarle <b style={{ color: RED, fontWeight: 700, ...TAB }}>{fmtU(succ.faltaUSD)}</b></> : ' · reintegrado'}
+                  </button>
+                )}
 
                 <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, padding: '1rem 0.25rem 0.2rem' }}>
                   <span style={GROUP_H}><DotNegro />Pagado por vos · cash</span>
@@ -1441,6 +2116,18 @@ function OperationDetail({ op, onBack }) {
                     <span style={{ color: MUTED }}>Diferencia</span>
                     <span style={{ fontWeight: 700, color: up ? GREEN : RED, ...TAB }}>{up ? '+' : ''}{fmtU(dif)}</span>
                   </div>
+                  {/* Lo prometido vs lo que realmente te quedó (la foto de la
+                      cotización se guarda al convertir). */}
+                  {ganDif != null && (
+                    <>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 8, borderTop: `1px solid ${HAIR}` }}>
+                        <span style={{ color: MUTED }}>Ganancia cotizada</span><span style={{ fontWeight: 600, color: BODY, ...TAB }}>{fmtU(ganCotizada)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: MUTED }}>Ganancia real</span><span style={{ fontWeight: 700, color: ganDif >= 0 ? GREEN : RED, ...TAB }}>{fmtU(calc.totalGanancia)}</span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             );
@@ -1479,8 +2166,8 @@ function OperationDetail({ op, onBack }) {
                       {shipment.origen || '—'} <span style={{ color: FAINT }}>→</span> {shipment.destino || '—'}
                     </div>
                     <div style={{ display: 'flex', gap: 14, fontSize: '0.72rem' }}>
-                      <div><span style={{ color: MUTED }}>Zarpe (ETD): </span><span style={{ color: BODY, fontWeight: 600, ...TAB }}>{shipment.etd || '—'}</span></div>
-                      <div><span style={{ color: MUTED }}>ETA: </span><span style={{ color: BODY, fontWeight: 600, ...TAB }}>{shipment.eta || '—'}</span></div>
+                      <div><span style={{ color: MUTED }}>Zarpe (ETD): </span><span style={{ color: BODY, fontWeight: 600, ...TAB }}>{fmtFecha(shipment.etd) || '—'}</span></div>
+                      <div><span style={{ color: MUTED }}>ETA: </span><span style={{ color: BODY, fontWeight: 600, ...TAB }}>{fmtFecha(shipment.eta) || '—'}</span></div>
                     </div>
                     {shipment.total_usd && (
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.72rem' }}>
@@ -1508,8 +2195,8 @@ function OperationDetail({ op, onBack }) {
               {[
                 ['Contenedor', op.contenedor],
                 ['BL', op.bl || '—'],
-                ['Fecha alta', op.fecha || '—'],
-                ['ETA', op.eta || '—'],
+                ['Fecha alta', fmtFecha(op.fecha) || '—'],
+                ['ETA', fmtFecha(etaOp) || '—'],
                 ['Puerto origen',
                   <input key="po" value={detail.puertoOrigen || ''} onChange={e => updDetail({ puertoOrigen: e.target.value })}
                     placeholder="—" className="tt-uinp"
@@ -1525,6 +2212,41 @@ function OperationDetail({ op, onBack }) {
           </div>
         </div>
       </div>
+
+      {/* Ficha integral del B/L — se abre desde el cotejo con el despachante para
+          registrar el pago sin salir de la operación. */}
+      {fichaBL && op.bl && (
+        <FichaImportacion
+          bl={op.bl}
+          seed={{ ship: shipment, desp: despacho }}
+          onClose={() => setFichaBL(false)}
+          onChanged={() => loadDespacho()}
+        />
+      )}
+
+      {/* Cerrar la operación con condiciones (los datos ya están en pantalla) */}
+      {cierreModal && (
+        <CierreModal
+          op={op}
+          ship={shipment}
+          desp={despacho}
+          preload={{ calc, checkDone: doneTasks, checkTotal: totalTasks, reintegros }}
+          onCancel={() => setCierreModal(false)}
+          onDone={(cierre) => { setCierreOp(cierre); setEstadoOp('Liquidado'); setCierreModal(false); }}
+        />
+      )}
+
+      {/* Cuenta de Successi Ing SA: cuánto puso, cuánto se le reintegró y cuánto falta */}
+      {succModal && (
+        <SuccessiModal
+          op={op}
+          cuenta={succ}
+          reintegros={reintegros}
+          onClose={() => setSuccModal(false)}
+          onAdd={addReintegro}
+          onDelete={delReintegro}
+        />
+      )}
 
       {/* CATEGORY EDIT MODAL */}
       {estadoCuenta && (
@@ -1626,16 +2348,16 @@ function OperationDetail({ op, onBack }) {
       {showDiscard && (
         <div style={{ ...OVERLAY, zIndex: 2000 }}>
           <div style={{ ...PANEL, maxWidth: '400px' }}>
-            <h3 style={{ ...MODAL_T, marginBottom: '0.5rem' }}>Cambios sin guardar</h3>
+            <h3 style={{ ...MODAL_T, marginBottom: '0.5rem' }}>No se pudo guardar</h3>
             <p style={{ fontSize: '0.8rem', color: BODY, marginBottom: '1.5rem', lineHeight: 1.5 }}>
-              Tenés cambios sin guardar en esta operación. ¿Qué querés hacer antes de salir?
+              El guardado automático falló (puede ser la conexión) y quedaron cambios sin mandar al servidor. Si salís ahora se pierden.
             </p>
             <div style={{ display: 'flex', gap: '1.25rem', justifyContent: 'flex-end', alignItems: 'center' }}>
               <button onClick={discardAndBack} style={{ ...GHOST, color: RED, fontWeight: 600 }}>
-                Descartar cambios
+                Salir y perderlos
               </button>
               <button onClick={saveAndBack} style={BTN_DARK}>
-                Guardar y salir
+                Reintentar y salir
               </button>
             </div>
             <button onClick={() => setShowDiscard(false)} className="tt-ghost" style={{ ...GHOST, display: 'block', width: '100%', marginTop: '1rem', textAlign: 'center', fontSize: '0.76rem' }}>
@@ -1651,6 +2373,272 @@ function OperationDetail({ op, onBack }) {
 
 // ─── Helper sub-components ────────────────────────────────────────────────────
 function FRow({ children }) { return <>{children}</>; }
+
+// ─── Cerrar una operación con condiciones ─────────────────────────────────────
+// Marcar "Liquidado" era elegir una opción de un desplegable: se cerraba con el
+// checklist a medias, con saldo al agente, con el despachante sin cobrar, con
+// clientes sin pagar y sin el reintegro a Successi — y la operación se iba a
+// "Cerradas" (colapsada), o sea que la plata que te deben dejaba de estar a la
+// vista. Ahora se puede cerrar igual, pero queda escrito qué quedó abierto y por
+// cuánta plata, y la operación sigue arriba en la lista hasta resolverlo.
+function CierreModal({ op, ship, desp, preload, onCancel, onDone }) {
+  const [bajado,  setBajado]  = useState(null); // lo que se trajo del servidor
+  const [loading, setLoading] = useState(!preload);
+  const [failed,  setFailed]  = useState(false);
+  const [saving,  setSaving]  = useState(false);
+  const [intento, setIntento] = useState(0); // reintentar la revisión
+  // Desde el expediente los datos ya están en pantalla; desde la lista se bajan.
+  const data = preload || bajado;
+  const conPreload = !!preload;
+
+  // Se revisa la operación REAL (detalle + checklist + reintegros), no lo que se
+  // ve en la fila.
+  useEffect(() => {
+    if (conPreload) return;
+    let cancelled = false;
+    setLoading(true); setFailed(false);
+    (async () => {
+      const asJson = async (r) => (r && r.ok ? r.json().catch(() => null) : null);
+      try {
+        const [rDet, rChk, rOp, rPag] = await Promise.all([
+          fetch(`/api/db/operations/${op.id}/detail`),
+          fetch(`/api/db/operations/${op.id}/checklist`),
+          fetch(`/api/db/operations/${op.id}`),
+          fetch(`/api/db/pagos?scope=successi&ref_id=${encodeURIComponent(op.id)}`),
+        ]);
+        if (cancelled) return;
+        if (!rDet.ok) throw new Error('detail');
+        const det = await asJson(rDet);
+        if (!det) throw new Error('detail');
+        const chk = await asJson(rChk);
+        const opRow = await asJson(rOp);
+        const pag = await asJson(rPag);
+        if (cancelled) return;
+        const hechas = new Set(Array.isArray(chk) ? chk : []);
+        setBajado({
+          calc: computeCalc(det, []),
+          checkDone: CHECKLIST.filter(t => hechas.has(t.id)).length,
+          checkTotal: CHECKLIST.length,
+          reintegros: mergeReintegros(pag, opRow),
+        });
+      } catch {
+        // Nunca mostrar "todo en cero" porque no se pudo leer: sin datos no se cierra.
+        if (!cancelled) { setBajado(null); setFailed(true); }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [op.id, conPreload, intento]);
+
+  const cond    = data ? condicionesCierre({ ...data, ship, desp }) : [];
+  const faltan  = cond.filter(c => !c.ok);
+  const totalUsd = Math.round(faltan.reduce((s, c) => s + c.monto, 0) * 100) / 100;
+
+  const confirmar = async () => {
+    if (saving || !data) return;
+    setSaving(true);
+    const cierre = {
+      estado: 'Liquidado',
+      checklist: `${data.checkDone}/${data.checkTotal}`,
+      pendientes: faltan.map(c => ({ id: c.id, label: c.label, detalle: c.detalle, monto: c.monto })),
+    };
+    try {
+      const r = await fetch(`/api/db/operations/${op.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: 'Liquidado', cierre }),
+      });
+      if (!r.ok) throw new Error('failed');
+      const j = await r.json().catch(() => null);
+      const guardado = (j && j.cierre) || { ...cierre, completo: faltan.length === 0, totalUsd, fecha: hoyISO(), por: '' };
+      gToast.success(faltan.length ? `Cerrada con ${fmtU(totalUsd)} sin resolver.` : 'Operación liquidada.');
+      onDone(guardado);
+    } catch {
+      gToast.error('No se pudo cerrar la operación. Intentá de nuevo.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ ...OVERLAY, zIndex: 1300 }} onClick={onCancel}>
+      <div style={{ ...PANEL, maxWidth: 500, maxHeight: '88vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: '0.9rem' }}>
+          <div>
+            <h3 style={MODAL_T}>Cerrar la operación</h3>
+            <p style={{ fontSize: '0.72rem', color: MUTED, marginTop: 2 }}>{toTitle(op.nombre) || '—'}{op.bl ? ` · ${op.bl}` : ''}</p>
+          </div>
+          <button onClick={onCancel} aria-label="Cerrar" className="tt-ghost" style={{ background: 'none', border: 'none', cursor: 'pointer', color: MUTED, fontSize: '1.3rem', lineHeight: 1, padding: 0 }}>×</button>
+        </div>
+
+        {loading ? (
+          <p style={{ fontSize: '0.8rem', color: MUTED, padding: '1.5rem 0' }}>Revisando la operación…</p>
+        ) : failed || !data ? (
+          <>
+            <p style={{ fontSize: '0.8rem', color: BODY, lineHeight: 1.5, marginBottom: '1.25rem' }}>
+              No se pudo leer la operación para revisar las condiciones. No se cierra a ciegas.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1.25rem', alignItems: 'center' }}>
+              <button onClick={onCancel} className="tt-ghost" style={GHOST}>Cancelar</button>
+              <button onClick={() => setIntento(i => i + 1)} style={BTN_DARK}>Reintentar</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p style={{ fontSize: '0.74rem', color: MUTED, marginBottom: '0.7rem' }}>Antes de marcarla liquidada:</p>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {cond.map(c => (
+                <div key={c.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '0.55rem 0', borderBottom: `1px solid ${HAIR}` }}>
+                  <span aria-hidden style={{ flexShrink: 0, marginTop: 2, width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {c.ok
+                      ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={GREEN} strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
+                      : <span style={{ width: 10, height: 10, borderRadius: '50%', border: `1.5px solid ${c.monto > 0 ? RED : AMBER}`, display: 'block' }} />}
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: '0.78rem', fontWeight: c.ok ? 400 : 600, color: c.ok ? MUTED : INK }}>{c.label}</p>
+                    <p style={{ fontSize: '0.66rem', color: MUTED, marginTop: 1, ...TAB }}>{c.detalle}</p>
+                  </div>
+                  {c.monto > 0 && (
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: RED, whiteSpace: 'nowrap', ...TAB }}>{fmtU(c.monto)}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div style={{ marginTop: '1rem', borderLeft: `2px solid ${faltan.length ? RED : GREEN}`, paddingLeft: 12 }}>
+              {faltan.length === 0 ? (
+                <p style={{ fontSize: '0.78rem', color: BODY }}>Todo en cero. La operación se cierra limpia.</p>
+              ) : (
+                <p style={{ fontSize: '0.78rem', color: BODY, lineHeight: 1.5, ...TAB }}>
+                  Se puede cerrar igual: queda registrado que faltan <b style={{ color: INK, fontWeight: 600 }}>{faltan.length} cosa{faltan.length === 1 ? '' : 's'}</b>
+                  {totalUsd > 0 ? <> por <b style={{ color: RED, fontWeight: 700 }}>{fmtU(totalUsd)}</b></> : null}, y la operación sigue apareciendo con la plata pendiente a la vista.
+                </p>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '1.25rem', marginTop: '1.35rem' }}>
+              <button onClick={onCancel} className="tt-ghost" style={GHOST}>Cancelar</button>
+              <button onClick={confirmar} disabled={saving} style={{ ...BTN_DARK, opacity: saving ? 0.6 : 1 }}>
+                {saving ? 'Cerrando…' : faltan.length ? 'Cerrar igual' : 'Cerrar operación'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Cuenta de Successi Ing SA ────────────────────────────────────────────────
+// Cuánto puso Successi en esta operación, cuánto se le reintegró y cuánto falta,
+// con el alta del reintegro. El reintegro va al ledger de pagos (scope
+// 'successi'); si el endpoint no acepta ese scope, se guarda en la operación
+// para no perderlo (y la fila que quedó mal clasificada se borra).
+function SuccessiModal({ op, cuenta, reintegros, onClose, onAdd, onDelete }) {
+  const [form, setForm] = useState({ fecha: hoyISO(), monto: '', metodo: 'transferencia', nota: '' });
+  const [busy, setBusy] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(null);
+  const parsed = numDesp(form.monto);
+
+  const submit = async () => {
+    if (busy) return;
+    if (!(parsed > 0)) { gToast.error('Ingresá el monto del reintegro.'); return; }
+    setBusy(true);
+    const ok = await onAdd({ ...form, monto: fmtMontoAR(parsed) });
+    setBusy(false);
+    if (ok) setForm({ fecha: hoyISO(), monto: '', metodo: 'transferencia', nota: '' });
+  };
+
+  const INP_M = { ...INP, padding: '0.4rem 0.55rem', fontSize: '0.82rem' };
+  return (
+    <div style={{ ...OVERLAY, zIndex: 1250 }} onClick={onClose}>
+      <div style={{ ...PANEL, maxWidth: 480, maxHeight: '88vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: '1rem' }}>
+          <div>
+            <h3 style={MODAL_T}>Successi Ing SA</h3>
+            <p style={{ fontSize: '0.72rem', color: MUTED, marginTop: 2 }}>lo que puso en {toTitle(op.nombre) || 'esta operación'} y lo que se le devolvió</p>
+          </div>
+          <button onClick={onClose} aria-label="Cerrar" className="tt-ghost" style={{ background: 'none', border: 'none', cursor: 'pointer', color: MUTED, fontSize: '1.3rem', lineHeight: 1, padding: 0 }}>×</button>
+        </div>
+
+        <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', paddingBottom: '1rem', borderBottom: `1px solid ${HAIR}` }}>
+          {[
+            { l: 'Puso', v: cuenta.sinTC ? fmtP(cuenta.puestoPesos) : fmtU(cuenta.puestoUSD), c: INK },
+            { l: 'Reintegrado', v: fmtU(cuenta.reintegradoUSD), c: GREEN },
+            { l: 'Falta reintegrar', v: cuenta.faltaUSD > 0 ? fmtU(cuenta.faltaUSD) : 'Nada', c: cuenta.faltaUSD > 0 ? RED : GREEN },
+          ].map(x => (
+            <div key={x.l}>
+              <p style={{ fontSize: '1.05rem', fontWeight: 700, color: x.c, ...TAB }}>{x.v}</p>
+              <p style={{ ...GROUP_H, marginTop: 2 }}>{x.l}</p>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ padding: '1rem 0', borderBottom: `1px solid ${HAIR}` }}>
+          <p style={{ ...GROUP_H, marginBottom: 8 }}>Registrar reintegro</p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div>
+              <label style={LBL}>Fecha</label>
+              <input type="date" value={form.fecha} onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))} className="tt-inp" style={INP_M} />
+            </div>
+            <div>
+              <label style={LBL}>Monto (USD)</label>
+              <input inputMode="decimal" value={form.monto} onChange={e => setForm(f => ({ ...f, monto: e.target.value }))}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); submit(); } }}
+                placeholder="0" className="tt-inp" style={{ ...INP_M, ...TAB }} />
+              {form.monto.trim() !== '' && (
+                <p style={{ fontSize: '0.64rem', color: parsed > 0 ? MUTED : AMBER, marginTop: 3, ...TAB }}>
+                  {parsed > 0 ? `= ${fmtU(parsed)}` : 'no se entiende el monto'}
+                </p>
+              )}
+            </div>
+            <div>
+              <label style={LBL}>Método</label>
+              <select value={form.metodo} onChange={e => setForm(f => ({ ...f, metodo: e.target.value }))} className="tt-inp" style={{ ...INP_M, cursor: 'pointer', appearance: 'auto' }}>
+                <option value="transferencia">Transferencia</option>
+                <option value="cash">Cash</option>
+                <option value="compensacion">Compensación</option>
+              </select>
+            </div>
+            <div>
+              <label style={LBL}>Nota (opcional)</label>
+              <input value={form.nota} onChange={e => setForm(f => ({ ...f, nota: e.target.value }))} placeholder="Ej: parcial" className="tt-inp" style={INP_M} />
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+            <button onClick={submit} disabled={busy} style={{ ...BTN_DARK, opacity: busy ? 0.6 : 1 }}>{busy ? 'Guardando…' : 'Registrar reintegro'}</button>
+          </div>
+        </div>
+
+        <div style={{ paddingTop: '0.9rem' }}>
+          <p style={{ ...GROUP_H, marginBottom: 6 }}>Historial · {reintegros.length}</p>
+          {reintegros.length === 0 ? (
+            <p style={{ fontSize: '0.74rem', color: MUTED }}>Todavía no se le devolvió nada en esta operación.</p>
+          ) : reintegros.map(r => (
+            <div key={`${r.origen}-${r.id}`} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0.5rem 0', borderBottom: '1px solid #f8fafc' }}>
+              <span style={{ fontSize: '0.72rem', color: BODY, width: 82, flexShrink: 0, ...TAB }}>{fmtFecha(r.fecha) || '—'}</span>
+              <span style={{ fontSize: '0.78rem', fontWeight: 600, color: INK, ...TAB }}>{fmtU(numDesp(r.monto))}</span>
+              <span style={{ fontSize: '0.68rem', color: MUTED, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {r.metodo || '—'}{r.nota ? ` · ${r.nota}` : ''}{r.por ? ` · ${r.por}` : ''}
+              </span>
+              {confirmDel === `${r.origen}-${r.id}` ? (
+                <span style={{ display: 'inline-flex', gap: 10, flexShrink: 0 }}>
+                  <button onClick={() => setConfirmDel(null)} className="tt-ghost" style={{ ...GHOST, fontSize: '0.68rem' }}>No</button>
+                  <button onClick={() => { setConfirmDel(null); onDelete(r); }} style={{ ...GHOST, color: RED, fontWeight: 600, fontSize: '0.68rem' }}>Borrar</button>
+                </span>
+              ) : (
+                <button onClick={() => setConfirmDel(`${r.origen}-${r.id}`)} className="tt-icon" title="Borrar reintegro"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, flexShrink: 0, display: 'flex' }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── estado de cuenta por cliente (vista limpia para captura / imprimir) ────────
 function EstadoCuentaModal({ group, op, onClose }) {
@@ -1860,11 +2848,23 @@ function CategoryEditor({ cat, rows: initRows, onChange, onClose, onDelete }) {
   const showPagadoPor = cat.id !== 'aduana';
   const defKind = cat.kind === 'cash' ? 'cash' : 'blanco';
 
-  const updRow = (i, f, v) => setRows(rs => rs.map((r, j) => j === i ? { ...r, [f]: v } : r));
-  const addRow = () => setRows(rs => [...rs, newRow()]);
-  const remRow = (i) => setRows(rs => rs.filter((_, j) => j !== i));
+  // `tocado` evita propagar cuando no cambiaste nada (abrir y cerrar el modal no
+  // ensucia la operación ni dispara un guardado al pedo).
+  const tocado = useRef(false);
+  const updRow = (i, f, v) => { tocado.current = true; setRows(rs => rs.map((r, j) => j === i ? { ...r, [f]: v } : r)); };
+  const addRow = () => { tocado.current = true; setRows(rs => [...rs, newRow()]); };
+  const remRow = (i) => { tocado.current = true; setRows(rs => rs.filter((_, j) => j !== i)); };
 
-  const save = () => { onChange(rows.filter(r => r.desc || r.usd || r.pesos)); onClose(); };
+  const apply = (rs) => onChange(rs.filter(r => r.desc || r.usd || r.pesos));
+  const save  = () => { if (tocado.current) apply(rows); onClose(); };
+  // Las líneas se propagan al expediente mientras las tipeás (y de ahí al
+  // servidor, que autoguarda): cargar 8 facturas y perder la pestaña ya no
+  // borra nada. Cerrar el modal de cualquier forma también las deja aplicadas.
+  useEffect(() => {
+    if (!tocado.current) return;
+    const t = setTimeout(() => apply(rows), 700);
+    return () => clearTimeout(t);
+  }, [rows]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <>
@@ -1875,7 +2875,9 @@ function CategoryEditor({ cat, rows: initRows, onChange, onClose, onDelete }) {
             <h3 style={MODAL_T}>{cat.label}</h3>
             {cat.note && <span style={{ fontSize: '0.68rem', color: AMBER, fontWeight: 500 }}>{cat.note}</span>}
           </div>
-          <button onClick={onClose} className="tt-ghost" style={{ background: 'none', border: 'none', color: MUTED, cursor: 'pointer', fontSize: '1.4rem', lineHeight: 1, padding: 0 }}>×</button>
+          {/* Cerrar con la × APLICA las líneas (igual que tocar afuera o Listo):
+              cerrar el modal nunca puede tirar lo que cargaste. */}
+          <button onClick={save} aria-label="Cerrar y guardar" className="tt-ghost" style={{ background: 'none', border: 'none', color: MUTED, cursor: 'pointer', fontSize: '1.4rem', lineHeight: 1, padding: 0 }}>×</button>
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.75rem' }}>
@@ -1912,12 +2914,12 @@ function CategoryEditor({ cat, rows: initRows, onChange, onClose, onDelete }) {
                       )}
                     </td>
                     {showPagadoPor && (
-                      <td style={{ padding: '0.25rem 0.3rem', width: 128 }}>
+                      <td style={{ padding: '0.25rem 0.3rem', width: 190 }}>
                         {(() => {
-                          const kind = row.pagadoPor === 'cash' || row.pagadoPor === 'blanco' ? row.pagadoPor : defKind;
+                          const kind = esPagador(row.pagadoPor) ? row.pagadoPor : defKind;
                           return (
-                            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-start' }} title="¿Quién pagó esta línea? Sociedad (facturado) o vos en efectivo. No cambia el total a cobrar, solo el split y lo que recuperás cash.">
-                              {[['blanco', 'Sociedad'], ['cash', 'Vos']].map(([v, l]) => {
+                            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-start', flexWrap: 'wrap' }} title="¿Quién pagó esta línea? La sociedad importadora (facturado), Successi Ing SA (se le reintegra después) o vos en efectivo. No cambia el total a cobrar: solo de qué bolsillo salió.">
+                              {PAGADORES.map(([v, l]) => {
                                 const on = kind === v;
                                 return (
                                   <button key={v} onClick={() => updRow(i, 'pagadoPor', v)} style={{ padding: '0 0 3px', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.64rem', fontWeight: on ? 600 : 400, color: on ? INK : MUTED, borderBottom: on ? `2px solid ${INK}` : '2px solid transparent' }}>
@@ -1956,8 +2958,8 @@ function CategoryEditor({ cat, rows: initRows, onChange, onClose, onDelete }) {
             )}
           </div>
           <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center' }}>
-            <button onClick={onClose} className="tt-ghost" style={GHOST}>Cancelar</button>
-            <button onClick={save} style={BTN_DARK}>Guardar</button>
+            <span style={{ fontSize: '0.68rem', color: MUTED }}>Se guarda solo</span>
+            <button onClick={save} style={BTN_DARK}>Listo</button>
           </div>
         </div>
       </div>
@@ -2249,15 +3251,61 @@ function Help({ title }) {
 
 // ─── Main Export ──────────────────────────────────────────────────────────────
 function OperationsInner() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const deepLinkId = searchParams.get('op');
   const [selected, setSelected] = useState(null);
+  // Buscador y filtro viven acá arriba: volver de una operación no borra lo que estabas buscando.
+  const [query,  setQuery]  = useState('');
+  const [filter, setFilter] = useState('todas');
+  const pushedRef  = useRef(false);  // ¿la ficha se abrió agregando una entrada al historial?
+  const pendingRef = useRef(null);   // id recién abierto, mientras la URL todavía no se actualizó
+  const [closedId, setClosedId] = useState(null); // operación cerrada a mano: no reabrirla aunque la URL tarde
+  // El deep-link que ve la lista ignora la operación que acabás de cerrar: si no,
+  // mientras la URL termina de limpiarse la lista la vuelve a abrir (el loop viejo).
+  const listaDeepLink = deepLinkId && String(deepLinkId) !== String(closedId) ? deepLinkId : null;
+
+  // La URL manda: ?op=<id> abre el expediente, sin el parámetro se ve la lista.
+  // Antes `selected` era estado local y el deep-link reabría la misma operación
+  // apenas tocabas Volver (loop). Ahora Volver limpia la URL, el Atrás del
+  // navegador/celular hace lo esperable y el link de una operación se comparte.
+  const openOp = useCallback((op) => {
+    setSelected(op);
+    setClosedId(null);
+    if (!op?.id) return;
+    if (String(deepLinkId || '') === String(op.id)) return; // ya venía por deep-link
+    pendingRef.current = String(op.id);
+    pushedRef.current  = true;
+    router.push(`/gestion/operaciones?op=${encodeURIComponent(op.id)}`, { scroll: false });
+  }, [deepLinkId, router]);
+
+  const backToList = useCallback(() => {
+    setSelected(null);
+    pendingRef.current = null;
+    setClosedId(deepLinkId || null);
+    if (pushedRef.current) { pushedRef.current = false; router.back(); }
+    else if (deepLinkId) router.replace('/gestion/operaciones', { scroll: false });
+  }, [deepLinkId, router]);
+
+  // La URL ya refleja la operación abierta.
+  useEffect(() => {
+    if (pendingRef.current && String(deepLinkId || '') === pendingRef.current) pendingRef.current = null;
+  }, [deepLinkId]);
+
+  // Atrás del navegador o gesto del celular: si el parámetro desapareció, cerrar la ficha.
+  useEffect(() => {
+    if (deepLinkId || !selected || pendingRef.current) return;
+    pushedRef.current = false;
+    setSelected(null);
+  }, [deepLinkId, selected]);
+
   return (
     <>
       <style>{PAGE_CSS}</style>
       {selected
-        ? <OperationDetail op={selected} onBack={() => setSelected(null)} />
-        : <OperationsList onSelect={setSelected} deepLinkId={deepLinkId} />}
+        ? <OperationDetail op={selected} onBack={backToList} />
+        : <OperationsList onSelect={openOp} deepLinkId={listaDeepLink}
+            query={query} setQuery={setQuery} filter={filter} setFilter={setFilter} />}
     </>
   );
 }

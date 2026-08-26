@@ -117,7 +117,10 @@ export default function FichaImportacion({ bl, seed = {}, onClose, onChanged }) 
         const cash = num(desp.pago_cash) + (f.metodo === 'cash' ? num(f.monto) : 0)
         const transf = num(desp.pago_transferencia) + (f.metodo === 'cash' ? 0 : num(f.monto))
         const pagado = cash + transf
-        const saldo = num(desp.total_honorarios) - pagado - num(desp.comision)
+        // Saldo = total de costos − pagado. UNA sola fórmula en todo el sistema:
+        // la pantalla Despachante calcula igual desde que la comisión dejó de
+        // cargarse. Restarla acá dejaba dos saldos distintos para la misma deuda.
+        const saldo = num(desp.total_honorarios) - pagado
         await fetch(`/api/db/despachante/${desp.id}`, {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...desp, pago_cash: fmtN(cash), pago_transferencia: fmtN(transf), total_pagado: fmtN(pagado), saldo: fmtN(saldo), fecha_pago: f.fecha }),

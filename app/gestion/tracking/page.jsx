@@ -81,6 +81,18 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
   const [histPagos, setHistPagos] = useState({})
   // Último método usado con cada agente → precarga el modal (Bruce siempre USA).
   const [ultMetodo, setUltMetodo] = useState({})
+  // Totales del ledger por embarque (ref_id → {total, pagos, ajuste, n}): el
+  // "Pagado"/"Saldo" del embarque se DERIVA de acá, no se tipea.
+  const [agg, setAgg] = useState(null)             // null = historial sin cargar
+  const [confirmPago, setConfirmPago] = useState(null) // { ship, pg } → borrar un pago
+  const [conciliando, setConciliando] = useState(null) // id del embarque recalculándose
+  const [undoAlert, setUndoAlert] = useState(null)     // última alerta tachada → deshacer
+  const [hechasOpen, setHechasOpen] = useState(false)  // desplegable "Hechas (N)"
+  const [hechasMeta, setHechasMeta] = useState({})     // akey → { done_by, done_at }
+
+  async function errMsg(res, fallback) {
+    try { const j = await res.json(); return j.error || fallback } catch { return fallback }
+  }
 
   const load = async () => {
     // Inyección de datos para preview de diseño (dev): evita auth/D1.
@@ -95,20 +107,35 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
       setShips(shipments)
       if (o.ok) setOps(await o.json())
       if (d.ok) { const dd = await d.json(); setDesps(Array.isArray(dd) ? dd : []) }
-      fetch('/api/db/alertas').then(x => x.ok ? x.json() : []).then(arr => { if (Array.isArray(arr)) setHechas(new Set(arr)) }).catch(() => {})
-      // Método habitual por agente: el ledger viene ordenado del más nuevo al
-      // más viejo, así que la primera aparición de cada agente es la última vez.
-      fetch('/api/db/pagos').then(x => x.ok ? x.json() : []).then(arr => {
+      // Alertas tachadas (con quién y cuándo, para poder deshacerlas).
+      fetch('/api/db/alertas?full=1').then(x => x.ok ? x.json() : []).then(arr => {
         if (!Array.isArray(arr)) return
-        const byId = {}; shipments.forEach(s => { byId[String(s.id)] = s.agente || 'Bruce' })
-        const m = {}
-        arr.forEach(p => {
-          if (p.scope !== 'agente' || !p.metodo) return
-          const ag = byId[String(p.ref_id)]
-          if (ag && !m[ag]) m[ag] = p.metodo
+        const keys = new Set(); const meta = {}
+        arr.forEach(r => {
+          const k = typeof r === 'string' ? r : (r && r.akey)
+          if (!k) return
+          keys.add(k)
+          if (r && typeof r === 'object') meta[k] = { done_by: r.done_by || '', done_at: r.done_at || '' }
         })
-        setUltMetodo(m)
+        setHechas(keys); setHechasMeta(meta)
       }).catch(() => {})
+      // Totales del ledger por embarque: de acá sale el pagado/saldo real.
+      // Viene ordenado del pago más nuevo al más viejo, así que el primer ref de
+      // cada agente trae el método que usaste la última vez con él.
+      fetch('/api/db/pagos?scope=agente&agg=1').then(x => x.ok ? x.json() : null).then(arr => {
+        // Si el historial no se puede leer, agg queda en null: sin comparar
+        // contra datos viejos (mostraría desvíos falsos y ajustes de más).
+        if (!Array.isArray(arr)) { setAgg(null); return }
+        const m = {}; arr.forEach(a => { m[String(a.ref_id)] = a })
+        setAgg(m)
+        const byId = {}; shipments.forEach(s => { byId[String(s.id)] = s.agente || 'Bruce' })
+        const um = {}
+        arr.forEach(a => {
+          const ag = byId[String(a.ref_id)]
+          if (ag && a.ultimo_metodo && !um[ag]) um[ag] = a.ultimo_metodo
+        })
+        setUltMetodo(um)
+      }).catch(() => setAgg(null))
     } catch {
       setLoadError(true)
       gToast.error('No se pudieron cargar los embarques. Revisá tu conexión.')
@@ -188,11 +215,35 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
   }, [ships, opByBL, despByBL])
 
   const alertasVis = useMemo(() => alertas.filter(a => !hechas.has(a.key)), [alertas, hechas])
+  // Tachadas pero todavía vigentes: se pueden reactivar (tachar no es definitivo).
+  const alertasHechas = useMemo(() => alertas.filter(a => hechas.has(a.key)), [alertas, hechas])
+
+  // El aviso de "deshacer" se va solo a los 12s (o al tocar deshacer).
+  useEffect(() => {
+    if (!undoAlert) return
+    const t = setTimeout(() => setUndoAlert(null), 12000)
+    return () => clearTimeout(t)
+  }, [undoAlert])
 
   // Marcar/desmarcar una alerta como hecha (optimista + persistido en D1).
+  // Si el guardado falla se revierte: la alerta no puede desaparecer en silencio.
   const toggleHecha = async (a, done = true) => {
     setHechas(prev => { const n = new Set(prev); done ? n.add(a.key) : n.delete(a.key); return n })
-    try { await fetch('/api/db/alertas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ akey: a.key, undo: !done }) }) } catch {}
+    setUndoAlert(done ? a : (u => (u && u.key === a.key ? null : u)))
+    try {
+      const r = await fetch('/api/db/alertas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ akey: a.key, undo: !done }) })
+      if (!r.ok) throw new Error(await errMsg(r, 'No se pudo guardar la alerta.'))
+      setHechasMeta(m => {
+        const n = { ...m }
+        if (done) n[a.key] = { done_by: '', done_at: new Date().toISOString().slice(0, 10) }
+        else delete n[a.key]
+        return n
+      })
+    } catch (e) {
+      setHechas(prev => { const n = new Set(prev); done ? n.delete(a.key) : n.add(a.key); return n })
+      setUndoAlert(u => (u && u.key === a.key ? null : u))
+      gToast.error(e.message || 'No se pudo guardar la alerta. Volvió a la lista.')
+    }
   }
 
   // Texto de cada alerta (una sola fuente para el panel). Lo importante en
@@ -206,9 +257,80 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
     return <><b>#{a.num}</b> arribó{a.sem != null ? ` hace ${a.sem} semana${a.sem === 1 ? '' : 's'}` : ''} — saldo <span style={{ color: '#d97706', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(a.monto)}</span> a {a.agente}</>
   }
 
+  // Título corto en texto plano (deshacer y lista de hechas, una línea).
+  const alertTitulo = (a) => ({
+    bl_china: `pedir la liberación del B/L a ${a.agente || 'el agente'}`,
+    naviera: 'pagar naviera/terminal',
+    transporte: `coordinar el transporte interno${a.destino ? ` a ${a.destino}` : ''}`,
+    liberar: 'contenedor sin liberar',
+    despacho: 'cargar el despacho',
+    pago: `saldo ${fmtUSD(a.monto || 0)} a ${a.agente || 'Bruce'}`,
+  }[a.tipo] || 'alerta del flujo')
+
   const hoyStr = () => new Date().toISOString().slice(0, 10)
 
-  // Registrar pago al forwarder como EVENTO (ledger) + actualizar el saldo del embarque.
+  // ——— Saldo con el agente = historial de pagos ————————————————————————
+  // El "Pagado"/"Saldo" del embarque son la proyección del ledger: cada vez que
+  // se toca un pago se REESCRIBEN con el total que devuelve la API, nunca se les
+  // suma/resta a mano. Lo que ya estaba tipeado sin respaldo se convierte en un
+  // "ajuste manual" explícito y visible en el historial.
+  const AJUSTE_NOTA = 'Ajuste manual — pagado cargado a mano, sin pago en el historial'
+
+  // Diferencia entre el "Pagado" guardado en el embarque y lo que suma el ledger.
+  const desvio = (sh) => {
+    if (!agg) return null           // historial sin cargar: no se puede comparar
+    const a = agg[String(sh.id)]
+    const led = a ? a.total : 0
+    const rec = numUSD(sh.amount_rec_usd)
+    const d = Math.round((rec - led) * 100) / 100
+    return Math.abs(d) < 0.5 ? null : { led, rec, d, n: a ? a.n : 0 }
+  }
+
+  // Escribe el pagado/saldo derivados en el embarque (una sola fuente de cuenta).
+  const putSaldo = async (sh, rec, fecha) => {
+    const bal = numUSD(sh.amount_due_usd) - rec
+    const body = { ...sh, amount_rec_usd: fmtCalc(rec), balance_usd: fmtCalc(bal) }
+    if (fecha) body.payment_date = fecha
+    const res = await fetch(`/api/tracking/${sh.id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    })
+    if (!res.ok) throw new Error(await errMsg(res, 'No se pudo actualizar el saldo del embarque.'))
+  }
+
+  // Materializa como ajuste explícito la plata que el "Pagado" declara y el
+  // historial no explica. Sin esto, derivar del ledger se comería esa carga vieja.
+  const materializarAjuste = async (sh) => {
+    const dv = desvio(sh)
+    if (!dv || dv.d <= 0) return false
+    const r = await fetch('/api/db/pagos', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scope: 'agente', tipo: 'ajuste', ref_id: String(sh.id), bl: sh.bl || '', fecha: sh.payment_date || hoyStr(), monto: fmtCalc(dv.d), metodo: '', nota: AJUSTE_NOTA }),
+    })
+    if (!r.ok) throw new Error(await errMsg(r, 'No se pudo registrar el ajuste manual.'))
+    return true
+  }
+
+  // Alinear embarque e historial. 'ajuste' → la diferencia queda registrada como
+  // ajuste manual; 'historial' → manda el ledger y se descarta lo tipeado.
+  const conciliar = async (sh, modo) => {
+    if (conciliando) return
+    const dv = desvio(sh)
+    if (!dv) return
+    setConciliando(sh.id)
+    try {
+      let rec = dv.led
+      if (modo === 'ajuste') { await materializarAjuste(sh); rec = dv.rec }
+      await putSaldo(sh, rec, null)
+      gToast.success(modo === 'ajuste' ? 'Ajuste manual registrado en el historial.' : 'Saldo recalculado desde el historial.')
+      setHistPagos(h => { const n = { ...h }; delete n[sh.id]; return n })
+      load()
+    } catch (e) {
+      gToast.error(e.message || 'No se pudo recalcular el saldo.')
+    } finally { setConciliando(null) }
+  }
+
+  // Registrar pago al forwarder: primero el EVENTO en el ledger (si eso falla no
+  // se toca el saldo), después el saldo derivado del total que devuelve la API.
   const savePagoAgente = async () => {
     const f = pagoModal
     if (!f || pagoBusy) return
@@ -216,25 +338,51 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
     setPagoBusy(true)
     try {
       const sh = f.ship
-      await fetch('/api/db/pagos', {
+      await materializarAjuste(sh)
+      const rp = await fetch('/api/db/pagos', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scope: 'agente', ref_id: String(sh.id), bl: sh.bl || '', fecha: f.fecha, monto: f.monto, metodo: f.metodo, nota: f.nota }),
-      }).catch(() => {})
-      const rec = numUSD(sh.amount_rec_usd) + numUSD(f.monto)
-      const bal = numUSD(sh.amount_due_usd) - rec
-      const res = await fetch(`/api/tracking/${sh.id}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...sh, amount_rec_usd: fmtCalc(rec), balance_usd: fmtCalc(bal), payment_date: f.fecha }),
+        body: JSON.stringify({ scope: 'agente', tipo: 'pago', ref_id: String(sh.id), bl: sh.bl || '', fecha: f.fecha, monto: f.monto, metodo: f.metodo, nota: f.nota }),
       })
-      if (!res.ok) throw new Error('No se pudo registrar el pago')
-      gToast.success('Pago registrado.')
+      if (!rp.ok) throw new Error(await errMsg(rp, 'No se pudo registrar el pago en el historial. El saldo quedó como estaba.'))
+      const j = await rp.json().catch(() => null)
+      // Derivado del ledger. Si el historial no se pudo leer al abrir la pantalla,
+      // se cae al comportamiento viejo (sumar) para no pisar una carga a mano.
+      const rec = (agg && j && j.agg && typeof j.agg.total === 'number') ? j.agg.total : numUSD(sh.amount_rec_usd) + numUSD(f.monto)
       setUltMetodo(m => ({ ...m, [sh.agente || 'Bruce']: f.metodo }))
       setPagoModal(null)
       setHistPagos(h => { const n = { ...h }; delete n[sh.id]; return n })
+      try {
+        await putSaldo(sh, rec, f.fecha)
+        gToast.success('Pago registrado.')
+      } catch {
+        gToast.error('El pago quedó registrado, pero no se pudo actualizar el saldo. Abrí el historial del embarque y tocá "Usar el historial".')
+      }
       load()
     } catch (e) {
       gToast.error(e.message || 'Error al registrar el pago.')
     } finally { setPagoBusy(false) }
+  }
+
+  // Borrar un pago mal cargado: sale del ledger y el saldo se recalcula solo.
+  const delPago = async () => {
+    const { ship: sh, pg } = confirmPago
+    try {
+      await materializarAjuste(sh)
+      const res = await fetch(`/api/db/pagos/${pg.id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error(await errMsg(res, 'No se pudo borrar el pago.'))
+      const j = await res.json().catch(() => null)
+      // Igual que al registrar: solo se deriva del ledger si pudimos comparar
+      // contra el saldo guardado (si no, se resta, para no pisar cargas viejas).
+      const rec = (agg && j && j.agg && typeof j.agg.total === 'number')
+        ? j.agg.total
+        : Math.max(0, numUSD(sh.amount_rec_usd) - numUSD(pg.monto))
+      await putSaldo(sh, rec, null)
+      gToast.success('Pago eliminado. El saldo se recalculó.')
+      setHistPagos(h => { const n = { ...h }; delete n[sh.id]; return n })
+      load()
+    } catch (e) {
+      gToast.error(e.message || 'Error al borrar el pago.')
+    } finally { setConfirmPago(null) }
   }
 
   const toggleHist = async (sh) => {
@@ -311,13 +459,15 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
       })()}
 
       {/* Alertas del flujo — bloque con filete ámbar (tachá lo hecho, tocá para actuar) */}
-      {alertasVis.length > 0 && (() => {
+      {(alertasVis.length > 0 || alertasHechas.length > 0) && (() => {
         const mostrar = alertsOpen ? alertasVis : alertasVis.slice(0, 5)
         return (
-          <div className="tk-alert" style={{ borderLeft: '2px solid #d97706', paddingLeft: 12, marginBottom: '1.5rem' }}>
+          <div className="tk-alert" style={{ borderLeft: `2px solid ${alertasVis.length > 0 ? '#d97706' : '#e5e7eb'}`, paddingLeft: 12, marginBottom: '1.5rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-              <p style={{ fontSize: '0.64rem', fontWeight: 700, color: '#d97706', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                Alertas · {alertasVis.length} pendiente{alertasVis.length === 1 ? '' : 's'}
+              <p style={{ fontSize: '0.64rem', fontWeight: 700, color: alertasVis.length > 0 ? '#d97706' : '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                {alertasVis.length > 0
+                  ? <>Alertas · {alertasVis.length} pendiente{alertasVis.length === 1 ? '' : 's'}</>
+                  : <>Alertas · nada pendiente</>}
               </p>
               {alertasVis.length > 5 && (
                 <button className="tk-sec" onClick={() => setAlertsOpen(o => !o)} style={{ ...BTN_SEC, fontSize: '0.7rem' }}>
@@ -326,6 +476,18 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
                 </button>
               )}
             </div>
+            {/* Deshacer lo último tachado — un toque de más no borra el recordatorio */}
+            {undoAlert && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0.35rem 0', borderBottom: '1px solid #f1f5f9', marginBottom: '0.2rem' }}>
+                <span style={{ flex: '0 0 auto', color: '#059669', display: 'inline-flex' }} aria-hidden="true">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="4 12.5 9 17.5 20 6.5"/></svg>
+                </span>
+                <span style={{ flex: 1, minWidth: 0, fontSize: '0.74rem', color: '#9ca3af', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  Tachada: #{undoAlert.num || '—'} · {alertTitulo(undoAlert)}
+                </span>
+                <button className="tk-sec" onClick={() => toggleHecha(undoAlert, false)} style={{ ...BTN_SEC, flex: '0 0 auto', color: '#111827', fontWeight: 600 }}>Deshacer</button>
+              </div>
+            )}
             <div style={{ maxHeight: alertsOpen ? 340 : 'none', overflowY: alertsOpen ? 'auto' : 'visible' }}>
               {mostrar.map((a) => (
                 <div key={a.key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0.32rem 0' }}>
@@ -346,6 +508,36 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
                 </div>
               ))}
             </div>
+
+            {/* Hechas: siguen vigentes, solo tachadas. Se reactivan de a una. */}
+            {alertasHechas.length > 0 && (
+              <div style={{ marginTop: alertasVis.length > 0 ? '0.5rem' : 0, paddingTop: alertasVis.length > 0 ? '0.4rem' : 0, borderTop: alertasVis.length > 0 ? '1px solid #f1f5f9' : 'none' }}>
+                <button className="tk-sec" onClick={() => setHechasOpen(o => !o)} style={{ ...BTN_SEC, fontSize: '0.72rem' }}>
+                  Hechas ({alertasHechas.length})
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: hechasOpen ? 'rotate(180deg)' : 'none' }}><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                {hechasOpen && (
+                  <div style={{ marginTop: '0.3rem', maxHeight: 260, overflowY: 'auto' }}>
+                    {alertasHechas.map(a => {
+                      const meta = hechasMeta[a.key]
+                      const cuando = meta && meta.done_at ? String(meta.done_at).slice(0, 10) : ''
+                      return (
+                        <div key={a.key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0.3rem 0' }}>
+                          <span style={{ flex: '0 0 auto', width: 20, color: '#d1d5db', display: 'inline-flex', justifyContent: 'center' }} aria-hidden="true">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="9"/><polyline points="8.5 12.5 11 15 15.5 9.5"/></svg>
+                          </span>
+                          <button onClick={() => a.bl && setFicha(a.bl)} style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'none', border: 'none', cursor: a.bl ? 'pointer' : 'default', fontSize: '0.74rem', color: '#c4c9d4', textDecoration: 'line-through', lineHeight: 1.4, padding: 0, fontFamily: 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            #{a.num || '—'} · {alertTitulo(a)}
+                          </button>
+                          {cuando && <span style={{ flex: '0 0 auto', fontSize: '0.64rem', color: '#d1d5db', fontVariantNumeric: 'tabular-nums' }}>{cuando}</span>}
+                          <button className="tk-sec" onClick={() => toggleHecha(a, false)} style={{ ...BTN_SEC, flex: '0 0 auto', whiteSpace: 'nowrap' }}>Reactivar</button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )
       })()}
@@ -427,6 +619,12 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
                       const eta = etaInfo(sh.eta)
                       const exp = expandId === sh.id
                       const hist = histPagos[sh.id]
+                      // Historial: cuántos pagos tiene y si el saldo del embarque
+                      // coincide con lo que suman (dv ≠ null → hay que conciliar).
+                      const led = agg ? (agg[String(sh.id)] || null) : null
+                      const cnt = Array.isArray(hist) ? hist.length : (agg ? (led ? led.n : 0) : null)
+                      const dv = desvio(sh)
+                      const busyConc = conciliando === sh.id
                       // Una sola línea de meta separada por puntos
                       const meta = []
                       if (sh.bl) meta.push(<span key="bl" style={{ fontFamily: 'ui-monospace,monospace' }}>{sh.bl}</span>)
@@ -484,35 +682,79 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
                           )}
 
                           {/* Acciones secundarias como texto plano */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 18, marginTop: 7 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 18, rowGap: 6, flexWrap: 'wrap', marginTop: 7 }}>
                             {bal > 0 && (
                               <button className="tk-sec" onClick={e => { e.stopPropagation(); setPagoModal({ ship: sh, fecha: hoyStr(), monto: fmtCalc(bal), metodo: ultMetodo[sh.agente || 'Bruce'] || METODO_DEFAULT_AGENTE, nota: '' }) }} style={BTN_SEC}>
                                 + Registrar pago
                               </button>
                             )}
                             <button className="tk-sec" onClick={e => { e.stopPropagation(); toggleHist(sh) }} style={BTN_SEC}>
-                              Historial{Array.isArray(hist) ? ` (${hist.length})` : ''}
+                              Historial{cnt != null ? ` (${cnt})` : ''}
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: exp ? 'rotate(180deg)' : 'none' }}><polyline points="6 9 12 15 18 9"/></svg>
                             </button>
+                            {dv && (
+                              <button className="tk-sec" onClick={e => { e.stopPropagation(); if (!exp) toggleHist(sh) }} style={{ ...BTN_SEC, color: '#d97706', fontWeight: 600 }}
+                                title="El pagado del embarque no coincide con los pagos registrados">
+                                {dv.d > 0 ? `Pagado a mano sin respaldo ${fmtUSD(dv.d)}` : `Historial ${fmtUSD(-dv.d)} por encima del saldo`}
+                              </button>
+                            )}
                           </div>
 
-                          {/* Historial expandido: texto gris indentado, sin cajas */}
-                          {exp && (
+                          {/* Historial expandido: texto gris indentado, sin cajas.
+                              De acá sale el pagado/saldo: cada línea se puede borrar y recalcula. */}
+                          {exp && (() => {
+                            const sumHist = Array.isArray(hist) ? hist.reduce((s, p) => s + numUSD(p.monto), 0) : (led ? led.total : 0)
+                            return (
                             <div onClick={e => e.stopPropagation()} style={{ marginTop: 8, paddingTop: 8, paddingLeft: 12, borderTop: '1px solid #f8fafc', cursor: 'default' }}>
                               {!Array.isArray(hist) ? (
                                 <p style={{ fontSize: '0.72rem', color: '#9ca3af' }}>Cargando…</p>
                               ) : hist.length === 0 ? (
                                 <p style={{ fontSize: '0.72rem', color: '#c4c9d4' }}>Sin pagos registrados para este embarque.</p>
-                              ) : hist.map(pg => (
-                                <div key={pg.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0.18rem 0', fontSize: '0.72rem', color: '#9ca3af' }}>
-                                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>{pg.fecha || '—'}</span>
-                                  <span>{metodoLabel(pg.metodo)}</span>
-                                  {pg.nota && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pg.nota}</span>}
-                                  <span style={{ marginLeft: 'auto', fontWeight: 600, color: '#374151', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(numUSD(pg.monto))}</span>
+                              ) : (
+                                <>
+                                  {hist.map(pg => {
+                                    const esAjuste = String(pg.tipo || 'pago') === 'ajuste'
+                                    return (
+                                      <div key={pg.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0.18rem 0', fontSize: '0.72rem', color: '#9ca3af' }}>
+                                        <span style={{ flex: '0 0 auto', fontVariantNumeric: 'tabular-nums' }}>{pg.fecha || '—'}</span>
+                                        <span style={{ flex: '0 0 auto', color: esAjuste ? '#d97706' : '#9ca3af', fontWeight: esAjuste ? 600 : 400 }}>{esAjuste ? 'ajuste manual' : metodoLabel(pg.metodo)}</span>
+                                        {pg.nota && <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pg.nota}</span>}
+                                        {pg.created_by && <span className="tk-hist-by" style={{ flex: '0 0 auto', color: '#c4c9d4' }}>{pg.created_by}</span>}
+                                        <span style={{ marginLeft: 'auto', flex: '0 0 auto', fontWeight: 600, color: '#374151', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(numUSD(pg.monto))}</span>
+                                        <button className="tk-ico" onClick={() => setConfirmPago({ ship: sh, pg })} title="Borrar pago" aria-label="Borrar pago"
+                                          style={{ ...BTN_ICO, width: 18, height: 18, flex: '0 0 auto', fontSize: '0.9rem', lineHeight: 1, fontFamily: 'inherit' }}>×</button>
+                                      </div>
+                                    )
+                                  })}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4, paddingTop: 4, borderTop: '1px solid #f8fafc', fontSize: '0.68rem', color: '#9ca3af' }}>
+                                    <span>Suma del historial</span>
+                                    <span style={{ marginLeft: 'auto', fontWeight: 700, color: '#374151', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(sumHist)}</span>
+                                  </div>
+                                </>
+                              )}
+
+                              {/* Conciliación: el saldo tiene que salir del historial */}
+                              {dv && (
+                                <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid #f8fafc' }}>
+                                  <p style={{ fontSize: '0.7rem', color: '#d97706', lineHeight: 1.45 }}>
+                                    El embarque dice pagado <b style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(dv.rec)}</b> y el historial suma <b style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(dv.led)}</b>
+                                    {dv.d > 0 ? <> — hay {fmtUSD(dv.d)} cargados a mano que ningún pago respalda.</> : <> — el historial tiene {fmtUSD(-dv.d)} que el saldo todavía no tomó.</>}
+                                  </p>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 18, rowGap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                                    {dv.d > 0 && (
+                                      <button className="tk-sec" disabled={busyConc} onClick={() => conciliar(sh, 'ajuste')} style={{ ...BTN_SEC, color: '#111827', fontWeight: 600, cursor: busyConc ? 'wait' : 'pointer' }}>
+                                        Dejarlo como ajuste manual
+                                      </button>
+                                    )}
+                                    <button className="tk-sec" disabled={busyConc} onClick={() => conciliar(sh, 'historial')} style={{ ...BTN_SEC, cursor: busyConc ? 'wait' : 'pointer' }}>
+                                      Usar el historial ({fmtUSD(dv.led)})
+                                    </button>
+                                  </div>
                                 </div>
-                              ))}
+                              )}
                             </div>
-                          )}
+                            )
+                          })()}
                         </div>
                       )
                     })}
@@ -593,12 +835,41 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
         </div>
       )}
 
+      {/* Borrar un pago mal cargado: sale del historial y el saldo se recalcula */}
+      {confirmPago && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }} onClick={() => setConfirmPago(null)}>
+          <div style={{ ...PANEL, maxWidth: 360, textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+            <p style={{ fontSize: '1rem', fontWeight: 600, color: '#111827', marginBottom: 6 }}>¿Borrar este pago?</p>
+            <p style={{ fontSize: '0.78rem', color: '#6b7280', marginBottom: '1.25rem', lineHeight: 1.5 }}>
+              {confirmPago.pg.fecha || 's/fecha'} · {String(confirmPago.pg.tipo || 'pago') === 'ajuste' ? 'ajuste manual' : metodoLabel(confirmPago.pg.metodo)} · <b style={{ color: '#111827', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(numUSD(confirmPago.pg.monto))}</b><br />
+              Sale del historial y el saldo del embarque se recalcula.
+            </p>
+            <div style={{ display: 'flex', gap: 22, justifyContent: 'center', alignItems: 'center' }}>
+              <button className="tk-sec" onClick={() => setConfirmPago(null)} style={{ ...BTN_SEC, fontSize: '0.78rem' }}>Cancelar</button>
+              <button onClick={delPago} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600, color: '#dc2626', fontFamily: 'inherit' }}>Borrar pago</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Registrar pago al forwarder: evento en el ledger + actualiza el saldo */}
       {pagoModal && (
         <div onClick={e => { if (e.target === e.currentTarget) setPagoModal(null) }} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.35)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
           <div style={{ ...PANEL, maxWidth: 400 }}>
             <p style={{ fontSize: '1rem', fontWeight: 600, color: '#111827', marginBottom: 3 }}>Registrar pago a {pagoModal.ship.agente || 'Bruce'}</p>
-            <p style={{ fontSize: '0.72rem', color: '#9ca3af', marginBottom: '1.25rem' }}>#{pagoModal.ship.num} · {pagoModal.ship.origen} → {pagoModal.ship.destino} · saldo <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(numUSD(pagoModal.ship.balance_usd))}</span></p>
+            {(() => {
+              const dvm = desvio(pagoModal.ship)
+              return (
+                <>
+                  <p style={{ fontSize: '0.72rem', color: '#9ca3af', marginBottom: dvm && dvm.d > 0 ? 6 : '1.25rem' }}>#{pagoModal.ship.num} · {pagoModal.ship.origen} → {pagoModal.ship.destino} · saldo <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(numUSD(pagoModal.ship.balance_usd))}</span></p>
+                  {dvm && dvm.d > 0 && (
+                    <p style={{ fontSize: '0.68rem', color: '#d97706', marginBottom: '1.25rem', lineHeight: 1.45 }}>
+                      Este embarque tiene {fmtUSD(dvm.d)} de “pagado” cargados a mano que ningún pago respalda. Se registran como ajuste manual junto con este pago, así el saldo pasa a salir del historial.
+                    </p>
+                  )}
+                </>
+              )
+            })()}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: '1.25rem' }}>
               <div><label style={LBL}>Fecha</label><input className="tk-inp" type="date" value={pagoModal.fecha} onChange={e => setPagoModal(f => ({ ...f, fecha: e.target.value }))} style={INP} /></div>
               <div><label style={LBL}>Monto (USD)</label><input className="tk-inp" inputMode="decimal" value={pagoModal.monto} onChange={e => setPagoModal(f => ({ ...f, monto: e.target.value }))} style={INP} placeholder="0" /></div>
@@ -654,6 +925,7 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
         }
         @media (max-width: 640px) {
           .tk-col-mid { display: none }
+          .tk-hist-by { display: none }
         }
       `}</style>
     </div>

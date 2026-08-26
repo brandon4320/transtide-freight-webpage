@@ -5,11 +5,24 @@ import { useState, useRef, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { GestionToaster } from './toast'
+import BuscadorGlobal from './buscador-global'
 
 const NAV_ITEMS = [
   {
     section: 'Principal',
     items: [
+      {
+        // Primera parada del día: la agenda con TODAS las alertas juntas.
+        // Sin sectionKey a propósito — la ve cualquier usuario con acceso.
+        href: '/gestion/inicio',
+        label: 'Inicio',
+        icon: (
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            <polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+        ),
+      },
       {
         href: '/gestion/operaciones',
         label: 'Operaciones',
@@ -160,6 +173,10 @@ export default function GestionLayoutClient({
 
   const initial = userName.trim().charAt(0).toUpperCase() || 'U'
 
+  // Destinos que el buscador ofrece como "Ir a …": los mismos que ve el menú,
+  // así nadie puede saltar por atajo a una sección que no tiene habilitada.
+  const destinos = navGroups.flatMap((g: any) => g.items.map((it: any) => ({ href: it.href, label: it.label })))
+
   // close menu on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -252,6 +269,10 @@ export default function GestionLayoutClient({
               </div>
               <span className="mobile-brand">TRANSTIDE<span className="dot">.</span></span>
             </div>
+
+            {/* Buscador global: un solo lugar para tipear un B/L y llegar (⌘K) */}
+            <BuscadorGlobal destinos={destinos} />
+
             <div className="user-profile" ref={menuRef} style={{ position: 'relative' }}>
               <button
                 onClick={() => setMenuOpen(o => !o)}
