@@ -201,14 +201,15 @@ const trackingStatusColor = (raw) => {
 };
 const trackBalNum = (v) => { const x = parseFloat(String(v || '').replace(/\./g, '').replace(',', '.')); return isNaN(x) ? 0 : x; };
 
-// ─── Successi Ing SA · el tercer bolsillo ─────────────────────────────────────
-// Cada línea de gasto sale de uno de tres lados: la sociedad importadora
-// (facturado), Successi Ing SA (la sociedad propia, que después se reintegra) o
-// tu bolsillo en efectivo. Successi no existía en el sistema: los gastos que
-// pagaba quedaban mezclados con los de la sociedad del cliente y nadie llevaba
-// la cuenta de cuánto había que devolverle.
-const PAGADORES = [['blanco', 'Sociedad'], ['successi', 'Successi'], ['cash', 'Vos']];
-const esPagador = (v) => v === 'blanco' || v === 'cash' || v === 'successi';
+// ─── de qué bolsillo salió cada gasto ─────────────────────────────────────────
+// Son DOS, no tres: la SOCIEDAD (Successi Ing SA, la sociedad propia — lo que
+// paga ella se le reintegra después) o la CAJA de Brandon (efectivo de su
+// bolsillo, que vuelve cuando el cliente paga).
+const PAGADORES = [['blanco', 'Sociedad'], ['cash', 'Caja Brandon']];
+// 'successi' fue un valor intermedio que separaba la sociedad en dos: se lee
+// como sociedad para no perder lo que ya esté cargado con esa marca.
+const normPagador = (v) => (v === 'successi' ? 'blanco' : v);
+const esPagador = (v) => normPagador(v) === 'blanco' || normPagador(v) === 'cash';
 // Montos tipeados a mano: mismo criterio es-AR que el resto del sistema
 // ("1.234,56" = 1234,56). El formulario muestra en vivo cómo queda interpretado.
 const fmtMontoAR = (v) => { if (!isFinite(v)) return ''; const r = Math.round(v * 100) / 100; return r === 0 ? '' : r.toLocaleString('es-AR', { maximumFractionDigits: 2 }); };
@@ -291,43 +292,41 @@ function computeCalc(detail, clientes = []) {
   const tTra = catTot(transporte).pesos, tDes = catTot(despachante).pesos, tAdm = catTot(admin).pesos;
   const tFlt = catTot(fleteIntl).pesos;
 
-  // Split por LÍNEA: cada gasto se paga desde uno de TRES bolsillos — "sociedad"
-  // (blanco/facturado), "successi" (Successi Ing SA, plata propia que después se
-  // reintegra) o "vos" (cash de tu bolsillo). Sin marca, hereda el default de su
-  // categoría (flete intl → cash, el resto → sociedad). VEP Aduana es siempre
-  // sociedad. Reclasificar una línea NO cambia el costo total ni el "a cobrar"
-  // por proveedor (la suma prorrateada es la misma): solo cambia de qué bolsillo
-  // salió, lo que recuperás en cash y lo que hay que devolverle a Successi.
+  // Split por LÍNEA: cada gasto sale de la SOCIEDAD (Successi) o de la CAJA de
+  // Brandon. Sin marca, hereda el default de su categoría (flete intl → caja, el
+  // resto → sociedad). VEP Aduana es siempre sociedad. Reclasificar una línea NO
+  // cambia el costo total ni el "a cobrar" por proveedor (la suma prorrateada es
+  // la misma): solo cambia de qué bolsillo salió, lo que recuperás en efectivo y
+  // lo que hay que reintegrarle a la sociedad.
   const splitRows = (rows, defKind) => rows.reduce((a, r) => {
-    const kind = esPagador(r.pagadoPor) ? r.pagadoPor : defKind;
+    const kind = esPagador(r.pagadoPor) ? normPagador(r.pagadoPor) : defKind;
     a[kind] += rowPesos(r);
     return a;
-  }, { blanco: 0, cash: 0, successi: 0 });
+  }, { blanco: 0, cash: 0 });
 
-  let enBlanco = tAdu, cash = 0, succPesos = 0; // VEP siempre sociedad
+  let enBlanco = tAdu, cash = 0, succPesos = tAdu; // VEP siempre sociedad
   // catsBlanco: desglose de lo que paga la SOCIEDAD IMPORTADORA (tributos,
   // naviera, terminal…) para la banda "Reparto de la plata". El DESPACHANTE
   // va aparte (despBlanco): es SU factura, no de la sociedad — si estuviera
   // acá y en su propia tarjeta se sumaría dos veces. Lo que puso Successi sale
   // de catsBlanco y va a su propia cuenta (catsSucc).
   const catsBlanco = tAdu > 0 ? [{ label: 'VEP Aduana (tributos)', monto: tAdu }] : [];
-  const catsSucc = [];
+  const catsSucc = tAdu > 0 ? [{ label: 'VEP Aduana (tributos)', monto: tAdu }] : [];
   let despBlanco = 0, despSucc = 0;
-  // `enBlanco` = todo lo facturado (sociedad + Successi): el prorrateo al cliente
-  // es idéntico al de antes, marcar Successi no le cambia el costo a nadie.
+  // Lo que pone la sociedad ES lo que hay que reintegrarle a Successi: el mismo
+  // número, mirado desde los dos lados (cuánto salió · cuánto falta devolver).
   const acum = (s, label) => {
-    enBlanco += s.blanco + s.successi; cash += s.cash; succPesos += s.successi;
-    if (s.blanco > 0) catsBlanco.push({ label, monto: s.blanco });
-    if (s.successi > 0) catsSucc.push({ label, monto: s.successi });
+    enBlanco += s.blanco; cash += s.cash; succPesos += s.blanco;
+    if (s.blanco > 0) { catsBlanco.push({ label, monto: s.blanco }); catsSucc.push({ label, monto: s.blanco }); }
   };
   [[naviera, 'blanco', 'Naviera'], [terminal, 'blanco', 'Terminal'], [transporte, 'blanco', 'Transporte'], [despachante, 'blanco', null], [admin, 'blanco', 'Admin'], [fleteIntl, 'cash', 'Flete Internacional']].forEach(([rows, def, label]) => {
     const s = splitRows(rows, def);
     if (label === null) {
-      // Despachante: su tarjeta muestra todo lo que le pagás, lo haya puesto la
-      // sociedad o Successi.
-      enBlanco += s.blanco + s.successi; cash += s.cash; succPesos += s.successi;
-      despBlanco = s.blanco + s.successi; despSucc = s.successi;
-      if (s.successi > 0) catsSucc.push({ label: 'Despachante', monto: s.successi });
+      // Despachante: su tarjeta muestra todo lo que le pagás; lo que puso la
+      // sociedad entra igual en la cuenta de reintegro.
+      enBlanco += s.blanco; cash += s.cash; succPesos += s.blanco;
+      despBlanco = s.blanco; despSucc = s.blanco;
+      if (s.blanco > 0) catsSucc.push({ label: 'Despachante', monto: s.blanco });
       return;
     }
     acum(s, label);
@@ -1825,20 +1824,39 @@ function OperationDetail({ op, onBack }) {
             {(() => {
               const tcOp = calc.fallbackTC;
               const uOf = (p) => tcOp > 0 ? p / tcOp : null;
-              // Sin el despachante ni lo que puso Successi: cada uno tiene su
-              // propia tarjeta (si estuvieran acá se contarían dos veces).
+              // Sin el despachante, que tiene su propia tarjeta (si estuviera acá
+              // se contaría dos veces).
               const socPesos = calc.socPesos;
               const uB = uOf(socPesos);
+              const hayReint = succ.puestoUSD > 0 || reintegros.length > 0;
               return (
                 <div style={{ minWidth: 0 }}>
-                  <p style={{ ...GROUP_H, marginBottom: 6 }}>A la sociedad importadora</p>
-                  <p style={{ fontSize: '1.15rem', fontWeight: 700, color: INK, lineHeight: 1.1, ...TAB }}>{uB != null ? fmtU(uB) : fmtP(socPesos)}</p>
-                  <p style={{ fontSize: '0.62rem', color: MUTED, marginTop: 3, marginBottom: 8, ...TAB }}>{uB != null ? `${fmtP(socPesos)} facturado · al T.C. ${tcOp}` : 'facturado · cargá un T.C. para verlo en USD'}</p>
-                  {calc.catsBlanco.map(cb => (
-                    <div key={cb.label} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: '0.68rem', padding: '0.22rem 0', color: BODY, borderTop: '1px solid #f8fafc' }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+                    <p style={GROUP_H}>La sociedad · Successi</p>
+                    <button onClick={() => setSuccModal(true)} className="tt-ghost"
+                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '0.62rem', fontWeight: 600, color: BODY, whiteSpace: 'nowrap' }}>
+                      {hayReint ? 'Reintegros →' : 'Registrar →'}
+                    </button>
+                  </div>
+                  {/* El total es TODO lo que puso la sociedad —incluido lo que le
+                      pagó al despachante— porque eso es lo que hay que reintegrarle.
+                      El desglose lo muestra línea por línea para que cierre a la vista. */}
+                  <p style={{ fontSize: '1.15rem', fontWeight: 700, color: INK, lineHeight: 1.1, ...TAB }}>{succ.sinTC ? fmtP(calc.succPesos) : fmtU(succ.puestoUSD)}</p>
+                  <p style={{ fontSize: '0.62rem', color: MUTED, marginTop: 3, marginBottom: 8, ...TAB }}>{succ.sinTC ? 'puestos por la sociedad · cargá un T.C. para verlo en USD' : `${fmtP(calc.succPesos)} puestos por la sociedad · al T.C. ${calc.fallbackTC}`}</p>
+                  {calc.catsSucc.map((cb, ci) => (
+                    <div key={`${cb.label}-${ci}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: '0.68rem', padding: '0.22rem 0', color: BODY, borderTop: '1px solid #f8fafc' }}>
                       <span>{cb.label}</span><span style={{ fontWeight: 600, color: '#374151', ...TAB }}>{uOf(cb.monto) != null ? fmtU(uOf(cb.monto)) : fmtP(cb.monto)}</span>
                     </div>
                   ))}
+                  {/* Reintegro: lo que la sociedad puso vuelve cuando cobrás */}
+                  {hayReint && (<>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: '0.68rem', padding: '0.22rem 0', marginTop: 4, color: BODY, borderTop: `1px solid ${HAIR}` }}>
+                      <span>Reintegrado</span><span style={{ fontWeight: 600, color: GREEN, ...TAB }}>{fmtU(succ.reintegradoUSD)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: '0.68rem', padding: '0.22rem 0', color: BODY, borderTop: '1px solid #f8fafc' }}>
+                      <span>Falta reintegrar</span><span style={{ fontWeight: 700, color: succ.faltaUSD > 0 ? RED : GREEN, ...TAB }}>{succ.faltaUSD > 0 ? fmtU(succ.faltaUSD) : 'Nada'}</span>
+                    </div>
+                  </>)}
                 </div>
               );
             })()}
@@ -1915,7 +1933,7 @@ function OperationDetail({ op, onBack }) {
               const pctRec = puse > 0 ? (vuelto / puse) * 100 : 0;
               return (
                 <div style={{ minWidth: 0 }}>
-                  <p style={{ ...GROUP_H, marginBottom: 6 }}><DotNegro />De tu bolsillo · cash</p>
+                  <p style={{ ...GROUP_H, marginBottom: 6 }}><DotNegro />Caja Brandon · cash</p>
                   {calc.cash > 0 || puse > 0 ? (<>
                     <p style={{ fontSize: '1.15rem', fontWeight: 700, color: INK, lineHeight: 1.1, ...TAB }}>{fmtU(puse)}</p>
                     <p style={{ fontSize: '0.62rem', color: MUTED, marginTop: 3, marginBottom: 8, ...TAB }}>{fmtP(calc.cash)} en gastos cash · vuelve cuando los clientes pagan</p>
@@ -1933,49 +1951,6 @@ function OperationDetail({ op, onBack }) {
                     )}
                   </>) : (
                     <p style={{ fontSize: '0.7rem', color: MUTED, lineHeight: 1.5 }}>No pusiste cash en esta operación.</p>
-                  )}
-                </div>
-              );
-            })()}
-
-            {/* 4 · Successi Ing SA: la sociedad propia que pone plata y hay que
-                reintegrarle. Antes no existía en el sistema: lo que pagaba quedaba
-                mezclado con los gastos de la sociedad importadora del cliente. */}
-            {(() => {
-              const hayCuenta = calc.succPesos > 0 || reintegros.length > 0;
-              const pctRe = succ.puestoUSD > 0 ? (succ.reintegradoUSD / succ.puestoUSD) * 100 : 0;
-              return (
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
-                    <p style={GROUP_H}><DotNegro />Successi Ing SA</p>
-                    <button onClick={() => setSuccModal(true)} className="tt-ghost"
-                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '0.62rem', fontWeight: 600, color: BODY, whiteSpace: 'nowrap' }}>
-                      {hayCuenta ? 'Reintegros →' : 'Registrar →'}
-                    </button>
-                  </div>
-                  {hayCuenta ? (<>
-                    <p style={{ fontSize: '1.15rem', fontWeight: 700, color: INK, lineHeight: 1.1, ...TAB }}>{succ.sinTC ? fmtP(succ.puestoPesos) : fmtU(succ.puestoUSD)}</p>
-                    <p style={{ fontSize: '0.62rem', color: MUTED, marginTop: 3, marginBottom: 8, ...TAB }}>
-                      {succ.sinTC ? 'puso · cargá un T.C. para verlo en USD' : `${fmtP(calc.succPesos)} puestos · al T.C. ${calc.fallbackTC}`}
-                    </p>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: '0.68rem', padding: '0.22rem 0', color: BODY, borderTop: '1px solid #f8fafc' }}>
-                      <span>Reintegrado</span><span style={{ fontWeight: 600, color: GREEN, ...TAB }}>{fmtU(succ.reintegradoUSD)}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: '0.68rem', padding: '0.22rem 0', color: BODY, borderTop: '1px solid #f8fafc' }}>
-                      <span>Falta reintegrar</span><span style={{ fontWeight: 700, color: succ.faltaUSD > 0 ? RED : GREEN, ...TAB }}>{succ.faltaUSD > 0 ? fmtU(succ.faltaUSD) : 'Nada'}</span>
-                    </div>
-                    {calc.catsSucc.slice(0, 4).map((cs, ci) => (
-                      <div key={`${cs.label}-${ci}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: '0.64rem', padding: '0.18rem 0', color: MUTED, borderTop: '1px solid #f8fafc' }}>
-                        <span>{cs.label}</span><span style={{ ...TAB }}>{fmtP(cs.monto)}</span>
-                      </div>
-                    ))}
-                    {pctRe > 0 && pctRe < 100 && (
-                      <div style={{ height: 3, background: HAIR, marginTop: 6 }}>
-                        <div style={{ width: `${Math.min(pctRe, 100)}%`, height: '100%', background: GREEN }} />
-                      </div>
-                    )}
-                  </>) : (
-                    <p style={{ fontSize: '0.7rem', color: MUTED, lineHeight: 1.5 }}>Successi no puso plata acá. Marcá <b style={{ color: BODY, fontWeight: 600 }}>Successi</b> en las líneas de gasto que pagó.</p>
                   )}
                 </div>
               );
@@ -2009,27 +1984,23 @@ function OperationDetail({ op, onBack }) {
               (sociedad + despachante + bolsillo + servicios). Necesita T.C. */}
           {calc.fallbackTC > 0 && calc.perProv.length > 0 && (() => {
             const tc = calc.fallbackTC;
-            // Lo que puso Successi (sin la parte del despachante, que va en su
-            // propia columna) sale como columna aparte para que se vea quién
-            // financió cada cliente. La fila sigue cerrando exacta.
-            const succBase = calc.succPesos - calc.despSucc;
-            const haySucc = succBase > 0;
-            const socBase = calc.enBlanco - calc.tAdu - calc.despBlanco - succBase; // prorrateable sin VEP, despachante ni Successi
+            // Lo que puso la sociedad (Successi) prorrateado por cliente, sin el
+            // VEP (que va por su cuenta) ni el despachante (columna propia).
+            const socBase = calc.enBlanco - calc.tAdu - calc.despBlanco;
             const groups = [];
             calc.perProv.forEach(p => {
               const key = p.tipo === 'Propio' ? 'Propio' : (p.clienteNombre || 'Cliente s/asignar');
               let g = groups.find(x => x.key === key);
-              if (!g) { g = { key, soc: 0, succ: 0, desp: 0, bols: 0, orig: 0, gan: 0, cobrar: 0, cobrados: 0, n: 0 }; groups.push(g); }
+              if (!g) { g = { key, soc: 0, desp: 0, bols: 0, orig: 0, gan: 0, cobrar: 0, cobrados: 0, n: 0 }; groups.push(g); }
               const soc  = (p.vepPesos + p.ratio * socBase) / tc;
-              const succU = (p.ratio * succBase) / tc;
               const desp = (p.ratio * calc.despBlanco) / tc + n(p.cb.despAdic);
               const bols = p.cashUSD;
-              const serv = p.totalUSD - soc - succU - desp - bols; // origen + honorarios + giro + ganancia (cierra la fila)
+              const serv = p.totalUSD - soc - desp - bols; // origen + honorarios + giro + ganancia (cierra la fila)
               // "Servicios" mezclaba tu margen con los gastos de origen, que solo
               // le pasás al cliente. Se parten: origen (pasás) y ganancia (tuya).
               // El residuo va a origen para que la fila siga cerrando exacta.
               const gan  = p.gananciaUSD;
-              g.soc += soc; g.succ += succU; g.desp += desp; g.bols += bols; g.gan += gan; g.orig += serv - gan;
+              g.soc += soc; g.desp += desp; g.bols += bols; g.gan += gan; g.orig += serv - gan;
               g.cobrar += p.totalUSD; g.n++; if (p.cb.cobrado) g.cobrados++;
             });
             const TH2 = { fontSize: '0.58rem', fontWeight: 700, color: MUTED, textTransform: 'uppercase', letterSpacing: '0.05em', padding: '0.4rem 0.6rem', textAlign: 'right', whiteSpace: 'nowrap', borderBottom: `1px solid ${HAIR}` };
@@ -2041,9 +2012,8 @@ function OperationDetail({ op, onBack }) {
                     <tr>
                       <th style={{ ...TH2, textAlign: 'left' }}>Por cliente · USD</th>
                       <th style={TH2}>Sociedad</th>
-                      {haySucc && <th style={TH2}>Successi</th>}
                       <th style={TH2}>Despachante</th>
-                      <th style={TH2}>Tu bolsillo</th>
+                      <th style={TH2}>Caja Brandon</th>
                       <th style={TH2}>Gs. origen</th>
                       <th style={TH2}>Tu ganancia</th>
                       <th style={TH2}>= A cobrar</th>
@@ -2055,7 +2025,6 @@ function OperationDetail({ op, onBack }) {
                       <tr key={g.key} className="tt-row">
                         <td style={{ ...TD2, textAlign: 'left', fontWeight: 600, color: INK }}>{g.key}</td>
                         <td style={TD2}>{fmtUcompact(g.soc)}</td>
-                        {haySucc && <td style={TD2}>{fmtUcompact(g.succ)}</td>}
                         <td style={TD2}>{fmtUcompact(g.desp)}</td>
                         <td style={TD2}>{fmtUcompact(g.bols)}</td>
                         <td style={TD2}>{fmtUcompact(g.orig)}</td>
@@ -2099,7 +2068,7 @@ function OperationDetail({ op, onBack }) {
                 )}
 
                 <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, padding: '1rem 0.25rem 0.2rem' }}>
-                  <span style={GROUP_H}><DotNegro />Pagado por vos · cash</span>
+                  <span style={GROUP_H}><DotNegro />Caja Brandon · cash</span>
                   <span style={{ fontSize: '0.62rem', color: BODY, fontWeight: 600, ...TAB }}>{fmtP(calc.cash)}{calc.fallbackTC > 0 && calc.cash > 0 ? ` · U$ ${Math.round(calc.cash / calc.fallbackTC).toLocaleString('es-AR')}` : ''}</span>
                 </div>
                 {GASTOS_CASH.map(g => (
