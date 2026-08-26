@@ -346,7 +346,17 @@ const PRESETS = {
   '20': { label: '20 Pies', m3: 30, flete: 3500, despachante: 2000, terminal: 2300, naviera: 800, logistica: 2150 },
   '40hq': { label: '40 Pies / HQ', m3: 60, flete: 4500, despachante: 2000, terminal: 2300, naviera: 800, logistica: 2150 },
   'fr': { label: 'Flat Rack', m3: null, flete: 6000, despachante: 2200, terminal: 2500, naviera: 900, logistica: 2150 },
+  // Carga que no va en contenedor: RORO (rodante: maquinaria, vehículos) y Break Bulk
+  // (suelta / sobredimensionada). Sin m³ fijo — se cotiza por la medida real de la carga.
+  'roro': { label: 'RORO', m3: null, flete: 6000, despachante: 2200, terminal: 2500, naviera: 900, logistica: 2150 },
+  'bulk': { label: 'Break Bulk', m3: null, flete: 6000, despachante: 2200, terminal: 2500, naviera: 900, logistica: 2150 },
 };
+
+// m³ por defecto de la caja de edición: los tipos sin m³ fijo arrancan en 60 para
+// que el campo sea editable en vez de quedar vacío.
+const PRESET_M3 = Object.fromEntries(Object.entries(PRESETS).map(([k, p]) => [k, p.m3 ?? 60]));
+const PRESET_COSTS = Object.fromEntries(Object.entries(PRESETS).map(([k, p]) =>
+  [k, { flete: p.flete, despachante: p.despachante, terminal: p.terminal, naviera: p.naviera, logistica: p.logistica }]));
 
 // ─── small UI primitives — Transtide Flat ─────────────────────────────────────
 // Hoja plana: inputs subrayados en la pantalla de cálculo, inputs con caja fina
@@ -494,12 +504,8 @@ function CotizadorMaritimo() {
 
   // ── container config ──
   const [contType, setContType] = useState('40hq');
-  const [contM3, setContM3] = useState({ '20': 30, '40hq': 60, 'fr': 60 });
-  const [contCosts, setContCosts] = useState({
-    '20':  { flete: 3500, despachante: 2000, terminal: 2300, naviera: 800, logistica: 2150 },
-    '40hq':{ flete: 4500, despachante: 2000, terminal: 2300, naviera: 800, logistica: 2150 },
-    'fr':  { flete: 6000, despachante: 2200, terminal: 2500, naviera: 900, logistica: 2150 },
-  });
+  const [contM3, setContM3] = useState(() => ({ ...PRESET_M3 }));
+  const [contCosts, setContCosts] = useState(() => ({ ...PRESET_COSTS }));
 
   const setCost = (type, field, val) =>
     setContCosts(prev => ({ ...prev, [type]: { ...prev[type], [field]: val } }));
@@ -597,8 +603,9 @@ function CotizadorMaritimo() {
         setTab(d.mode === 'cliente' ? 'cliente_fob' : 'real_fob');
       }
       if (d.contType !== undefined) setContType(d.contType);
-      if (d.contM3 !== undefined) setContM3(d.contM3);
-      if (d.contCosts !== undefined) setContCosts(d.contCosts);
+      // Cotización guardada antes de que existiera un tipo: completa los que falten.
+      if (d.contM3 !== undefined) setContM3({ ...PRESET_M3, ...d.contM3 });
+      if (d.contCosts !== undefined) setContCosts({ ...PRESET_COSTS, ...d.contCosts });
       if (d.cliente !== undefined) setCliente(d.cliente);
       if (d.descripcion !== undefined) setDescripcion(d.descripcion);
       if (d.clasificacion !== undefined) setClasificacion(d.clasificacion);

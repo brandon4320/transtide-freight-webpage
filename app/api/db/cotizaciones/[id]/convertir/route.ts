@@ -6,7 +6,7 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 // Mapea el contType del cotizador → label de contenedor de operaciones
-const CONT_LABEL: Record<string, string> = { '20': '20 Pies', '40hq': '40HQ', 'fr': 'Flat Rack' }
+const CONT_LABEL: Record<string, string> = { '20': '20 Pies', '40hq': '40HQ', 'fr': 'Flat Rack', 'roro': 'RORO', 'bulk': 'Break Bulk' }
 
 // Columnas agregadas después del alta original de las tablas. El proyecto no tiene
 // migraciones versionadas: se garantizan on-the-fly (PRAGMA + ALTER dentro de un try,

@@ -13,7 +13,7 @@ const numDesp = (v) => { const x = parseFloat(String(v || '').replace(/\./g, '')
 // Capitaliza por palabra respetando acentos (con \b\w los acentos cuentan como fin
 // de palabra y "Módulos policía" salía "MóDulos PolicíA") y dejando en mayúscula las
 // siglas del negocio: los nombres se cargan TODO EN MAYÚSCULAS.
-const SIGLAS = new Set(['SA', 'SRL', 'SAS', 'SL', 'SACIF', 'CNC', 'BL', 'HC', 'USA', 'EEUU', 'NCM', 'VEP', 'IVA', 'FOB', 'CIF', 'EXW', 'FCA', 'LCL', 'FCL', 'THC', 'ARCA', 'AFIP', 'CUIT', 'PRFV', 'ADC']);
+const SIGLAS = new Set(['SA', 'SRL', 'SAS', 'SL', 'SACIF', 'CNC', 'BL', 'HC', 'USA', 'EEUU', 'NCM', 'VEP', 'IVA', 'FOB', 'CIF', 'EXW', 'FCA', 'LCL', 'FCL', 'THC', 'ARCA', 'AFIP', 'CUIT', 'PRFV', 'ADC', 'RORO', 'LCL', 'HQ']);
 const toTitle = (s) => s
   ? String(s).split(/(\s+)/).map(w => {
       const limpio = w.replace(/[^\p{L}\p{N}]/gu, '');
@@ -180,8 +180,10 @@ const FILTROS = [
   ['cerradas', 'Cerradas',    ESTADOS_CERRADOS],
 ];
 const PRIMARY = '#111827';
-const CONTENEDORES = ['20 Pies', '40 Pies', '40HQ', 'Flat Rack', 'LCL'];
-const CONTAINER_M3 = { '20 Pies': 28, '40 Pies': 56, '40HQ': 76, 'Flat Rack': 76, 'LCL': null };
+// Cómo viaja la carga. RORO (rodante) y Break Bulk (suelta / sobredimensionada) no
+// van en contenedor: sin m³ fijo, la ocupación se muestra como medida real (igual que LCL).
+const CONTENEDORES = ['20 Pies', '40 Pies', '40HQ', 'Flat Rack', 'LCL', 'RORO', 'Break Bulk', 'Aéreo'];
+const CONTAINER_M3 = { '20 Pies': 28, '40 Pies': 56, '40HQ': 76, 'Flat Rack': 76, 'LCL': null, 'RORO': null, 'Break Bulk': null, 'Aéreo': null };
 
 const emptyOp = () => ({ id: '', nombre: '', contenedor: '40HQ', bl: '', eta: '', estado: 'Consolidando', fecha: '' });
 
@@ -871,13 +873,17 @@ function OperationsList({ onSelect, deepLinkId, query, setQuery, filter, setFilt
                 <label style={LBL}>Contenedor</label>
                 <select value={form.contenedor} onChange={e => setForm(f => ({ ...f, contenedor: e.target.value }))} className="tt-inp" style={SEL}>
                   {CONTENEDORES.map(c => <option key={c} value={c}>{c}</option>)}
+                  {/* Valor cargado antes de que existiera en la lista: se conserva en vez de pisarse al guardar. */}
+                  {form.contenedor && !CONTENEDORES.includes(form.contenedor) && <option value={form.contenedor}>{form.contenedor}</option>}
                 </select>
               </div>
               <div>
-                <label style={LBL}>M³ del contenedor</label>
+                <label style={LBL}>Capacidad</label>
                 <p style={{ padding: '0.5rem 0', fontSize: '0.82rem', color: INK, fontWeight: 600 }}>
                   {CONTAINER_M3[form.contenedor] ? `${CONTAINER_M3[form.contenedor]} m³` : 'Variable'}
-                  <span style={{ fontSize: '0.7rem', color: MUTED, fontWeight: 400 }}> · capacidad total</span>
+                  <span style={{ fontSize: '0.7rem', color: MUTED, fontWeight: 400 }}>
+                    {CONTAINER_M3[form.contenedor] ? ' · capacidad total' : ' · se mide por la carga real'}
+                  </span>
                 </p>
               </div>
               <div>
