@@ -5,6 +5,7 @@ import { gToast } from '../toast';
 import { importFlowState, FlowTimeline, MiniFlow } from '../flujo-importacion';
 import { EmbarqueModal } from '../embarque-form';
 import FichaImportacion from '../ficha-importacion';
+import { useSeleccionMultiple, BarraSeleccion, Casilla } from '../seleccion-multiple';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 const n    = (v) => parseFloat(v) || 0;
@@ -558,6 +559,17 @@ function OperationsList({ onSelect, deepLinkId, query, setQuery, filter, setFilt
     }
   };
 
+  // Borrado en lote, ya confirmado y con el deshacer vencido.
+  const removeMuchas = useCallback(async (ids) => {
+    const res = await Promise.all(ids.map(id =>
+      fetch(`/api/db/operations/${id}`, { method: 'DELETE' }).then(r => r.ok).catch(() => false)
+    ));
+    const ok = res.filter(Boolean).length;
+    setOps(prev => prev.filter(o => !ids.includes(o.id)));
+    if (ok === ids.length) gToast.success(ok === 1 ? 'Operación eliminada.' : `${ok} operaciones eliminadas.`);
+    else gToast.error(`Se eliminaron ${ok} de ${ids.length}. Recargá para ver el estado real.`);
+  }, []);
+
   const INP2 = { ...INP, padding: '0.5rem 0.75rem', boxSizing: 'border-box' };
   const SEL  = { ...INP2, cursor: 'pointer', appearance: 'auto' };
 
@@ -580,9 +592,21 @@ function OperationsList({ onSelect, deepLinkId, query, setQuery, filter, setFilt
 
   // Activas arriba, cerradas al fondo (colapsadas por defecto; si estás buscando
   // se abren solas, si no parece que el resultado no existe).
-  const opsActivas  = visibles.filter(o => !esCerrada(o));
-  const opsCerradas = visibles.filter(o => esCerrada(o));
   const cerradasOpen = showCerradas || !!q || filter === 'cerradas';
+  // "Seleccionar todas" alcanza SOLO lo que está a la vista: si las cerradas están
+  // colapsadas no entran, para no borrar algo que no se ve.
+  const aLaVista = useMemo(() => {
+    const act = visibles.filter(o => !esCerrada(o));
+    return cerradasOpen ? [...act, ...visibles.filter(o => esCerrada(o))] : act;
+  }, [visibles, cerradasOpen]);
+  const selm = useSeleccionMultiple({
+    items: aLaVista,
+    onEliminar: removeMuchas,
+    nombre: ['operación', 'operaciones'],
+  });
+  const visiblesSel  = selm.filtrar(visibles);
+  const opsActivas   = visiblesSel.filter(o => !esCerrada(o));
+  const opsCerradas  = visiblesSel.filter(o => esCerrada(o));
   const filtrando    = !!q || filter !== 'todas';
   const totalActivas  = ops.filter(o => !esCerrada(o)).length;
   const totalCerradas = ops.length - totalActivas;
@@ -695,7 +719,8 @@ function OperationsList({ onSelect, deepLinkId, query, setQuery, filter, setFilt
         })()}
 
         {/* column headers */}
-        <div className="ops-list-headers" style={{ display: 'grid', gridTemplateColumns: '3fr 1.6fr 1.4fr 1fr auto', gap: '0.5rem', padding: '0 0.25rem 0.45rem', alignItems: 'center', borderBottom: `1px solid ${LINE}` }}>
+        <div className="ops-list-headers" style={{ display: 'grid', gridTemplateColumns: '18px 3fr 1.6fr 1.4fr 1fr auto', gap: '0.5rem', padding: '0 0.25rem 0.45rem', alignItems: 'center', borderBottom: `1px solid ${LINE}` }}>
+          <Casilla checked={selm.todos} indeterminate={selm.algunos} onChange={selm.alternarTodos} label="Seleccionar todas" />
           {['Operación', 'N° BL', 'Contenedor / M³', 'ETA', ''].map(h => (
             <span key={h} style={{ fontSize: '0.62rem', fontWeight: 700, color: MUTED, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</span>
           ))}
@@ -716,14 +741,16 @@ function OperationsList({ onSelect, deepLinkId, query, setQuery, filter, setFilt
                 className="ops-list-row tt-row"
                 onClick={() => { if (statusPop === op.id) return; onSelect(op); }}
                 style={{
-                  display: 'grid', gridTemplateColumns: '3fr 1.6fr 1.4fr 1fr auto',
+                  display: 'grid', gridTemplateColumns: '18px 3fr 1.6fr 1.4fr 1fr auto',
                   gap: '0.5rem', alignItems: 'center',
                   padding: cerrada ? '0.6rem 0.25rem' : '0.8rem 0.25rem',
                   borderBottom: `1px solid ${HAIR}`,
                   cursor: 'pointer',
                   opacity: cerrada ? 0.55 : 1,
+                  background: selm.esta(op.id) ? '#f8fafc' : undefined,
                 }}
               >
+                <Casilla checked={selm.esta(op.id)} onChange={() => selm.alternar(op.id)} label={`Seleccionar ${op.nombre || 'operación'}`} />
                 {/* col 1: nombre + meta */}
                 <div style={{ minWidth: 0 }}>
                   <p style={{ fontWeight: 600, color: INK, fontSize: '0.88rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{op.nombre}</p>
@@ -842,6 +869,8 @@ function OperationsList({ onSelect, deepLinkId, query, setQuery, filter, setFilt
         </>
         )}
       </div>
+
+      <BarraSeleccion s={selm} />
 
       {/* click-away to close status popup */}
       {statusPop && <div style={{ position: 'fixed', inset: 0, zIndex: 100 }} onClick={() => setStatusPop(null)} />}

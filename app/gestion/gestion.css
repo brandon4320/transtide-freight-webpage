@@ -502,7 +502,7 @@
 @media (max-width: 700px) {
   .ops-list-headers { display: none !important; }
   .ops-list-row {
-    grid-template-columns: 1fr auto !important;
+    grid-template-columns: 18px 1fr auto !important;
     padding: 0.7rem 0.85rem !important;
   }
   .ops-list-row .col-bl,

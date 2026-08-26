@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { gToast } from '../toast'
 import FichaImportacion from '../ficha-importacion'
 import { metodoLabel } from '../pagos-metodos'
+import { useSeleccionMultiple, BarraSeleccion, Casilla } from '../seleccion-multiple'
 
 const INP = { width: '100%', padding: '0.5rem 0.65rem', border: '1px solid #e5e7eb', borderRadius: 6, fontSize: '16px', color: '#111827', background: '#fff', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }
 const LBL = { display: 'block', fontSize: '0.68rem', fontWeight: 500, color: '#9ca3af', marginBottom: 4 }
@@ -145,6 +146,20 @@ export default function DespachantePage({ devRows = null, devShips = null, devPa
     return l
   }, [rows, query, filter])
 
+  // "Seleccionar todas" alcanza SOLO lo que está a la vista: si las saldadas están
+  // colapsadas no entran, para no borrar algo que no se ve.
+  const saldadasAbiertas = showSaldadas || filter === 'saldado' || query.trim() !== ''
+  const esSaldada = (r) => numUSD(r.saldo) === 0 && numUSD(r.total_honorarios) > 0
+  const aLaVista = useMemo(
+    () => (saldadasAbiertas ? filtered : filtered.filter(r => !esSaldada(r))),
+    [filtered, saldadasAbiertas]
+  )
+  const selm = useSeleccionMultiple({
+    items: aLaVista,
+    onEliminar: delMuchos,
+    nombre: ['operación', 'operaciones'],
+  })
+
   const stats = useMemo(() => {
     const debe = rows.reduce((a, r) => a + Math.max(0, numUSD(r.saldo)), 0)
     const favor = rows.reduce((a, r) => a + Math.max(0, -numUSD(r.saldo)), 0)
@@ -232,6 +247,17 @@ export default function DespachantePage({ devRows = null, devShips = null, devPa
     } finally { setSaving(false) }
   }
 
+  // Borrado en lote (ya confirmado y con el deshacer vencido).
+  const delMuchos = useCallback(async (ids) => {
+    const res = await Promise.all(ids.map(id =>
+      fetch(`/api/db/despachante/${id}`, { method: 'DELETE' }).then(r => r.ok).catch(() => false)
+    ))
+    const ok = res.filter(Boolean).length
+    setRows(prev => prev.filter(r => !ids.includes(r.id)))
+    if (ok === ids.length) gToast.success(ok === 1 ? 'Operación eliminada.' : `${ok} operaciones eliminadas.`)
+    else gToast.error(`Se eliminaron ${ok} de ${ids.length}. Recargá para ver el estado real.`)
+  }, [])
+
   const del = async (id) => {
     try {
       const r = await fetch(`/api/db/despachante/${id}`, { method: 'DELETE' })
@@ -314,8 +340,11 @@ export default function DespachantePage({ devRows = null, devShips = null, devPa
     const hist = pagos[String(r.id)] || []
     const partes = CONCEPTOS.filter(([k]) => rc[k] && numUSD(rc[k].m) > 0)
     return (
-      <div key={r.id} className="dsp-row" style={{ padding: '0.8rem 0.25rem', borderBottom: '1px solid #f1f5f9', opacity: closed ? 0.55 : 1 }}>
+      <div key={r.id} className="dsp-row" style={{ padding: '0.8rem 0.25rem', borderBottom: '1px solid #f1f5f9', opacity: closed ? 0.55 : 1, background: selm.esta(r.id) ? '#f8fafc' : undefined }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <span style={{ paddingTop: 2 }}>
+            <Casilla checked={selm.esta(r.id)} onChange={() => selm.alternar(r.id)} label={`Seleccionar ${r.descripcion || 'operación'}`} />
+          </span>
           <div onClick={() => r.bl ? setFicha({ bl: r.bl, desp: r, ship }) : openEdit(r)} style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}>
             <p style={{ fontSize: '0.88rem', fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.descripcion || '— sin descripción —'}</p>
             <p style={{ marginTop: 2, fontSize: '0.68rem', color: '#9ca3af', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -406,7 +435,8 @@ export default function DespachantePage({ devRows = null, devShips = null, devPa
     </div>
   )
 
-  const cerradas = filtered.filter(r => numUSD(r.saldo) === 0 && numUSD(r.total_honorarios) > 0)
+  const visiblesSel = selm.filtrar(filtered)
+  const cerradas = visiblesSel.filter(r => numUSD(r.saldo) === 0 && numUSD(r.total_honorarios) > 0)
   const saldadasOpen = showSaldadas || filter === 'saldado' || query.trim() !== ''
 
   return (
@@ -495,7 +525,7 @@ export default function DespachantePage({ devRows = null, devShips = null, devPa
             { key: 'favor', label: 'A tu favor (compensar)',  c: '#d97706', test: r => numUSD(r.saldo) < 0 },
             { key: 'curso', label: 'En curso / sin costos',   c: '#9ca3af', test: r => numUSD(r.saldo) === 0 && numUSD(r.total_honorarios) === 0 },
           ].map(g => {
-            const items = filtered.filter(g.test)
+            const items = visiblesSel.filter(g.test)
             if (!items.length) return null
             const sub = items.reduce((a, r) => a + numUSD(r.saldo), 0)
             return (
@@ -669,6 +699,8 @@ export default function DespachantePage({ devRows = null, devShips = null, devPa
       )}
 
       {ficha && <FichaImportacion bl={ficha.bl} seed={{ desp: ficha.desp, ship: ficha.ship }} onClose={() => setFicha(null)} onChanged={load} />}
+
+      <BarraSeleccion s={selm} />
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }

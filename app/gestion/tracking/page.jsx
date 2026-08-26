@@ -1,11 +1,12 @@
 'use client'
 
-import { Fragment, useState, useEffect, useMemo } from 'react'
+import { Fragment, useState, useEffect, useMemo, useCallback } from 'react'
 import { gToast } from '../toast'
 import FichaImportacion from '../ficha-importacion'
 import { EmbarqueModal, AGENTES } from '../embarque-form'
 import { importFlowState, MiniFlow } from '../flujo-importacion'
 import { METODOS_PAGO, METODO_DEFAULT_AGENTE, metodoLabel } from '../pagos-metodos'
+import { useSeleccionMultiple, BarraSeleccion, Casilla } from '../seleccion-multiple'
 
 // ——— Transtide Flat: hoja blanca, tipografía protagonista, líneas finas ———
 const INP = { width: '100%', padding: '0.5rem 0.65rem', border: '1px solid #e5e7eb', borderRadius: 6, fontSize: '16px', color: '#111827', background: '#fff', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }
@@ -171,6 +172,20 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
     if (filter === 'pagado')    l = l.filter(s => /paid/i.test(s.status))
     return l
   }, [ships, query, filter, agenteFilter])
+
+  // "Seleccionar todos" alcanza SOLO lo que está a la vista: si las cerradas están
+  // colapsadas no entran, para no borrar algo que no se ve.
+  const cerradasAbiertas = cerradasOpen || filter === 'pagado'
+  const aLaVista = useMemo(() => {
+    const act = filtered.filter(s => !esCerrada(s))
+    if (cerradasAbiertas || act.length === 0) return filtered
+    return act
+  }, [filtered, cerradasAbiertas])
+  const selm = useSeleccionMultiple({
+    items: aLaVista,
+    onEliminar: delMuchos,
+    nombre: ['embarque', 'embarques'],
+  })
 
   // Alertas del flujo (todas derivadas; los días son ajustables acá):
   //  naviera D-5 · transporte D-7 · sin liberar +5d · despacho sin cargar +7d ·
@@ -400,6 +415,17 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
   const openNew  = () => setModal('new')
   const openEdit = (s) => setModal(s)
 
+  // Borrado en lote (ya confirmado y con el deshacer vencido).
+  const delMuchos = useCallback(async (ids) => {
+    const res = await Promise.all(ids.map(id =>
+      fetch(`/api/tracking/${id}`, { method: 'DELETE' }).then(r => r.ok).catch(() => false)
+    ))
+    const ok = res.filter(Boolean).length
+    setShips(prev => prev.filter(s => !ids.includes(s.id)))
+    if (ok === ids.length) gToast.success(ok === 1 ? 'Embarque eliminado.' : `${ok} embarques eliminados.`)
+    else gToast.error(`Se eliminaron ${ok} de ${ids.length}. Recargá para ver el estado real.`)
+  }, [])
+
   const del = async (id) => {
     try {
       const r = await fetch(`/api/tracking/${id}`, { method: 'DELETE' })
@@ -583,8 +609,9 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
         <div>
           {(() => {
             // Activas arriba (agrupadas por agente); cerradas todas al fondo, colapsadas.
-            const activos = filtered.filter(s => !esCerrada(s))
-            const cerradas = filtered.filter(s => esCerrada(s)).sort((a, b) => (parseInt(b.num, 10) || 0) - (parseInt(a.num, 10) || 0))
+            const visiblesSel = selm.filtrar(filtered)
+            const activos = visiblesSel.filter(s => !esCerrada(s))
+            const cerradas = visiblesSel.filter(s => esCerrada(s)).sort((a, b) => (parseInt(b.num, 10) || 0) - (parseInt(a.num, 10) || 0))
             // Si el filtro apunta a pagados (o no queda ninguna activa), las cerradas se muestran solas.
             const mostrarCerradas = cerradasOpen || filter === 'pagado' || activos.length === 0
             const groups = []
@@ -641,8 +668,11 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
                         : <span key="ad" style={{ fontWeight: 600, color: '#059669', whiteSpace: 'nowrap' }}>Aduana ✓</span>)
                       return (
                         <div key={sh.id} className="tk-row" onClick={() => sh.bl ? setFicha({ bl: sh.bl, ship: sh }) : openEdit(sh)}
-                          style={{ padding: '0.8rem 0.25rem', borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }}>
+                          style={{ padding: '0.8rem 0.25rem', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', background: selm.esta(sh.id) ? '#f8fafc' : undefined }}>
                           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                            <span style={{ paddingTop: 2 }}>
+                              <Casilla checked={selm.esta(sh.id)} onChange={() => selm.alternar(sh.id)} label={`Seleccionar embarque ${sh.num || ''}`} />
+                            </span>
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <p style={{ fontSize: '0.88rem', fontWeight: 600, color: '#111827' }}>
                                 #{sh.num || '—'} · {sh.origen || '—'} <span style={{ color: '#d1d5db' }}>→</span> {sh.destino || '—'}
@@ -928,6 +958,8 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
           .tk-hist-by { display: none }
         }
       `}</style>
+
+      <BarraSeleccion s={selm} />
     </div>
   )
 }
