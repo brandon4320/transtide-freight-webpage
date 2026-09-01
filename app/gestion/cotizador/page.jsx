@@ -791,9 +791,13 @@ function CotizadorMaritimo() {
         cliente, fecha: today, descripcion, clasificacion,
         izq: [
           qSection('Base de la Importación', [
-            qRow('Valor de Mercadería (FOB Declarado)', qFmt(c.fobDC)),
+            qRow('Valor de Mercadería (FOB)', qFmt(c.fobC)),
             qRow('Flete Internacional', qFmt(n(fleteCli))),
             qRow('Seguro Marítimo (1% FOB)', qFmt(c.segC)),
+            // Cuando se declara menos de lo que se paga, el CIF sale del declarado:
+            // se muestra para que el cliente entienda por qué los aranceles no dan
+            // sobre el FOB de arriba.
+            c.fobDC !== c.fobC ? qRow('FOB Declarado (base arancelaria)', qFmt(c.fobDC), { sub: true }) : '',
             qRow('CIF — Base Arancelaria', qFmt(c.cifC), { bold: true, highlight: true }),
           ]),
           qSection('Gastos Locales', [
@@ -1439,9 +1443,10 @@ function CotizadorMaritimo() {
                 {/* base importación */}
                 <p style={{ ...SECL, margin: '0 0 0.2rem' }}>Base de la Importación</p>
                 {[
-                  ['Valor de Mercadería (FOB Declarado)', usd(c.fobDC)],
+                  ['Valor de Mercadería (FOB)', usd(c.fobC)],
                   ['Flete Internacional', usd(n(fleteCli))],
                   ['Seguro Marítimo (1% FOB)', usd(c.segC)],
+                  ...(c.fobDC !== c.fobC ? [['FOB Declarado (base arancelaria)', usd(c.fobDC)]] : []),
                 ].map(([l, v]) => (
                   <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.35rem 0', borderBottom: '1px solid #f1f5f9', fontSize: '0.8rem', color: '#6b7280' }}>
                     <span>{l}</span><span style={{ color: '#111827', fontVariantNumeric: 'tabular-nums' }}>{v}</span>
@@ -1838,9 +1843,10 @@ function CotizadorAereo() {
         subtitulo: `Chargeable ${chargeable.toFixed(2)} kg (${n(m3Input).toFixed(2)} m³ · ${n(pesoReal).toFixed(2)} kg real)`,
         izq: [
           qSection('Base de la Importación', [
-            qRow('Valor de Mercadería (FOB Declarado)', qFmt(c.fobDC)),
+            qRow('Valor de Mercadería (FOB)', qFmt(c.fobC)),
             qRow(`Flete Aéreo (${chargeable.toFixed(2)} kg chargeable)`, qFmt(c.fleteC)),
             qRow('Seguro (1% FOB)', qFmt(c.segC)),
+            c.fobDC !== c.fobC ? qRow('FOB Declarado (base arancelaria)', qFmt(c.fobDC), { sub: true }) : '',
             qRow('CIF — Base Arancelaria', qFmt(c.cifC), { bold: true, highlight: true }),
           ]),
           qSection('Gastos Aeroportuarios', [
@@ -2364,9 +2370,10 @@ function CotizadorAereo() {
               <div style={{ marginBottom: '1rem' }}>
                 <p style={{ ...SECL, margin: '0 0 0.2rem' }}>Base de la Importación</p>
                 {[
-                  ['Valor de Mercadería (FOB Declarado)', usd(c.fobDC)],
+                  ['Valor de Mercadería (FOB)', usd(c.fobC)],
                   [`Flete Aéreo (${chargeable.toFixed(2)} kg chargeable)`, usd(c.fleteC)],
                   ['Seguro (1% FOB)', usd(c.segC)],
+                  ...(c.fobDC !== c.fobC ? [['FOB Declarado (base arancelaria)', usd(c.fobDC)]] : []),
                 ].map(([l, v]) => (
                   <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.35rem 0', borderBottom: '1px solid #f1f5f9', fontSize: '0.8rem', color: '#6b7280' }}>
                     <span>{l}</span><span style={{ color: '#111827', fontVariantNumeric: 'tabular-nums' }}>{v}</span>
