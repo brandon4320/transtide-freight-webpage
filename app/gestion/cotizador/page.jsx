@@ -124,8 +124,9 @@ function qFechasHitos(diasProd, diasTransito) {
     hoy:      qFecha(qDiaMas(0)),
     embarque: qFecha(qDiaMas(dEmbarque)),
     flete:    qFecha(qDiaMas(Math.max(dEmbarque, dArribo - 10))),
-    despacho: qFecha(qDiaMas(dArribo + 7)),
-    entrega:  qFecha(qDiaMas(dArribo + 14)),
+    arribo:   qFecha(qDiaMas(dArribo)),
+    despacho: qFecha(qDiaMas(dArribo + 5)),   // el despacho lleva ~5 días desde el arribo
+    entrega:  qFecha(qDiaMas(dArribo + 6)),   // y se entrega al día siguiente
     prod, tran,
   };
 }
@@ -150,11 +151,11 @@ function qCronograma({ c, fleteMonto, fleteLabel, sinFacturaDistinto, diasProd, 
   const total = c.fobC + fleteMonto + c.segC + aranceles + cierre;
   return `<table class="sec" style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:12px;width:100%;">
     <tr><td colspan="2" style="padding:10px 12px 5px;font-size:0.65rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;border-bottom:2px solid #e2e8f0;"><span style="border-left:3px solid #ea580c;padding-left:8px;">Cronograma de pagos</span></td></tr>
-    <tr><td colspan="2" style="padding:7px 12px;font-size:0.66rem;color:#64748b;border-bottom:1px solid #f1f5f9;">Fechas estimadas tomando como inicio hoy, ${f.hoy} · producción ${f.prod} días · tránsito ${f.tran} días.</td></tr>
+    <tr><td colspan="2" style="padding:7px 12px;font-size:0.66rem;color:#64748b;border-bottom:1px solid #f1f5f9;">Fechas estimadas tomando como inicio hoy, ${f.hoy} · producción ${f.prod} días · tránsito ${f.tran} días · <strong style="color:#1e293b;">arribo estimado ${f.arribo}</strong>.</td></tr>
     ${hito('Mercadería (FOB)', `${fch(f.hoy)}Anticipo al confirmar la orden — el porcentaje lo define el proveedor (habitualmente 30% a 50%).<br>${fch(f.embarque)}Saldo con la producción terminada, antes de embarcar.`, qFmt(c.fobC))}
     ${hito(fleteLabel, `${fch(f.flete)}10 días antes del arribo de la mercadería.`, qFmt(fleteMonto + c.segC))}
-    ${hito('Aranceles, impuestos y gastos locales', `${fch(f.despacho)}Durante la operación de despacho, previo a la entrega final.`, qFmt(aranceles))}
-    ${hito('Honorarios del servicio', `${fch(f.entrega)}Contra entrega de la mercadería en destino.`, qFmt(cierre))}
+    ${hito('Aranceles, impuestos y gastos locales', `${fch(f.despacho)}Durante el despacho, que lleva unos 5 días desde el arribo.`, qFmt(aranceles))}
+    ${hito('Honorarios del servicio', `${fch(f.entrega)}Contra entrega, al día siguiente de terminado el despacho.`, qFmt(cierre))}
     <tr style="background:#fff4ee;">
       <td style="padding:10px 12px;font-size:0.9rem;font-weight:700;color:#1e293b;">Total</td>
       <td style="padding:10px 12px;text-align:right;font-size:0.9rem;font-weight:700;color:#1e293b;white-space:nowrap;">${qFmt(total)}</td>
