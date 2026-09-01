@@ -111,7 +111,37 @@ function qSection(title, rows) {
   return `<table class="sec" style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:12px;">${divider}${filas}</table>`;
 }
 
-function buildQuoteHTML({ titulo, cliente, fecha, subtitulo, descripcion, clasificacion, izq, der, precio, footer }) {
+// Cronograma de pagos: cuándo tiene que pagar cada parte el cliente. Los momentos
+// son fijos (así trabaja Transtide); el anticipo de mercadería no lleva porcentaje
+// porque lo define cada proveedor (suele ser 30% o 50%).
+// Los cuatro importes suman EXACTO el precio final: mercadería + (flete y seguro) +
+// (aranceles, impuestos y gastos locales) + (honorarios y facturación).
+function qCronograma({ c, fleteMonto, fleteLabel, sinFacturaDistinto }) {
+  const aranceles = c.derC + c.tasC + c.ivaC + c.ivaAC + c.ganC + c.iibbC + c.gasC;
+  const cierre = c.honorarios + c.gastFac;
+  const hito = (titulo, detalle, monto, opts = {}) => `<tr>
+    <td style="padding:9px 12px;border-bottom:1px solid #f1f5f9;">
+      <div style="font-size:0.82rem;font-weight:600;color:#1e293b;">${titulo}</div>
+      <div style="font-size:0.68rem;color:#64748b;margin-top:2px;line-height:1.4;">${detalle}</div>
+    </td>
+    <td style="padding:9px 12px;text-align:right;vertical-align:top;font-size:0.84rem;font-weight:${opts.bold ? 700 : 600};color:#1e293b;white-space:nowrap;border-bottom:1px solid #f1f5f9;">${monto}</td>
+  </tr>`;
+  const total = c.fobC + fleteMonto + c.segC + aranceles + cierre;
+  return `<table class="sec" style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:12px;width:100%;">
+    <tr><td colspan="2" style="padding:10px 12px 5px;font-size:0.65rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;border-bottom:2px solid #e2e8f0;"><span style="border-left:3px solid #ea580c;padding-left:8px;">Cronograma de pagos</span></td></tr>
+    ${hito('Mercadería (FOB)', 'Anticipo al confirmar la orden — el porcentaje lo define el proveedor (habitualmente 30% a 50%).<br>Saldo con la producción terminada, antes de embarcar.', qFmt(c.fobC))}
+    ${hito(fleteLabel, '10 días antes del arribo de la mercadería.', qFmt(fleteMonto + c.segC))}
+    ${hito('Aranceles, impuestos y gastos locales', 'Durante la operación de despacho, previo a la entrega final.', qFmt(aranceles))}
+    ${hito('Honorarios del servicio', 'Contra entrega de la mercadería en destino.', qFmt(cierre))}
+    <tr style="background:#fff4ee;">
+      <td style="padding:10px 12px;font-size:0.9rem;font-weight:700;color:#1e293b;">Total</td>
+      <td style="padding:10px 12px;text-align:right;font-size:0.9rem;font-weight:700;color:#1e293b;white-space:nowrap;">${qFmt(total)}</td>
+    </tr>
+    ${sinFacturaDistinto ? `<tr><td colspan="2" style="padding:7px 12px;font-size:0.66rem;color:#64748b;">Sin factura, el último pago es de ${qFmt(c.honorarios)} y el total queda en ${qFmt(total - c.gastFac)}.</td></tr>` : ''}
+  </table>`;
+}
+
+function buildQuoteHTML({ titulo, cliente, fecha, subtitulo, descripcion, clasificacion, izq, der, precio, cronograma, footer }) {
   const cols = (arr) => (arr || []).filter(Boolean).join('');
   const chipTxt = [
     descripcion ? `<strong style="color:#9a3412;font-size:0.72rem;">Descripción:</strong> ${descripcion}` : '',
@@ -179,6 +209,8 @@ function buildQuoteHTML({ titulo, cliente, fecha, subtitulo, descripcion, clasif
       </tr></table>
 
       <table class="sec" style="margin-bottom:10px;border-radius:10px;overflow:hidden;">${banda}</table>
+
+      ${cronograma || ''}
 
       <div class="sec" style="border-top:1px solid #e2e8f0;padding-top:8px;">
         <p style="font-size:0.66rem;color:#94a3b8;line-height:1.45;">${footer}</p>
@@ -829,6 +861,10 @@ function CotizadorMaritimo() {
           conFactura: c.precioConF, sinFactura: c.precioSinF,
           honorarios: c.honorarios, gastFac: c.gastFac,
         },
+        cronograma: qCronograma({
+          c, fleteMonto: n(fleteCli), fleteLabel: 'Flete internacional y seguro',
+          sinFacturaDistinto: !usaSociedadPropia && c.gastFac > 0,
+        }),
         footer: LEYENDA_MAR,
       });
       printHTML(html);
@@ -1879,6 +1915,10 @@ function CotizadorAereo() {
           conFactura: c.precioConF, sinFactura: c.precioSinF,
           honorarios: c.honorarios, gastFac: c.gastFac,
         },
+        cronograma: qCronograma({
+          c, fleteMonto: c.fleteC, fleteLabel: 'Flete aéreo y seguro',
+          sinFacturaDistinto: !usaSociedadPropia && c.gastFac > 0,
+        }),
         footer: LEYENDA_AER,
       });
       printHTML(html);
