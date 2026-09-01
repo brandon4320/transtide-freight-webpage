@@ -111,12 +111,33 @@ function qSection(title, rows) {
   return `<table class="sec" style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:12px;">${divider}${filas}</table>`;
 }
 
+// Fechas estimadas de los hitos, contadas desde HOY (el día que se genera la
+// cotización). El arribo sale de producción + tránsito; el flete se paga 10 días
+// antes de que llegue —salvo que el tránsito sea más corto que eso (aéreo), donde
+// no puede caer antes del embarque.
+const qDiaMas = (dias) => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + dias); return d; };
+const qFecha = (d) => d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+function qFechasHitos(diasProd, diasTransito) {
+  const prod = Math.max(0, diasProd || 0), tran = Math.max(0, diasTransito || 0);
+  const dEmbarque = prod, dArribo = prod + tran;
+  return {
+    hoy:      qFecha(qDiaMas(0)),
+    embarque: qFecha(qDiaMas(dEmbarque)),
+    flete:    qFecha(qDiaMas(Math.max(dEmbarque, dArribo - 10))),
+    despacho: qFecha(qDiaMas(dArribo + 7)),
+    entrega:  qFecha(qDiaMas(dArribo + 14)),
+    prod, tran,
+  };
+}
+
 // Cronograma de pagos: cuándo tiene que pagar cada parte el cliente. Los momentos
 // son fijos (así trabaja Transtide); el anticipo de mercadería no lleva porcentaje
 // porque lo define cada proveedor (suele ser 30% o 50%).
 // Los cuatro importes suman EXACTO el precio final: mercadería + (flete y seguro) +
 // (aranceles, impuestos y gastos locales) + (honorarios y facturación).
-function qCronograma({ c, fleteMonto, fleteLabel, sinFacturaDistinto }) {
+function qCronograma({ c, fleteMonto, fleteLabel, sinFacturaDistinto, diasProd, diasTransito }) {
+  const f = qFechasHitos(diasProd, diasTransito);
+  const fch = (d) => `<strong style="color:#1e293b;">${d}</strong> · `;
   const aranceles = c.derC + c.tasC + c.ivaC + c.ivaAC + c.ganC + c.iibbC + c.gasC;
   const cierre = c.honorarios + c.gastFac;
   const hito = (titulo, detalle, monto, opts = {}) => `<tr>
@@ -129,10 +150,11 @@ function qCronograma({ c, fleteMonto, fleteLabel, sinFacturaDistinto }) {
   const total = c.fobC + fleteMonto + c.segC + aranceles + cierre;
   return `<table class="sec" style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:12px;width:100%;">
     <tr><td colspan="2" style="padding:10px 12px 5px;font-size:0.65rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;border-bottom:2px solid #e2e8f0;"><span style="border-left:3px solid #ea580c;padding-left:8px;">Cronograma de pagos</span></td></tr>
-    ${hito('Mercadería (FOB)', 'Anticipo al confirmar la orden — el porcentaje lo define el proveedor (habitualmente 30% a 50%).<br>Saldo con la producción terminada, antes de embarcar.', qFmt(c.fobC))}
-    ${hito(fleteLabel, '10 días antes del arribo de la mercadería.', qFmt(fleteMonto + c.segC))}
-    ${hito('Aranceles, impuestos y gastos locales', 'Durante la operación de despacho, previo a la entrega final.', qFmt(aranceles))}
-    ${hito('Honorarios del servicio', 'Contra entrega de la mercadería en destino.', qFmt(cierre))}
+    <tr><td colspan="2" style="padding:7px 12px;font-size:0.66rem;color:#64748b;border-bottom:1px solid #f1f5f9;">Fechas estimadas tomando como inicio hoy, ${f.hoy} · producción ${f.prod} días · tránsito ${f.tran} días.</td></tr>
+    ${hito('Mercadería (FOB)', `${fch(f.hoy)}Anticipo al confirmar la orden — el porcentaje lo define el proveedor (habitualmente 30% a 50%).<br>${fch(f.embarque)}Saldo con la producción terminada, antes de embarcar.`, qFmt(c.fobC))}
+    ${hito(fleteLabel, `${fch(f.flete)}10 días antes del arribo de la mercadería.`, qFmt(fleteMonto + c.segC))}
+    ${hito('Aranceles, impuestos y gastos locales', `${fch(f.despacho)}Durante la operación de despacho, previo a la entrega final.`, qFmt(aranceles))}
+    ${hito('Honorarios del servicio', `${fch(f.entrega)}Contra entrega de la mercadería en destino.`, qFmt(cierre))}
     <tr style="background:#fff4ee;">
       <td style="padding:10px 12px;font-size:0.9rem;font-weight:700;color:#1e293b;">Total</td>
       <td style="padding:10px 12px;text-align:right;font-size:0.9rem;font-weight:700;color:#1e293b;white-space:nowrap;">${qFmt(total)}</td>
@@ -551,6 +573,10 @@ function CotizadorMaritimo() {
   const [cliente, setCliente] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [clasificacion, setClasificacion] = useState('');
+  // Plazos para las fechas del cronograma que ve el cliente. Marítimo desde China:
+  // 45-60 días de tránsito; la producción la define el proveedor.
+  const [diasProd, setDiasProd] = useState('30');
+  const [diasTransito, setDiasTransito] = useState('45');
 
   // ── clientes (autocomplete) ──
   const [clientesList, setClientesList] = useState([]);
@@ -618,6 +644,7 @@ function CotizadorMaritimo() {
   const serialize = () => ({
     mode, // 'cliente' | 'personal' — para reactivar con el formato elegido
     contType, contM3, contCosts, cliente, descripcion, clasificacion,
+    diasProd, diasTransito,
     fobCliente, fobDecCli, fleteCli, gDes, gTer, gNav, gLog,
     fobReal, fobDecReal, fleteRealInput, m3Merch,
     pDer, pTas, pIva, pagaIva, pIvaA, pagaIvaA, pGan, pagaGan, pIIBB, pagaIIBB,
@@ -635,6 +662,8 @@ function CotizadorMaritimo() {
         setTab(d.mode === 'cliente' ? 'cliente_fob' : 'real_fob');
       }
       if (d.contType !== undefined) setContType(d.contType);
+      if (d.diasProd !== undefined) setDiasProd(d.diasProd);
+      if (d.diasTransito !== undefined) setDiasTransito(d.diasTransito);
       // Cotización guardada antes de que existiera un tipo: completa los que falten.
       if (d.contM3 !== undefined) setContM3({ ...PRESET_M3, ...d.contM3 });
       if (d.contCosts !== undefined) setContCosts({ ...PRESET_COSTS, ...d.contCosts });
@@ -799,6 +828,7 @@ function CotizadorMaritimo() {
       ratio, curM3,
     };
   }, [
+    diasProd, diasTransito,
     fobCliente, fobDecCli, fleteCli, gDes, gTer, gNav, gLog,
     fobReal, fobDecReal, fleteRealInput, m3Merch,
     pDer, pTas, pIva, pagaIva, pIvaA, pagaIvaA, pGan, pagaGan, pIIBB, pagaIIBB,
@@ -864,6 +894,7 @@ function CotizadorMaritimo() {
         cronograma: qCronograma({
           c, fleteMonto: n(fleteCli), fleteLabel: 'Flete internacional y seguro',
           sinFacturaDistinto: !usaSociedadPropia && c.gastFac > 0,
+          diasProd: n(diasProd), diasTransito: n(diasTransito),
         }),
         footer: LEYENDA_MAR,
       });
@@ -1018,6 +1049,11 @@ function CotizadorMaritimo() {
               </F>
             </div>
             <F label="Descripción de la mercadería"><TI value={descripcion} onChange={setDescripcion} placeholder="Ej: Máquinas cortadoras láser 1000W" /></F>
+            {/* Alimentan las fechas estimadas del cronograma que ve el cliente. */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginTop: '0.6rem' }}>
+              <F label="Días de producción"><input type="number" inputMode="numeric" min="0" value={diasProd} onChange={e => setDiasProd(e.target.value)} onWheel={e => e.currentTarget.blur()} style={INP} /></F>
+              <F label="Días de tránsito"><input type="number" inputMode="numeric" min="0" value={diasTransito} onChange={e => setDiasTransito(e.target.value)} onWheel={e => e.currentTarget.blur()} style={INP} /></F>
+            </div>
 
             {/* FOB — la distinción real vs cliente va solo en el color del texto */}
             <div style={{ marginTop: '0.9rem' }}>
@@ -1589,6 +1625,9 @@ function CotizadorAereo() {
   const [cliente, setCliente] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [clasificacion, setClasificacion] = useState('');
+  // Plazos para las fechas del cronograma. Aéreo regular: 5-10 días de tránsito.
+  const [diasProd, setDiasProd] = useState('30');
+  const [diasTransito, setDiasTransito] = useState('7');
 
   // ── clientes (autocomplete) ──
   const [clientesList, setClientesList] = useState([]);
@@ -1918,6 +1957,7 @@ function CotizadorAereo() {
         cronograma: qCronograma({
           c, fleteMonto: c.fleteC, fleteLabel: 'Flete aéreo y seguro',
           sinFacturaDistinto: !usaSociedadPropia && c.gastFac > 0,
+          diasProd: n(diasProd), diasTransito: n(diasTransito),
         }),
         footer: LEYENDA_AER,
       });
@@ -2019,6 +2059,11 @@ function CotizadorAereo() {
               </F>
             )}
             <F label="Descripción de la mercadería"><TI value={descripcion} onChange={setDescripcion} placeholder="Ej: Componentes electrónicos" /></F>
+            {/* Alimentan las fechas estimadas del cronograma que ve el cliente. */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginTop: '0.6rem' }}>
+              <F label="Días de producción"><input type="number" inputMode="numeric" min="0" value={diasProd} onChange={e => setDiasProd(e.target.value)} onWheel={e => e.currentTarget.blur()} style={INP} /></F>
+              <F label="Días de tránsito"><input type="number" inputMode="numeric" min="0" value={diasTransito} onChange={e => setDiasTransito(e.target.value)} onWheel={e => e.currentTarget.blur()} style={INP} /></F>
+            </div>
           </Card>
 
           {/* tab bar — texto con subrayado, sobre línea fina */}
