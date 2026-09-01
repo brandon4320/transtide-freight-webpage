@@ -574,10 +574,11 @@ function CotizadorMaritimo() {
   const [cliente, setCliente] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [clasificacion, setClasificacion] = useState('');
-  // Plazos para las fechas del cronograma que ve el cliente. Marítimo desde China:
-  // 45-60 días de tránsito; la producción la define el proveedor.
-  const [diasProd, setDiasProd] = useState('30');
-  const [diasTransito, setDiasTransito] = useState('45');
+  // Plazos para las fechas del cronograma que ve el cliente. Un solo criterio para
+  // todas: 15 días de producción y 50 de tránsito (el marítimo desde China va de 45
+  // a 60). Si en una operación es distinto, se ajusta acá y las fechas se recalculan.
+  const [diasProd, setDiasProd] = useState('15');
+  const [diasTransito, setDiasTransito] = useState('50');
 
   // ── clientes (autocomplete) ──
   const [clientesList, setClientesList] = useState([]);
@@ -1627,7 +1628,7 @@ function CotizadorAereo() {
   const [descripcion, setDescripcion] = useState('');
   const [clasificacion, setClasificacion] = useState('');
   // Plazos para las fechas del cronograma. Aéreo regular: 5-10 días de tránsito.
-  const [diasProd, setDiasProd] = useState('30');
+  const [diasProd, setDiasProd] = useState('15');
   const [diasTransito, setDiasTransito] = useState('7');
 
   // ── clientes (autocomplete) ──
