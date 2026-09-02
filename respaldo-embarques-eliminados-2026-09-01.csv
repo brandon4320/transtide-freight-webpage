@@ -1,0 +1,24 @@
+id;num;origen;destino;contenedores;bl;carrier;etd;eta;status;total_usd;balance_usd;suppliers;agente
+24;25;Tianjin;Buenos Aires;1×40HQ;HLCUTS12601AZIL9;HPL;2026-03-08;2026-04-29;Delivered - Payment Pending;1.375;1.375;Ningbo Taly;Bruce
+23;24;Guangzhou;Buenos Aires;1×40HQ;CANM15910800;HMM;2026-02-05;2026-04-20;Delivered - Paid;2.015;0;TONG-MACHINERY;Bruce
+21;22;Tianjin;Buenos Aires;1×40HQ;HLCUTS12601AXTO1;HPL;2026-01-19;2026-03-17;Delivered - Paid;2.393;0;"Allen, Advertising TV";Bruce
+20;21;Shanghai;Buenos Aires;1×20GP;263416475;MSK;2026-01-03;2026-02-15;Delivered - Paid;2.005;0;MasterWell;Bruce
+19;20;Shanghai;Bahia Blanca;7×40HQ;HLCUTS12512AURS6;HPL;2025-12-22;2026-02-28;Delivered - Paid;14.770;0;Denis;Bruce
+18;19;Tianjin;Buenos Aires;1×40HQ;TJN0810185;CMA;2025-12-11;2026-02-13;Delivered - Paid;2.992;0;Steven;Bruce
+17;18;Qingdao;Buenos Aires;1×40HQ;262369575;MSK;2025-12-09;2026-01-25;Delivered - Paid;3.090;0;"Henan United, Sanches, Delycacy";Bruce
+16;17;Tianjin;Buenos Aires;1×40HQ;HLCUTS12511BAIK8;HPL;2025-12-08;2026-01-25;Delivered - Paid;1.800;0;Steven;Bruce
+15;16;Qingdao;Buenos Aires;1×40HQ;259047930;MSK;2025-09-19;2025-10-26;Delivered - Paid;2.900;0;;Bruce
+14;15;Qingdao;"Miami, USA";1×40HQ;720994969;MSK;2025-08-17;2025-09-27;Delivered - Paid;2.945;0;;Bruce
+13;14;Tianjin;Buenos Aires;1×40HQ;TJN0689639;CMA;2025-07-17;2025-09-10;Delivered - Paid;7.494;0;;Bruce
+12;13;Shenzhen;Buenos Aires;1×40HQ;SHZ7386392;CMA;2025-07-22;2025-09-02;Delivered - Paid;6.500;0;;Bruce
+11;12;Shenzhen;Montevideo;1×40HQ;SHZ7314067;CMA;2025-07-08;2025-08-25;Delivered - Paid;6.327;0;;Bruce
+10;11;Shanghai;Buenos Aires;1×40HQ;SHSE50762800;PIL;2025-06-09;2025-08-01;Delivered - Paid;3.950;0;;Bruce
+9;10;Nansha;Buenos Aires;1×40HQ;CANM81168900;HMM;2025-05-21;2025-07-02;Delivered - Paid;3.609;0;;Bruce
+8;9;Tianjin;Buenos Aires;1×40HQ;TJN0625281;CMA;2025-04-30;2025-06-29;Delivered - Paid;2.560;0;;Bruce
+7;8;Nansha;Buenos Aires;1×40HQ;252355686;MSK;2025-04-24;2025-06-08;Delivered - Paid;2.198;0;;Bruce
+6;7;Tianjin;Buenos Aires;2×40HQ;TJN0587173;;2025-03-01;2025-04-30;Delivered - Paid;7.465;0;;Bruce
+5;5;Nansha;Buenos Aires;1×40HQ;SZPM66256100;HMM;2025-01-14;2025-03-17;Delivered - Paid;4.855;0;;Bruce
+4;4;Qingdao;Buenos Aires;1×40HQ;QGD1398734;;CANCELLED;;Cancelled;523;0;;Bruce
+3;3;Taicang;Zárate;1 unit Crane;HFCJ052TCGZAR16;;2024-12-18;2025-02-15;Delivered - Paid;36.500;0;;Bruce
+2;2;Tianjin;Buenos Aires;3×40HQ;177LHTHTXRNN4901;;2024-12-12;2025-02-11;Delivered - Paid;18.436;0;;Bruce
+1;1;Tianjin;Buenos Aires;3×40HQ;246179182;;2024-11-12;2025-01-06;Delivered - Paid;18.136;0;;Bruce

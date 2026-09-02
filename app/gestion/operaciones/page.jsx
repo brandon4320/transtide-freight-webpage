@@ -78,11 +78,13 @@ const toISODate = (v) => {
   return '';
 };
 // Para pantalla. Si el formato es desconocido devuelve el texto crudo (nunca oculta el dato).
+// Fecha legible de un vistazo: "sep 2 2026" (mismo criterio que Forwarding).
+const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 const fmtFecha = (v) => {
   const iso = toISODate(v);
   if (!iso) return String(v ?? '').trim();
   const [y, m, d] = iso.split('-');
-  return `${d}/${m}/${y}`;
+  return `${MESES[+m - 1]} ${+d} ${y}`;
 };
 const dateFromAny = (v) => {
   const iso = toISODate(v);

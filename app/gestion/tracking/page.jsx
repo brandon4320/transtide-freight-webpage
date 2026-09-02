@@ -45,6 +45,24 @@ const TC_RMB_DEFAULT = 7
 // Convierte los Other Fees en RMB a USD usando el TC del embarque (o el default).
 const rmbToUsd = (rmb, tc) => { const r = numUSD(rmb); if (!r) return 0; const t = numUSD(tc) || TC_RMB_DEFAULT; return t > 0 ? r / t : 0 }
 
+// Fecha legible de un vistazo: "sep 2 2026". Acepta ISO y dd/mm/aaaa; si no la
+// puede interpretar devuelve el texto crudo (nunca esconde el dato).
+const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
+function fmtFecha(v) {
+  const t = String(v ?? '').trim()
+  if (!t) return ''
+  let y, m, d
+  let x = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)
+  if (x) { y = +x[1]; m = +x[2]; d = +x[3] }
+  else {
+    x = t.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/)
+    if (!x) return t
+    d = +x[1]; m = +x[2]; y = +x[3]
+  }
+  if (!(m >= 1 && m <= 12) || !(d >= 1 && d <= 31)) return t
+  return `${MESES[m - 1]} ${d} ${y}`
+}
+
 // ETA relativa: cuánto falta o cuánto hace que pasó (para escanear urgencias).
 function etaInfo(eta) {
   if (!eta) return null
@@ -618,7 +636,10 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
             const mostrarCerradas = cerradasOpen || filter === 'pagado' || activos.length === 0
             const groups = []
             activos.forEach(x => { const k = x.agente || 'Bruce'; let g = groups.find(y => y.key === k); if (!g) { g = { key: k, items: [] }; groups.push(g) } g.items.push(x) })
-            groups.forEach(g => g.items.sort((a, b) => (numUSD(b.balance_usd) > 0 ? 1 : 0) - (numUSD(a.balance_usd) > 0 ? 1 : 0) || (parseInt(b.num, 10) || 0) - (parseInt(a.num, 10) || 0)))
+            // Orden por LLEGADA a destino: lo que arriba antes va arriba, que es como
+            // se mira la lista (qué se viene). Sin ETA al fondo, y a igualdad, por número.
+            const etaOrden = (x) => { const d = new Date(String(x.eta || '') + 'T00:00:00'); return isNaN(d.getTime()) ? Infinity : d.getTime() }
+            groups.forEach(g => g.items.sort((a, b) => etaOrden(a) - etaOrden(b) || (parseInt(a.num, 10) || 0) - (parseInt(b.num, 10) || 0)))
             const grupos = groups.map(g => {
               const debe = g.items.reduce((x, r) => x + Math.max(0, numUSD(r.balance_usd)), 0)
               const favor = g.items.reduce((x, r) => x + Math.max(0, -numUSD(r.balance_usd)), 0)
@@ -659,7 +680,11 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
                       if (sh.bl) meta.push(<span key="bl" style={{ fontFamily: 'ui-monospace,monospace' }}>{sh.bl}</span>)
                       if (sh.carrier) meta.push(<span key="ca">{sh.carrier}</span>)
                       if (sh.status) meta.push(<span key="st" style={{ fontWeight: 500, color: statusTone(sh.status) }}>{sh.status}</span>)
-                      if (sh.eta) meta.push(<span key="eta" style={{ color: eta ? eta.tone : '#9ca3af', fontVariantNumeric: 'tabular-nums' }}>ETA {sh.eta}{eta ? ` · ${eta.rel}` : ''}</span>)
+                      if (sh.eta) meta.push(<span key="eta" style={{ color: eta ? eta.tone : '#9ca3af' }}>ETA {fmtFecha(sh.eta)}{eta ? ` · ${eta.rel}` : ''}</span>)
+                      // Quiénes cargaron el contenedor: chico, al final de la línea.
+                      if (sh.suppliers) meta.push(
+                        <span key="sup" title={sh.suppliers} style={{ maxWidth: 210, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block', verticalAlign: 'bottom' }}>{sh.suppliers}</span>
+                      )
                       meta.push(<MiniFlow key="mf" state={importFlowState({ op, ship: sh, desp: d })} />)
                       if (op) meta.push(
                         <span key="op" className="tk-sec" onClick={e => { e.stopPropagation(); window.location.href = '/gestion/operaciones?op=' + encodeURIComponent(op.id) }}
@@ -810,7 +835,7 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
                         {cerradas.map(sh => {
                           const due = numUSD(sh.amount_due_usd)
                           const cancelada = /cancel/i.test(sh.status || '')
-                          const meta = [sh.bl, sh.agente || 'Bruce', sh.status || '', sh.eta ? `ETA ${sh.eta}` : ''].filter(Boolean).join(' · ')
+                          const meta = [sh.bl, sh.agente || 'Bruce', sh.status || '', sh.eta ? `ETA ${fmtFecha(sh.eta)}` : ''].filter(Boolean).join(' · ')
                           return (
                             <div key={sh.id} className="tk-row" onClick={() => sh.bl ? setFicha({ bl: sh.bl, ship: sh }) : openEdit(sh)}
                               style={{ padding: '0.55rem 0.25rem', borderBottom: '1px solid #f1f5f9', opacity: 0.55, cursor: 'pointer' }}>
