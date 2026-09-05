@@ -15,6 +15,7 @@ import { gToast } from '../toast'
 import FichaImportacion from '../ficha-importacion'
 import {
   construirAlertas, numUSD, fmtUSD, parseFecha, diasEntre, hoyCero, relDias, blNorm,
+  LISTA_DUENOS, fmtFechaLegible,
 } from '../alertas-core'
 
 // ——— Transtide Flat: hoja blanca, líneas finas, color solo semántico ———
@@ -36,6 +37,30 @@ const ESTADOS_CERRADOS = ['Liquidado', 'Cancelado']
 const capit = (s) => s.charAt(0).toUpperCase() + s.slice(1)
 const hoyLargo = () => capit(new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }))
 
+// Select sin caja, como los filtros del resto del panel.
+const SELECT_FLAT = { background: 'none', border: 'none', borderBottom: '1px solid #e5e7eb', borderRadius: 0, padding: '0 0 3px', fontSize: '0.74rem', fontWeight: 500, color: '#6b7280', fontFamily: 'inherit', cursor: 'pointer', outline: 'none' }
+
+const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim()
+// "Brandon Quevedo" → 'Brandon'; "germán" → 'Germán'. Si el usuario logueado no
+// es ninguno de los dueños (un admin, por ejemplo), devuelve '' y el select
+// queda en el primero: "Míos" igual sirve eligiendo a mano.
+const duenoDeUsuario = (nombre) => {
+  const n = norm(nombre)
+  if (!n) return ''
+  return LISTA_DUENOS.find(d => n === norm(d) || n.split(/\s+/)[0] === norm(d) || n.includes(norm(d))) || ''
+}
+
+// Cómo se muestra el vencimiento de una alerta: rojo si ya venció, ámbar si
+// vence hoy, gris si todavía hay margen. Sin fecha, no se muestra nada.
+const venceDe = (a) => {
+  const d = parseFecha(a && a.vence)
+  if (!d) return null
+  const n = diasEntre(hoyCero(), d)
+  if (n < 0) return { texto: `venció ${fmtFechaLegible(d)}`, color: ROJO }
+  if (n === 0) return { texto: 'vence hoy', color: AMBAR }
+  return { texto: `vence ${fmtFechaLegible(d)}`, color: GRIS }
+}
+
 // devOps/devShips/devDesps: inyección de datos para preview de diseño (evita
 // auth y D1), igual que Forwarding y Despachante.
 export default function InicioPage(props) {
@@ -49,7 +74,32 @@ export default function InicioPage(props) {
   const [verHechas, setVerHechas] = useState(false)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
-  const [ficha, setFicha] = useState(null)         // { bl, ship } abierto en la ficha integral
+  const [ficha, setFicha] = useState(null)         // { bl, ship, opId, draft } abierto en la ficha integral
+  const [dueno, setDueno] = useState(LISTA_DUENOS[0] || '')  // dueño elegido para "Míos"
+  const [soloMios, setSoloMios] = useState(false)
+  const [hechasInfo, setHechasInfo] = useState({}) // akey → { por, cuando } (quién y cuándo la tachó)
+  const [deshacer, setDeshacer] = useState(null)   // { alerta, t }: la recién tachada, con su Deshacer a mano
+
+  // Quién está logueado: el layout no lo expone por contexto, así que se le
+  // pregunta a NextAuth y, si no contesta, se lee del encabezado del panel. Con
+  // el nombre se preselecciona el dueño del filtro "Míos".
+  useEffect(() => {
+    let vivo = true
+    const desdeDOM = () => { const el = document.querySelector('.username-text'); return el ? el.textContent.trim() : '' }
+    const aplicar = (nombre) => { if (!vivo) return; const d = duenoDeUsuario(nombre); if (d) setDueno(d) }
+    fetch('/api/auth/session').then(r => r.ok ? r.json() : null)
+      .then(j => aplicar((j && j.user && j.user.name) || desdeDOM()))
+      .catch(() => aplicar(desdeDOM()))
+    return () => { vivo = false }
+  }, [])
+
+  // El aviso "Hecha · Deshacer" se va solo a los 9 segundos (mismo plazo que
+  // la fila sigue visible con su tilde).
+  useEffect(() => {
+    if (!deshacer) return
+    const t = setTimeout(() => setDeshacer(d => (d && d.t === deshacer.t ? null : d)), 9000)
+    return () => clearTimeout(t)
+  }, [deshacer])
 
   // silencioso = refresco después de una acción (registrar un pago desde la
   // ficha): no se blanquea la pantalla ni se pierde dónde estabas mirando.
@@ -67,7 +117,20 @@ export default function InicioPage(props) {
       if (o.ok) { const j = await o.json(); setOps(Array.isArray(j) ? j : []) }
       if (t.ok) { const j = await t.json(); setShips(j.shipments || []) }
       if (d.ok) { const j = await d.json(); setDesps(Array.isArray(j) ? j : []) }
-      fetch('/api/db/alertas').then(x => x.ok ? x.json() : []).then(arr => { if (Array.isArray(arr)) setHechas(new Set(arr)) }).catch(() => {})
+      // full=1 trae quién y cuándo tachó cada una (para el desplegable de
+      // hechas). Se toleran las dos formas: array de akeys o de objetos.
+      fetch('/api/db/alertas?full=1').then(x => x.ok ? x.json() : []).then(arr => {
+        if (!Array.isArray(arr)) return
+        const keys = new Set(), info = {}
+        arr.forEach(r => {
+          const k = typeof r === 'string' ? r : r && r.akey
+          if (!k) return
+          keys.add(k)
+          if (r && typeof r === 'object') info[k] = { por: r.done_by || '', cuando: r.done_at || '' }
+        })
+        setHechas(keys)
+        setHechasInfo(info)
+      }).catch(() => {})
     } catch {
       if (!silencioso) setLoadError(true)
       gToast.error('No se pudo cargar la agenda. Revisá tu conexión.')
@@ -80,11 +143,18 @@ export default function InicioPage(props) {
     [ops, ships, desps]
   )
 
+  // Filtro por dueño: "Míos" deja solo lo del dueño elegido (preseleccionado
+  // con el nombre de la sesión). Métricas, bandas y hechas siguen al filtro.
+  const filtradas = useMemo(
+    () => (soloMios && dueno ? alertas.filter(a => a.dueno === dueno) : alertas),
+    [alertas, soloMios, dueno]
+  )
+
   // Visibles = las no tachadas + las recién tachadas (que siguen un rato con su
   // "deshacer", para que un toque de más no te borre el recordatorio).
-  const visibles = useMemo(() => alertas.filter(a => !hechas.has(a.id) || recientes[a.id]), [alertas, hechas, recientes])
-  const pendientes = useMemo(() => alertas.filter(a => !hechas.has(a.id)), [alertas, hechas])
-  const tachadas = useMemo(() => alertas.filter(a => hechas.has(a.id) && !recientes[a.id]), [alertas, hechas, recientes])
+  const visibles = useMemo(() => filtradas.filter(a => !hechas.has(a.id) || recientes[a.id]), [filtradas, hechas, recientes])
+  const pendientes = useMemo(() => filtradas.filter(a => !hechas.has(a.id)), [filtradas, hechas])
+  const tachadas = useMemo(() => filtradas.filter(a => hechas.has(a.id) && !recientes[a.id]), [filtradas, hechas, recientes])
 
   // Plata: lo que se debe hoy, salga o no en una alerta.
   const deuda = useMemo(() => {
@@ -134,9 +204,14 @@ export default function InicioPage(props) {
     router.push(href)
   }
 
+  // Si la acción CREA algo (acc.draft, ej. 'despacho'), la ficha abre un
+  // borrador con los datos precargados y un Confirmar: nunca se crea al toque.
   const abrir = (acc) => {
     if (!acc) return
-    if (acc.tipo === 'ficha' && acc.bl) { setFicha({ bl: acc.bl, ship: acc.ship || null }); return }
+    if (acc.tipo === 'ficha' && acc.bl) {
+      setFicha({ bl: acc.bl, ship: acc.ship || null, opId: acc.opId ?? null, draft: acc.draft || null })
+      return
+    }
     if (acc.opId) irA('/gestion/operaciones?op=' + encodeURIComponent(acc.opId))
   }
 
@@ -147,18 +222,30 @@ export default function InicioPage(props) {
     if (done) {
       setRecientes(r => ({ ...r, [a.id]: true }))
       setTimeout(() => setRecientes(r => { const n = { ...r }; delete n[a.id]; return n }), 9000)
+      setDeshacer({ alerta: a, t: Date.now() })
     } else {
       setRecientes(r => { const n = { ...r }; delete n[a.id]; return n })
+      setDeshacer(d => (d && d.alerta.id === a.id ? null : d))
     }
     try {
       const r = await fetch('/api/db/alertas', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ akey: a.id, undo: !done }),
+        // akey sigue siendo bl|tipo (la comparte Forwarding). operation_id, bl y
+        // tipo van aparte para que la hecha sobreviva a corregir un B/L.
+        body: JSON.stringify({ akey: a.id, undo: !done, operation_id: a.opId ?? null, bl: a.bl || '', tipo: a.tipo }),
       })
       if (!r.ok) throw new Error('no')
+      const j = await r.json().catch(() => ({}))
+      setHechasInfo(m => {
+        const n = { ...m }
+        if (done) n[a.id] = { por: (j && j.done_by) || '', cuando: new Date().toISOString() }
+        else delete n[a.id]
+        return n
+      })
     } catch {
       setHechas(prev => { const n = new Set(prev); done ? n.delete(a.id) : n.add(a.id); return n })
       setRecientes(r => { const n = { ...r }; delete n[a.id]; return n })
+      setDeshacer(d => (d && d.alerta.id === a.id ? null : d))
       gToast.error('No se pudo guardar el cambio de la alerta.')
     }
   }
@@ -173,17 +260,26 @@ export default function InicioPage(props) {
   )
   const divider = <span style={{ width: 1, alignSelf: 'stretch', background: '#f1f5f9', flex: '0 0 auto' }} aria-hidden="true" />
 
-  const filaAlerta = (a, tachada) => (
+  const filaAlerta = (a, tachada) => {
+    const vence = tachada ? null : venceDe(a)
+    const info = tachada ? hechasInfo[a.id] : null
+    return (
     <div key={a.id} className="ini-row" style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '0.6rem 0.25rem', borderBottom: '1px solid #f1f5f9', opacity: tachada ? 0.5 : 1 }}>
       <button className="ini-check" onClick={() => toggleHecha(a, !tachada)}
-        title={tachada ? 'Volver a activar' : 'Marcar como hecho'} aria-label={tachada ? 'Volver a activar' : 'Marcar como hecho'}
+        title={tachada ? 'Reactivar' : 'Marcar como hecha'} aria-label={tachada ? 'Reactivar' : 'Marcar como hecha'}
         style={{ ...BTN_ICO, width: 22, height: 22, flex: '0 0 auto', marginTop: 1, color: tachada ? VERDE : '#c4c9d4' }}>
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><circle cx="12" cy="12" r="9"/><polyline points="8.5 12.5 11 15 15.5 9.5"/></svg>
       </button>
       <button onClick={() => !tachada && abrir(a.accion)} className="ini-body"
         style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'none', border: 'none', padding: 0, cursor: tachada ? 'default' : 'pointer', fontFamily: 'inherit' }}>
         <p style={{ fontSize: '0.82rem', fontWeight: 600, color: TINTA, lineHeight: 1.35, textDecoration: tachada ? 'line-through' : 'none' }}>{a.titulo}</p>
-        <p style={{ fontSize: '0.7rem', color: GRIS, lineHeight: 1.4, marginTop: 1 }}>{a.detalle}</p>
+        <p style={{ fontSize: '0.7rem', color: GRIS, lineHeight: 1.4, marginTop: 1 }}>
+          {a.detalle}
+          {/* Dueño y vencimiento: la agenda dice quién y para cuándo. */}
+          {!tachada && a.dueno ? <> · {a.dueno}</> : null}
+          {vence ? <> · <span style={{ color: vence.color, fontWeight: vence.color === GRIS ? 400 : 600 }}>{vence.texto}</span></> : null}
+          {info ? <> · hecha{info.por ? ` por ${info.por}` : ''}{info.cuando && fmtFechaLegible(info.cuando) ? ` el ${fmtFechaLegible(info.cuando)}` : ''}</> : null}
+        </p>
       </button>
       {a.monto > 0 && (
         <span className="ini-monto" style={{ flex: '0 0 auto', fontSize: '0.78rem', fontWeight: 700, color: ROJO, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', marginTop: 1 }}>
@@ -191,7 +287,7 @@ export default function InicioPage(props) {
         </span>
       )}
       {tachada ? (
-        <button className="ini-sec" onClick={() => toggleHecha(a, false)} style={{ ...BTN_SEC, flex: '0 0 auto', whiteSpace: 'nowrap' }}>Deshacer</button>
+        <button className="ini-sec" onClick={() => toggleHecha(a, false)} style={{ ...BTN_SEC, flex: '0 0 auto', whiteSpace: 'nowrap' }}>Reactivar</button>
       ) : a.accion ? (
         <button className="ini-sec" onClick={() => abrir(a.accion)} style={{ ...BTN_SEC, flex: '0 0 auto', whiteSpace: 'nowrap' }}>
           {a.accion.label}
@@ -199,7 +295,8 @@ export default function InicioPage(props) {
         </button>
       ) : null}
     </div>
-  )
+    )
+  }
 
   return (
     <div style={{ background: '#fff' }}>
@@ -211,10 +308,28 @@ export default function InicioPage(props) {
             {hoyLargo()} · lo que hay que hacer hoy, ordenado por urgencia y plata en juego
           </p>
         </div>
-        <button className="ini-sec" onClick={() => irA('/gestion/operaciones')} style={{ ...BTN_SEC, fontSize: '0.76rem' }}>
-          Ver todas las operaciones
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 18l6-6-6-6"/></svg>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
+          {/* Filtro de la agenda: dueño + Todos · Míos. Elegir otro dueño pasa
+              a "Míos" solo: nadie cambia el nombre para seguir viendo todo. */}
+          <select aria-label="Dueño" value={dueno} onChange={e => { setDueno(e.target.value); setSoloMios(true) }} style={SELECT_FLAT}>
+            {LISTA_DUENOS.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+          <div style={{ display: 'flex', gap: '0.9rem' }}>
+            {[[false, 'Todos'], [true, 'Míos']].map(([v, lbl]) => {
+              const on = soloMios === v
+              return (
+                <button key={lbl} onClick={() => setSoloMios(v)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 4px', fontFamily: 'inherit', fontSize: '0.74rem', fontWeight: on ? 600 : 400, color: on ? TINTA : GRIS, borderBottom: on ? `2px solid ${TINTA}` : '2px solid transparent', whiteSpace: 'nowrap' }}>
+                  {lbl}
+                </button>
+              )
+            })}
+          </div>
+          <button className="ini-sec" onClick={() => irA('/gestion/operaciones')} style={{ ...BTN_SEC, fontSize: '0.76rem' }}>
+            Ver todas las operaciones
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </div>
       </div>
 
       {/* Línea de métricas — sin cajas */}
@@ -244,7 +359,9 @@ export default function InicioPage(props) {
         <div style={{ padding: '3rem 0', textAlign: 'center' }}>
           <p style={{ fontSize: '1rem', fontWeight: 600, color: VERDE, marginBottom: '0.3rem' }}>Sin pendientes</p>
           <p style={{ fontSize: '0.78rem', color: GRIS }}>
-            {alertas.length ? 'Todo lo de esta semana ya está tachado.' : 'No hay vencimientos ni saldos abiertos con fecha.'}
+            {soloMios && alertas.length > filtradas.length
+              ? `Nada pendiente para ${dueno}. Mirá "Todos" para ver el resto.`
+              : filtradas.length ? 'Todo lo de esta semana ya está tachado.' : 'No hay vencimientos ni saldos abiertos con fecha.'}
           </p>
         </div>
       ) : (
@@ -277,7 +394,7 @@ export default function InicioPage(props) {
           <button onClick={() => setVerHechas(o => !o)}
             style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: '0.4rem 0.25rem', cursor: 'pointer', color: GRIS, fontSize: '0.72rem', fontWeight: 500, fontFamily: 'inherit' }}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: verHechas ? 'rotate(180deg)' : 'none', flex: '0 0 auto' }}><polyline points="6 9 12 15 18 9"/></svg>
-            Hechas · {tachadas.length}
+            Hechas ({tachadas.length})
           </button>
           {verHechas && <div>{tachadas.map(a => filaAlerta(a, true))}</div>}
         </div>
@@ -307,9 +424,25 @@ export default function InicioPage(props) {
         </div>
       )}
 
+      {/* Hecha · Deshacer: para todos los tipos de alerta, sin buscarla en el
+          desplegable. Centrado abajo para no pisar el toaster general. */}
+      {deshacer && (
+        <div role="status" style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 1100, display: 'flex', alignItems: 'center', gap: 14, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '0.6rem 0.9rem', fontSize: '0.78rem', color: TINTA, boxShadow: '0 6px 20px rgba(15,23,42,0.08)', maxWidth: 'min(92vw, 440px)', boxSizing: 'border-box' }}>
+          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span style={{ color: VERDE, fontWeight: 600 }}>Hecha</span> · {deshacer.alerta.titulo}
+          </span>
+          <button onClick={() => { const a = deshacer.alerta; setDeshacer(null); toggleHecha(a, false) }}
+            style={{ ...BTN_SEC, flex: '0 0 auto', color: TINTA, fontWeight: 600, borderBottom: `1px solid ${TINTA}`, paddingBottom: 1 }}>
+            Deshacer
+          </button>
+        </div>
+      )}
+
       {ficha && (
         <FichaImportacion
           bl={ficha.bl}
+          opId={ficha.opId || null}
+          draft={ficha.draft || null}
           seed={ficha.ship ? { ship: ficha.ship } : {}}
           onClose={() => setFicha(null)}
           onChanged={() => load(true)}

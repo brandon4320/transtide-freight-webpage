@@ -4,17 +4,26 @@
 // (Operaciones, Forwarding, Despachante).
 //
 // El borrado es DIFERIDO: al confirmar, las filas desaparecen de la lista pero NO se
-// borran todavía — queda una barra "N eliminadas · Deshacer" con cuenta regresiva. Si
-// se deshace, no se llamó a la API en ningún momento y no hay nada que restaurar; si
-// pasa el tiempo (o se sale de la pantalla), recién ahí se ejecuta el borrado real.
-// Esto es a propósito: restaurar después de borrar perdería el detalle asociado
-// (gastos, proveedores, pagos), que el DELETE se lleva puesto.
+// tocan todavía — queda una barra "N movidas a la Papelera · Deshacer" con cuenta
+// regresiva. Si se deshace, no se llamó a la API en ningún momento; si pasa el tiempo
+// (o se sale de la pantalla), recién ahí se llama a onEliminar, que hoy es un
+// soft-delete: la fila va a la Papelera (/gestion/papelera) y se puede restaurar
+// durante 30 días con todo lo que cuelga de ella (gastos, proveedores, pagos).
+//
+// Archivar (opcional, si el hook recibe onArchivar): no es destructivo, la fila deja
+// de verse en la lista pero sigue en la ficha y en los totales. Pide confirmación y
+// llama a onArchivar(ids, items) al toque, sin ventana de deshacer.
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 
 const INK = '#111827'
 const MUTED = '#9ca3af'
 const SEGUNDOS = 12
+export const DIAS_PAPELERA = 30
+
+// Concordancia de los textos: 'operación' → femenino, 'embarque' / 'registro' →
+// masculino. Se puede forzar con genero: 'f' | 'm'.
+const esFemenino = (nombre, genero) => (genero ? genero === 'f' : /(a|ción|sión|dad)$/i.test(nombre[0] || ''))
 
 // ─── casilla ──────────────────────────────────────────────────────────────────
 export function Casilla({ checked, indeterminate, onChange, label, style }) {
@@ -46,16 +55,23 @@ export function Casilla({ checked, indeterminate, onChange, label, style }) {
 
 // ─── hook ─────────────────────────────────────────────────────────────────────
 // items: array visible · getId: (item) => id · onEliminar: async (ids) => void
-// nombre: ['operación', 'operaciones'] para los textos.
-export function useSeleccionMultiple({ items, getId = (x) => x.id, onEliminar, nombre = ['registro', 'registros'] }) {
+// onArchivar (opcional): async (ids, items) => void — si viene, la barra suma "Archivar".
+// nombre: ['operación', 'operaciones'] para los textos · genero: 'f' | 'm' (se infiere).
+export function useSeleccionMultiple({ items, getId = (x) => x.id, onEliminar, onArchivar, nombre = ['registro', 'registros'], genero }) {
   const [sel, setSel] = useState(() => new Set())
   const [confirmar, setConfirmar] = useState(false)
   const [pendiente, setPendiente] = useState(null) // { ids, items, restan }
+  const [confirmarArchivo, setConfirmarArchivo] = useState(false)
+  const [archivando, setArchivando] = useState(false)
   const timerRef = useRef(null)
   const tickRef = useRef(null)
   const pendRef = useRef(null)
   const onElimRef = useRef(onEliminar)
   useEffect(() => { onElimRef.current = onEliminar }, [onEliminar])
+  const onArchRef = useRef(onArchivar)
+  useEffect(() => { onArchRef.current = onArchivar }, [onArchivar])
+  const tieneArchivar = typeof onArchivar === 'function'
+  const fem = esFemenino(nombre, genero)
 
   const visibles = useMemo(() => items.map(getId), [items, getId])
 
@@ -117,6 +133,24 @@ export function useSeleccionMultiple({ items, getId = (x) => x.id, onEliminar, n
     timerRef.current = setTimeout(confirmarBorrado, SEGUNDOS * 1000)
   }
 
+  const pedirArchivar = () => { if (sel.size && tieneArchivar) setConfirmarArchivo(true) }
+
+  // Archivar no es destructivo (la fila sigue en la ficha y en los totales), así que
+  // no lleva ventana de deshacer: se confirma y se llama a la página. Si falla, la
+  // selección queda como estaba para reintentar; la página muestra su propio error.
+  const archivarSeleccion = async () => {
+    const ids = [...sel]
+    if (!ids.length || !onArchRef.current) return
+    const elegidos = items.filter(i => sel.has(getId(i)))
+    setConfirmarArchivo(false)
+    setArchivando(true)
+    try {
+      await onArchRef.current(ids, elegidos)
+      setSel(new Set())
+    } catch { /* la página muestra su propio error */ }
+    finally { setArchivando(false) }
+  }
+
   const ocultos = pendiente ? new Set(pendiente.ids) : null
   // Filtra lo que está en la ventana de deshacer: la lista se ve como quedaría.
   const filtrar = useCallback((arr) => (ocultos ? arr.filter(i => !ocultos.has(getId(i))) : arr), [ocultos, getId])
@@ -135,8 +169,9 @@ export function useSeleccionMultiple({ items, getId = (x) => x.id, onEliminar, n
     limpiar: () => setSel(new Set()),
     pedirEliminar, eliminarSeleccion, confirmar, cancelarConfirmar: () => setConfirmar(false),
     pendiente, deshacer, confirmarBorrado,
+    tieneArchivar, pedirArchivar, archivarSeleccion, confirmarArchivo, cancelarArchivar: () => setConfirmarArchivo(false), archivando,
     filtrar, ocultos,
-    nombre,
+    nombre, fem,
   }
 }
 
@@ -150,14 +185,41 @@ const BARRA = {
 const ACC = { background: 'none', border: 'none', color: '#fff', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: 0, whiteSpace: 'nowrap' }
 
 export function BarraSeleccion({ s }) {
-  const plural = s.sel.size === 1 ? s.nombre[0] : s.nombre[1]
+  const n = s.sel.size
+  const plural = n === 1 ? s.nombre[0] : s.nombre[1]
+  const fem = s.fem !== false
+  // "restaurarla / restaurarlo / restaurarlas / restaurarlos"
+  const pron = (fem ? 'la' : 'lo') + (n === 1 ? '' : 's')
   return (
     <>
-      {s.hay && !s.confirmar && (
+      {s.hay && !s.confirmar && !s.confirmarArchivo && (
         <div style={BARRA}>
-          <span style={{ fontVariantNumeric: 'tabular-nums' }}><b>{s.sel.size}</b> {plural}</span>
-          <button onClick={s.pedirEliminar} style={{ ...ACC, color: '#fca5a5' }}>Eliminar</button>
+          <span style={{ fontVariantNumeric: 'tabular-nums' }}><b>{n}</b> {plural}</span>
+          {s.tieneArchivar && (
+            <button onClick={s.pedirArchivar} disabled={s.archivando} style={{ ...ACC, opacity: s.archivando ? 0.6 : 1, cursor: s.archivando ? 'default' : 'pointer' }}>
+              {s.archivando ? 'Archivando…' : 'Archivar'}
+            </button>
+          )}
+          <button onClick={s.pedirEliminar} disabled={s.archivando} style={{ ...ACC, color: '#fca5a5', opacity: s.archivando ? 0.6 : 1 }}>Eliminar</button>
           <button onClick={s.limpiar} style={{ ...ACC, color: 'rgba(255,255,255,0.62)' }}>Cancelar</button>
+        </div>
+      )}
+
+      {s.confirmarArchivo && (
+        <div onClick={e => { if (e.target === e.currentTarget) s.cancelarArchivar() }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.35)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div style={{ background: '#fff', borderRadius: 12, padding: '1.5rem 1.75rem', width: '100%', maxWidth: 380 }}>
+            <p style={{ fontSize: '1rem', fontWeight: 600, color: INK, marginBottom: 6 }}>
+              ¿Archivar {n} {plural}?
+            </p>
+            <p style={{ fontSize: '0.76rem', color: MUTED, marginBottom: '1.4rem' }}>
+              {n === 1 ? 'Deja de aparecer en la lista, pero no se borra: sigue' : 'Dejan de aparecer en la lista, pero no se borran: siguen'} en la ficha y en los totales históricos.
+            </p>
+            <div style={{ display: 'flex', gap: 16, justifyContent: 'flex-end', alignItems: 'center' }}>
+              <button onClick={s.cancelarArchivar} style={{ ...ACC, color: '#6b7280' }}>Cancelar</button>
+              <button onClick={s.archivarSeleccion} style={{ ...ACC, color: INK }}>Archivar</button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -166,10 +228,10 @@ export function BarraSeleccion({ s }) {
           style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.35)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
           <div style={{ background: '#fff', borderRadius: 12, padding: '1.5rem 1.75rem', width: '100%', maxWidth: 380 }}>
             <p style={{ fontSize: '1rem', fontWeight: 600, color: INK, marginBottom: 6 }}>
-              ¿Eliminar {s.sel.size} {plural}?
+              ¿Eliminar {n} {plural}?
             </p>
             <p style={{ fontSize: '0.76rem', color: MUTED, marginBottom: '1.4rem' }}>
-              Vas a poder deshacerlo durante unos segundos antes de que se borre de verdad.
+              {n === 1 ? 'Se mueve' : 'Se mueven'} a la Papelera. Podés restaurar{pron} durante {DIAS_PAPELERA} días.
             </p>
             <div style={{ display: 'flex', gap: 16, justifyContent: 'flex-end', alignItems: 'center' }}>
               <button onClick={s.cancelarConfirmar} style={{ ...ACC, color: '#6b7280' }}>Cancelar</button>
@@ -183,8 +245,11 @@ export function BarraSeleccion({ s }) {
         <div style={{ ...BARRA, bottom: s.hay ? 74 : 22 }}>
           <span>
             <b style={{ fontVariantNumeric: 'tabular-nums' }}>{s.pendiente.ids.length}</b>{' '}
-            {s.pendiente.ids.length === 1 ? `${s.nombre[0]} eliminada` : `${s.nombre[1]} eliminadas`}
+            {s.pendiente.ids.length === 1
+              ? `${s.nombre[0]} ${fem ? 'movida' : 'movido'} a la Papelera`
+              : `${s.nombre[1]} ${fem ? 'movidas' : 'movidos'} a la Papelera`}
           </span>
+          <span aria-hidden="true" style={{ color: 'rgba(255,255,255,0.4)' }}>·</span>
           <button onClick={s.deshacer} style={{ ...ACC, textDecoration: 'underline', textUnderlineOffset: 3 }}>
             Deshacer{s.pendiente.restan > 0 ? ` (${s.pendiente.restan})` : ''}
           </button>

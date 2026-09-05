@@ -1,5 +1,5 @@
 'use client';
-import { useState, useMemo, useEffect, Suspense } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import ImportDialog from './import-dialog';
 import { gToast } from '../toast';
@@ -550,8 +550,124 @@ const PlaneIcon = ({ size = 16 }) => (
   </svg>
 );
 
+// ─── borrador automático (localStorage) + cambios sin guardar ─────────────────
+// Cada modo persiste su snapshot (el mismo objeto `data` que viaja con la
+// cotización guardada) en 'cot-borrador:<modo>' con debounce de 800 ms. Al
+// montar, si hay borrador y el formulario está vacío, se ofrece restaurarlo o
+// descartarlo. "Sucio" = el snapshot actual difiere del último guardado en el
+// sistema (o de lo recién cargado desde "guardadas").
+const claveBorrador = (modo) => `cot-borrador:${modo}`;
+// Para decidir "formulario vacío" se ignora `mode` (cliente/personal): cambiar
+// de pestaña sin cargar nada no es un borrador.
+const sinModo = (s) => { const o = { ...(s || {}) }; delete o.mode; return JSON.stringify(o); };
+const fmtFechaHora = (t) => {
+  const d = new Date(t);
+  return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    + ' ' + d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+};
+
+function useBorrador({ modo, snapshot, aplicar, loadedQuote, setLoadedQuote, onDirty }) {
+  const snapJson = JSON.stringify(snapshot);
+  const vacioJson = useRef(null);                 // snapshot del formulario recién montado
+  if (vacioJson.current === null) vacioJson.current = sinModo(snapshot);
+  const esVacio = sinModo(snapshot) === vacioJson.current;
+
+  const ultimoGuardado = useRef(snapJson);        // último snapshot guardado en el sistema
+  const marcarAlProximo = useRef(false);          // tras cargar una guardada: el próximo render es "guardado"
+  const [tick, setTick] = useState(0);
+  const [dirty, setDirty] = useState(false);
+  const [pendiente, setPendiente] = useState(null); // borrador encontrado al montar: { t, data, meta }
+  const timer = useRef(null);
+  const refs = useRef({});
+  refs.current = { snapshot, snapJson, aplicar, loadedQuote, setLoadedQuote, onDirty };
+
+  // Al montar: ¿quedó un borrador de la vez anterior?
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(claveBorrador(modo));
+      if (!raw) return;
+      const b = JSON.parse(raw);
+      if (b && b.data && typeof b.t === 'number' && sinModo(b.data) !== vacioJson.current) setPendiente(b);
+      else localStorage.removeItem(claveBorrador(modo));
+    } catch {}
+  }, [modo]);
+
+  // Sucio = distinto de lo último guardado.
+  useEffect(() => {
+    if (marcarAlProximo.current) { marcarAlProximo.current = false; ultimoGuardado.current = snapJson; }
+    setDirty(snapJson !== ultimoGuardado.current);
+  }, [snapJson, tick]);
+  useEffect(() => { refs.current.onDirty?.(dirty); }, [dirty]);
+
+  const escribir = () => {
+    timer.current = null;
+    const { snapshot: s, loadedQuote: lq } = refs.current;
+    const meta = lq && lq.id ? { id: lq.id, nombre: lq.nombre, cliente: lq.cliente, estado: lq.estado, notas: lq.notas } : null;
+    try { localStorage.setItem(claveBorrador(modo), JSON.stringify({ t: Date.now(), data: s, meta })); } catch {}
+  };
+  const escribirRef = useRef(escribir); escribirRef.current = escribir;
+
+  // Autoguardado con debounce. Con el formulario vacío no escribe (así no pisa
+  // un borrador pendiente); igual a lo guardado en el sistema, tampoco.
+  useEffect(() => {
+    if (esVacio || !dirty) return;
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => { escribirRef.current(); setPendiente(null); }, 800);
+  }, [snapJson, esVacio, dirty, modo]);
+
+  // Si se va (cierra, recarga o navega) con un debounce pendiente, se escribe igual.
+  useEffect(() => {
+    const flush = () => { if (timer.current) { clearTimeout(timer.current); escribirRef.current(); } };
+    window.addEventListener('pagehide', flush);
+    return () => { window.removeEventListener('pagehide', flush); flush(); };
+  }, []);
+
+  const restaurar = () => {
+    if (!pendiente) return;
+    refs.current.aplicar(pendiente.data || {});
+    refs.current.setLoadedQuote?.(pendiente.meta || null);
+    setPendiente(null);
+  };
+  const descartar = () => {
+    try { localStorage.removeItem(claveBorrador(modo)); } catch {}
+    setPendiente(null);
+  };
+  // Tras guardar en el sistema: lo actual pasa a ser "lo guardado" y el borrador sobra.
+  const marcarGuardado = () => {
+    if (timer.current) { clearTimeout(timer.current); timer.current = null; }
+    ultimoGuardado.current = refs.current.snapJson;
+    setDirty(false);
+    try { localStorage.removeItem(claveBorrador(modo)); } catch {}
+    setPendiente(null);
+  };
+  // Al reactivar una cotización guardada: la aplica y la toma como punto "guardado".
+  const cargarGuardada = (d) => {
+    marcarAlProximo.current = true;
+    refs.current.aplicar(d || {});
+    setTick(t => t + 1); // garantiza un render aunque nada haya cambiado
+  };
+
+  return { aviso: pendiente && esVacio ? pendiente : null, dirty, restaurar, descartar, marcarGuardado, cargarGuardada };
+}
+
+function AvisoBorrador({ b }) {
+  if (!b.aviso) return null;
+  const sep = <span style={{ color: '#d1d5db' }}>·</span>;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', padding: '0.45rem 0', borderBottom: '1px solid #f1f5f9', marginBottom: '0.6rem', fontSize: '0.78rem', color: '#d97706' }}>
+      <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+        Tenés un borrador del {fmtFechaHora(b.aviso.t)}{b.aviso.meta?.nombre ? ` (editando «${b.aviso.meta.nombre}»)` : ''}
+      </span>
+      {sep}
+      <button onClick={b.restaurar} className="cz-tbtn" style={{ ...TBTN, fontSize: '0.78rem', fontWeight: 600, color: '#111827' }}>Restaurar</button>
+      {sep}
+      <button onClick={b.descartar} className="cz-tbtn" style={{ ...TBTN, fontSize: '0.78rem' }}>Descartar</button>
+    </div>
+  );
+}
+
 // ─── maritime component (existing logic) ──────────────────────────────────────
-function CotizadorMaritimo() {
+function CotizadorMaritimo({ onDirty }) {
 
   // mode & tab
   const [mode, setMode] = useState('cliente');   // 'cliente' | 'personal'
@@ -654,53 +770,60 @@ function CotizadorMaritimo() {
     arancelToggles: 'v2', // v2: percepciones con toggle afectan cobro Y costo real
   });
 
+  // Aplica un snapshot (cotización guardada o borrador) sobre el formulario.
+  const aplicarSnapshot = (d) => {
+    if (d.mode === 'cliente' || d.mode === 'personal') {
+      setMode(d.mode);
+      setTab(d.mode === 'cliente' ? 'cliente_fob' : 'real_fob');
+    }
+    if (d.contType !== undefined) setContType(d.contType);
+    if (d.diasProd !== undefined) setDiasProd(d.diasProd);
+    if (d.diasTransito !== undefined) setDiasTransito(d.diasTransito);
+    // Cotización guardada antes de que existiera un tipo: completa los que falten.
+    if (d.contM3 !== undefined) setContM3({ ...PRESET_M3, ...d.contM3 });
+    if (d.contCosts !== undefined) setContCosts({ ...PRESET_COSTS, ...d.contCosts });
+    if (d.cliente !== undefined) setCliente(d.cliente);
+    if (d.descripcion !== undefined) setDescripcion(d.descripcion);
+    if (d.clasificacion !== undefined) setClasificacion(d.clasificacion);
+    if (d.fobCliente !== undefined) setFobCliente(d.fobCliente);
+    if (d.fobDecCli !== undefined) setFobDecCli(d.fobDecCli);
+    if (d.fleteCli !== undefined) setFleteCli(d.fleteCli);
+    if (d.gDes !== undefined) setGDes(d.gDes);
+    if (d.gTer !== undefined) setGTer(d.gTer);
+    if (d.gNav !== undefined) setGNav(d.gNav);
+    if (d.gLog !== undefined) setGLog(d.gLog);
+    if (d.fobReal !== undefined) setFobReal(d.fobReal);
+    if (d.fobDecReal !== undefined) setFobDecReal(d.fobDecReal);
+    if (d.fleteRealInput !== undefined) setFleteRealInput(d.fleteRealInput);
+    if (d.m3Merch !== undefined) setM3Merch(d.m3Merch);
+    if (d.pDer !== undefined) setPDer(d.pDer);
+    if (d.pTas !== undefined) setPTas(d.pTas);
+    if (d.pIva !== undefined) setPIva(d.pIva);
+    if (d.pagaIva !== undefined) setPagaIva(d.pagaIva);
+    if (d.pIvaA !== undefined) setPIvaA(d.pIvaA);
+    // Migración pre-v2: el cliente pagaba toda percepción con % > 0 (el toggle
+    // solo tocaba el costo real) — restaurar "aplica" preserva el precio guardado.
+    if (d.pagaIvaA !== undefined) setPagaIvaA(d.arancelToggles === 'v2' ? d.pagaIvaA : (d.pagaIvaA || n(d.pIvaA) > 0));
+    if (d.pGan !== undefined) setPGan(d.pGan);
+    if (d.pagaGan !== undefined) setPagaGan(d.arancelToggles === 'v2' ? d.pagaGan : (d.pagaGan || n(d.pGan) > 0));
+    if (d.pIIBB !== undefined) setPIIBB(d.pIIBB);
+    if (d.pagaIIBB !== undefined) setPagaIIBB(d.arancelToggles === 'v2' ? d.pagaIIBB : (d.pagaIIBB || n(d.pIIBB) > 0));
+    if (d.pHon !== undefined) setPHon(d.pHon);
+    // Cotizaciones guardadas ANTES del mínimo: sin pHonMin → '' (no cambia el número guardado).
+    setPHonMin(d.pHonMin !== undefined ? d.pHonMin : '');
+    if (d.pFac !== undefined) setPFac(d.pFac);
+    if (d.pMrg !== undefined) setPMrg(d.pMrg);
+    if (d.usaSociedadPropia !== undefined) setUsaSociedadPropia(d.usaSociedadPropia);
+  };
+
+  const borrador = useBorrador({ modo: 'maritimo', snapshot: serialize(), aplicar: aplicarSnapshot, loadedQuote, setLoadedQuote, onDirty });
+  const borradorRef = useRef(borrador); borradorRef.current = borrador;
+
   useEffect(() => {
     const handler = (e) => {
       if (!e.detail || e.detail.mode !== 'maritimo') return;
       setLoadedQuote(e.detail.meta || null);
-      const d = e.detail.data || {};
-      if (d.mode === 'cliente' || d.mode === 'personal') {
-        setMode(d.mode);
-        setTab(d.mode === 'cliente' ? 'cliente_fob' : 'real_fob');
-      }
-      if (d.contType !== undefined) setContType(d.contType);
-      if (d.diasProd !== undefined) setDiasProd(d.diasProd);
-      if (d.diasTransito !== undefined) setDiasTransito(d.diasTransito);
-      // Cotización guardada antes de que existiera un tipo: completa los que falten.
-      if (d.contM3 !== undefined) setContM3({ ...PRESET_M3, ...d.contM3 });
-      if (d.contCosts !== undefined) setContCosts({ ...PRESET_COSTS, ...d.contCosts });
-      if (d.cliente !== undefined) setCliente(d.cliente);
-      if (d.descripcion !== undefined) setDescripcion(d.descripcion);
-      if (d.clasificacion !== undefined) setClasificacion(d.clasificacion);
-      if (d.fobCliente !== undefined) setFobCliente(d.fobCliente);
-      if (d.fobDecCli !== undefined) setFobDecCli(d.fobDecCli);
-      if (d.fleteCli !== undefined) setFleteCli(d.fleteCli);
-      if (d.gDes !== undefined) setGDes(d.gDes);
-      if (d.gTer !== undefined) setGTer(d.gTer);
-      if (d.gNav !== undefined) setGNav(d.gNav);
-      if (d.gLog !== undefined) setGLog(d.gLog);
-      if (d.fobReal !== undefined) setFobReal(d.fobReal);
-      if (d.fobDecReal !== undefined) setFobDecReal(d.fobDecReal);
-      if (d.fleteRealInput !== undefined) setFleteRealInput(d.fleteRealInput);
-      if (d.m3Merch !== undefined) setM3Merch(d.m3Merch);
-      if (d.pDer !== undefined) setPDer(d.pDer);
-      if (d.pTas !== undefined) setPTas(d.pTas);
-      if (d.pIva !== undefined) setPIva(d.pIva);
-      if (d.pagaIva !== undefined) setPagaIva(d.pagaIva);
-      if (d.pIvaA !== undefined) setPIvaA(d.pIvaA);
-      // Migración pre-v2: el cliente pagaba toda percepción con % > 0 (el toggle
-      // solo tocaba el costo real) — restaurar "aplica" preserva el precio guardado.
-      if (d.pagaIvaA !== undefined) setPagaIvaA(d.arancelToggles === 'v2' ? d.pagaIvaA : (d.pagaIvaA || n(d.pIvaA) > 0));
-      if (d.pGan !== undefined) setPGan(d.pGan);
-      if (d.pagaGan !== undefined) setPagaGan(d.arancelToggles === 'v2' ? d.pagaGan : (d.pagaGan || n(d.pGan) > 0));
-      if (d.pIIBB !== undefined) setPIIBB(d.pIIBB);
-      if (d.pagaIIBB !== undefined) setPagaIIBB(d.arancelToggles === 'v2' ? d.pagaIIBB : (d.pagaIIBB || n(d.pIIBB) > 0));
-      if (d.pHon !== undefined) setPHon(d.pHon);
-      // Cotizaciones guardadas ANTES del mínimo: sin pHonMin → '' (no cambia el número guardado).
-      setPHonMin(d.pHonMin !== undefined ? d.pHonMin : '');
-      if (d.pFac !== undefined) setPFac(d.pFac);
-      if (d.pMrg !== undefined) setPMrg(d.pMrg);
-      if (d.usaSociedadPropia !== undefined) setUsaSociedadPropia(d.usaSociedadPropia);
+      borradorRef.current.cargarGuardada(e.detail.data || {});
     };
     window.addEventListener('cotizador:load', handler);
     return () => window.removeEventListener('cotizador:load', handler);
@@ -910,6 +1033,7 @@ function CotizadorMaritimo() {
   // ─── RENDER ───────────────────────────────────────────────────────────────
   return (
     <div style={{ paddingBottom: '3rem' }}>
+      <AvisoBorrador b={borrador} />
 
       {/* ══ HEADER (modo + acciones, una sola fila) ═══════════════════════════ */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
@@ -1612,7 +1736,7 @@ function CotizadorMaritimo() {
           })}
           ncmPayload={() => clasificacion.trim() ? ({ codigo: clasificacion.trim(), producto: descripcion, der: String(pDer), tasa: String(pTas), iva: String(pIva), iva_adic: String(pIvaA), ganancias: String(pGan), iibb: String(pIIBB) }) : null}
           loadedQuote={loadedQuote}
-          onSaved={setLoadedQuote}
+          onSaved={(meta) => { setLoadedQuote(meta); borrador.marcarGuardado(); }}
           onClose={() => setShowSave(false)}
         />
       )}
@@ -1622,7 +1746,7 @@ function CotizadorMaritimo() {
 }
 
 // ─── aéreo component ──────────────────────────────────────────────────────────
-function CotizadorAereo() {
+function CotizadorAereo({ onDirty }) {
   // identification
   const [cliente, setCliente] = useState('');
   const [descripcion, setDescripcion] = useState('');
@@ -1719,54 +1843,61 @@ function CotizadorAereo() {
     arancelToggles: 'v2', // v2: percepciones con toggle afectan cobro Y costo real
   });
 
+  // Aplica un snapshot (cotización guardada o borrador) sobre el formulario.
+  const aplicarSnapshot = (d) => {
+    if (d.mode === 'cliente' || d.mode === 'personal') {
+      setMode(d.mode);
+      setTab(d.mode === 'cliente' ? 'cliente_fob' : 'real_fob');
+    }
+    if (d.cliente !== undefined) setCliente(d.cliente);
+    if (d.descripcion !== undefined) setDescripcion(d.descripcion);
+    if (d.clasificacion !== undefined) setClasificacion(d.clasificacion);
+    if (d.m3Input !== undefined) setM3Input(d.m3Input);
+    if (d.pesoReal !== undefined) setPesoReal(d.pesoReal);
+    if (d.fobCliente !== undefined) setFobCliente(d.fobCliente);
+    if (d.fobDecCli !== undefined) setFobDecCli(d.fobDecCli);
+    if (d.fleteCliInput !== undefined) setFleteCliInput(d.fleteCliInput);
+    if (d.awbCli !== undefined) setAwbCli(d.awbCli);
+    if (d.handCli !== undefined) setHandCli(d.handCli);
+    if (d.terCli !== undefined) setTerCli(d.terCli);
+    if (d.desCli !== undefined) setDesCli(d.desCli);
+    if (d.traCli !== undefined) setTraCli(d.traCli);
+    if (d.fobReal !== undefined) setFobReal(d.fobReal);
+    if (d.fobDecReal !== undefined) setFobDecReal(d.fobDecReal);
+    if (d.fleteRealInput !== undefined) setFleteRealInput(d.fleteRealInput);
+    if (d.awbReal !== undefined) setAwbReal(d.awbReal);
+    if (d.handReal !== undefined) setHandReal(d.handReal);
+    if (d.terReal !== undefined) setTerReal(d.terReal);
+    if (d.desReal !== undefined) setDesReal(d.desReal);
+    if (d.traReal !== undefined) setTraReal(d.traReal);
+    if (d.pDer !== undefined) setPDer(d.pDer);
+    if (d.pTas !== undefined) setPTas(d.pTas);
+    if (d.pIva !== undefined) setPIva(d.pIva);
+    if (d.pagaIva !== undefined) setPagaIva(d.pagaIva);
+    if (d.pIvaA !== undefined) setPIvaA(d.pIvaA);
+    // Migración pre-v2: el cliente pagaba toda percepción con % > 0 (el toggle
+    // solo tocaba el costo real) — restaurar "aplica" preserva el precio guardado.
+    if (d.pagaIvaA !== undefined) setPagaIvaA(d.arancelToggles === 'v2' ? d.pagaIvaA : (d.pagaIvaA || n(d.pIvaA) > 0));
+    if (d.pGan !== undefined) setPGan(d.pGan);
+    if (d.pagaGan !== undefined) setPagaGan(d.arancelToggles === 'v2' ? d.pagaGan : (d.pagaGan || n(d.pGan) > 0));
+    if (d.pIIBB !== undefined) setPIIBB(d.pIIBB);
+    if (d.pagaIIBB !== undefined) setPagaIIBB(d.arancelToggles === 'v2' ? d.pagaIIBB : (d.pagaIIBB || n(d.pIIBB) > 0));
+    if (d.pHon !== undefined) setPHon(d.pHon);
+    // Cotizaciones guardadas ANTES del mínimo: sin pHonMin → '' (no cambia el número guardado).
+    setPHonMin(d.pHonMin !== undefined ? d.pHonMin : '');
+    if (d.pFac !== undefined) setPFac(d.pFac);
+    if (d.pMrg !== undefined) setPMrg(d.pMrg);
+    if (d.usaSociedadPropia !== undefined) setUsaSociedadPropia(d.usaSociedadPropia);
+  };
+
+  const borrador = useBorrador({ modo: 'aereo', snapshot: serialize(), aplicar: aplicarSnapshot, loadedQuote, setLoadedQuote, onDirty });
+  const borradorRef = useRef(borrador); borradorRef.current = borrador;
+
   useEffect(() => {
     const handler = (e) => {
       if (!e.detail || e.detail.mode !== 'aereo') return;
       setLoadedQuote(e.detail.meta || null);
-      const d = e.detail.data || {};
-      if (d.mode === 'cliente' || d.mode === 'personal') {
-        setMode(d.mode);
-        setTab(d.mode === 'cliente' ? 'cliente_fob' : 'real_fob');
-      }
-      if (d.cliente !== undefined) setCliente(d.cliente);
-      if (d.descripcion !== undefined) setDescripcion(d.descripcion);
-      if (d.clasificacion !== undefined) setClasificacion(d.clasificacion);
-      if (d.m3Input !== undefined) setM3Input(d.m3Input);
-      if (d.pesoReal !== undefined) setPesoReal(d.pesoReal);
-      if (d.fobCliente !== undefined) setFobCliente(d.fobCliente);
-      if (d.fobDecCli !== undefined) setFobDecCli(d.fobDecCli);
-      if (d.fleteCliInput !== undefined) setFleteCliInput(d.fleteCliInput);
-      if (d.awbCli !== undefined) setAwbCli(d.awbCli);
-      if (d.handCli !== undefined) setHandCli(d.handCli);
-      if (d.terCli !== undefined) setTerCli(d.terCli);
-      if (d.desCli !== undefined) setDesCli(d.desCli);
-      if (d.traCli !== undefined) setTraCli(d.traCli);
-      if (d.fobReal !== undefined) setFobReal(d.fobReal);
-      if (d.fobDecReal !== undefined) setFobDecReal(d.fobDecReal);
-      if (d.fleteRealInput !== undefined) setFleteRealInput(d.fleteRealInput);
-      if (d.awbReal !== undefined) setAwbReal(d.awbReal);
-      if (d.handReal !== undefined) setHandReal(d.handReal);
-      if (d.terReal !== undefined) setTerReal(d.terReal);
-      if (d.desReal !== undefined) setDesReal(d.desReal);
-      if (d.traReal !== undefined) setTraReal(d.traReal);
-      if (d.pDer !== undefined) setPDer(d.pDer);
-      if (d.pTas !== undefined) setPTas(d.pTas);
-      if (d.pIva !== undefined) setPIva(d.pIva);
-      if (d.pagaIva !== undefined) setPagaIva(d.pagaIva);
-      if (d.pIvaA !== undefined) setPIvaA(d.pIvaA);
-      // Migración pre-v2: el cliente pagaba toda percepción con % > 0 (el toggle
-      // solo tocaba el costo real) — restaurar "aplica" preserva el precio guardado.
-      if (d.pagaIvaA !== undefined) setPagaIvaA(d.arancelToggles === 'v2' ? d.pagaIvaA : (d.pagaIvaA || n(d.pIvaA) > 0));
-      if (d.pGan !== undefined) setPGan(d.pGan);
-      if (d.pagaGan !== undefined) setPagaGan(d.arancelToggles === 'v2' ? d.pagaGan : (d.pagaGan || n(d.pGan) > 0));
-      if (d.pIIBB !== undefined) setPIIBB(d.pIIBB);
-      if (d.pagaIIBB !== undefined) setPagaIIBB(d.arancelToggles === 'v2' ? d.pagaIIBB : (d.pagaIIBB || n(d.pIIBB) > 0));
-      if (d.pHon !== undefined) setPHon(d.pHon);
-      // Cotizaciones guardadas ANTES del mínimo: sin pHonMin → '' (no cambia el número guardado).
-      setPHonMin(d.pHonMin !== undefined ? d.pHonMin : '');
-      if (d.pFac !== undefined) setPFac(d.pFac);
-      if (d.pMrg !== undefined) setPMrg(d.pMrg);
-      if (d.usaSociedadPropia !== undefined) setUsaSociedadPropia(d.usaSociedadPropia);
+      borradorRef.current.cargarGuardada(e.detail.data || {});
     };
     window.addEventListener('cotizador:load', handler);
     return () => window.removeEventListener('cotizador:load', handler);
@@ -1972,6 +2103,7 @@ function CotizadorAereo() {
 
   return (
     <div style={{ paddingBottom: '3rem' }}>
+      <AvisoBorrador b={borrador} />
 
       {/* HEADER — modo + acciones, una sola fila (el título vive arriba, en la página) */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
@@ -2543,7 +2675,7 @@ function CotizadorAereo() {
           })}
           ncmPayload={() => clasificacion.trim() ? ({ codigo: clasificacion.trim(), producto: descripcion, der: String(pDer), tasa: String(pTas), iva: String(pIva), iva_adic: String(pIvaA), ganancias: String(pGan), iibb: String(pIIBB) }) : null}
           loadedQuote={loadedQuote}
-          onSaved={setLoadedQuote}
+          onSaved={(meta) => { setLoadedQuote(meta); borrador.marcarGuardado(); }}
           onClose={() => setShowSave(false)}
         />
       )}
@@ -3075,6 +3207,46 @@ function CotizadorInner() {
   const [savedOpen, setSavedOpen] = useState(false);
   const [ncmOpen, setNcmOpen] = useState(false);
 
+  // ── cambios sin guardar (uno por modo; los dos cotizadores viven montados) ──
+  const [sucios, setSucios] = useState({ maritimo: false, aereo: false });
+  const suciosRef = useRef(sucios); suciosRef.current = sucios;
+  const haySucio = sucios.maritimo || sucios.aereo;
+  const onDirtyMar = useCallback((d) => setSucios(s => (s.maritimo === d ? s : { ...s, maritimo: d })), []);
+  const onDirtyAer = useCallback((d) => setSucios(s => (s.aereo === d ? s : { ...s, aereo: d })), []);
+  const [salidaPendiente, setSalidaPendiente] = useState(null); // href al que quería ir
+
+  // Aviso del navegador al cerrar/recargar con cambios.
+  useEffect(() => {
+    const handler = (e) => { if (!haySucio) return; e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [haySucio]);
+
+  // Links internos (sidebar, buscador, inicio): mismo protocolo que Operaciones.
+  useEffect(() => {
+    const handler = (e) => {
+      const s = suciosRef.current;
+      if (!s.maritimo && !s.aereo) return;
+      e.preventDefault();
+      setSalidaPendiente(e.detail?.href || '/gestion');
+    };
+    window.addEventListener('gestion:navigate', handler);
+    return () => window.removeEventListener('gestion:navigate', handler);
+  }, []);
+  useEffect(() => {
+    if (salidaPendiente === null) return;
+    const onKey = (e) => { if (e.key === 'Escape') setSalidaPendiente(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [salidaPendiente]);
+  const salirIgual = () => {
+    const href = salidaPendiente;
+    setSalidaPendiente(null);
+    suciosRef.current = { maritimo: false, aereo: false };
+    router.push(href);
+  };
+  const cualSucio = sucios.maritimo && sucios.aereo ? 'marítimo y el aéreo tienen' : (sucios.aereo ? 'aéreo tiene' : 'marítimo tiene');
+
   useEffect(() => {
     const params = new URLSearchParams(Array.from(searchParams.entries()));
     if (mode === 'aereo') params.set('modo', 'aereo'); else params.delete('modo');
@@ -3174,11 +3346,26 @@ function CotizadorInner() {
 
       {/* Both mounted to preserve state on toggle */}
       <div style={{ display: mode === 'maritimo' ? 'block' : 'none' }}>
-        <CotizadorMaritimo />
+        <CotizadorMaritimo onDirty={onDirtyMar} />
       </div>
       <div style={{ display: mode === 'aereo' ? 'block' : 'none' }}>
-        <CotizadorAereo />
+        <CotizadorAereo onDirty={onDirtyAer} />
       </div>
+
+      {salidaPendiente !== null && (
+        <div onClick={() => setSalidaPendiente(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.35)', zIndex: 1300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, width: '100%', maxWidth: 400, padding: '1.5rem 1.75rem' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#111827', marginBottom: '0.5rem' }}>Cambios sin guardar</h3>
+            <p style={{ fontSize: '0.82rem', color: '#6b7280', lineHeight: 1.5, marginBottom: '1.25rem' }}>
+              El cotizador {cualSucio} cambios que no guardaste como cotización. Queda un borrador en este navegador, pero no en el sistema.
+            </p>
+            <div style={{ display: 'flex', gap: '1.25rem', justifyContent: 'flex-end', alignItems: 'center' }}>
+              <button onClick={salirIgual} className="cz-tbtn" style={{ ...TBTN, fontSize: '0.78rem', fontWeight: 600, color: '#dc2626' }}>Salir igual</button>
+              <button onClick={() => setSalidaPendiente(null)} style={PBTN}>Seguir editando</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {importOpen && (
         <ImportDialog

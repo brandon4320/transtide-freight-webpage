@@ -18,6 +18,38 @@
 // texto libre igual se emite, nombrándolo.
 const AGENTES_ORIGEN = ['Bruce', 'Shaina', 'Yachao']
 
+// ─── dueños ───────────────────────────────────────────────────────────────────
+// Cada alerta tiene un responsable, para que Inicio sea una agenda y no una
+// lista. Brandon se ocupa de la plata (pagos y cobros); Germán —el empleado—
+// del despacho, la liberación, el transporte y el retiro. Para cambiar quién
+// hace qué se toca SOLO acá.
+export const DUENOS = {
+  plata: 'Brandon',
+  operativo: 'Germán',
+}
+export const LISTA_DUENOS = [...new Set(Object.values(DUENOS))]
+const DUENO_POR_TIPO = {
+  pago: DUENOS.plata, pago_desp: DUENOS.plata, cobranza: DUENOS.plata, naviera: DUENOS.plata,
+  bl_china: DUENOS.operativo, liberar: DUENOS.operativo, transporte: DUENOS.operativo, despacho: DUENOS.operativo,
+  freetime: DUENOS.operativo, turno: DUENOS.operativo, vacio: DUENOS.operativo, canal: DUENOS.operativo,
+}
+export const duenoDe = (tipo) => DUENO_POR_TIPO[tipo] || DUENOS.plata
+
+// Vencimiento (SLA) por tipo, en días respecto de la fecha que manda en cada
+// caso. Negativo = antes de la ETA (lo que hay que dejar listo antes de que
+// llegue el barco); positivo = después del arribo / entrega / oficialización.
+const SLA = {
+  pago: 14,        // pago al agente: arribo + 14
+  cobranza: 7,     // cobro al cliente: entrega + 7
+  pago_desp: 7,    // despachante: oficialización + 7
+  naviera: -10,    // flete a naviera y terminal: ETA − 10
+  bl_china: -7,    // liberación del B/L con el agente: ETA − 7
+  transporte: -7,  // transporte interno: ETA − 7
+  despacho: 5,     // cargar el despacho: arribo + 5
+  liberar: 5,      // liberar el contenedor: arribo + 5 (o el free time, si está)
+  vacio: 4,        // devolver el vacío sin turno cargado: retiro + 4
+}
+
 // Estados de la operación (mismos labels que usa Operaciones).
 const EST_LIBERADA = ['Listo p/ retiro', 'En tránsito local', 'Entregado', 'Liquidado']
 const EST_ARRIBADA = ['Arribado', 'En aduana', ...EST_LIBERADA]
@@ -71,6 +103,24 @@ export const hoyCero = () => { const d = new Date(); d.setHours(0, 0, 0, 0); ret
 export const diasEntre = (a, b) => Math.round((b.getTime() - a.getTime()) / 86400000)
 
 export const fmtFecha = (d) => d ? d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' }) : ''
+
+// "vie 4 sep": la fecha como se dice, para los vencimientos de la agenda. Se arma
+// a mano porque toLocaleDateString mete la coma ("vie, 4 sept") y cambia según
+// el navegador. Acepta Date, ISO o es-AR; con basura devuelve ''.
+const DIAS_CORTOS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb']
+const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+export function fmtFechaLegible(v) {
+  const d = parseFecha(v)
+  return d ? `${DIAS_CORTOS[d.getDay()]} ${d.getDate()} ${MESES_CORTOS[d.getMonth()]}` : ''
+}
+
+// Suma días a una fecha (null se propaga: sin fecha base no hay vencimiento).
+const addDias = (d, n) => d ? new Date(d.getTime() + n * 86400000) : null
+
+// Date → 'YYYY-MM-DD' en hora local (toISOString da UTC y de noche adelanta un
+// día). Las alertas viajan como JSON, así que el vencimiento va como texto.
+const p2 = (x) => String(x).padStart(2, '0')
+const toISO = (d) => d ? `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}` : null
 
 // "en 3 días" / "hoy" / "hace 6 días"
 export function relDias(dias) {
@@ -172,14 +222,27 @@ export const NIVEL_LABEL = {
 
 // { operaciones, embarques, despachos, hoy } → [alerta]
 // alerta = { id, tipo, urgencia, nivel, titulo, detalle, monto, opId, bl,
-//            shipId, despId, accion: { tipo, label, bl, opId, ship } }
+//            shipId, despId, dueno, vence ('YYYY-MM-DD' | null),
+//            accion: { tipo, label, bl, opId, ship, draft? } }
+// `dueno` es quién la resuelve (ver DUENOS) y `vence` el día en que pasa a
+// estar atrasada (ver SLA). `accion.draft` marca que la acción CREA algo: la
+// pantalla abre un borrador con datos precargados y un Confirmar, nunca crea
+// al toque.
 export function construirAlertas({ operaciones = [], embarques = [], despachos = [], hoy = hoyCero() } = {}) {
   const ops = Array.isArray(operaciones) ? operaciones : []
   const ships = Array.isArray(embarques) ? embarques : []
   const desps = Array.isArray(despachos) ? despachos : []
 
+  // Despachos por operación: primero por operation_id (el vínculo real, que
+  // sobrevive a corregir un B/L mal tipeado) y, mientras dure la migración,
+  // por B/L normalizado como respaldo.
+  const despByOp = {}
   const despByBL = {}
-  desps.forEach(d => { if (d && d.bl) despByBL[blNorm(d.bl)] = d })
+  desps.forEach(d => {
+    if (!d) return
+    if (d.operation_id != null && d.operation_id !== '') despByOp[String(d.operation_id)] = d
+    if (d.bl) despByBL[blNorm(d.bl)] = d
+  })
 
   // Embarques por operación: primero por operation_id (el vínculo real), y si no
   // está, por B/L (que es como se matchea hoy en el resto del sistema).
@@ -211,8 +274,8 @@ export function construirAlertas({ operaciones = [], embarques = [], despachos =
     const ship = list[0] || null
     const bl = (op && op.bl) || (ship && ship.bl) || ''
     const blk = blNorm(bl)
-    const desp = blk ? despByBL[blk] : null
     const opId = op ? op.id : null
+    const desp = (opId != null && despByOp[String(opId)]) || (blk ? despByBL[blk] : null) || null
     const nombre = (op && op.nombre) || (ship ? `Embarque #${ship.num || ship.id}` : 'Importación')
     const estado = (op && op.estado) || ''
     const statusShip = (ship && ship.status) || ''
@@ -257,14 +320,18 @@ export function construirAlertas({ operaciones = [], embarques = [], despachos =
           titulo: `Pedile a ${ag} la liberación del B/L`,
           detalle: `${ref} — llega ${relDias(falta)}${AGENTES_ORIGEN.includes(ag) ? '' : ' (agente de origen)'}`,
           monto: 0, opId, bl, shipId: ship.id, accion: accFicha('Abrir ficha'),
+          vence: toISO(addDias(eta, SLA.bl_china)),
         })
       }
-      if (falta <= 5 && !liberada) {
+      // El flete vence a ETA − 10 (SLA): la alerta sale desde ahí para que no
+      // nazca ya vencida. Sube de "estos días" a "ahora" a medida que se acerca.
+      if (falta <= 10 && !liberada) {
         push({
           id: akey('naviera'), tipo: 'naviera', urgencia: clamp(90 - falta * 3),
           titulo: 'Pagá naviera y terminal para liberar el contenedor',
           detalle: `${ref} — llega ${relDias(falta)} · si se libera tarde, corre almacenaje`,
           monto: 0, opId, bl, shipId: ship && ship.id, accion: accFicha('Abrir ficha'),
+          vence: toISO(addDias(eta, SLA.naviera)),
         })
       }
       if (falta <= 7) {
@@ -274,6 +341,7 @@ export function construirAlertas({ operaciones = [], embarques = [], despachos =
           titulo: 'Coordiná el transporte interno',
           detalle: `${ref} — llega ${relDias(falta)}${dest ? ` a ${dest}` : ''}`,
           monto: 0, opId, bl, shipId: ship && ship.id, accion: accOp('Abrir operación'),
+          vence: toISO(addDias(eta, SLA.transporte)),
         })
       }
     }
@@ -290,6 +358,7 @@ export function construirAlertas({ operaciones = [], embarques = [], despachos =
           titulo: restan < 0 ? `Free time VENCIDO hace ${-restan} días` : `El free time vence ${relDias(restan)}`,
           detalle: `${ref} — límite ${fmtFecha(limiteFree)} · después corre almacenaje y detention`,
           monto: 0, opId, bl, shipId: ship && ship.id, accion: accFicha('Abrir ficha'),
+          vence: toISO(limiteFree),
         })
       }
     }
@@ -299,6 +368,7 @@ export function construirAlertas({ operaciones = [], embarques = [], despachos =
         titulo: rt.canal === 'rojo' ? 'Canal rojo — verificación física' : 'Canal naranja — revisión documental',
         detalle: `${ref} — avisale al cliente que la entrega se puede correr`,
         monto: 0, opId, bl, shipId: ship && ship.id, accion: accFicha('Abrir ficha'),
+        vence: null, // el canal no tiene plazo propio: se resuelve con la aduana
       })
     }
     if (rt.turno && !liquidada) {
@@ -309,6 +379,7 @@ export function construirAlertas({ operaciones = [], embarques = [], despachos =
           titulo: `Turno de terminal ${relDias(faltaT)}${rt.turnoHora ? ` a las ${rt.turnoHora}` : ''}`,
           detalle: `${ref} — confirmá camión y documentación`,
           monto: 0, opId, bl, shipId: ship && ship.id, accion: accFicha('Abrir ficha'),
+          vence: toISO(rt.turno),
         })
       }
     }
@@ -322,6 +393,7 @@ export function construirAlertas({ operaciones = [], embarques = [], despachos =
           titulo: 'Devolvé el contenedor vacío',
           detalle: `${ref} — ${desdeRetiro != null ? `retirado hace ${desdeRetiro} días` : `turno ${relDias(turnoVac)}`}${rt.vacioTurno ? ` · turno ${fmtFecha(rt.vacioTurno)}${rt.vacioHora ? ' ' + rt.vacioHora : ''}` : ''} · cada día tarde es detention`,
           monto: 0, opId, bl, shipId: ship && ship.id, accion: accFicha('Abrir ficha'),
+          vence: toISO(rt.vacioTurno || addDias(rt.retiro, SLA.vacio)),
         })
       }
     }
@@ -333,6 +405,7 @@ export function construirAlertas({ operaciones = [], embarques = [], despachos =
         titulo: `Arribó hace ${dias} días y sigue sin liberar`,
         detalle: `${ref} — riesgo de almacenaje y forzoso de terminal`,
         monto: 0, opId, bl, shipId: ship && ship.id, accion: accFicha('Abrir ficha'),
+        vence: toISO(limiteFree || addDias(rt.arriboReal || eta, SLA.liberar)),
       })
     }
     // Solo con fecha de arribo real: una operación sin fecha (ej. un giro de
@@ -343,7 +416,14 @@ export function construirAlertas({ operaciones = [], embarques = [], despachos =
         id: akey('despacho'), tipo: 'despacho', urgencia: clamp(60 + Math.min(15, sem * 3)),
         titulo: 'Cargá el despacho del despachante',
         detalle: `${ref} — arribó hace ${sem} semana${sem === 1 ? '' : 's'} y todavía no hay despacho cargado`,
-        monto: 0, opId, bl, despId: null, accion: accFicha('Cargar despacho'),
+        monto: 0, opId, bl, despId: null,
+        // Crear desde una alerta = borrador: la ficha abre el panel del despacho
+        // con operación, B/L y despachante precargados y un Confirmar. Sin B/L
+        // (flete de terceros) se va a la operación, que tiene su propio alta.
+        accion: blk
+          ? { tipo: 'ficha', label: 'Preparar despacho', bl, opId, ship, draft: 'despacho' }
+          : accOp('Abrir operación'),
+        vence: toISO(addDias(rt.arriboReal || eta, SLA.despacho)),
       })
     }
 
@@ -365,6 +445,8 @@ export function construirAlertas({ operaciones = [], embarques = [], despachos =
         detalle: `${nombre}${blS ? ' · ' + blS : ''} — arribó${sem ? ` hace ${sem} semana${sem === 1 ? '' : 's'}` : ''}`,
         monto: bal, opId, bl: blS, shipId: s.id,
         accion: blS ? { tipo: 'ficha', label: 'Registrar pago', bl: blS, opId, ship: s } : accOp(),
+        // Arribo real si se cargó; si no, la ETA del propio embarque.
+        vence: toISO(addDias(retiroDeEmbarque(s).arriboReal || eS || eta, SLA.pago)),
       })
     })
 
@@ -373,11 +455,17 @@ export function construirAlertas({ operaciones = [], embarques = [], despachos =
     if (desp) {
       const saldoD = numUSD(desp.saldo)
       if (saldoD > 0 && arribo && (dias == null || dias >= 7)) {
+        // Vence a los 7 días de la oficialización. El campo lo está sumando otro
+        // tramo (nro/fecha de oficialización): se lee por patrón y, si todavía no
+        // existe, cuenta desde la fecha del despacho o del arribo.
+        const ofic = findVal(desp, /oficializ/, 'fecha')
+        const baseD = (ofic && ofic.fecha) || parseFecha(desp.fecha) || rt.arriboReal || eta
         push({
           id: akey('pago_desp'), tipo: 'pago_desp', urgencia: clamp(53 + plataBump(saldoD)),
           titulo: `Pagale ${fmtUSD(saldoD)} al despachante`,
           detalle: `${ref} — ${desp.descripcion || 'despacho'} con saldo abierto`,
           monto: saldoD, opId, bl, despId: desp.id, accion: accFicha('Registrar pago'),
+          vence: toISO(addDias(baseD, SLA.pago_desp)),
         })
       }
     }
@@ -392,6 +480,9 @@ export function construirAlertas({ operaciones = [], embarques = [], despachos =
           titulo: 'Entregada y sin liquidar — revisá los cobros',
           detalle: `${ref}${semC ? ` — entregada hace ${semC} semana${semC === 1 ? '' : 's'}` : ''}`,
           monto: 0, opId, bl, accion: accOp('Abrir operación'),
+          // La operación no guarda fecha de entrega: se toma el retiro real del
+          // embarque y, si no está, la ETA.
+          vence: toISO(addDias(rt.retiro || eta, SLA.cobranza)),
         })
       }
     }
@@ -409,7 +500,13 @@ export function construirAlertas({ operaciones = [], embarques = [], despachos =
   const lista = [...porId.values()]
 
   // Orden: primero lo más urgente; a igual urgencia, primero la más cara.
-  lista.forEach(a => { a.nivel = nivelDe(a.urgencia); a.monto = a.monto || 0 })
+  // Dueño y vencimiento salen siempre, aunque una alerta no los haya puesto.
+  lista.forEach(a => {
+    a.nivel = nivelDe(a.urgencia)
+    a.monto = a.monto || 0
+    a.dueno = a.dueno || duenoDe(a.tipo)
+    a.vence = a.vence || null
+  })
   return lista.sort((a, b) => b.urgencia - a.urgencia || b.monto - a.monto || String(a.id).localeCompare(String(b.id)))
 }
 

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { d1Query, d1Exec } from '@/lib/d1'
 import { requireWrite } from '@/lib/perms'
+import { ensureSoftDelete, filtroVivos } from '@/lib/soft-delete'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -43,27 +44,50 @@ const RETIRO_FIELDS = [
   'devol_vacio_fecha', 'devol_vacio_hora', 'devol_vacio_ok',
 ]
 
-let retiroReady: boolean | null = null
-async function ensureRetiroCols(): Promise<boolean> {
-  if (retiroReady !== null) return retiroReady
-  try {
-    const info = await d1Query<{ name: string }>(`PRAGMA table_info(shipments)`)
-    const have = new Set(info.map(c => c.name))
-    for (const col of RETIRO_FIELDS) {
-      if (have.has(col)) continue
-      await d1Exec(`ALTER TABLE shipments ADD COLUMN ${col} TEXT DEFAULT NULL`)
+// ─── Identidad y archivo ─────────────────────────────────────────────────────
+//   agente_id     → contactos.id (tipo agente). El texto libre `agente` sigue
+//                   existiendo para lo viejo; el selector nuevo escribe los dos.
+//   archivado_at  'YYYY-MM-DD' (o ISO). El embarque salió de la lista activa de
+//                   Forwarding pero sigue en la ficha de su operación y en los
+//                   totales históricos. Archivar NO es borrar (eso es deleted_at).
+const EXTRA_FIELDS = ['agente_id', 'archivado_at']
+const OPCIONALES = [...RETIRO_FIELDS, ...EXTRA_FIELDS]
+
+let opcionalesListas: Promise<Set<string>> | null = null
+function ensureOpcionales(): Promise<Set<string>> {
+  if (opcionalesListas) return opcionalesListas
+  const p = (async () => {
+    const tiene = new Set<string>()
+    try {
+      const leer = async () => new Set((await d1Query<{ name: string }>(`PRAGMA table_info(shipments)`)).map(c => c.name))
+      let have = await leer()
+      let alterado = false
+      for (const col of OPCIONALES) {
+        if (have.has(col)) continue
+        alterado = true
+        // Puede fallar porque otra ruta lo corrió en el mismo momento (columna
+        // duplicada): se verifica abajo en vez de dar por perdido.
+        try { await d1Exec(`ALTER TABLE shipments ADD COLUMN ${col} TEXT DEFAULT NULL`) } catch {}
+      }
+      if (alterado) have = await leer()
+      for (const col of OPCIONALES) if (have.has(col)) tiene.add(col)
+      const faltan = OPCIONALES.filter(c => !tiene.has(c))
+      if (faltan.length) console.warn(`[tracking] shipments sin las columnas ${faltan.join(', ')}; se opera sin ellas`)
+    } catch (e) {
+      console.warn('[tracking] no se pudieron verificar las columnas opcionales:', (e as Error)?.message)
     }
-    retiroReady = true
-  } catch {
-    retiroReady = false
-    console.warn('[tracking] no se pudieron agregar las columnas de retiro; se opera sin ellas')
-  }
-  return retiroReady
+    return tiene
+  })()
+  opcionalesListas = p
+  // Solo se cachea el éxito completo: si faltó alguna, se reintenta en el próximo request.
+  p.then(t => { if (t.size !== OPCIONALES.length) opcionalesListas = null })
+  return p
 }
 
-// Columnas realmente disponibles para leer/escribir (base + retiro si el ALTER anduvo).
+// Columnas realmente disponibles para leer/escribir (base + las opcionales que el ALTER dejó).
 async function allFields(): Promise<string[]> {
-  return (await ensureRetiroCols()) ? [...FIELDS, ...RETIRO_FIELDS] : FIELDS
+  const tiene = await ensureOpcionales()
+  return [...FIELDS, ...OPCIONALES.filter(c => tiene.has(c))]
 }
 
 // Normaliza un B/L para comparación (igual que blNorm del cliente): mayúsculas, sin espacios ni guiones.
@@ -71,28 +95,44 @@ function blNorm(s: string) {
   return String(s || '').replace(/[\s-]/g, '').toUpperCase()
 }
 
+const ORDEN = `ORDER BY CAST(num AS INTEGER) DESC, id DESC`
+
 export async function GET(request: Request) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const url = new URL(request.url)
   const bl = url.searchParams.get('bl')
-  const cols = await allFields()
+  const opId = url.searchParams.get('operation_id')
+  const incluirArchivados = url.searchParams.get('incluirArchivados')
+  const [cols, vivos] = await Promise.all([allFields(), ensureSoftDelete('shipments')])
+  const sel = `SELECT id, ${cols.join(', ')} FROM shipments`
+  const vivo = filtroVivos(vivos)
+
+  // Búsqueda por operación (el vínculo real). Si la operación no tiene embarques
+  // colgados por id y vino también el B/L, cae al match por B/L (migración).
+  if (opId) {
+    const rows = await d1Query<any>(`${sel} WHERE operation_id = ? AND ${vivo} ${ORDEN}`, [opId])
+    if (rows.length || bl == null) return NextResponse.json({ shipments: rows, count: rows.length, por: 'operation_id' })
+  }
 
   // Búsqueda puntual por B/L (evita traer toda la tabla solo para matchear 1 fila).
   if (bl != null) {
     const target = blNorm(bl)
-    if (!target) return NextResponse.json({ shipments: [], count: 0 })
+    if (!target) return NextResponse.json({ shipments: [], count: 0, por: 'bl' })
     const rows = await d1Query<any>(
-      `SELECT id, ${cols.join(', ')} FROM shipments
-       WHERE upper(replace(replace(bl, ' ', ''), '-', '')) = ? LIMIT 5`,
+      `${sel} WHERE upper(replace(replace(bl, ' ', ''), '-', '')) = ? AND ${vivo} LIMIT 5`,
       [target]
     )
-    return NextResponse.json({ shipments: rows, count: rows.length })
+    return NextResponse.json({ shipments: rows, count: rows.length, por: 'bl' })
   }
 
+  // Lista completa. Los archivados vienen igual, con archivado_at, para que la UI
+  // los muestre colapsados; ?incluirArchivados=0 los deja afuera del lado del
+  // servidor (=1 o ausente: se devuelven todos). Lo borrado (deleted_at) nunca.
+  const soloActivos = incluirArchivados === '0' && cols.includes('archivado_at')
   const rows = await d1Query(
-    `SELECT id, ${cols.join(', ')} FROM shipments ORDER BY CAST(num AS INTEGER) DESC, id DESC`
+    `${sel} WHERE ${vivo}${soloActivos ? ' AND archivado_at IS NULL' : ''} ${ORDEN}`
   )
   return NextResponse.json({ shipments: rows, count: rows.length })
 }
@@ -128,8 +168,12 @@ export async function PUT(request: Request) {
   if (!id && id !== 0) return NextResponse.json({ error: 'Falta el id del embarque.' }, { status: 400 })
 
   const fields = await allFields()
-  const setClause = fields.map(f => `${f} = ?`).join(', ')
-  const values = fields.map(f => body[f] ?? null)
+  // agente_id y archivado_at solo se tocan si vienen en el body: un PUT viejo que
+  // no las conoce no las pisa con NULL (un embarque archivado seguiría archivado
+  // después de editarlo desde el formulario).
+  const aSetear = fields.filter(f => !EXTRA_FIELDS.includes(f) || body[f] !== undefined)
+  const setClause = aSetear.map(f => `${f} = ?`).join(', ')
+  const values = aSetear.map(f => body[f] ?? null)
   await d1Exec(
     `UPDATE shipments SET ${setClause}, updated_at = datetime('now') WHERE id = ?`,
     [...values, id]

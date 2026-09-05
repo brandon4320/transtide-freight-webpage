@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { d1Exec, d1Batch, d1Query } from '@/lib/d1'
 import { requireWrite, getSessionInfo, type SessionInfo } from '@/lib/perms'
+import { auditar } from '@/lib/auditoria'
+import { softDelete } from '@/lib/soft-delete'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -119,6 +121,46 @@ function parseJson(raw: string | null | undefined): any {
   } catch { return null }
 }
 
+// ─── Auditoría y papelera ────────────────────────────────────────────────────
+// Quién tocó qué: el PUT deja una línea de auditoría por campo que cambió (solo
+// los que cambian, para no llenar la tabla) y el DELETE manda la fila a la
+// papelera en vez de borrarla. Lo que cuelga de la operación (gastos,
+// proveedores, checklist) NO se toca al borrar: por eso restaurar la devuelve
+// entera. El borrado físico (?hard=1) es solo para la purga programada y exige
+// que la fila lleve más de PAPELERA_DIAS en la papelera.
+const PAPELERA_DIAS = 30
+const usuarioDe = (s: SessionInfo) => s.name || s.username || ''
+
+// Comparación tolerante para el diff: null/undefined/'' son lo mismo y los
+// números se comparan por valor ('100' vs '100.0' no es un cambio).
+const norm = (v: unknown): string => {
+  if (v === null || v === undefined) return ''
+  const s = String(v).trim()
+  if (s !== '' && /^-?\d+(\.\d+)?$/.test(s)) return String(Number(s))
+  return s
+}
+
+async function auditarCambios(id: string, antes: Record<string, any>, campos: string[], vals: any[], usuario: string) {
+  const tareas: Promise<void>[] = []
+  campos.forEach((campo, i) => {
+    if (norm(antes[campo]) === norm(vals[i])) return
+    tareas.push(auditar({ entidad: 'operations', id, accion: 'editar', campo, antes: antes[campo] ?? null, despues: vals[i] ?? null, usuario }))
+  })
+  await Promise.all(tareas)
+}
+
+// Cumplió la cuarentena en la papelera (condición para el borrado físico).
+function purgable(deletedAt: unknown): boolean {
+  const t = Date.parse(String(deletedAt || ''))
+  if (!isFinite(t)) return false
+  return Date.now() - t >= PAPELERA_DIAS * 86400000
+}
+
+// lib/soft-delete acepta una foto previa opcional (queda en la auditoría para
+// poder reconstruir la fila si algún día se purga); se tipa acá para no
+// depender de que el contrato base la liste.
+type SoftDeleteFn = (table: string, id: string | number, usuario: string, antes?: any) => Promise<void>
+
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const s = await getSessionInfo()
   if (!s) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -172,22 +214,29 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   const body = await request.json()
   const cols = await ensureCols()
 
+  // Foto previa: alimenta el diff de la auditoría y evita editar una fila que no existe.
+  const previas = await d1Query<any>(`SELECT * FROM operations WHERE id = ?`, [id])
+  if (!previas.length) return NextResponse.json({ error: 'No encontrada' }, { status: 404 })
+  const antes = previas[0]
+
   // Update parcial: solo se tocan las columnas que vienen en el body. Los
   // llamados de siempre mandan la operación entera y se comportan igual que
   // antes; un PUT de "cerrar con condiciones" puede mandar solo estado+cierre
   // sin borrar el resto de la ficha.
   const sets: string[] = []
   const vals: any[] = []
+  const campos: string[] = [] // columna de cada posición de `vals` (para el diff)
+  const set = (col: string, v: any) => { sets.push(`${col} = ?`); vals.push(v); campos.push(col) }
   const put = (col: string, key: string) => {
-    if (key in body) { sets.push(`${col} = ?`); vals.push(body[key] || null) }
+    if (key in body) set(col, body[key] || null)
   }
   put('nombre', 'nombre')
   put('contenedor', 'contenedor')
   put('bl', 'bl')
-  if ('eta' in body)   { sets.push('eta = ?');   vals.push(toISODate(body.eta)) }
+  if ('eta' in body)   set('eta', toISODate(body.eta))
   put('m3', 'm3')
   put('estado', 'estado')
-  if ('fecha' in body) { sets.push('fecha = ?'); vals.push(toISODate(body.fecha)) }
+  if ('fecha' in body) set('fecha', toISODate(body.fecha))
 
   // --- Acta de cierre ---
   let cierre: Cierre | null | undefined
@@ -196,10 +245,10 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     // borra aunque el cliente la haya mandado de vuelta en el objeto completo.
     if ('estado' in body && !ESTADOS_CERRADOS.includes(String(body.estado || ''))) {
       cierre = null
-      sets.push('cierre_json = ?'); vals.push(null)
+      set('cierre_json', null)
     } else if ('cierre' in body) {
       cierre = normalizeCierre(body.cierre, g.s)
-      sets.push('cierre_json = ?'); vals.push(cierre ? JSON.stringify(cierre) : null)
+      set('cierre_json', cierre ? JSON.stringify(cierre) : null)
     }
   }
 
@@ -207,7 +256,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   let reintegros: ReturnType<typeof normalizeReintegros> | undefined
   if ('successiReintegros' in body && cols.successi_json) {
     reintegros = normalizeReintegros(body.successiReintegros, g.s)
-    sets.push('successi_json = ?'); vals.push(reintegros.length ? JSON.stringify(reintegros) : null)
+    set('successi_json', reintegros.length ? JSON.stringify(reintegros) : null)
   }
 
   if (sets.length) {
@@ -215,6 +264,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       `UPDATE operations SET ${sets.join(', ')}, updated_at = datetime('now') WHERE id = ?`,
       [...vals, id]
     )
+    await auditarCambios(id, antes, campos, vals, usuarioDe(g.s))
   }
 
   return NextResponse.json({
@@ -226,18 +276,52 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   })
 }
 
-export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+// Borrar = mandar a la papelera. Las tablas hijas (gastos, proveedores,
+// categorías, checklist) quedan intactas y siguen colgando de la operación, así
+// restaurar la devuelve completa. Con ?hard=1 se borra físicamente en cascada
+// (D1 HTTP no aplica ON DELETE CASCADE), pero solo si ya pasó por la papelera y
+// cumplió los 30 días: es el camino de la purga programada, no del botón Eliminar.
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const g = await requireWrite('operaciones')
   if (!g.ok) return g.res
 
   const { id } = await params
-  // Borrado en cascada: limpiar las tablas hijas (D1 HTTP no aplica ON DELETE CASCADE).
-  await d1Batch([
-    { sql: `DELETE FROM gastos WHERE operation_id = ?`, params: [id] },
-    { sql: `DELETE FROM proveedores_op WHERE operation_id = ?`, params: [id] },
-    { sql: `DELETE FROM custom_categories WHERE operation_id = ?`, params: [id] },
-    { sql: `DELETE FROM checklist WHERE operation_id = ?`, params: [id] },
-    { sql: `DELETE FROM operations WHERE id = ?`, params: [id] },
-  ])
-  return NextResponse.json({ ok: true })
+  const usuario = usuarioDe(g.s)
+  const hard = new URL(request.url).searchParams.get('hard') === '1'
+
+  const filas = await d1Query<any>(`SELECT * FROM operations WHERE id = ?`, [id])
+  if (!filas.length) return NextResponse.json({ error: 'No encontrada' }, { status: 404 })
+  const fila = filas[0]
+
+  if (hard) {
+    if (!fila.deleted_at) {
+      return NextResponse.json({ error: 'Para borrar definitivamente primero tiene que pasar por la papelera.' }, { status: 409 })
+    }
+    if (!purgable(fila.deleted_at)) {
+      return NextResponse.json({ error: `Todavía no lleva ${PAPELERA_DIAS} días en la papelera.` }, { status: 409 })
+    }
+    await d1Batch([
+      { sql: `DELETE FROM gastos WHERE operation_id = ?`, params: [id] },
+      { sql: `DELETE FROM proveedores_op WHERE operation_id = ?`, params: [id] },
+      { sql: `DELETE FROM custom_categories WHERE operation_id = ?`, params: [id] },
+      { sql: `DELETE FROM checklist WHERE operation_id = ?`, params: [id] },
+      { sql: `DELETE FROM operations WHERE id = ?`, params: [id] },
+    ])
+    await auditar({ entidad: 'operations', id, accion: 'borrar', campo: 'purga', antes: fila, despues: null, usuario })
+    return NextResponse.json({ ok: true, id, purgada: true })
+  }
+
+  // Ya estaba en la papelera: no se vuelve a marcar ni a auditar.
+  if (fila.deleted_at) return NextResponse.json({ ok: true, id, papelera: true, deleted_at: fila.deleted_at })
+
+  try {
+    // softDelete deja la línea de auditoría 'borrar' con la foto previa.
+    await (softDelete as SoftDeleteFn)('operations', id, usuario, fila)
+  } catch (e) {
+    // Sin columnas de papelera no se cae a un DELETE real: un borrado
+    // irreversible por accidente es justamente lo que se quiere evitar.
+    console.warn('[operations] no se pudo mover a la papelera:', (e as Error)?.message)
+    return NextResponse.json({ error: 'No se pudo mover a la papelera. No se borró nada.' }, { status: 500 })
+  }
+  return NextResponse.json({ ok: true, id, papelera: true })
 }
