@@ -211,7 +211,9 @@ const PRIMARY = '#111827';
 const CONTENEDORES = ['20 Pies', '40 Pies', '40HQ', 'Flat Rack', 'LCL', 'RORO', 'Break Bulk', 'Aéreo'];
 const CONTAINER_M3 = { '20 Pies': 28, '40 Pies': 56, '40HQ': 76, 'Flat Rack': 76, 'LCL': null, 'RORO': null, 'Break Bulk': null, 'Aéreo': null };
 
-const emptyOp = () => ({ id: '', nombre: '', contenedor: '40HQ', bl: '', eta: '', estado: 'Consolidando', fecha: '' });
+const emptyOp = () => ({ id: '', nombre: '', contenedor: '40HQ', bl: '', eta: '', estado: 'Consolidando', fecha: '', flete_terceros: 0 });
+// flete_terceros llega como 1/'1'/true según de dónde venga la fila.
+const esFleteTerceros = (o) => o != null && (o.flete_terceros === true || Number(o.flete_terceros) === 1);
 
 // ─── tracking link helpers ──────────────────────────────────────────────────────
 const blNorm = (b) => (b || '').replace(/[\s-]/g, '').toUpperCase();
@@ -436,6 +438,7 @@ function OperationsList({ onSelect, deepLinkId, query, setQuery, filter, setFilt
   const [ops,       setOps]       = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [modal,     setModal]     = useState(null); // null | 'new' | opObj
+  const [avisoPapelera, setAvisoPapelera] = useState(null); // {n} tras un borrado en lote (el toast no admite links)
   const [form,      setForm]      = useState(emptyOp());
   // Borrado: { op, nivel: 'cargando' | 'simple' | 'tipada', motivos: [] }. El nivel
   // se decide mirando qué tiene cargado la operación (gastos, proveedores, cobros,
@@ -445,6 +448,11 @@ function OperationsList({ onSelect, deepLinkId, query, setQuery, filter, setFilt
   // Candado de entrega: { op, estado, cargando?, saldo, clientes: [], error? }.
   const [candado,   setCandado]   = useState(null);
   const [aplicando, setAplicando] = useState(false);
+  // Vista "Sin cobrar": la lista no trae los cobros, así que se piden los
+  // detalles (solo lectura) recién cuando se elige la vista. { [op.id]: { pendiente, saldo } }.
+  const [cobros,    setCobros]    = useState({});
+  const [cobrosBusy, setCobrosBusy] = useState(false);
+  const cobrosPedidos = useRef(new Set());
   const [statusPop, setStatusPop] = useState(null); // op.id with open status picker
   const [showCerradas, setShowCerradas] = useState(false); // sección de cerradas: colapsada por defecto
   const [deepLinkDone, setDeepLinkDone] = useState(false);
@@ -564,7 +572,7 @@ function OperationsList({ onSelect, deepLinkId, query, setQuery, filter, setFilt
     try {
       const [r, rc] = await Promise.all([
         fetch(`/api/db/operations/${op.id}/detail`),
-        fetch('/api/db/clientes').catch(() => null), // solo para el nombre del cliente
+        fetch('/api/db/clientes?todos=1').catch(() => null), // solo para el nombre del cliente (incluye inactivos)
       ]);
       if (!r.ok) throw new Error('failed');
       const det = await r.json();
@@ -665,18 +673,60 @@ function OperationsList({ onSelect, deepLinkId, query, setQuery, filter, setFilt
       gToast.error('Error de conexión. Intentá de nuevo.');
     }
   };
+  // Borrar = mandar a la Papelera (la API hace soft-delete; 30 días para restaurar).
   const remove = async (id) => {
+    setBorrando(true);
     try {
       const r = await fetch(`/api/db/operations/${id}`, { method: 'DELETE' });
-      if (!r.ok) { gToast.error('No se pudo eliminar la operación.'); return; }
-      setOps(ops.filter(o => o.id !== id));
-      gToast.success('Operación eliminada.');
+      if (!r.ok) {
+        const j = await r.json().catch(() => null);
+        gToast.error((j && j.error) || 'No se pudo mover la operación a la Papelera.');
+        return;
+      }
+      setOps(curr => curr.filter(o => o.id !== id));
+      gToast.success('Operación movida a la Papelera. Tenés 30 días para restaurarla.');
     } catch {
       gToast.error('Error de conexión. Intentá de nuevo.');
     } finally {
+      setBorrando(false);
       setConfirm(null);
     }
   };
+
+  // Cobranzas pendientes por operación (para la vista "Sin cobrar"). Se pide el
+  // detalle de a tandas chicas y se cachea: cambiar de vista no vuelve a bajar todo.
+  const cargarCobros = useCallback(async (lista) => {
+    const faltan = lista.filter(o => o && !cobrosPedidos.current.has(o.id));
+    if (!faltan.length) return;
+    faltan.forEach(o => cobrosPedidos.current.add(o.id));
+    setCobrosBusy(true);
+    try {
+      for (let i = 0; i < faltan.length; i += 6) {
+        const tanda = faltan.slice(i, i + 6);
+        const res = await Promise.all(tanda.map(async (o) => {
+          try {
+            const r = await fetch(`/api/db/operations/${o.id}/detail`);
+            if (!r.ok) throw new Error('failed');
+            const det = await r.json();
+            const calc = computeCalc(det || {}, []);
+            const pend = calc.perProv.filter(p => p.cb && !p.cb.cobrado && p.totalUSD > 0);
+            return [o.id, { pendiente: pend.length > 0, saldo: pend.reduce((s, p) => s + p.totalUSD, 0) }];
+          } catch {
+            cobrosPedidos.current.delete(o.id); // se reintenta la próxima vez
+            return null;
+          }
+        }));
+        setCobros(prev => { const x = { ...prev }; res.forEach(e => { if (e) x[e[0]] = e[1]; }); return x; });
+      }
+    } finally {
+      setCobrosBusy(false);
+    }
+  }, []);
+  useEffect(() => {
+    if (filter !== 'sin_cobrar' || loading) return;
+    cargarCobros(ops.filter(o => !ESTADOS_CERRADOS.includes(o.estado) || o.estado === 'Entregado' || conPendientes(o)));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter, loading, ops, cargarCobros]);
 
   // Borrado en lote, ya confirmado y con el deshacer vencido.
   const removeMuchas = useCallback(async (ids) => {
@@ -685,8 +735,9 @@ function OperationsList({ onSelect, deepLinkId, query, setQuery, filter, setFilt
     ));
     const ok = res.filter(Boolean).length;
     setOps(prev => prev.filter(o => !ids.includes(o.id)));
-    if (ok === ids.length) gToast.success(ok === 1 ? 'Operación eliminada.' : `${ok} operaciones eliminadas.`);
-    else gToast.error(`Se eliminaron ${ok} de ${ids.length}. Recargá para ver el estado real.`);
+    if (ok === ids.length) gToast.success(ok === 1 ? 'Operación movida a la Papelera.' : `${ok} operaciones movidas a la Papelera.`);
+    else gToast.error(`Se movieron a la Papelera ${ok} de ${ids.length}. Recargá para ver el estado real.`);
+    if (ok > 0) setAvisoPapelera({ n: ok });
   }, []);
 
   const INP2 = { ...INP, padding: '0.5rem 0.75rem', boxSizing: 'border-box' };
@@ -696,9 +747,26 @@ function OperationsList({ onSelect, deepLinkId, query, setQuery, filter, setFilt
   // ya vencida arriba) en vez de por fecha de alta.
   const q   = query.trim().toLowerCase();
   const qBL = blNorm(query);
+  // Vistas guardadas (presets): se resuelven acá porque necesitan el embarque,
+  // el despacho y los cobros vinculados, que la fila sola no tiene.
+  const enVista = (o) => {
+    if (filter === 'llegan') {
+      if (ESTADOS_CERRADOS.includes(o.estado)) return false;
+      const dd = daysTo(o.eta);
+      return dd != null && dd >= 0 && dd <= 7;
+    }
+    if (filter === 'sin_cobrar') {
+      const c = cobros[o.id];
+      // Hasta que llegue el detalle, la mejor pista es el estado: entregada sin liquidar o cerrada con saldo.
+      return c ? c.pendiente : (o.estado === 'Entregado' || conPendientes(o));
+    }
+    if (filter === 'debo') return saldoAgente(o) > 0 || saldoDesp(o) > 0;
+    return true;
+  };
   const visibles = useMemo(() => {
     const grupo = (FILTROS.find(f => f[0] === filter) || FILTROS[0])[2];
     let l = grupo ? ops.filter(o => grupo.includes(o.estado)) : ops;
+    if (esVista(filter)) l = l.filter(enVista);
     if (q) {
       l = l.filter(o =>
         [o.nombre, o.bl, o.clientes_txt, o.proveedores_txt, o.estado, o.contenedor].some(v => (v || '').toLowerCase().includes(q))
@@ -707,7 +775,8 @@ function OperationsList({ onSelect, deepLinkId, query, setQuery, filter, setFilt
       );
     }
     return [...l].sort((a, b) => urgenciaKey(a) - urgenciaKey(b));
-  }, [ops, q, qBL, filter]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ops, q, qBL, filter, cobros, cierres, flowShips, flowDesps]);
 
   // Activas arriba, cerradas al fondo (colapsadas por defecto; si estás buscando
   // se abren solas, si no parece que el resultado no existe).
@@ -747,6 +816,16 @@ function OperationsList({ onSelect, deepLinkId, query, setQuery, filter, setFilt
         </button>
       </div>
 
+      {/* Aviso tras un borrado en lote: el toast no lleva links, así que el
+          camino a la Papelera queda acá hasta que se cierre. */}
+      {avisoPapelera && (
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap', padding: '0.55rem 0', borderBottom: `1px solid ${HAIR}`, marginBottom: '1rem', fontSize: '0.74rem', color: BODY }}>
+          <span>{avisoPapelera.n === 1 ? 'Operación movida a la Papelera.' : `${avisoPapelera.n} operaciones movidas a la Papelera.`} Tenés 30 días para restaurarlas.</span>
+          <a href="/gestion/papelera" style={{ ...GHOST, fontWeight: 600, color: INK, textDecoration: 'none' }}>Ver papelera</a>
+          <button onClick={() => setAvisoPapelera(null)} className="tt-ghost" aria-label="Cerrar aviso" style={{ ...GHOST, color: MUTED, marginLeft: 'auto' }}>Cerrar</button>
+        </div>
+      )}
+
       {/* Buscador + filtros: una única línea fina */}
       {!loading && !loadError && ops.length > 0 && (
         <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '1rem' }}>
@@ -761,6 +840,18 @@ function OperationsList({ onSelect, deepLinkId, query, setQuery, filter, setFilt
                 <button key={id} onClick={() => setFilter(id)}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 4px', fontFamily: 'inherit', fontSize: '0.74rem', fontWeight: on ? 600 : 400, color: on ? INK : MUTED, borderBottom: on ? `2px solid ${INK}` : '2px solid transparent', whiteSpace: 'nowrap' }}>
                   {lbl}
+                </button>
+              );
+            })}
+            {/* Vistas guardadas: mismo control que los filtros, separadas por una línea fina. Viven en la URL (?vista=). */}
+            <span aria-hidden style={{ width: 1, alignSelf: 'stretch', background: LINE, margin: '0 0.15rem 4px' }} />
+            {VISTAS.map(v => {
+              const on = filter === v.id;
+              const busy = on && v.id === 'sin_cobrar' && cobrosBusy;
+              return (
+                <button key={v.id} onClick={() => setFilter(on ? 'todas' : v.id)} aria-pressed={on} title={on ? 'Volver a todas' : undefined}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 4px', fontFamily: 'inherit', fontSize: '0.74rem', fontWeight: on ? 600 : 400, color: on ? INK : MUTED, borderBottom: on ? `2px solid ${INK}` : '2px solid transparent', whiteSpace: 'nowrap' }}>
+                  {v.label}{busy ? <span style={{ color: MUTED, fontWeight: 400 }}> · verificando…</span> : null}
                 </button>
               );
             })}
@@ -882,12 +973,12 @@ function OperationsList({ onSelect, deepLinkId, query, setQuery, filter, setFilt
                     })()}
                     {(() => {
                       // Embarque en la fila: agente y estado como meta-texto; solo la deuda va en rojo
-                      const sh = flowShipByBL[blNorm(op.bl)]
+                      const sh = shipDe(op)
                       if (cerrada || !sh) return null
                       const shBal = trackBalNum(sh.balance_usd)
                       return (
                         <>
-                          {' · '}{sh.agente || 'Bruce'}{' · '}{sh.status || '—'}
+                          {' · '}{sh.agente || 'Bruce'}{' · '}{labelStatusES(sh.status) || '—'}
                           {shBal > 0 && <b style={{ color: RED, fontWeight: 700 }}> · Forwarder USD {sh.balance_usd}</b>}
                         </>
                       )
@@ -910,7 +1001,7 @@ function OperationsList({ onSelect, deepLinkId, query, setQuery, filter, setFilt
                   })()}
                   {!cerrada && (
                     <div style={{ marginTop: 5 }}>
-                      <MiniFlow state={importFlowState({ op, ship: flowShipByBL[blNorm(op.bl)], desp: flowDespByBL[blNorm(op.bl)] })} />
+                      <MiniFlow state={importFlowState({ op, ship: shipDe(op), desp: despDe(op) })} />
                     </div>
                   )}
                 </div>
@@ -951,16 +1042,11 @@ function OperationsList({ onSelect, deepLinkId, query, setQuery, filter, setFilt
                       </div>
                     )}
                   </div>
-                  {/* edit icon */}
-                  <button className="edit-btn tt-icon" onClick={e => openEdit(op, e)} title="Editar" aria-label={`Editar operación ${op.nombre || ''}`}
-                    style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                  </button>
-                  {/* delete icon */}
-                  <button className="del-btn tt-icon" onClick={e => askDel(op.id, e)} title="Eliminar" aria-label={`Eliminar operación ${op.nombre || ''}`}
-                    style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
-                  </button>
+                  {/* acciones de la fila: un solo ⋯ (Editar / Eliminar) en vez de dos iconos */}
+                  <MenuFila ariaLabel={`Acciones de ${op.nombre || 'la operación'}`} items={[
+                    { label: 'Editar', onClick: () => openEdit(op) },
+                    { label: 'Eliminar', peligro: true, onClick: () => askDel(op) },
+                  ]} />
                 </div>
               </div>
             );
@@ -1046,6 +1132,17 @@ function OperationsList({ onSelect, deepLinkId, query, setQuery, filter, setFilt
                   return rel ? <p style={{ fontSize: '0.66rem', color: rel.color, marginTop: 3, fontWeight: 600 }}>{rel.text}</p> : null
                 })()}
               </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', fontSize: '0.78rem', color: INK }}>
+                  <input type="checkbox" checked={esFleteTerceros(form)}
+                    onChange={e => setForm(f => ({ ...f, flete_terceros: e.target.checked ? 1 : 0 }))}
+                    style={{ marginTop: 2, cursor: 'pointer' }} />
+                  <span>
+                    El flete lo contrata el cliente (sin embarque propio)
+                    <span style={{ display: 'block', fontSize: '0.66rem', color: MUTED, marginTop: 2 }}>No se espera embarque ni pago al agente en esta operación.</span>
+                  </span>
+                </label>
+              </div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '1.25rem', marginTop: '1.25rem' }}>
               <button onClick={() => setModal(null)} className="tt-ghost" style={GHOST}>Cancelar</button>
@@ -1057,26 +1154,69 @@ function OperationsList({ onSelect, deepLinkId, query, setQuery, filter, setFilt
         </div>
       )}
 
-      {/* ── Confirm delete ── */}
-      {confirm && (
-        <div style={OVERLAY} onClick={() => setConfirm(null)}>
-          <div style={{ ...PANEL, maxWidth: '360px' }} onClick={e => e.stopPropagation()}>
-            <p style={{ ...MODAL_T, marginBottom: '0.4rem' }}>¿Eliminar operación?</p>
-            <p style={{ fontSize: '0.8rem', color: BODY, marginBottom: '1.5rem' }}>Esta acción no se puede deshacer.</p>
+      {/* ── Eliminar (a la Papelera) ──
+          Sin plata ni vínculos: confirmación simple. Con gastos, proveedores,
+          cobros o saldos: hay que tipear la palabra (nombre corto o nº). */}
+      {confirm && confirm.nivel !== 'tipada' && (
+        <div style={OVERLAY} onClick={() => { if (!borrando) setConfirm(null); }}>
+          <div style={{ ...PANEL, maxWidth: '380px' }} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
+            <p style={{ ...MODAL_T, marginBottom: '0.4rem' }}>¿Eliminar {confirm.op?.nombre ? `"${confirm.op.nombre}"` : 'la operación'}?</p>
+            <p style={{ fontSize: '0.8rem', color: BODY, marginBottom: '1.5rem' }}>
+              {confirm.nivel === 'cargando'
+                ? 'Verificando qué tiene cargado…'
+                : 'Se mueve a la Papelera 30 días. En ese plazo la podés restaurar; después se borra definitivamente.'}
+            </p>
             <div style={{ display: 'flex', gap: '1.25rem', justifyContent: 'flex-end', alignItems: 'center' }}>
-              <button onClick={() => setConfirm(null)} className="tt-ghost" style={GHOST}>Cancelar</button>
-              <button onClick={() => remove(confirm)} style={{ ...GHOST, color: RED, fontWeight: 600 }}>Eliminar</button>
+              <button onClick={() => setConfirm(null)} disabled={borrando} className="tt-ghost" style={GHOST}>Cancelar</button>
+              <button onClick={() => remove(confirm.op.id)} disabled={borrando || confirm.nivel === 'cargando'}
+                style={{ ...GHOST, color: confirm.nivel === 'cargando' ? MUTED : RED, fontWeight: 600, cursor: confirm.nivel === 'cargando' ? 'default' : 'pointer' }}>
+                {borrando ? 'Un momento…' : 'Mover a la Papelera'}
+              </button>
             </div>
           </div>
         </div>
       )}
+      <ConfirmacionTipada
+        abierto={!!confirm && confirm.nivel === 'tipada'}
+        titulo={`Eliminar ${confirm?.op?.nombre ? `"${confirm.op.nombre}"` : 'la operación'}`}
+        detalle={`Tiene ${(confirm?.motivos || []).join(', ') || 'datos cargados'}. Se mueve a la Papelera 30 días: en ese plazo se puede restaurar entera. Para confirmar escribí ${palabraDe(confirm?.op)}.`}
+        palabra={palabraDe(confirm?.op)}
+        confirmar="Mover a la Papelera"
+        busy={borrando}
+        onConfirm={() => confirm && remove(confirm.op.id)}
+        onCancel={() => setConfirm(null)}
+      />
+
+      {/* ── Candado de cobro al marcar Entregado ──
+          Algún cliente tiene "exigir pago antes de entregar" y no pagó: se tipea
+          ENTREGAR con el saldo a la vista. Recién ahí se escribe el estado. */}
+      <ConfirmacionTipada
+        abierto={!!candado}
+        titulo={`Entregar ${candado?.op?.nombre ? `"${candado.op.nombre}"` : 'la operación'}`}
+        detalle={
+          !candado ? '' :
+          candado.cargando ? 'Verificando cobros pendientes…' :
+          candado.error ? 'No se pudo verificar el cobro. Si confirmás, la operación pasa a Entregado igual. Para seguir escribí ENTREGAR.' :
+          `${candado.clientes.length === 1 ? `${candado.clientes[0]} tiene` : `${candado.clientes.join(', ')} tienen`} pago exigido antes de entregar y ${candado.saldo != null ? `queda ${fmtU(candado.saldo)} sin cobrar` : 'hay saldo sin cobrar'}. Si entregás igual, escribí ENTREGAR.`
+        }
+        palabra="ENTREGAR"
+        confirmar="Entregar igual"
+        busy={!!(candado && (candado.cargando || aplicando))}
+        onConfirm={async () => {
+          if (!candado || candado.cargando) return;
+          setAplicando(true);
+          try { await aplicarEstado(candado.op, candado.estado); }
+          finally { setAplicando(false); setCandado(null); }
+        }}
+        onCancel={() => setCandado(null)}
+      />
 
       {/* ── Cerrar con condiciones (al marcar Liquidado) ── */}
       {cierreFor && (
         <CierreModal
           op={cierreFor}
-          ship={flowShipByBL[blNorm(cierreFor.bl)]}
-          desp={flowDespByBL[blNorm(cierreFor.bl)]}
+          ship={shipDe(cierreFor)}
+          desp={despDe(cierreFor)}
           preload={null}
           onCancel={() => setCierreFor(null)}
           onDone={(cierre) => {
@@ -1104,6 +1244,7 @@ function OperationDetail({ op, onBack }) {
   const [detailLoading, setDetailLoading] = useState(true);
   const [clientes,   setClientes]   = useState([]);
   const [expanded,   setExpanded]   = useState(null);
+  const [pedirCliente, setPedirCliente] = useState(null); // {i, t}: enfoca el selector de cliente de esa fila
   const [showChecklist, setShowChecklist] = useState(false);
   const [costosOpen, setCostosOpen] = useState(true);
   const [editingCat, setEditingCat] = useState(null);
@@ -1303,7 +1444,9 @@ function OperationDetail({ op, onBack }) {
     let cancelled = false;
     (async () => {
       try {
-        const r = await fetch('/api/db/clientes');
+        // ?todos=1: un proveedor puede tener asignado un cliente ya desactivado y
+        // el nombre tiene que seguir apareciendo; el selector filtra los inactivos.
+        const r = await fetch('/api/db/clientes?todos=1');
         if (!r.ok) throw new Error('failed');
         const data = await r.json();
         if (!cancelled) setClientes(Array.isArray(data) ? data : []);
@@ -1326,7 +1469,10 @@ function OperationDetail({ op, onBack }) {
       });
       if (!r.ok) {
         if (r.status === 403) gToast.error('No tenés permisos para crear clientes.');
-        else if (r.status === 409) gToast.error('Ya existe un cliente con ese nombre.');
+        else if (r.status === 409) {
+          const j = await r.json().catch(() => null);
+          gToast.error(j?.error || 'Ya existe un cliente con esos datos.');
+        }
         else gToast.error('No se pudo crear el cliente. Intentá de nuevo.');
         return null;
       }
@@ -1420,6 +1566,16 @@ function OperationDetail({ op, onBack }) {
     D();
   };
   const toggleCobrado = (i, isCobrado) => {
+    // Sin cliente no hay a quién cobrarle: no se marca y se abre el selector de esa fila.
+    if (!isCobrado) {
+      const prov = (detail.proveedores || [])[i];
+      if (prov && (prov.tipo || 'Cliente') === 'Cliente' && !prov.clienteId) {
+        gToast.error('Asignale un cliente antes de marcarlo cobrado');
+        setExpanded(i);
+        setPedirCliente({ i, t: Date.now() });
+        return;
+      }
+    }
     const ahora = new Date().toLocaleDateString('es-AR');
     setDetail(d => {
       const cobrar = [...(d.cobrar || [])];
@@ -1810,11 +1966,14 @@ function OperationDetail({ op, onBack }) {
               <tbody>
                 {(() => {
                   // Agrupar por cliente (mismo criterio que el chip "Tipo"), en orden de aparición.
+                  // Un proveedor sin cliente no se mezcla con otros: es su propia
+                  // fila, con el nombre del proveedor y la marca "sin cliente".
                   const groups = [];
                   calc.perProv.forEach(p => {
-                    const key = p.tipo === 'Propio' ? 'Propio' : (p.clienteNombre || 'Cliente s/asignar');
+                    const sinCliente = p.tipo !== 'Propio' && !p.clienteNombre;
+                    const key = p.tipo === 'Propio' ? 'Propio' : (sinCliente ? `__sin__${p.id || p.idx}` : p.clienteNombre);
                     let g = groups.find(x => x.key === key);
-                    if (!g) { g = { key, items: [] }; groups.push(g); }
+                    if (!g) { g = { key, label: sinCliente ? (p.nombre || 'Proveedor sin nombre') : key, sinCliente, items: [] }; groups.push(g); }
                     g.items.push(p);
                   });
                   return groups.map(g => (
@@ -1823,9 +1982,10 @@ function OperationDetail({ op, onBack }) {
                         <tr style={{ borderBottom: `1px solid ${HAIR}` }}>
                           <td colSpan={2} style={{ padding: '1.1rem 0.6rem 0.35rem' }}>
                             <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-                              <span style={GROUP_H}>{g.key}</span>
+                              <span style={GROUP_H}>{g.label || g.key}</span>
+                              {g.sinCliente && <span style={{ fontSize: '0.62rem', fontWeight: 600, color: AMBER }}>sin cliente</span>}
                               <span style={{ fontSize: '0.64rem', color: FAINT }}>{g.items.length} proveedor{g.items.length === 1 ? '' : 'es'}</span>
-                              {g.key !== 'Propio' && (
+                              {g.key !== 'Propio' && !g.sinCliente && (
                                 <button onClick={() => setEstadoCuenta(g)} className="tt-ghost" title="Hoja SIN ganancia, TC ni pesos internos — segura para captura o PDF" style={{ ...GHOST, fontSize: '0.64rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
                                   Resumen p/ cliente
                                 </button>
@@ -1851,9 +2011,11 @@ function OperationDetail({ op, onBack }) {
                       >
                         <td style={{ padding: '0.8rem 0.6rem', fontWeight: 600, fontSize: '0.8rem', color: INK }}>{p.nombre || <span style={{ color: FAINT, fontWeight: 400 }}>— sin nombre —</span>}</td>
                         <td style={{ padding: '0.8rem 0.6rem' }}>
-                          <span style={{ color: MUTED, fontSize: '0.7rem' }}>
-                            {p.tipo === 'Propio' ? 'Propio' : (p.clienteNombre || 'Cliente s/asignar')}
-                          </span>
+                          {p.tipo === 'Propio'
+                            ? <span style={{ color: MUTED, fontSize: '0.7rem' }}>Propio</span>
+                            : p.clienteNombre
+                              ? <span style={{ color: MUTED, fontSize: '0.7rem' }}>{p.clienteNombre}</span>
+                              : <span style={{ color: AMBER, fontSize: '0.68rem', fontWeight: 600 }}>sin cliente</span>}
                         </td>
                         <td style={{ padding: '0.8rem 0.6rem', textAlign: 'right', fontSize: '0.74rem', color: BODY, ...TAB }}>{p.m3 || '—'}</td>
                         <td style={{ padding: '0.8rem 0.6rem', textAlign: 'right', fontSize: '0.74rem', color: BODY, ...TAB }}>{n(p.fobUSD) > 0 ? fmtUcompact(n(p.fobUSD)) : '—'}</td>
@@ -1902,6 +2064,7 @@ function OperationDetail({ op, onBack }) {
                               onUpdProveedor={(f, v) => updProveedor(i, f, v)}
                               onUpdCobrar={(f, v) => updCobrar(i, f, v)}
                               onToggleCobrado={() => toggleCobrado(i, p.cb.cobrado)}
+                              focoCliente={pedirCliente && pedirCliente.i === i ? pedirCliente.t : 0}
                               onRemove={() => removeProveedor(i)}
                             />
                           </td>
@@ -2109,9 +2272,10 @@ function OperationDetail({ op, onBack }) {
             const socBase = calc.enBlanco - calc.tAdu - calc.despBlanco;
             const groups = [];
             calc.perProv.forEach(p => {
-              const key = p.tipo === 'Propio' ? 'Propio' : (p.clienteNombre || 'Cliente s/asignar');
+              const sinCliente = p.tipo !== 'Propio' && !p.clienteNombre;
+              const key = p.tipo === 'Propio' ? 'Propio' : (sinCliente ? `__sin__${p.id || p.idx}` : p.clienteNombre);
               let g = groups.find(x => x.key === key);
-              if (!g) { g = { key, soc: 0, desp: 0, bols: 0, orig: 0, gan: 0, cobrar: 0, cobrados: 0, n: 0 }; groups.push(g); }
+              if (!g) { g = { key, label: sinCliente ? (p.nombre || 'Proveedor sin nombre') : key, sinCliente, soc: 0, desp: 0, bols: 0, orig: 0, gan: 0, cobrar: 0, cobrados: 0, n: 0 }; groups.push(g); }
               const soc  = (p.vepPesos + p.ratio * socBase) / tc;
               const desp = (p.ratio * calc.despBlanco) / tc + n(p.cb.despAdic);
               const bols = p.cashUSD;
@@ -2143,7 +2307,10 @@ function OperationDetail({ op, onBack }) {
                   <tbody>
                     {groups.map(g => (
                       <tr key={g.key} className="tt-row">
-                        <td style={{ ...TD2, textAlign: 'left', fontWeight: 600, color: INK }}>{g.key}</td>
+                        <td style={{ ...TD2, textAlign: 'left', fontWeight: 600, color: INK }}>
+                          {g.label || g.key}
+                          {g.sinCliente && <span style={{ marginLeft: 6, fontSize: '0.62rem', fontWeight: 600, color: AMBER }}>sin cliente</span>}
+                        </td>
                         <td style={TD2}>{fmtUcompact(g.soc)}</td>
                         <td style={TD2}>{fmtUcompact(g.desp)}</td>
                         <td style={TD2}>{fmtUcompact(g.bols)}</td>
@@ -2269,6 +2436,11 @@ function OperationDetail({ op, onBack }) {
             <div style={{ padding: '0.7rem 0 0' }}>
               {!shipmentLoaded ? (
                 <p style={{ fontSize: '0.72rem', color: MUTED }}>Cargando…</p>
+              ) : !shipment && esFleteTerceros(op) ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                  <p style={{ fontSize: '0.76rem', color: INK, fontWeight: 600 }}>Flete de terceros — sin embarque propio</p>
+                  <p style={{ fontSize: '0.68rem', color: MUTED, lineHeight: 1.4 }}>El flete lo contrata el cliente. Si cambia, desmarcalo desde Editar operación.</p>
+                </div>
               ) : !shipment ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }}>
                   <p style={{ fontSize: '0.72rem', color: MUTED, lineHeight: 1.4 }}>Sin embarque cargado (se vincula por N° BL).</p>
@@ -2284,7 +2456,7 @@ function OperationDetail({ op, onBack }) {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: '0.72rem', color: BODY, fontWeight: 600 }}>{agente}{shipment.carrier ? ` · ${shipment.carrier}` : ''}</span>
-                      <span style={{ marginLeft: 'auto', color: stColor, fontSize: '0.68rem', fontWeight: 600, whiteSpace: 'nowrap' }}>{shipment.status || '—'}</span>
+                      <span style={{ marginLeft: 'auto', color: stColor, fontSize: '0.68rem', fontWeight: 600, whiteSpace: 'nowrap' }}>{labelStatusES(shipment.status) || '—'}</span>
                     </div>
                     <div style={{ fontSize: '0.78rem', color: INK, fontWeight: 600 }}>
                       {shipment.origen || '—'} <span style={{ color: FAINT }}>→</span> {shipment.destino || '—'}
@@ -2743,7 +2915,8 @@ function SuccessiModal({ op, cuenta, reintegros, onClose, onAdd, onDelete }) {
               <span style={{ fontSize: '0.72rem', color: BODY, width: 82, flexShrink: 0, ...TAB }}>{fmtFecha(r.fecha) || '—'}</span>
               <span style={{ fontSize: '0.78rem', fontWeight: 600, color: INK, ...TAB }}>{fmtU(numDesp(r.monto))}</span>
               <span style={{ fontSize: '0.68rem', color: MUTED, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {r.metodo || '—'}{r.nota ? ` · ${r.nota}` : ''}{r.por ? ` · ${r.por}` : ''}
+                {r.metodo || '—'}{r.nota ? ` · ${r.nota}` : ''}
+                {(r.por || r.created_by) && <span style={{ fontSize: '0.62rem', color: FAINT }}>{` · ${r.por || r.created_by}`}</span>}
               </span>
               {confirmDel === `${r.origen}-${r.id}` ? (
                 <span style={{ display: 'inline-flex', gap: 10, flexShrink: 0 }}>
@@ -2805,7 +2978,7 @@ function EstadoCuentaModal({ group, op, onClose }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap', marginBottom: '1rem' }}>
             <div>
               <p style={{ fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>Cliente</p>
-              <p style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>{group.key === 'Cliente s/asignar' ? '—' : group.key}</p>
+              <p style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>{group.sinCliente ? '—' : (group.label || group.key)}</p>
             </div>
             <div style={{ textAlign: 'right', fontSize: '0.68rem', color: '#64748b', lineHeight: 1.5 }}>
               <p><b>Operación:</b> {op.nombre || '—'}</p>
@@ -3092,9 +3265,16 @@ function CategoryEditor({ cat, rows: initRows, onChange, onClose, onDelete }) {
   );
 }
 
-function ExpandedDetail({ p, clientes, onCreateCliente, onUpdProveedor, onUpdCobrar, onToggleCobrado, onRemove }) {
+function ExpandedDetail({ p, clientes, onCreateCliente, onUpdProveedor, onUpdCobrar, onToggleCobrado, onRemove, focoCliente = 0 }) {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
+  const clienteRef = useRef(null);
+  // "Marcar cobrado" sin cliente: el padre pide enfocar el selector (cada pedido trae un timestamp distinto).
+  useEffect(() => {
+    if (focoCliente && clienteRef.current) {
+      try { clienteRef.current.focus(); clienteRef.current.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch {}
+    }
+  }, [focoCliente]);
   const LBL_E  = { fontSize: '0.62rem', fontWeight: 500, color: MUTED, marginBottom: 4 };
   const SEC  = { ...GROUP_H, marginBottom: 10 };
   const HINT = { fontSize: '0.65rem', color: MUTED, marginTop: 3 };
@@ -3170,15 +3350,16 @@ function ExpandedDetail({ p, clientes, onCreateCliente, onUpdProveedor, onUpdCob
                     </div>
                   ) : (
                     <select
+                      ref={clienteRef}
                       value={p.clienteId || ''}
                       onChange={e => {
                         if (e.target.value === '__nuevo__') { setNewName(''); setCreating(true); }
                         else onUpdProveedor('clienteId', e.target.value);
                       }}
                       className="tt-inp"
-                      style={{ ...INP_E, cursor: 'pointer' }}>
+                      style={{ ...INP_E, cursor: 'pointer', ...(focoCliente && !p.clienteId ? { borderColor: AMBER } : {}) }}>
                       <option value="">— Sin asignar —</option>
-                      {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                      {clientes.filter(c => Number(c.activo ?? 1) !== 0 || c.id === p.clienteId).map(c => <option key={c.id} value={c.id}>{c.nombre}{Number(c.activo ?? 1) === 0 ? ' (inactivo)' : ''}</option>)}
                       <option value="__nuevo__">+ Crear cliente nuevo…</option>
                     </select>
                   )
@@ -3380,9 +3561,45 @@ function OperationsInner() {
   const searchParams = useSearchParams();
   const deepLinkId = searchParams.get('op');
   const [selected, setSelected] = useState(null);
-  // Buscador y filtro viven acá arriba: volver de una operación no borra lo que estabas buscando.
-  const [query,  setQuery]  = useState('');
-  const [filter, setFilter] = useState('todas');
+  // Buscador y filtro viven acá arriba y en la URL (?vista=...&q=...): volver de
+  // una operación, recargar o compartir el link mantiene lo que estabas viendo.
+  const [query,  setQuery]  = useState(() => searchParams.get('q') || '');
+  const [filter, setFilter] = useState(() => {
+    const v = searchParams.get('vista');
+    return filtroValido(v) ? v : 'todas';
+  });
+  // Sin vista en la URL: se restaura la última elegida en este navegador.
+  useEffect(() => {
+    if (searchParams.get('vista') || searchParams.get('op')) return;
+    try {
+      const v = window.localStorage.getItem(VISTA_LS);
+      if (filtroValido(v)) setFilter(v);
+    } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    try {
+      if (filter === 'todas') window.localStorage.removeItem(VISTA_LS);
+      else window.localStorage.setItem(VISTA_LS, filter);
+    } catch {}
+  }, [filter]);
+  // Arma la URL de la lista (o de una operación) conservando vista y búsqueda.
+  const urlCon = useCallback((opId) => {
+    const p = new URLSearchParams();
+    if (opId) p.set('op', String(opId));
+    if (filter && filter !== 'todas') p.set('vista', filter);
+    if (query.trim()) p.set('q', query.trim());
+    const s = p.toString();
+    return s ? `/gestion/operaciones?${s}` : '/gestion/operaciones';
+  }, [filter, query]);
+  // Cambió el filtro o la búsqueda: se refleja en la URL sin sumar historial.
+  useEffect(() => {
+    if (selected) return; // la ficha abierta no toca la URL de la lista
+    const destino = urlCon(deepLinkId);
+    const actual = searchParams.toString() ? `/gestion/operaciones?${searchParams.toString()}` : '/gestion/operaciones';
+    if (destino !== actual) router.replace(destino, { scroll: false });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter, query]);
   const pushedRef  = useRef(false);  // ¿la ficha se abrió agregando una entrada al historial?
   const pendingRef = useRef(null);   // id recién abierto, mientras la URL todavía no se actualizó
   const [closedId, setClosedId] = useState(null); // operación cerrada a mano: no reabrirla aunque la URL tarde
@@ -3401,16 +3618,16 @@ function OperationsInner() {
     if (String(deepLinkId || '') === String(op.id)) return; // ya venía por deep-link
     pendingRef.current = String(op.id);
     pushedRef.current  = true;
-    router.push(`/gestion/operaciones?op=${encodeURIComponent(op.id)}`, { scroll: false });
-  }, [deepLinkId, router]);
+    router.push(urlCon(op.id), { scroll: false });
+  }, [deepLinkId, router, urlCon]);
 
   const backToList = useCallback(() => {
     setSelected(null);
     pendingRef.current = null;
     setClosedId(deepLinkId || null);
     if (pushedRef.current) { pushedRef.current = false; router.back(); }
-    else if (deepLinkId) router.replace('/gestion/operaciones', { scroll: false });
-  }, [deepLinkId, router]);
+    else if (deepLinkId) router.replace(urlCon(null), { scroll: false });
+  }, [deepLinkId, router, urlCon]);
 
   // La URL ya refleja la operación abierta.
   useEffect(() => {

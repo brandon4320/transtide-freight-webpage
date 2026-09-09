@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { d1Query, d1Exec } from '@/lib/d1'
 import { getSessionInfo, requireWrite } from '@/lib/perms'
+import { ensureSoftDelete, filtroVivos } from '@/lib/soft-delete'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -116,13 +117,29 @@ export async function GET(request: Request) {
   const url = new URL(request.url)
   const full = url.searchParams.get('full')
   const opId = url.searchParams.get('operation_id')
+  const bl = url.searchParams.get('bl')
   let rows: any[] = []
   try {
+    // Lo mandado a la papelera no cuenta como hecho (si la tabla no tiene las
+    // columnas, filtroVivos devuelve '1=1').
+    const vivo = filtroVivos(await ensureSoftDelete('alertas_hechas'))
     // SELECT * tolera la tabla vieja (sin las columnas nuevas): los campos que
     // falten salen undefined y las variantes se arman con lo que haya.
-    rows = opId
-      ? await d1Query<any>(`SELECT * FROM alertas_hechas WHERE done = 1 AND operation_id = ?`, [opId])
-      : await d1Query<any>(`SELECT * FROM alertas_hechas WHERE done = 1`)
+    if (opId) {
+      // Por operación (vínculo real) + doble lectura de migración: las filas
+      // viejas sin operation_id se reconocen por la cabeza de la clave
+      // (`op:<id>|…` o `<B/L normalizado>|…` si vino ?bl=).
+      const where = [`done = 1`, vivo]
+      const params: any[] = []
+      const cabezas = [`op:${opId}|%`]
+      if (bl && blNorm(bl)) cabezas.push(`${blNorm(bl)}|%`)
+      const likes = cabezas.map(() => `akey LIKE ?`).join(' OR ')
+      where.push(`(operation_id = ? OR (COALESCE(operation_id, '') = '' AND (${likes})))`)
+      params.push(opId, ...cabezas)
+      rows = await d1Query<any>(`SELECT * FROM alertas_hechas WHERE ${where.join(' AND ')}`, params)
+    } else {
+      rows = await d1Query<any>(`SELECT * FROM alertas_hechas WHERE done = 1 AND ${vivo}`)
+    }
   } catch { rows = [] }
 
   // full=1 → objetos con quién y cuándo la tachó (para el desplegable "Hechas").

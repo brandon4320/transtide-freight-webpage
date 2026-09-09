@@ -149,7 +149,7 @@ function calcularExpediente(detail) {
       const giroBase = nd(cb.giroMonto) * (nd(cb.giroPct) / 100) + nd(cb.giroFijo)
       const giroUSD = nd(cb.giroTotal) > 0 ? nd(cb.giroTotal) : Math.round(giroBase * 100) / 100
       const totalUSD = Math.round((gastosUSD + origenUSD + honorarios + nd(cb.despAdic) + nd(cb.ganancia) + giroUSD) * 100) / 100
-      return { nombre: p.nombre || '', cobrado: !!cb.cobrado, totalUSD }
+      return { id: p.id, nombre: p.nombre || '', cobrado: !!cb.cobrado, totalUSD }
     })
     const aCobrar = filas.reduce((s, f) => s + f.totalUSD, 0)
     const cobrado = filas.reduce((s, f) => s + (f.cobrado ? f.totalUSD : 0), 0)
@@ -245,9 +245,12 @@ export default function FichaImportacion({ bl, seed = {}, opId: opIdProp = null,
     setShips(shipsF)
     setDesps(despsF)
 
-    // Historial de pagos: por B/L, más los de embarques/despachos que cuelgan de
-    // la operación pero tienen otro B/L (o ninguno) — se buscan por ref.
+    // Historial de pagos: primero por operation_id (el ledger nuevo, con los
+    // asientos viejos del mismo B/L sumados por el server), después por B/L a
+    // secas, más los de embarques/despachos que cuelgan de la operación pero
+    // tienen otro B/L (o ninguno) — se buscan por ref. Todo se deduplica por id.
     const pedidos = [key ? fetchJSON('/api/db/pagos?bl=' + enc(bl)) : Promise.resolve([])]
+    if (opId != null) pedidos.push(fetchJSON('/api/db/pagos?operation_id=' + enc(opId) + (key ? '&bl=' + enc(bl) : '')))
     for (const s of shipsF) if (!sameBL(s)) pedidos.push(fetchJSON(`/api/db/pagos?scope=agente&ref_id=${enc(s.id)}`))
     for (const d of despsF) if (!sameBL(d)) pedidos.push(fetchJSON(`/api/db/pagos?scope=despachante&ref_id=${enc(d.id)}`))
     const detalleP = opF && opF.id != null ? fetchJSON(`/api/db/operations/${enc(opF.id)}/detail`) : Promise.resolve(null)
@@ -265,8 +268,10 @@ export default function FichaImportacion({ bl, seed = {}, opId: opIdProp = null,
     let activo = true
     load().then(ctx => { if (activo && ctx && draftInicial === 'despacho') abrirDraftDespacho(ctx) })
     return () => { activo = false }
+    // Recarga si cambia el B/L o la operación pedida (Inicio puede abrir dos
+    // alertas seguidas con el mismo B/L pero distinta operación, o sin B/L).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bl])
+  }, [bl, opIdSeed])
 
   // Escape cierra la ficha cuando no hay nada abierto encima (los modales
   // manejan su propio Escape).
@@ -462,10 +467,26 @@ export default function FichaImportacion({ bl, seed = {}, opId: opIdProp = null,
   }
 
   const ir = (href) => { window.location.href = href }
+  // A quién fue cada asiento del ledger (los cuatro libros comparten la tabla).
   const refPago = (p) => {
-    if (p.scope !== 'agente') return 'Despachante'
-    const s = ships.find(x => String(x.id) === String(p.ref_id))
-    return s && ships.length > 1 ? `Agente #${s.num}` : 'Agente'
+    const sc = String(p.scope || '')
+    if (sc === 'agente') {
+      const s = ships.find(x => String(x.id) === String(p.ref_id))
+      return s && ships.length > 1 ? `Agente #${s.num}` : 'Agente'
+    }
+    if (sc === 'despachante') return 'Despachante'
+    if (sc === 'cliente') {
+      const f = calc && calc.filas.find(x => String(x.id) === String(p.ref_id))
+      return f && f.nombre ? `Cobro · ${f.nombre}` : 'Cobro a cliente'
+    }
+    if (sc === 'successi') return 'Reintegro a Successi'
+    return sc || 'Pago'
+  }
+  // Monto con su moneda original; si no es USD y hay T.C., se muestra el T.C.
+  const montoPago = (p) => {
+    const mon = String(p.moneda || 'USD').toUpperCase()
+    const base = mon === 'ARS' ? `$ ${p.monto}` : `${mon} ${p.monto}`
+    return mon !== 'USD' && p.tc ? `${base} · T.C. ${p.tc}` : base
   }
 
   const fisicoHeader = ships.length === 1 ? fisicoDesdeEmbarque(ships[0]) : null
@@ -619,7 +640,7 @@ export default function FichaImportacion({ bl, seed = {}, opId: opIdProp = null,
                   <span style={{ color: MUTED, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
                     {metodoLabel(p.metodo)}{p.nota ? ` · ${p.nota}` : ''}{p.created_by ? ` · cargó ${p.created_by}` : ''}
                   </span>
-                  <span style={{ fontWeight: 600, color: INK, flex: '0 0 auto', ...TAB }}>USD {p.monto}</span>
+                  <span style={{ fontWeight: 600, color: INK, flex: '0 0 auto', ...TAB }}>{montoPago(p)}</span>
                 </div>
               ))}
             </div>

@@ -58,6 +58,34 @@ function filtroDesdeURL(sp) {
   return 'todos'
 }
 
+// Identidad del agente por fila. Manda agente_id (contacto); si no hay, el
+// nombre normalizado, así "bruce" y "Bruce " caen en el mismo grupo. Un nombre
+// que en otra fila sí tiene agente_id se fusiona con ese contacto.
+function armarAgentes(ships) {
+  const idPorNombre = {}
+  ships.forEach(s => { const n = normNombre(s.agente); if (n && s.agente_id && !idPorNombre[n]) idPorNombre[n] = String(s.agente_id) })
+  const keyDe = (s) => {
+    const n = normNombre(s.agente) || 'bruce'
+    const id = s.agente_id ? String(s.agente_id) : idPorNombre[n]
+    return id ? 'id:' + id : 'n:' + n
+  }
+  const labelPorKey = {}
+  ships.forEach(s => {
+    const k = keyDe(s)
+    const lbl = String(s.agente || '').trim() || 'Bruce'
+    // El rótulo del contacto (fila con agente_id) le gana al texto suelto.
+    if (!labelPorKey[k] || (s.agente_id && !labelPorKey[k].conId)) labelPorKey[k] = { label: lbl, conId: !!s.agente_id }
+  })
+  const de = (s) => { const k = keyDe(s); const l = labelPorKey[k]; return { key: k, label: l ? l.label : (String(s.agente || '').trim() || 'Bruce') } }
+  // Para el filtro: los conocidos primero (en su orden), después el resto por nombre.
+  const vistos = new Set(); const lista = []
+  AGENTES.forEach(n => { vistos.add(normNombre(n)); lista.push(n) })
+  Object.values(labelPorKey).map(x => x.label).sort((a, b) => a.localeCompare(b, 'es')).forEach(l => { const n = normNombre(l); if (!vistos.has(n)) { vistos.add(n); lista.push(l) } })
+  return { de, lista }
+}
+// Sufijo del filtro de agente: el modo de cada forwarder conocido.
+const modoAgente = (n) => { const k = normNombre(n); return k === 'yachao' ? ' · aéreo' : (k === 'bruce' || k === 'shaina') ? ' · marítimo' : '' }
+
 const blNorm = (b) => (b || '').replace(/[\s-]/g, '').toUpperCase()
 const numUSD = (v) => { const n = parseFloat(String(v || '').replace(/\./g, '').replace(',', '.')); return isNaN(n) ? 0 : n }
 const fmtUSD = (n) => 'USD ' + Math.round(n).toLocaleString('es-AR')
@@ -102,22 +130,28 @@ function etaInfo(eta) {
 
 
 
-export default function TrackingPage({ devShips = null, devOps = null, devDesps = null } = {}) {
+function TrackingInner({ devShips = null, devOps = null, devDesps = null } = {}) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const sp = useSearchParams()
   const [ships, setShips] = useState([])
   const [ops, setOps] = useState([])
   const [loading, setLoading] = useState(true)
-  const [query, setQuery] = useState('')
-  const [filter, setFilter] = useState('todos')
-  const [agenteFilter, setAgenteFilter] = useState('todos')
+  // Vista guardada: filtros, agente y búsqueda arrancan desde la URL.
+  const [query, setQuery] = useState(() => sp.get('q') || '')
+  const [filter, setFilter] = useState(() => filtroDesdeURL(sp))
+  const [agenteFilter, setAgenteFilter] = useState(() => normNombre(sp.get('agente') || '') || 'todos')
   const [modal, setModal] = useState(null)   // null | 'new' | shipObj
-  const [confirmDel, setConfirmDel] = useState(null)
+  const [confirmDel, setConfirmDel] = useState(null)   // shipObj a eliminar
+  const [delBusy, setDelBusy] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)   // importar planilla del agente
   const [saving, setSaving] = useState(false)
   const [loadError, setLoadError] = useState(false)
   const [ficha, setFicha] = useState(null)   // B/L abierto en la ficha integral
   const [desps, setDesps] = useState([])     // despachos (estado de aduana por fila)
   const [hechas, setHechas] = useState(() => new Set())  // akeys de alertas ya resueltas
   const [alertsOpen, setAlertsOpen] = useState(false)
-  const [cerradasOpen, setCerradasOpen] = useState(false)  // sección "Cerradas" del fondo, colapsada por defecto
+  const [archivadosOpen, setArchivadosOpen] = useState(false)  // sección "Archivados" del fondo, colapsada por defecto
   const [pagoModal, setPagoModal] = useState(null) // registrar pago al forwarder
   const [pagoBusy, setPagoBusy] = useState(false)
   const [expandId, setExpandId] = useState(null)   // embarque con historial abierto
@@ -186,13 +220,31 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
   }
   useEffect(() => { load() }, [])
 
+  // Los filtros viven en la URL (?vista= | ?estado=, &agente=, &q=) con replace:
+  // se puede volver o compartir la vista sin ensuciar el historial. La primera
+  // pasada se saltea (la URL ya es la que armó el estado inicial).
+  const urlPrimera = useRef(true)
+  useEffect(() => {
+    if (devShips) return
+    if (urlPrimera.current) { urlPrimera.current = false; return }
+    const p = new URLSearchParams()
+    if (VISTA_IDS.has(filter)) p.set('vista', filter)
+    else if (FISICO_IDS.has(filter)) p.set('estado', filter)
+    if (agenteFilter !== 'todos') p.set('agente', agenteFilter)
+    if (query.trim()) p.set('q', query.trim())
+    const qs = p.toString()
+    const t = setTimeout(() => { try { router.replace(pathname + (qs ? '?' + qs : ''), { scroll: false }) } catch {} }, 250)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter, agenteFilter, query])
 
-  // Agentes para el filtro: los conocidos + cualquier forwarder usado en embarques.
-  const agentesFiltro = useMemo(() => {
-    const set = new Set(AGENTES)
-    ships.forEach(x => { if (x.agente) set.add(x.agente) })
-    return [...set]
-  }, [ships])
+
+  // Agentes: identidad por agente_id (o nombre normalizado) y lista para el filtro.
+  const agentes = useMemo(() => armarAgentes(ships), [ships])
+  const agentesFiltro = agentes.lista
+  const esDelAgente = (s) => agenteFilter === 'todos' || normNombre(agentes.de(s).label) === agenteFilter
+  // Rótulo del agente filtrado (para los textos "debés a …").
+  const agenteLabel = agenteFilter === 'todos' ? '' : (agentesFiltro.find(n => normNombre(n) === agenteFilter) || agenteFilter)
 
   const despByBL = useMemo(() => {
     const m = {}; desps.forEach(d => { if (d.bl) m[blNorm(d.bl)] = d }); return m
@@ -202,27 +254,39 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
     const m = {}; ops.forEach(o => { if (o.bl) m[blNorm(o.bl)] = o }); return m
   }, [ops])
 
+  // Días hasta la ETA (negativo = ya pasó); null si no hay fecha válida.
+  const diasHastaEta = (s) => {
+    if (!s.eta) return null
+    const d = new Date(String(s.eta) + 'T00:00:00')
+    if (isNaN(d.getTime())) return null
+    const hoy = new Date(); hoy.setHours(0, 0, 0, 0)
+    return Math.round((d.getTime() - hoy.getTime()) / 86400000)
+  }
+
   const filtered = useMemo(() => {
     let l = ships
-    if (agenteFilter !== 'todos') l = l.filter(s => (s.agente || 'Bruce') === agenteFilter)
+    if (agenteFilter !== 'todos') l = l.filter(esDelAgente)
     if (query.trim()) {
       const q = query.toLowerCase()
-      l = l.filter(s => [s.num, s.bl, s.origen, s.destino, s.carrier, s.contenedores, s.status, s.suppliers, s.agente].some(v => (v || '').toLowerCase().includes(q)))
+      l = l.filter(s => [s.num, s.bl, s.origen, s.destino, s.carrier, s.contenedores, fisicoDesdeEmbarque(s).label, s.suppliers, s.agente].some(v => String(v || '').toLowerCase().includes(q)))
     }
-    if (filter === 'transito')  l = l.filter(s => /transit/i.test(s.status))
-    if (filter === 'pendiente') l = l.filter(s => /pending|pendiente/i.test(s.status))
-    if (filter === 'pagado')    l = l.filter(s => /paid/i.test(s.status))
+    // Estado físico exacto (En tránsito / Arribado / Entregado)
+    if (FISICO_IDS.has(filter)) l = l.filter(s => fisicoDesdeEmbarque(s).id === filter)
+    // Vistas guardadas
+    if (filter === 'llegan') l = l.filter(s => { const f = fisicoDesdeEmbarque(s).id; if (YA_LLEGO.has(f) || f === 'cancelado') return false; const d = diasHastaEta(s); return d != null && d >= 0 && d <= 7 })
+    if (filter === 'debo') l = l.filter(s => YA_LLEGO.has(fisicoDesdeEmbarque(s).id) && numUSD(s.balance_usd) > 0)
+    if (filter === 'sin_pagar') l = l.filter(s => numUSD(s.balance_usd) > 0)
     return l
-  }, [ships, query, filter, agenteFilter])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ships, query, filter, agenteFilter, agentes])
 
-  // "Seleccionar todos" alcanza SOLO lo que está a la vista: si las cerradas están
-  // colapsadas no entran, para no borrar algo que no se ve.
-  const cerradasAbiertas = cerradasOpen || filter === 'pagado'
+  // "Seleccionar todos" alcanza SOLO lo que está a la vista: si los archivados
+  // están colapsados no entran, para no borrar algo que no se ve.
   const aLaVista = useMemo(() => {
-    const act = filtered.filter(s => !esCerrada(s))
-    if (cerradasAbiertas || act.length === 0) return filtered
+    const act = filtered.filter(s => !esArchivado(s))
+    if (archivadosOpen || act.length === 0) return filtered
     return act
-  }, [filtered, cerradasAbiertas])
+  }, [filtered, archivadosOpen])
   const selm = useSeleccionMultiple({
     items: aLaVista,
     // Se llama dentro de una arrow: delMuchos se declara más abajo y referenciarlo
@@ -238,12 +302,14 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
     const out = []
     const today = new Date(); today.setHours(0, 0, 0, 0)
     ships.forEach(s => {
-      if (/cancel/i.test(s.status || '')) return
+      if (esArchivado(s)) return
+      const fis = fisicoDesdeEmbarque(s).id
+      if (fis === 'cancelado') return
       const eta = s.eta ? new Date(s.eta + 'T00:00:00') : null
       const days = eta && !isNaN(eta.getTime()) ? Math.round((today.getTime() - eta.getTime()) / 86400000) : null // >0 = ya pasó
       const bal = numUSD(s.balance_usd)
-      const entregada = /deliver|paid/i.test(s.status || '')
-      const arrived = entregada || (days != null && days > 0)
+      const entregada = fis === 'entregado'
+      const arrived = entregada || YA_LLEGO.has(fis) || (days != null && days > 0)
       const op = opByBL[blNorm(s.bl)]
       const liberada = entregada || (op && ['Listo p/ retiro', 'En tránsito local', 'Entregado', 'Liquidado'].includes(op.estado))
       const desp = despByBL[blNorm(s.bl)]
@@ -470,15 +536,39 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
     else gToast.error(`Se eliminaron ${ok} de ${ids.length}. Recargá para ver el estado real.`)
   }, [])
 
-  const del = async (id) => {
+  // Eliminar = mover a la Papelera (soft-delete en la API, 30 días para restaurar).
+  const del = async (sh) => {
+    if (!sh || delBusy) return
+    setDelBusy(true)
     try {
-      const r = await fetch(`/api/tracking/${id}`, { method: 'DELETE' })
+      const r = await fetch(`/api/tracking/${sh.id}`, { method: 'DELETE' })
       if (!r.ok) { gToast.error(await errMsg(r, 'No se pudo eliminar el embarque.')); return }
-      setShips(ships.filter(s => s.id !== id))
-      gToast.success('Embarque eliminado.')
+      setShips(prev => prev.filter(s => s.id !== sh.id))
+      gToast.success('Embarque movido a la Papelera.')
     } catch {
       gToast.error('Error de conexión. Intentá de nuevo.')
-    } finally { setConfirmDel(null) }
+    } finally { setDelBusy(false); setConfirmDel(null) }
+  }
+
+  // Un embarque con saldo o con pagos registrados pide confirmación tipada (el nº).
+  const pideTipada = (sh) => {
+    if (numUSD(sh.balance_usd) !== 0) return true
+    const a = agg ? agg[String(sh.id)] : null
+    return !!(a && a.n > 0)
+  }
+
+  // Archivar: sale de la lista activa, sigue en su operación y en los totales.
+  // Solo con saldo 0 o a favor (la API lo vuelve a controlar).
+  const archivar = async (sh, deshacer = false) => {
+    try {
+      const r = await fetch(`/api/tracking/${sh.id}/archivar`, { method: deshacer ? 'DELETE' : 'POST' })
+      if (!r.ok) { gToast.error(await errMsg(r, deshacer ? 'No se pudo desarchivar.' : 'No se pudo archivar el embarque.')); return }
+      const j = await r.json().catch(() => ({}))
+      setShips(prev => prev.map(s => s.id === sh.id ? { ...s, archivado_at: j.archivado_at || (deshacer ? null : new Date().toISOString()) } : s))
+      gToast.success(deshacer ? 'Embarque de vuelta en la lista.' : 'Embarque archivado.')
+    } catch {
+      gToast.error('Error de conexión. Intentá de nuevo.')
+    }
   }
 
   // Métrica de la línea horizontal: valor arriba, label chiquito debajo. Sin cajas.
@@ -499,22 +589,25 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
           <h2 style={{ fontSize: '1.45rem', fontWeight: 350, letterSpacing: '-0.02em', color: '#111827', marginBottom: '0.25rem' }}>Forwarding</h2>
           <p style={{ fontSize: '0.74rem', color: '#9ca3af' }}>Cuenta corriente con tus agentes de carga — la carga vive en cada operación · {ships.length} embarques</p>
         </div>
-        <button onClick={openNew} style={BTN_PRIMARY}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Nuevo embarque
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+          <button className="tk-sec" onClick={() => setImportOpen(true)} style={BTN_SEC}>Importar planilla</button>
+          <button onClick={openNew} style={BTN_PRIMARY}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Nuevo embarque
+          </button>
+        </div>
       </div>
 
       {/* Cuenta corriente con los forwarders — una sola línea de métricas, sin cajas */}
       {(() => {
-        const base = agenteFilter === 'todos' ? ships : ships.filter(x => (x.agente || 'Bruce') === agenteFilter)
+        const base = agenteFilter === 'todos' ? ships : ships.filter(esDelAgente)
         const debe = base.reduce((a, x) => a + Math.max(0, numUSD(x.balance_usd)), 0)
         const favor = base.reduce((a, x) => a + Math.max(0, -numUSD(x.balance_usd)), 0)
         const neto = debe - favor
         const due = base.reduce((a, x) => a + numUSD(x.amount_due_usd), 0)
         const pag = base.reduce((a, x) => a + numUSD(x.amount_rec_usd), 0)
-        const transito = base.filter(x => /transit/i.test(x.status || '')).length
-        const quien = agenteFilter === 'todos' ? 'les debés' : `debés a ${agenteFilter}`
+        const transito = base.filter(x => !esArchivado(x) && fisicoDesdeEmbarque(x).id === 'transito').length
+        const quien = agenteFilter === 'todos' ? 'les debés' : `debés a ${agenteLabel}`
         return (
           <div style={{ display: 'flex', gap: '2.5rem', rowGap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end', paddingBottom: '1.1rem', borderBottom: '1px solid #f1f5f9', marginBottom: '1.4rem' }}>
             {metric(fmtUSD(Math.abs(neto)), neto > 0 ? `${quien} (neto)` : neto < 0 ? 'a tu favor (neto)' : 'todo saldado', neto > 0 ? '#dc2626' : neto < 0 ? '#d97706' : '#059669')}
@@ -621,16 +714,26 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
         </div>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14, flexWrap: 'wrap' }}>
           <span style={{ fontSize: '0.6rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#c4c9d4', paddingBottom: 6 }}>Agente</span>
-          {['todos', ...agentesFiltro].map(a => (
-            <button key={a} onClick={() => setAgenteFilter(a)} style={ftxt(agenteFilter === a)}>
-              {a === 'todos' ? 'Todos' : a}{a === 'Yachao' ? ' · aéreo' : (a === 'Bruce' || a === 'Shaina') ? ' · marítimo' : ''}
+          <button onClick={() => setAgenteFilter('todos')} style={ftxt(agenteFilter === 'todos')}>Todos</button>
+          {agentesFiltro.map(a => (
+            <button key={a} onClick={() => setAgenteFilter(normNombre(a))} style={ftxt(agenteFilter === normNombre(a))}>
+              {a}{modoAgente(a)}
             </button>
           ))}
         </div>
         <span style={{ width: 1, height: 16, background: '#f1f5f9', marginBottom: 3, flex: '0 0 auto' }} aria-hidden="true" />
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14, flexWrap: 'wrap' }}>
-          {[['todos','Todos'],['transito','En tránsito'],['pendiente','Pend. pago'],['pagado','Pagados']].map(([id, lbl]) => (
-            <button key={id} onClick={() => setFilter(id)} style={ftxt(filter === id)}>{lbl}</button>
+          <button onClick={() => setFilter('todos')} style={ftxt(filter === 'todos')}>Todos</button>
+          {FILTROS_FISICO.map(e => (
+            <button key={e.id} onClick={() => setFilter(e.id)} style={ftxt(filter === e.id)}>{e.label}</button>
+          ))}
+        </div>
+        <span style={{ width: 1, height: 16, background: '#f1f5f9', marginBottom: 3, flex: '0 0 auto' }} aria-hidden="true" />
+        {/* Vistas guardadas: presets que quedan en la URL */}
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '0.6rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#c4c9d4', paddingBottom: 6 }}>Vistas</span>
+          {VISTAS.map(v => (
+            <button key={v.id} onClick={() => setFilter(filter === v.id ? 'todos' : v.id)} style={ftxt(filter === v.id)}>{v.label}</button>
           ))}
         </div>
       </div>
@@ -652,18 +755,20 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
       ) : (
         <div>
           {(() => {
-            // Activas arriba (agrupadas por agente); cerradas todas al fondo, colapsadas.
+            // Activos arriba (agrupados por agente); archivados todos al fondo, colapsados.
             const visiblesSel = selm.filtrar(filtered)
-            const activos = visiblesSel.filter(s => !esCerrada(s))
-            const cerradas = visiblesSel.filter(s => esCerrada(s)).sort((a, b) => (parseInt(b.num, 10) || 0) - (parseInt(a.num, 10) || 0))
-            // Si el filtro apunta a pagados (o no queda ninguna activa), las cerradas se muestran solas.
-            const mostrarCerradas = cerradasOpen || filter === 'pagado' || activos.length === 0
+            const activos = visiblesSel.filter(s => !esArchivado(s))
+            const archivados = visiblesSel.filter(s => esArchivado(s)).sort((a, b) => (parseInt(b.num, 10) || 0) - (parseInt(a.num, 10) || 0))
+            // Si no queda ningún activo a la vista, los archivados se muestran solos.
+            const mostrarArchivados = archivadosOpen || activos.length === 0
             const groups = []
-            activos.forEach(x => { const k = x.agente || 'Bruce'; let g = groups.find(y => y.key === k); if (!g) { g = { key: k, items: [] }; groups.push(g) } g.items.push(x) })
+            activos.forEach(x => { const ag = agentes.de(x); let g = groups.find(y => y.key === ag.key); if (!g) { g = { key: ag.key, label: ag.label, items: [] }; groups.push(g) } g.items.push(x) })
             // Orden por LLEGADA a destino: lo que arriba antes va arriba, que es como
             // se mira la lista (qué se viene). Sin ETA al fondo, y a igualdad, por número.
+            // Las cerradas (entregadas/canceladas sin saldo) van al final de su grupo
+            // hasta que se archiven.
             const etaOrden = (x) => { const d = new Date(String(x.eta || '') + 'T00:00:00'); return isNaN(d.getTime()) ? Infinity : d.getTime() }
-            groups.forEach(g => g.items.sort((a, b) => etaOrden(a) - etaOrden(b) || (parseInt(a.num, 10) || 0) - (parseInt(b.num, 10) || 0)))
+            groups.forEach(g => g.items.sort((a, b) => (esCerrada(a) - esCerrada(b)) || etaOrden(a) - etaOrden(b) || (parseInt(a.num, 10) || 0) - (parseInt(b.num, 10) || 0)))
             const grupos = groups.map(g => {
               const debe = g.items.reduce((x, r) => x + Math.max(0, numUSD(r.balance_usd)), 0)
               const favor = g.items.reduce((x, r) => x + Math.max(0, -numUSD(r.balance_usd)), 0)
@@ -672,7 +777,7 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
                 <div key={g.key}>
                   {/* Header de grupo: label chiquito, contador en gris, subtotal a la derecha */}
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, margin: '1.5rem 0 0.1rem', padding: '0 0.25rem' }}>
-                    <span style={{ fontSize: '0.64rem', fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{g.key}</span>
+                    <span style={{ fontSize: '0.64rem', fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{g.label}</span>
                     <span style={{ fontSize: '0.64rem', color: '#c4c9d4', fontVariantNumeric: 'tabular-nums' }}>{g.items.length}</span>
                     <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: '#9ca3af' }}>
                       {neto > 0
@@ -699,11 +804,14 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
                       const cnt = Array.isArray(hist) ? hist.length : (agg ? (led ? led.n : 0) : null)
                       const dv = desvio(sh)
                       const busyConc = conciliando === sh.id
+                      // Dónde está: derivado de fechas y retiro, nunca del texto viejo.
+                      const fis = fisicoDesdeEmbarque(sh)
+                      const cerradaSh = esCerrada(sh)
                       // Una sola línea de meta separada por puntos
                       const meta = []
                       if (sh.bl) meta.push(<span key="bl" style={{ fontFamily: 'ui-monospace,monospace' }}>{sh.bl}</span>)
                       if (sh.carrier) meta.push(<span key="ca">{sh.carrier}</span>)
-                      if (sh.status) meta.push(<span key="st" style={{ fontWeight: 500, color: statusTone(sh.status) }}>{sh.status}</span>)
+                      meta.push(<span key="st" style={{ fontWeight: 500, color: fis.tone }}>{fis.label}</span>)
                       if (sh.eta) meta.push(<span key="eta" style={{ color: eta ? eta.tone : '#9ca3af' }}>ETA {fmtFecha(sh.eta)}{eta ? ` · ${eta.rel}` : ''}</span>)
                       // Quiénes cargaron el contenedor: chico, al final de la línea.
                       if (sh.suppliers) meta.push(
@@ -719,7 +827,7 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
                         : <span key="ad" style={{ fontWeight: 600, color: '#059669', whiteSpace: 'nowrap' }}>Aduana ✓</span>)
                       return (
                         <div key={sh.id} className="tk-row" onClick={() => sh.bl ? setFicha({ bl: sh.bl, ship: sh }) : openEdit(sh)}
-                          style={{ padding: '0.8rem 0.25rem', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', background: selm.esta(sh.id) ? '#f8fafc' : undefined }}>
+                          style={{ padding: '0.8rem 0.25rem', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', background: selm.esta(sh.id) ? '#f8fafc' : undefined, opacity: cerradaSh ? 0.7 : 1 }}>
                           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
                             <span style={{ paddingTop: 2 }}>
                               <Casilla checked={selm.esta(sh.id)} onChange={() => selm.alternar(sh.id)} label={`Seleccionar embarque ${sh.num || ''}`} />
@@ -740,15 +848,14 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
                               <p style={{ fontSize: '0.95rem', fontWeight: 700, fontVariantNumeric: 'tabular-nums', lineHeight: 1.15, color: bal > 0 ? '#dc2626' : bal < 0 ? '#d97706' : due > 0 ? '#059669' : '#d1d5db' }}>
                                 {bal !== 0 ? fmtUSD(Math.abs(bal)) : (due > 0 ? '✓' : '—')}
                               </p>
-                              <p style={{ fontSize: '0.6rem', color: '#9ca3af', marginTop: 2 }}>{bal > 0 ? 'debés' : bal < 0 ? 'a tu favor' : due > 0 ? 'pagado' : 'sin monto'}</p>
+                              <p style={{ fontSize: '0.6rem', color: '#9ca3af', marginTop: 2 }}>{bal < 0 ? 'a tu favor' : (due > 0 || rec > 0) ? pagoDesdeSaldo(due, rec).label.toLowerCase() : bal > 0 ? 'debés' : 'sin monto'}</p>
                             </div>
-                            <div className="tk-icons" style={{ flex: '0 0 auto', display: 'inline-flex', gap: 2, marginTop: 1 }}>
-                              <button className="tk-ico" onClick={e => { e.stopPropagation(); openEdit(sh) }} title="Editar" aria-label={`Editar embarque ${sh.num || ''}`} style={BTN_ICO}>
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                              </button>
-                              <button className="tk-ico" onClick={e => { e.stopPropagation(); setConfirmDel(sh.id) }} title="Eliminar" aria-label={`Eliminar embarque ${sh.num || ''}`} style={BTN_ICO}>
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
-                              </button>
+                            <div style={{ flex: '0 0 auto', marginTop: -2 }}>
+                              <MenuFila ariaLabel={`Acciones del embarque ${sh.num || ''}`} items={[
+                                { label: 'Editar', onClick: () => openEdit(sh) },
+                                { label: 'Archivar', onClick: () => archivar(sh), disabled: bal > 0 },
+                                { label: 'Eliminar', onClick: () => setConfirmDel(sh), peligro: true },
+                              ]} />
                             </div>
                           </div>
 
@@ -800,7 +907,7 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
                                         <span style={{ flex: '0 0 auto', fontVariantNumeric: 'tabular-nums' }}>{pg.fecha || '—'}</span>
                                         <span style={{ flex: '0 0 auto', color: esAjuste ? '#d97706' : '#9ca3af', fontWeight: esAjuste ? 600 : 400 }}>{esAjuste ? 'ajuste manual' : metodoLabel(pg.metodo)}</span>
                                         {pg.nota && <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pg.nota}</span>}
-                                        {pg.created_by && <span className="tk-hist-by" style={{ flex: '0 0 auto', color: '#c4c9d4' }}>{pg.created_by}</span>}
+                                        {pg.created_by && <span className="tk-hist-by" style={{ flex: '0 0 auto', color: '#c4c9d4' }}>· {pg.created_by}</span>}
                                         <span style={{ marginLeft: 'auto', flex: '0 0 auto', fontWeight: 600, color: '#374151', fontVariantNumeric: 'tabular-nums' }}>{fmtUSD(numUSD(pg.monto))}</span>
                                         <button className="tk-ico" onClick={() => setConfirmPago({ ship: sh, pg })} title="Borrar pago" aria-label="Borrar pago"
                                           style={{ ...BTN_ICO, width: 18, height: 18, flex: '0 0 auto', fontSize: '0.9rem', lineHeight: 1, fontFamily: 'inherit' }}>×</button>
@@ -847,19 +954,20 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
               <>
                 {grupos}
 
-                {/* Cerradas: canceladas o entregadas/pagadas ya saldadas — colapsadas por defecto */}
-                {cerradas.length > 0 && (
+                {/* Archivados: salieron de la lista activa, siguen en su operación — colapsados por defecto */}
+                {archivados.length > 0 && (
                   <div>
-                    <button onClick={() => setCerradasOpen(o => !o)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: '0.8rem 0.25rem 0.2rem', marginTop: '1.75rem', cursor: 'pointer', color: '#9ca3af', textAlign: 'left', fontSize: '0.72rem', fontWeight: 500, fontFamily: 'inherit' }}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: mostrarCerradas ? 'rotate(180deg)' : 'none', flex: '0 0 auto' }}><polyline points="6 9 12 15 18 9"/></svg>
-                      Cerradas · {cerradas.length}
+                    <button onClick={() => setArchivadosOpen(o => !o)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: '0.8rem 0.25rem 0.2rem', marginTop: '1.75rem', cursor: 'pointer', color: '#9ca3af', textAlign: 'left', fontSize: '0.72rem', fontWeight: 500, fontFamily: 'inherit' }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: mostrarArchivados ? 'rotate(180deg)' : 'none', flex: '0 0 auto' }}><polyline points="6 9 12 15 18 9"/></svg>
+                      Archivados · {archivados.length}
                     </button>
-                    {mostrarCerradas && (
+                    {mostrarArchivados && (
                       <div style={{ marginTop: '0.2rem' }}>
-                        {cerradas.map(sh => {
+                        {archivados.map(sh => {
                           const due = numUSD(sh.amount_due_usd)
-                          const cancelada = /cancel/i.test(sh.status || '')
-                          const meta = [sh.bl, sh.agente || 'Bruce', sh.status || '', sh.eta ? `ETA ${fmtFecha(sh.eta)}` : ''].filter(Boolean).join(' · ')
+                          const fisA = fisicoDesdeEmbarque(sh)
+                          const cancelada = fisA.id === 'cancelado'
+                          const meta = [sh.bl, agentes.de(sh).label, fisA.label, sh.eta ? `ETA ${fmtFecha(sh.eta)}` : ''].filter(Boolean).join(' · ')
                           return (
                             <div key={sh.id} className="tk-row" onClick={() => sh.bl ? setFicha({ bl: sh.bl, ship: sh }) : openEdit(sh)}
                               style={{ padding: '0.55rem 0.25rem', borderBottom: '1px solid #f1f5f9', opacity: 0.55, cursor: 'pointer' }}>
@@ -871,13 +979,12 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
                                 <span style={{ flex: '0 0 auto', fontSize: '0.74rem', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: cancelada ? '#dc2626' : '#059669' }}>
                                   {cancelada ? 'Cancelada' : due > 0 ? `${fmtUSD(due)} ✓` : '✓'}
                                 </span>
-                                <div className="tk-icons" style={{ flex: '0 0 auto', display: 'inline-flex', gap: 2 }}>
-                                  <button className="tk-ico" onClick={e => { e.stopPropagation(); openEdit(sh) }} title="Editar" aria-label={`Editar embarque ${sh.num || ''}`} style={BTN_ICO}>
-                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                                  </button>
-                                  <button className="tk-ico" onClick={e => { e.stopPropagation(); setConfirmDel(sh.id) }} title="Eliminar" aria-label={`Eliminar embarque ${sh.num || ''}`} style={BTN_ICO}>
-                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
-                                  </button>
+                                <div style={{ flex: '0 0 auto' }}>
+                                  <MenuFila ariaLabel={`Acciones del embarque ${sh.num || ''}`} items={[
+                                    { label: 'Editar', onClick: () => openEdit(sh) },
+                                    { label: 'Desarchivar', onClick: () => archivar(sh, true) },
+                                    { label: 'Eliminar', onClick: () => setConfirmDel(sh), peligro: true },
+                                  ]} />
                                 </div>
                               </div>
                             </div>
@@ -902,15 +1009,33 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
         />
       )}
 
-      {/* Delete confirm */}
-      {confirmDel && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }} onClick={() => setConfirmDel(null)}>
-          <div style={{ ...PANEL, maxWidth: 340 }} onClick={e => e.stopPropagation()}>
-            <p style={{ fontSize: '1rem', fontWeight: 600, color: '#111827', marginBottom: 6 }}>¿Eliminar embarque?</p>
-            <p style={{ fontSize: '0.78rem', color: '#6b7280', marginBottom: '1.25rem' }}>Esta acción no se puede deshacer.</p>
+      {/* Importar la planilla del agente (diff + aplicar; nada se guarda hasta confirmar) */}
+      {importOpen && (
+        <ImportarPlanilla onClose={() => setImportOpen(false)} onAplicado={() => { setImportOpen(false); load() }} />
+      )}
+
+      {/* Eliminar: con saldo o pagos exige tipear el nº; si no, confirmación simple.
+          En los dos casos va a la Papelera (30 días para restaurar). */}
+      {confirmDel && pideTipada(confirmDel) && (
+        <ConfirmacionTipada
+          abierto
+          titulo={`Eliminar embarque #${confirmDel.num || confirmDel.id}`}
+          detalle={`Tiene ${numUSD(confirmDel.balance_usd) !== 0 ? `saldo ${fmtUSD(Math.abs(numUSD(confirmDel.balance_usd)))} con ${agentes.de(confirmDel).label}` : 'pagos registrados en el historial'}. Se mueve a la Papelera 30 días; después se borra definitivamente.`}
+          palabra={String(confirmDel.num || confirmDel.id)}
+          confirmar="Eliminar"
+          busy={delBusy}
+          onConfirm={() => del(confirmDel)}
+          onCancel={() => setConfirmDel(null)}
+        />
+      )}
+      {confirmDel && !pideTipada(confirmDel) && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }} onClick={() => !delBusy && setConfirmDel(null)}>
+          <div style={{ ...PANEL, maxWidth: 360 }} onClick={e => e.stopPropagation()}>
+            <p style={{ fontSize: '1rem', fontWeight: 600, color: '#111827', marginBottom: 6 }}>¿Eliminar el embarque #{confirmDel.num || '—'}?</p>
+            <p style={{ fontSize: '0.78rem', color: '#6b7280', marginBottom: '1.25rem', lineHeight: 1.5 }}>Se mueve a la Papelera 30 días; después se borra definitivamente.</p>
             <div style={{ display: 'flex', gap: 20, justifyContent: 'flex-end', alignItems: 'center' }}>
-              <button className="tk-sec" onClick={() => setConfirmDel(null)} style={BTN_SEC}>Cancelar</button>
-              <button onClick={() => del(confirmDel)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600, color: '#dc2626', fontFamily: 'inherit' }}>Eliminar</button>
+              <button className="tk-sec" onClick={() => setConfirmDel(null)} disabled={delBusy} style={BTN_SEC}>Cancelar</button>
+              <button onClick={() => del(confirmDel)} disabled={delBusy} style={{ background: 'none', border: 'none', padding: 0, cursor: delBusy ? 'wait' : 'pointer', fontSize: '0.78rem', fontWeight: 600, color: '#dc2626', fontFamily: 'inherit' }}>{delBusy ? 'Un momento…' : 'Eliminar'}</button>
             </div>
           </div>
         </div>
@@ -937,7 +1062,7 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
       {pagoModal && (
         <div onClick={e => { if (e.target === e.currentTarget) setPagoModal(null) }} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.35)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
           <div style={{ ...PANEL, maxWidth: 400 }}>
-            <p style={{ fontSize: '1rem', fontWeight: 600, color: '#111827', marginBottom: 3 }}>Registrar pago a {pagoModal.ship.agente || 'Bruce'}</p>
+            <p style={{ fontSize: '1rem', fontWeight: 600, color: '#111827', marginBottom: 3 }}>Registrar pago a {agentes.de(pagoModal.ship).label}</p>
             {(() => {
               const dvm = desvio(pagoModal.ship)
               return (
@@ -1000,10 +1125,6 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
         .tk-search:focus { border-bottom-color: #111827 !important }
         .tk-inp:focus { border-color: #111827 !important }
         .tk-alert b { color: #111827; font-weight: 600 }
-        @media (hover: hover) {
-          .tk-icons { opacity: 0; transition: opacity .12s }
-          .tk-row:hover .tk-icons, .tk-icons:focus-within { opacity: 1 }
-        }
         @media (max-width: 640px) {
           .tk-col-mid { display: none }
           .tk-hist-by { display: none }
@@ -1012,5 +1133,14 @@ export default function TrackingPage({ devShips = null, devOps = null, devDesps 
 
       <BarraSeleccion s={selm} />
     </div>
+  )
+}
+
+// useSearchParams necesita un límite de Suspense para el render estático.
+export default function TrackingPage(props) {
+  return (
+    <Suspense fallback={<div style={{ padding: '4rem 0', textAlign: 'center', color: '#9ca3af', fontSize: '0.8rem' }}>Cargando embarques…</div>}>
+      <TrackingInner {...props} />
+    </Suspense>
   )
 }

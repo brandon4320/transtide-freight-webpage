@@ -21,6 +21,16 @@ let ready: Record<string, boolean> | null = null
 async function ensureCols(): Promise<Record<string, boolean>> {
   if (ready) return ready
   const out: Record<string, boolean> = {}
+  // flete_terceros (INTEGER 0/1) lo crea la lista (operations/route.ts); acá
+  // solo se detecta (y se intenta el mismo ALTER si todavía no está).
+  try {
+    let info = await d1Query<{ name: string }>(`PRAGMA table_info(operations)`)
+    if (!info.some(c => c.name === 'flete_terceros')) {
+      try { await d1Exec(`ALTER TABLE operations ADD COLUMN flete_terceros INTEGER DEFAULT 0`) } catch {}
+      info = await d1Query<{ name: string }>(`PRAGMA table_info(operations)`)
+    }
+    out.flete_terceros = info.some(c => c.name === 'flete_terceros')
+  } catch { out.flete_terceros = false }
   for (const [table, col] of EXTRA_COLS) {
     try {
       const info = await d1Query<{ name: string }>(`PRAGMA table_info(${table})`)
@@ -184,7 +194,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   }
 
   // Si algún ALTER falló, esa columna no se pide (evita romper el GET entero).
-  const extra = (['cierre_json', 'successi_json'] as const).filter(c => cols[c]).map(c => `, ${c}`).join('')
+  const extra = (['cierre_json', 'successi_json', 'flete_terceros'] as const).filter(c => cols[c]).map(c => `, ${c}`).join('')
   const rows = await d1Query<any>(
     `SELECT id, nombre, contenedor, bl, eta, m3, estado, fecha${extra} FROM operations WHERE id = ?`,
     [id]
@@ -201,6 +211,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     m3: row.m3 || '',
     estado: row.estado || '',
     fecha: row.fecha || '',
+    flete_terceros: Number(row.flete_terceros) === 1 ? 1 : 0,
     cierre: parseJson(row.cierre_json),
     successiReintegros: Array.isArray(successi) ? successi : [],
   })
@@ -237,6 +248,11 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   put('m3', 'm3')
   put('estado', 'estado')
   if ('fecha' in body) set('fecha', toISODate(body.fecha))
+  // Flete de terceros (el cliente contrata el flete, sin embarque propio): 0/1.
+  if (cols.flete_terceros && ('flete_terceros' in body || 'fleteTerceros' in body)) {
+    const v = 'flete_terceros' in body ? body.flete_terceros : body.fleteTerceros
+    set('flete_terceros', v === true || v === 1 || v === '1' || v === 'true' ? 1 : 0)
+  }
 
   // --- Acta de cierre ---
   let cierre: Cierre | null | undefined
