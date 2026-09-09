@@ -96,6 +96,46 @@ function resolverPorBL(idx: Indice, bl: unknown): Resuelto {
 const vacio = (): Reporte => ({ ok: true, n: 0, revisadas: 0, sin_match: [] })
 const anotar = (rep: Reporte, s: SinMatch) => { if (rep.sin_match.length < TOPE_SIN_MATCH) rep.sin_match.push(s) }
 
+// ─── shipments (Forwarding) ──────────────────────────────────────────────────
+// Los embarques van PRIMERO: son la fila que más se cruza por B/L. Se vinculan
+// contra operations.bl (no contra otros embarques) para no propagar un vínculo
+// dudoso. Después de vincularlos, el índice también los conoce, así que los
+// despachos y pagos que solo tengan el B/L del embarque igual resuelven.
+async function backfillEmbarques(idx: Indice, dry: boolean, autor: string): Promise<Reporte> {
+  const rep = vacio()
+  if (!(await asegurarColumnas('shipments', [['operation_id', 'TEXT DEFAULT NULL']]))) {
+    return { ...rep, ok: false, error: 'shipments no tiene (ni pudo agregar) operation_id' }
+  }
+  const vivos = await ensureSoftDelete('shipments')
+  const ops = await d1Query<{ id: string; bl: string | null }>(`SELECT id, bl FROM operations WHERE ${filtroVivos(await ensureSoftDelete('operations'))}`)
+  const opPorBL = new Map<string, Set<string>>()
+  for (const o of ops) {
+    const k = blNorm(o.bl)
+    if (!k) continue
+    if (!opPorBL.has(k)) opPorBL.set(k, new Set())
+    opPorBL.get(k)!.add(String(o.id))
+  }
+  const rows = await d1Query<{ id: number; bl: string | null }>(
+    `SELECT id, bl FROM shipments WHERE COALESCE(operation_id, '') = '' AND ${filtroVivos(vivos)} ORDER BY id`
+  )
+  rep.revisadas = rows.length
+  for (const r of rows) {
+    const k = blNorm(r.bl)
+    const c = k ? opPorBL.get(k) : undefined
+    if (!k) { anotar(rep, { id: r.id, bl: '', motivo: 'sin B/L' }); continue }
+    if (!c || !c.size) { anotar(rep, { id: r.id, bl: String(r.bl || ''), motivo: 'ninguna operación con ese B/L' }); continue }
+    if (c.size > 1) { anotar(rep, { id: r.id, bl: String(r.bl || ''), motivo: 'el B/L corresponde a más de una operación', candidatas: [...c] }); continue }
+    const opId = [...c][0]
+    if (!dry) {
+      const u = await d1Exec(`UPDATE shipments SET operation_id = ? WHERE id = ? AND COALESCE(operation_id, '') = ''`, [opId, r.id])
+      if (u.changes > 0) await auditar({ entidad: 'shipments', id: r.id, accion: 'editar', campo: 'operation_id', antes: null, despues: opId, usuario: autor })
+    }
+    idx.shipOp.set(String(r.id), opId)
+    rep.n += 1
+  }
+  return rep
+}
+
 // ─── despachante_pagos ───────────────────────────────────────────────────────
 async function backfillDespachos(idx: Indice, dry: boolean, autor: string): Promise<{ rep: Reporte; despOp: Map<string, string> }> {
   const rep = vacio()
@@ -257,6 +297,7 @@ export async function POST(request: Request) {
   }
   const fallo = (msg: string): Reporte => ({ ...vacio(), ok: false, error: msg })
 
+  const embarques = await seguro(() => backfillEmbarques(idx, dry, autor), fallo('falló el backfill de embarques'))
   // Los despachos van primero: los pagos del despachante se vinculan a través de ellos.
   const { rep: despachos, despOp } = await seguro(() => backfillDespachos(idx, dry, autor), { rep: fallo('falló el backfill de despachos'), despOp: new Map<string, string>() })
   const pagos = await seguro(() => backfillPagos(idx, despOp, dry, autor), fallo('falló el backfill de pagos'))
@@ -265,6 +306,6 @@ export async function POST(request: Request) {
   return NextResponse.json({
     dry,
     indice: { operaciones: idx.opsVivas.size, bls: idx.porBL.size, embarques_con_operacion: idx.shipOp.size },
-    despachos, pagos, alertas,
+    embarques, despachos, pagos, alertas,
   })
 }
