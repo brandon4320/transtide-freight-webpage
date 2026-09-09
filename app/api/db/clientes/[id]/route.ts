@@ -125,8 +125,10 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
   const texto = (k: keyof ClienteRow) => (tiene(k) ? limpio(body[k]) : limpio(actual[k]))
 
+  // El nombre es obligatorio cuando se edita el form; un PUT parcial ({ activo: 0 })
+  // sobre un cliente viejo sin nombre no tiene que quedar trabado por eso.
   const nombre = texto('nombre')
-  if (!nombre) return NextResponse.json({ error: 'El nombre es obligatorio', campo: 'nombre' }, { status: 400 })
+  if (tiene('nombre') && !nombre) return NextResponse.json({ error: 'El nombre es obligatorio', campo: 'nombre' }, { status: 400 })
 
   let cuit: string | null = limpio(actual.cuit)
   if (tiene('cuit')) {
@@ -137,7 +139,10 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       if (!cuit) return NextResponse.json({ error: 'El CUIT no es válido: tiene que tener 11 dígitos y cerrar el verificador', campo: 'cuit' }, { status: 400 })
     }
   }
-  if (cuit) {
+  // El duplicado se controla solo cuando el CUIT cambia: dos filas viejas que ya
+  // comparten CUIT no tienen que impedir desactivar una de ellas (que es justo
+  // cómo se limpia el duplicado).
+  if (tiene('cuit') && cuit) {
     const dup = await buscarPorCuit(cuit, id)
     if (dup) {
       return NextResponse.json(

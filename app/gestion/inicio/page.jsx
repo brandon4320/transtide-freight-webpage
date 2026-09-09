@@ -17,6 +17,7 @@ import {
   construirAlertas, numUSD, fmtUSD, parseFecha, diasEntre, hoyCero, relDias, blNorm,
   LISTA_DUENOS, fmtFechaLegible,
 } from '../alertas-core'
+import { labelStatusES } from '../estados'
 
 // ——— Transtide Flat: hoja blanca, líneas finas, color solo semántico ———
 const BTN_SEC = { display: 'inline-flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '0.74rem', fontWeight: 500, color: '#6b7280', fontFamily: 'inherit' }
@@ -39,6 +40,10 @@ const hoyLargo = () => capit(new Date().toLocaleDateString('es-AR', { weekday: '
 
 // Select sin caja, como los filtros del resto del panel.
 const SELECT_FLAT = { background: 'none', border: 'none', borderBottom: '1px solid #e5e7eb', borderRadius: 0, padding: '0 0 3px', fontSize: '0.74rem', fontWeight: 500, color: '#6b7280', fontFamily: 'inherit', cursor: 'pointer', outline: 'none' }
+
+// 'YYYY-MM-DD' en hora local: toISOString() da UTC y de noche adelanta un día.
+const p2 = (x) => String(x).padStart(2, '0')
+const hoyISO = () => { const d = new Date(); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}` }
 
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim()
 // "Brandon Quevedo" → 'Brandon'; "germán" → 'Germán'. Si el usuario logueado no
@@ -184,12 +189,15 @@ export default function InicioPage(props) {
     })
     ships.forEach(s => {
       if (vistos.has(s.id) || /cancel/i.test(s.status || '')) return
+      // Ya cuelga de una operación (por id primero, por B/L como respaldo): la
+      // operación es la que aparece, no el embarque suelto.
+      if (s.operation_id && ops.some(o => String(o.id) === String(s.operation_id))) return
       if (ops.some(o => o.bl && s.bl && blNorm(o.bl) === blNorm(s.bl))) return
       const eta = parseFecha(s.eta)
       if (!eta) return
       const d = diasEntre(hoy, eta)
       if (d < 0 || d > 14) return
-      out.push({ key: 'sh-' + s.id, dias: d, eta, nombre: `Embarque #${s.num || s.id}`, bl: s.bl || '', estado: s.status || '', agente: s.agente || '', opId: null, ship: s })
+      out.push({ key: 'sh-' + s.id, dias: d, eta, nombre: `Embarque #${s.num || s.id}`, bl: s.bl || '', estado: labelStatusES(s.status), agente: s.agente || '', opId: null, ship: s })
     })
     return out.sort((a, b) => a.dias - b.dias).slice(0, 6)
   }, [ops, ships])
@@ -238,7 +246,7 @@ export default function InicioPage(props) {
       const j = await r.json().catch(() => ({}))
       setHechasInfo(m => {
         const n = { ...m }
-        if (done) n[a.id] = { por: (j && j.done_by) || '', cuando: new Date().toISOString() }
+        if (done) n[a.id] = { por: (j && j.done_by) || '', cuando: hoyISO() }
         else delete n[a.id]
         return n
       })
@@ -408,7 +416,7 @@ export default function InicioPage(props) {
             <span style={{ fontSize: '0.64rem', color: '#c4c9d4', fontVariantNumeric: 'tabular-nums' }}>{arribos.length}</span>
           </div>
           {arribos.map(x => (
-            <div key={x.key} className="ini-row" onClick={() => x.bl ? setFicha({ bl: x.bl, ship: x.ship }) : x.opId ? irA('/gestion/operaciones?op=' + encodeURIComponent(x.opId)) : null}
+            <div key={x.key} className="ini-row" onClick={() => x.bl ? setFicha({ bl: x.bl, ship: x.ship, opId: x.opId ?? null }) : x.opId ? irA('/gestion/operaciones?op=' + encodeURIComponent(x.opId)) : null}
               style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0.6rem 0.25rem', borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: '0.82rem', fontWeight: 600, color: TINTA, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.nombre}</p>
@@ -441,9 +449,11 @@ export default function InicioPage(props) {
       {ficha && (
         <FichaImportacion
           bl={ficha.bl}
-          opId={ficha.opId || null}
           draft={ficha.draft || null}
-          seed={ficha.ship ? { ship: ficha.ship } : {}}
+          // La ficha resuelve la operación por seed.opId primero y por B/L como
+          // respaldo: así la alerta abre la operación correcta aunque el B/L
+          // esté repetido o mal tipeado.
+          seed={{ ...(ficha.ship ? { ship: ficha.ship } : {}), ...(ficha.opId != null ? { opId: ficha.opId } : {}) }}
           onClose={() => setFicha(null)}
           onChanged={() => load(true)}
         />

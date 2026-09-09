@@ -1,12 +1,16 @@
 'use client'
 
-import { Fragment, useState, useEffect, useMemo, useCallback } from 'react'
+import { Fragment, Suspense, useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { gToast } from '../toast'
 import FichaImportacion from '../ficha-importacion'
-import { EmbarqueModal, AGENTES } from '../embarque-form'
+import { EmbarqueModal, AGENTES, normNombre } from '../embarque-form'
 import { importFlowState, MiniFlow } from '../flujo-importacion'
 import { METODOS_PAGO, METODO_DEFAULT_AGENTE, metodoLabel } from '../pagos-metodos'
 import { useSeleccionMultiple, BarraSeleccion, Casilla } from '../seleccion-multiple'
+import { ESTADOS_FISICO, fisicoDesdeEmbarque, pagoDesdeSaldo, esCerradaFisica } from '../estados'
+import { MenuFila, ConfirmacionTipada } from '../acciones-fila'
+import { ImportarPlanilla } from '../importar-planilla'
 
 // ——— Transtide Flat: hoja blanca, tipografía protagonista, líneas finas ———
 const INP = { width: '100%', padding: '0.5rem 0.65rem', border: '1px solid #e5e7eb', borderRadius: 6, fontSize: '16px', color: '#111827', background: '#fff', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }
@@ -20,19 +24,39 @@ const ftxt = (sel) => ({ background: 'none', border: 'none', cursor: 'pointer', 
 
 // STATUSES y AGENTES viven en embarque-form (formulario compartido con Operaciones)
 
-// Tono del estado como texto plano: color solo cuando es semántico
-// (rojo problema, verde ok, ámbar atención); el resto en gris.
-function statusTone(raw) {
-  const s = (raw || '').toLowerCase()
-  if (/cancel/.test(s))                    return '#dc2626'
-  if (/paid|pagad|deliver|entreg/.test(s)) return '#059669'
-  if (/pending|pendiente/.test(s))         return '#d97706'
-  return '#9ca3af'
-}
+// Dos ejes por fila, cada uno con su fuente de verdad (app/gestion/estados.js):
+//   · dónde está  → fisicoDesdeEmbarque(sh): fechas + bloque de retiro, nunca el texto
+//   · qué le debés → pagoDesdeSaldo(a pagar, pagado): el libro de pagos
+// El status viejo en inglés sigue guardado, pero ya no se muestra ni se filtra.
 
-// Cerrada = cancelada, o entregada/pagada con el agente ya saldado.
-// Si arribó pero todavía le debés al forwarder, sigue activa (el pago manda).
-const esCerrada = (s) => /cancel/i.test(s.status || '') || (/deliver|paid|entreg|pagad/i.test(s.status || '') && numUSD(s.balance_usd) <= 0)
+// Archivado = salió de la lista activa (sigue en su operación y en los totales).
+const esArchivado = (s) => !!(s && s.archivado_at)
+// Cerrada = el eje físico no se mueve más (entregado o cancelado) y no se le debe
+// nada al agente. Va al final de su grupo hasta que se la archive.
+const esCerrada = (s) => esCerradaFisica(s) && numUSD(s.balance_usd) <= 0
+const YA_LLEGO = new Set(['arribado', 'retirado', 'entregado'])
+
+// Vistas guardadas: viven en la URL (?vista=…) para poder volver o compartirlas.
+//   llegan    → ETA dentro de los próximos 7 días y todavía no arribó
+//   debo      → ya arribó y le debés al agente (lo que hay que pagar esta semana)
+//   sin_pagar → todo lo que tiene saldo, haya llegado o no (deuda total)
+const VISTAS = [
+  { id: 'llegan', label: 'Llegan esta semana' },
+  { id: 'debo', label: 'Debo pagar' },
+  { id: 'sin_pagar', label: 'Pendientes de pago' },
+]
+const VISTA_IDS = new Set(VISTAS.map(v => v.id))
+// Filtro por estado físico: solo los que tiene sentido buscar en la lista activa.
+const FILTROS_FISICO = ESTADOS_FISICO.filter(e => ['transito', 'arribado', 'entregado'].includes(e.id))
+const FISICO_IDS = new Set(FILTROS_FISICO.map(e => e.id))
+// Lee el filtro desde la URL: vista manda sobre estado; lo desconocido es "todos".
+function filtroDesdeURL(sp) {
+  const vista = sp.get('vista') || ''
+  if (VISTA_IDS.has(vista)) return vista
+  const estado = sp.get('estado') || ''
+  if (FISICO_IDS.has(estado)) return estado
+  return 'todos'
+}
 
 const blNorm = (b) => (b || '').replace(/[\s-]/g, '').toUpperCase()
 const numUSD = (v) => { const n = parseFloat(String(v || '').replace(/\./g, '').replace(',', '.')); return isNaN(n) ? 0 : n }

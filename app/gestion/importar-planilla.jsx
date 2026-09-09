@@ -314,7 +314,10 @@ export function ImportarPlanilla({ onClose, onAplicado }) {
     setError('')
     setPaso(2)
     try {
-      const XLSX = await import('xlsx')
+      // SheetJS es CommonJS: según el bundler (webpack/Turbopack) el namespace
+      // llega directo o adentro de default. Se acepta cualquiera de los dos.
+      const mod = await import('xlsx')
+      const XLSX = mod && typeof mod.read === 'function' ? mod : (mod.default || mod)
       const data = new Uint8Array(await file.arrayBuffer())
       const r = parsearWorkbook(XLSX, data)
       if (!r.filas.length) throw new Error(`No encontré filas con B/L en la hoja ${r.hoja}.`)

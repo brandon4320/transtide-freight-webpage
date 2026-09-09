@@ -58,15 +58,26 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   if (existing.length === 0) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   const antes = existing[0]
 
-  const vals = FIELDS.map(f => f === 'facturado' ? (body[f] ? 1 : 0) : (body[f] ?? ''))
+  const campos = [...FIELDS]
+  const vals: any[] = FIELDS.map(f => f === 'facturado' ? (body[f] ? 1 : 0) : (body[f] ?? ''))
+
+  // operation_id (vínculo canónico con la operación; la crea /api/db/despachante)
+  // solo se toca si viene en el body Y la columna existe: un PUT viejo que no la
+  // conoce no la pisa con NULL, y si el ALTER de la lista falló no rompe el guardado.
+  // `'operation_id' in antes` sale del SELECT * de arriba: es el PRAGMA implícito.
+  if ('operation_id' in body && 'operation_id' in antes) {
+    campos.push('operation_id')
+    vals.push(String(body.operation_id ?? '').trim() || null)
+  }
+
   await d1Exec(
-    `UPDATE despachante_pagos SET ${FIELDS.map(f => `${f} = ?`).join(', ')}, updated_at = datetime('now') WHERE id = ?`,
+    `UPDATE despachante_pagos SET ${campos.map(f => `${f} = ?`).join(', ')}, updated_at = datetime('now') WHERE id = ?`,
     [...vals, id]
   )
 
   const usuario = usuarioDe(g.s)
   await Promise.all(
-    FIELDS
+    campos
       .map((f, i) => ({ campo: f, despues: vals[i] }))
       .filter(x => norm(antes[x.campo]) !== norm(x.despues))
       .map(x => auditar({ entidad: 'despachante_pagos', id, accion: 'editar', campo: x.campo, antes: antes[x.campo] ?? null, despues: x.despues ?? null, usuario }))

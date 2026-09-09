@@ -22,7 +22,7 @@ const porNombre = (a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es',
 function nombreNorm(s) {
   return String(s || '')
     .toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/\./g, '')
     .replace(/\b(s\s?a\s?s?|s\s?r\s?l|sociedad anonima|ltda|inc|llc|corp|cia)\b/g, ' ')
     .replace(/[^a-z0-9]+/g, ' ')
@@ -216,8 +216,8 @@ export default function ClientesPage() {
 
   // ── Listado ──
   const q = search.trim().toLowerCase();
-  const coincide = (c) => !q || (c.nombre || '').toLowerCase().includes(q) || digitos(c.cuit).includes(digitos(q) || ' ') || (c.cuit || '').toLowerCase().includes(q) || (c.email || '').toLowerCase().includes(q);
-  const porNombre = (a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es', { sensitivity: 'base' });
+  const qd = digitos(q); // dígitos tipeados: si no hay, la búsqueda por CUIT no aplica
+  const coincide = (c) => !q || (c.nombre || '').toLowerCase().includes(q) || (qd !== '' && digitos(c.cuit).includes(qd)) || (c.cuit || '').toLowerCase().includes(q) || (c.email || '').toLowerCase().includes(q);
 
   const activos   = useMemo(() => clientes.filter(esActivo).sort(porNombre), [clientes]);
   const inactivos = useMemo(() => clientes.filter(c => !esActivo(c)).sort(porNombre), [clientes]);

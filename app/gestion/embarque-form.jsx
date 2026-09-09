@@ -7,9 +7,28 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { gToast } from './toast'
+import { labelStatusES } from './estados'
 
 export const AGENTES = ['Bruce', 'Shaina', 'Yachao'] // Bruce y Shaina marítimo · Yachao aéreo
 export const STATUSES = ['In Transit', 'Delivered - Payment Pending', 'Delivered - Paid', 'Cancelled', 'Booked', 'Customs']
+
+// ─── Estado: se muestra en español, se guarda el valor viejo ─────────────────
+// No se migran datos: el select ofrece los rótulos de labelStatusES pero escribe
+// el texto en inglés que el resto del sistema ya sabe leer. Las dos variantes
+// "Delivered" comparten el rótulo "Entregado"; cuál se guarda lo decide el saldo
+// con el agente (si le debés, queda "Payment Pending"), porque el estado de pago
+// ya no se elige a ojo: sale del libro de pagos.
+const ENTREGADO_PEND = 'Delivered - Payment Pending'
+const ENTREGADO_PAGO = 'Delivered - Paid'
+const esEntregadoViejo = (s) => s === ENTREGADO_PEND || s === ENTREGADO_PAGO
+const OPCIONES_ESTADO = (() => {
+  const vistos = new Set(); const out = []
+  STATUSES.forEach(s => { const l = labelStatusES(s); if (vistos.has(l)) return; vistos.add(l); out.push({ value: s, label: l }) })
+  return out
+})()
+
+// Nombre normalizado para fusionar "bruce" / "Bruce " / "BRUCE" en un solo agente.
+export const normNombre = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ')
 
 const CARD = { background: '#fff', borderRadius: 10, border: '1px solid #e8ecf1', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }
 const INP = { width: '100%', padding: '0.5rem 0.65rem', border: '1px solid #e2e8f0', borderRadius: 7, fontSize: '16px', color: '#0f172a', background: '#fff', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }
@@ -44,13 +63,102 @@ const CANALES = [
   { v: 'rojo',    lbl: 'Rojo',    c: '#dc2626', bd: '#fecaca', bg: '#fef2f2' },
 ]
 
+// Color solo semántico: rojo cancelado, verde entregado; lo demás en gris.
 function statusChipStyle(raw) {
   const s = (raw || '').toLowerCase()
-  if (/cancel/.test(s))  return { c: '#dc2626', border: '#fecaca', dot: '#dc2626' }
-  if (/paid/.test(s))    return { c: '#065f46', border: '#a7f3d0', dot: '#059669' }
-  if (/pending/.test(s)) return { c: '#d97706', border: '#fde68a', dot: '#d97706' }
-  if (/transit/.test(s)) return { c: '#1d4ed8', border: '#bfdbfe', dot: '#2563eb' }
+  if (/cancel/.test(s))          return { c: '#dc2626', border: '#fecaca', dot: '#dc2626' }
+  if (/deliver|entreg/.test(s))  return { c: '#065f46', border: '#a7f3d0', dot: '#059669' }
   return { c: '#64748b', border: '#e2e8f0', dot: '#94a3b8' }
+}
+
+// ─── Agente de carga: selector sobre Contactos (tipo agente) ─────────────────
+// El texto libre partía la cuenta corriente en dos ("bruce" y "Bruce " eran dos
+// agentes con dos subtotales). Ahora se elige un contacto y se guardan los dos
+// campos: `agente` (nombre, para todo lo viejo que lo lee) y `agente_id` (la
+// identidad). Un embarque cuyo texto no matchea ningún contacto sigue mostrando
+// su texto como opción "sin contacto" para no perderlo; los nombres base
+// (Bruce, Shaina, Yachao) aparecen aunque todavía no existan en Contactos.
+// "+ Agregar agente…" crea el contacto en línea (POST /api/db/contactos) y lo deja
+// seleccionado; si ya existe uno con ese nombre, lo selecciona en vez de duplicar.
+const OPCION_NUEVO = '__nuevo__'
+
+function SelectorAgente({ agente, agenteId, contactos, onChange, onCreado, style }) {
+  const [creando, setCreando] = useState(false)
+  const [nuevo, setNuevo] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const agentes = contactos.filter(c => c.tipo === 'agente')
+  const porId = agentes.find(c => String(c.id) === String(agenteId || ''))
+  const porNombre = !porId ? agentes.find(c => normNombre(c.nombre) === normNombre(agente)) : null
+  const actual = porId || porNombre
+  const texto = String(agente || '').trim()
+  const value = actual ? `id:${actual.id}` : (texto ? `txt:${texto}` : '')
+  // Nombres base que todavía no están en Contactos (se guardan solo como texto).
+  const base = AGENTES.filter(n => !agentes.some(c => normNombre(c.nombre) === normNombre(n)))
+  const textoSuelto = !actual && texto && !base.some(n => normNombre(n) === normNombre(texto))
+
+  const elegir = (v) => {
+    if (v === OPCION_NUEVO) { setCreando(true); setNuevo(''); return }
+    if (v.startsWith('id:')) { const c = agentes.find(x => `id:${x.id}` === v); if (c) onChange(c.nombre, String(c.id)); return }
+    if (v.startsWith('txt:')) { onChange(v.slice(4), ''); return }
+    onChange('', '')
+  }
+
+  const crear = async () => {
+    const nombre = nuevo.trim()
+    if (!nombre || busy) return
+    const ya = agentes.find(c => normNombre(c.nombre) === normNombre(nombre))
+    if (ya) { onChange(ya.nombre, String(ya.id)); setCreando(false); return }
+    setBusy(true)
+    try {
+      const r = await fetch('/api/db/contactos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tipo: 'agente', nombre }) })
+      if (!r.ok) {
+        let msg = 'No se pudo crear el agente.'
+        try { const j = await r.json(); msg = j.error || msg } catch {}
+        throw new Error(msg)
+      }
+      const j = await r.json()
+      const c = { id: j.id, tipo: 'agente', nombre }
+      onCreado?.(c)
+      onChange(nombre, String(j.id))
+      setCreando(false)
+      gToast.success(`${nombre} quedó en Contactos como agente.`)
+    } catch (e) {
+      gToast.error(e.message || 'Error de conexión.')
+    } finally { setBusy(false) }
+  }
+
+  if (creando) {
+    return (
+      <div>
+        <input
+          autoFocus
+          value={nuevo}
+          onChange={e => setNuevo(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); crear() } if (e.key === 'Escape') { e.preventDefault(); setCreando(false) } }}
+          disabled={busy}
+          placeholder="Nombre del agente"
+          style={style}
+        />
+        <div style={{ display: 'flex', gap: 12, marginTop: 5, alignItems: 'center' }}>
+          <button type="button" onClick={crear} disabled={busy || !nuevo.trim()} style={{ ...linkBtn, fontSize: '0.68rem', color: busy || !nuevo.trim() ? '#9ca3af' : '#111827' }}>
+            {busy ? 'Creando…' : 'Crear agente'}
+          </button>
+          <button type="button" onClick={() => setCreando(false)} disabled={busy} style={{ ...linkBtn, fontSize: '0.68rem' }}>Cancelar</button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <select value={value} onChange={e => elegir(e.target.value)} style={{ ...style, cursor: 'pointer' }}>
+      {!value && <option value="">Elegí un agente…</option>}
+      {agentes.map(c => <option key={c.id} value={`id:${c.id}`}>{c.nombre}</option>)}
+      {base.map(n => <option key={`b:${n}`} value={`txt:${n}`}>{n}</option>)}
+      {textoSuelto && <option value={`txt:${texto}`}>{texto} (sin contacto)</option>}
+      <option value={OPCION_NUEVO}>+ Agregar agente…</option>
+    </select>
+  )
 }
 
 function CalcChip({ auto, onToggle }) {
@@ -76,7 +184,7 @@ export const RETIRO_EMPTY = {
   devol_vacio_fecha: '', devol_vacio_hora: '', devol_vacio_ok: '',
 }
 
-export const EMBARQUE_EMPTY = { num: '', agente: 'Bruce', origen: '', destino: '', contenedores: '', modo: '', bl: '', carrier: '', etd: '', eta: '', status: 'In Transit', sea_freight_usd: '', other_fees_rmb: '', tc_rmb: '', other_fees_usd: '', discount_usd: '', total_usd: '', suppliers: '', amount_due_usd: '', amount_rec_usd: '', balance_usd: '', payment_date: '', notes: '', operation_id: '', ...RETIRO_EMPTY }
+export const EMBARQUE_EMPTY = { num: '', agente: 'Bruce', agente_id: '', origen: '', destino: '', contenedores: '', modo: '', bl: '', carrier: '', etd: '', eta: '', status: 'In Transit', sea_freight_usd: '', other_fees_rmb: '', tc_rmb: '', other_fees_usd: '', discount_usd: '', total_usd: '', suppliers: '', amount_due_usd: '', amount_rec_usd: '', balance_usd: '', payment_date: '', notes: '', operation_id: '', ...RETIRO_EMPTY }
 
 // initial: null = nuevo · shipObj = editar. defaults: precarga para nuevos
 // (ej. desde la operación: bl, contenedores, eta, operation_id).
@@ -95,8 +203,19 @@ export function EmbarqueModal({ initial = null, defaults = {}, onClose, onSaved 
     return () => { cancelled = true }
   }, [])
   const navieras = contactos.filter(c => c.tipo === 'naviera')
-  const agentesContactos = contactos.filter(c => c.tipo === 'agente').map(c => c.nombre)
-  const agentesSugeridos = [...new Set([...AGENTES, ...agentesContactos])]
+  // Texto libre viejo → contacto: si el nombre matchea uno de tipo agente, se
+  // completa agente_id (se persiste al guardar); si ya hay id, el nombre se
+  // alinea con el del contacto. Así los duplicados se fusionan sin migración.
+  useEffect(() => {
+    if (!contactos.length) return
+    setForm(p => {
+      const agentes = contactos.filter(c => c.tipo === 'agente')
+      const porId = p.agente_id ? agentes.find(c => String(c.id) === String(p.agente_id)) : null
+      if (porId) return normNombre(porId.nombre) === normNombre(p.agente) ? p : { ...p, agente: porId.nombre }
+      const porNombre = agentes.find(c => normNombre(c.nombre) === normNombre(p.agente))
+      return porNombre ? { ...p, agente: porNombre.nombre, agente_id: String(porNombre.id) } : p
+    })
+  }, [contactos])
   const navieraMatch = navieras.find(c => (c.nombre || '').toLowerCase() === (form.carrier || '').trim().toLowerCase())
   const [totalAuto, setTotalAuto] = useState(() => {
     if (isNew) return true
@@ -152,6 +271,17 @@ export function EmbarqueModal({ initial = null, defaults = {}, onClose, onSaved 
     const v = fmtCalc(numUSD(form.amount_due_usd) - numUSD(form.amount_rec_usd))
     setForm(p => p.balance_usd === v ? p : ({ ...p, balance_usd: v }))
   }, [form.amount_due_usd, form.amount_rec_usd, balAuto])
+
+  // Elegir "Entregado" guarda la variante vieja que corresponde al saldo; y si el
+  // saldo cambia después, la variante lo sigue (el pago manda, no el texto).
+  const elegirEstado = (v) => upd('status', esEntregadoViejo(v) ? (numUSD(form.balance_usd) > 0 ? ENTREGADO_PEND : ENTREGADO_PAGO) : v)
+  useEffect(() => {
+    setForm(p => {
+      if (!esEntregadoViejo(p.status)) return p
+      const v = numUSD(p.balance_usd) > 0 ? ENTREGADO_PEND : ENTREGADO_PAGO
+      return p.status === v ? p : ({ ...p, status: v })
+    })
+  }, [form.balance_usd])
 
   useEffect(() => {
     if (!freeAuto) return
@@ -226,15 +356,17 @@ export function EmbarqueModal({ initial = null, defaults = {}, onClose, onSaved 
       // Editar va por PUT a la colección con el id en el body: es el único camino
       // que persiste también el bloque de retiro (/api/tracking/[id] solo escribe
       // los campos base y lo usan los registros de pago).
+      // agente_id vacío viaja como null: la columna es una referencia, no un texto.
+      const body = { ...form, agente: String(form.agente || '').trim(), agente_id: form.agente_id ? String(form.agente_id) : null }
       const r = isNew
-        ? await fetch('/api/tracking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
-        : await fetch('/api/tracking', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, id: initial.id }) })
+        ? await fetch('/api/tracking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        : await fetch('/api/tracking', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, id: initial.id }) })
       if (!r.ok) {
         let msg = 'Error al guardar'
         try { const j = await r.json(); msg = j.error || msg } catch {}
         throw new Error(msg)
       }
-      let saved = { ...(initial || {}), ...form }
+      let saved = { ...(initial || {}), ...body }
       if (isNew) { try { saved = await r.json() } catch {} }
       gToast.success(isNew ? 'Embarque creado.' : 'Embarque guardado.')
       onSaved?.(saved)
@@ -253,7 +385,7 @@ export function EmbarqueModal({ initial = null, defaults = {}, onClose, onSaved 
             <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>{isNew ? 'Cargar embarque' : `Embarque #${form.num || ''}`}</h3>
             {!isNew && form.status && (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: '#fff', color: st.c, border: `1px solid ${st.border}`, fontSize: '0.64rem', fontWeight: 600, padding: '0.18rem 0.5rem', borderRadius: 6 }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: st.dot }} />{form.status}
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: st.dot }} />{labelStatusES(form.status)}
               </span>
             )}
           </div>
@@ -264,10 +396,14 @@ export function EmbarqueModal({ initial = null, defaults = {}, onClose, onSaved 
         <div className="track-cost-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: '1.25rem' }}>
           <div><label style={LBL}>N°</label><input value={form.num} onChange={e => upd('num', e.target.value)} style={INP} /></div>
           <div><label style={LBL}>Agente de carga</label>
-            <input list="agentes-datalist" value={form.agente} onChange={e => upd('agente', e.target.value)} style={INP} placeholder="Bruce, Global Trade…" />
-            <datalist id="agentes-datalist">
-              {agentesSugeridos.map(a => <option key={a} value={a} />)}
-            </datalist>
+            <SelectorAgente
+              agente={form.agente}
+              agenteId={form.agente_id}
+              contactos={contactos}
+              onChange={(nombre, id) => setForm(p => ({ ...p, agente: nombre, agente_id: id }))}
+              onCreado={(c) => setContactos(prev => [...prev, c])}
+              style={INP}
+            />
           </div>
           <div><label style={LBL}>Origen</label><input value={form.origen} onChange={e => upd('origen', e.target.value)} style={INP} /></div>
           <div><label style={LBL}>Destino</label><input value={form.destino} onChange={e => upd('destino', e.target.value)} style={INP} /></div>
@@ -281,8 +417,8 @@ export function EmbarqueModal({ initial = null, defaults = {}, onClose, onSaved 
             </datalist>
             {navieraMatch ? (
               <p style={{ fontSize: '0.62rem', color: '#475569', marginTop: 3, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }} title={navieraMatch.observaciones || ''}>
-                {navieraMatch.telefono && <a href={'tel:' + navieraMatch.telefono} style={{ color: '#0284c7', fontWeight: 600 }}>📞 {navieraMatch.telefono}</a>}
-                {navieraMatch.email && <a href={'mailto:' + navieraMatch.email} style={{ color: '#0284c7', fontWeight: 600 }}>✉️ {navieraMatch.email}</a>}
+                {navieraMatch.telefono && <a href={'tel:' + navieraMatch.telefono} style={{ color: '#0284c7', fontWeight: 600 }}>Tel. {navieraMatch.telefono}</a>}
+                {navieraMatch.email && <a href={'mailto:' + navieraMatch.email} style={{ color: '#0284c7', fontWeight: 600 }}>{navieraMatch.email}</a>}
                 {navieraMatch.contacto && <span style={{ color: '#64748b' }}>{navieraMatch.contacto}</span>}
                 {!navieraMatch.telefono && !navieraMatch.email && !navieraMatch.contacto && <a href="/gestion/contactos" style={{ color: '#94a3b8' }}>sin datos — completar en Contactos →</a>}
               </p>
@@ -295,9 +431,14 @@ export function EmbarqueModal({ initial = null, defaults = {}, onClose, onSaved 
           <div><label style={LBL}>Zarpe (ETD)</label><input type="date" value={form.etd} onChange={e => upd('etd', e.target.value)} style={INP} /></div>
           <div><label style={LBL}>ETA</label><input type="date" value={form.eta} onChange={e => upd('eta', e.target.value)} style={INP} /></div>
           <div style={{ gridColumn: 'span 2' }}><label style={LBL}>Estado</label>
-            <select value={form.status} onChange={e => upd('status', e.target.value)} style={{ ...INP, cursor: 'pointer' }}>
-              {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-              {form.status && !STATUSES.includes(form.status) && <option value={form.status}>{form.status}</option>}
+            <select value={form.status} onChange={e => elegirEstado(e.target.value)} style={{ ...INP, cursor: 'pointer' }}>
+              {OPCIONES_ESTADO.map(o => {
+                // La opción "Entregado" toma el valor que ya tiene el embarque para
+                // que el select lo muestre seleccionado sea cual sea la variante.
+                const value = esEntregadoViejo(o.value) && esEntregadoViejo(form.status) ? form.status : o.value
+                return <option key={o.label} value={value}>{o.label}</option>
+              })}
+              {form.status && !STATUSES.includes(form.status) && <option value={form.status}>{labelStatusES(form.status)}</option>}
             </select>
           </div>
         </div>
@@ -470,7 +611,7 @@ export function EmbarqueModal({ initial = null, defaults = {}, onClose, onSaved 
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button onClick={onClose} style={{ padding: '0.55rem 1.1rem', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer' }}>Cancelar</button>
-          <button onClick={save} disabled={saving} style={{ padding: '0.55rem 1.3rem', borderRadius: 8, border: 'none', background: '#059669', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: saving ? 'wait' : 'pointer' }}>{saving ? 'Guardando…' : (isNew ? 'Crear embarque' : 'Guardar cambios')}</button>
+          <button onClick={save} disabled={saving} style={{ padding: '0.55rem 1.3rem', borderRadius: 8, border: 'none', background: '#111827', color: '#fff', fontWeight: 700, fontSize: '0.82rem', fontFamily: 'inherit', cursor: saving ? 'wait' : 'pointer' }}>{saving ? 'Guardando…' : (isNew ? 'Crear embarque' : 'Guardar cambios')}</button>
         </div>
       </div>
     </div>

@@ -7,9 +7,10 @@
 // buscador clickeando una fila.
 //
 // Cómo encuentra sus piezas (migración en curso):
-//   1) por operation_id (seed.op / seed.opId / operation_id del embarque o del
-//      despacho recibido en el seed),
-//   2) si no hay, por el B/L normalizado (texto sin espacios ni guiones).
+//   1) por operation_id (prop opId, seed.op / seed.opId, operation_id del
+//      embarque o del despacho recibido en el seed),
+//   2) si no hay, por el B/L normalizado (texto sin espacios ni guiones);
+//      y si un embarque de ese B/L ya cuelga de una operación, se toma esa.
 // Si un B/L tiene VARIOS embarques (dos contenedores), se listan todos y los
 // pagos van por embarque: nunca se toma el primero en silencio.
 //
@@ -158,7 +159,7 @@ function calcularExpediente(detail) {
   }
 }
 
-export default function FichaImportacion({ bl, seed = {}, draft: draftInicial = null, onClose, onChanged }) {
+export default function FichaImportacion({ bl, seed = {}, opId: opIdProp = null, draft: draftInicial = null, onClose, onChanged }) {
   // La ficha abre INSTANTÁNEA con lo que ya tiene la fila clickeada (seed);
   // cada sección restante carga por su cuenta y se completa cuando llega.
   const seedShips = seed.ships || (seed.ship ? [seed.ship] : [])
@@ -176,7 +177,10 @@ export default function FichaImportacion({ bl, seed = {}, draft: draftInicial = 
   const seq = useRef(0)
 
   const key = blNorm(bl)
-  const opIdSeed = seed.op?.id ?? seed.opId ?? seed.operationId ?? seed.ship?.operation_id ?? seed.desp?.operation_id ?? null
+  // Un operation_id vacío ('' viene del formulario de embarque) es lo mismo que
+  // no tenerlo: se normaliza a null para no pedir /api/tracking?operation_id=.
+  const idONull = (v) => (v == null || String(v).trim() === '' ? null : v)
+  const opIdSeed = idONull(seed.op?.id) ?? idONull(seed.opId) ?? idONull(opIdProp) ?? idONull(seed.operationId) ?? idONull(seed.ship?.operation_id) ?? idONull(seed.desp?.operation_id) ?? null
   // Match SOLO por B/L real: sin esto, un B/L vacío matchea cualquier registro
   // que también tenga el B/L vacío (colisión — abría el despacho equivocado).
   const sameBL = (r) => key !== '' && !!r && !!r.bl && blNorm(r.bl) === key
@@ -198,7 +202,7 @@ export default function FichaImportacion({ bl, seed = {}, draft: draftInicial = 
   const load = async () => {
     const mio = ++seq.current
     const vivo = () => seq.current === mio
-    const opIdInicial = opIdSeed ?? (op && op.id) ?? null
+    const opIdInicial = opIdSeed ?? idONull(op && op.id) ?? null
 
     const [ops, jBL, despAll] = await Promise.all([
       fetchJSON('/api/db/operations'),
@@ -208,8 +212,17 @@ export default function FichaImportacion({ bl, seed = {}, draft: draftInicial = 
     if (!vivo()) return null
 
     const opsArr = Array.isArray(ops) ? ops : []
-    const opF = (opIdInicial != null && opsArr.find(o => String(o.id) === String(opIdInicial))) || opsArr.find(sameBL) || seed.op || null
-    const opId = (opF && opF.id) ?? opIdInicial ?? null
+    const shipsBL = ((jBL && jBL.shipments) || []).filter(sameBL)
+    // Operación: por id → por B/L de la operación → por el operation_id de un
+    // embarque con este B/L (la operación puede tener otro B/L "de referencia")
+    // → lo que trajo el seed.
+    let opF = (opIdInicial != null && opsArr.find(o => String(o.id) === String(opIdInicial))) || opsArr.find(sameBL) || null
+    if (!opF) {
+      const viaShip = shipsBL.find(x => idONull(x.operation_id) != null)
+      if (viaShip) opF = opsArr.find(o => String(o.id) === String(viaShip.operation_id)) || null
+    }
+    if (!opF) opF = seed.op || null
+    const opId = idONull(opF && opF.id) ?? opIdInicial ?? null
     const esDeOp = deOp(opId)
 
     // Embarques: primero los de la operación, después los del B/L. El endpoint
@@ -221,7 +234,6 @@ export default function FichaImportacion({ bl, seed = {}, draft: draftInicial = 
       if (!vivo()) return null
       shipsOp = ((jOp && jOp.shipments) || []).filter(esDeOp)
     }
-    const shipsBL = ((jBL && jBL.shipments) || []).filter(sameBL)
     let shipsF = dedupe([...shipsOp, ...shipsBL])
     if (!shipsF.length && jBL === null && jOp === null) shipsF = seedShips // red caída: se queda con el seed
 
@@ -371,7 +383,7 @@ export default function FichaImportacion({ bl, seed = {}, draft: draftInicial = 
     if (busy) return
     const c = ctx || { ships, desps, op }
     const opAct = c.op || null
-    const opId = (opAct && opAct.id) ?? opIdSeed ?? (c.ships.find(s => s.operation_id)?.operation_id) ?? null
+    const opId = idONull(opAct && opAct.id) ?? opIdSeed ?? idONull(c.ships.find(s => idONull(s.operation_id) != null)?.operation_id) ?? null
     setBusy(true)
     try {
       const existente = (await buscarExistente(opId)) || (c.desps && c.desps[0]) || null
@@ -406,7 +418,7 @@ export default function FichaImportacion({ bl, seed = {}, draft: draftInicial = 
     if (!desc) { gToast.error('Cargá la descripción.'); return }
     if (ships.length > 1 && !draft.shipId) { gToast.error('Elegí a qué embarque corresponde el despacho.'); return }
     const shipSel = shipDelDraft()
-    const opId = (op && op.id) ?? opIdSeed ?? (shipSel && shipSel.operation_id) ?? null
+    const opId = idONull(op && op.id) ?? opIdSeed ?? idONull(shipSel && shipSel.operation_id) ?? null
     setBusy(true)
     try {
       // Reintento con red caída: si el POST anterior sí llegó, acá se detecta y
@@ -421,13 +433,21 @@ export default function FichaImportacion({ bl, seed = {}, draft: draftInicial = 
         estado: draft.estado || 'En curso',
       }
       if (draft.despachante) body.despachante = draft.despachante
-      const r = await fetch('/api/db/despachante', {
+      // Sin operación (todavía no existe o es flete de terceros sin expediente)
+      // el server exige ?sinOperacion=1: el despacho queda vinculado por B/L.
+      const r = await fetch('/api/db/despachante' + (opId == null ? '?sinOperacion=1' : ''), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
       if (!r.ok) {
         let m = 'No se pudo crear el despacho'
         try { const j = await r.json(); if (j && j.error) m = j.error } catch {}
+        // 409 = alguien lo creó entre el chequeo y el POST: se ofrece abrir ese,
+        // no se muestra un error seco.
+        if (r.status === 409) {
+          const ex = await buscarExistente(opId)
+          if (ex) { setDraft({ modo: 'existente', existente: ex }); return }
+        }
         throw new Error(m)
       }
       const creado = await r.json().catch(() => null)

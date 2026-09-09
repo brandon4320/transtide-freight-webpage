@@ -6,6 +6,8 @@ import { importFlowState, FlowTimeline, MiniFlow } from '../flujo-importacion';
 import { EmbarqueModal } from '../embarque-form';
 import FichaImportacion from '../ficha-importacion';
 import { useSeleccionMultiple, BarraSeleccion, Casilla } from '../seleccion-multiple';
+import { MenuFila, ConfirmacionTipada } from '../acciones-fila';
+import { labelStatusES } from '../estados';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 const n    = (v) => parseFloat(v) || 0;
@@ -182,6 +184,27 @@ const FILTROS = [
   ['cobrar',   'Por cobrar',  ['Entregado']],
   ['cerradas', 'Cerradas',    ESTADOS_CERRADOS],
 ];
+// Vistas guardadas: presets que viven en la URL (?vista=llegan|sin_cobrar|debo)
+// al lado de los filtros por estado. Comparten el mismo `filter` para que sean
+// excluyentes entre sí; el predicado de cada una se resuelve en la lista porque
+// necesita el embarque y el despacho vinculados.
+const VISTAS = [
+  { id: 'llegan',     label: 'Llegan esta semana' },
+  { id: 'sin_cobrar', label: 'Sin cobrar' },
+  { id: 'debo',       label: 'Debo pagar' },
+];
+const esVista = (id) => VISTAS.some(v => v.id === id);
+const filtroValido = (id) => !!id && (FILTROS.some(f => f[0] === id) || esVista(id));
+// Clave para leer/guardar la última vista elegida (solo conveniencia por navegador).
+const VISTA_LS = 'tt.operaciones.vista';
+// Palabra que se pide tipear para borrar una operación con plata o vínculos: la
+// primera palabra "de verdad" del nombre (sin signos), o el id si no hay nombre.
+const palabraDe = (op) => {
+  const s = String(op?.nombre || '').trim();
+  const limpiar = (w) => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+  const tok = s.split(/\s+/).map(limpiar).find(w => w.length >= 3);
+  return tok || limpiar(s) || String(op?.id || '');
+};
 const PRIMARY = '#111827';
 // Cómo viaja la carga. RORO (rodante) y Break Bulk (suelta / sobredimensionada) no
 // van en contenedor: sin m³ fijo, la ocupación se muestra como medida real (igual que LCL).
@@ -414,7 +437,14 @@ function OperationsList({ onSelect, deepLinkId, query, setQuery, filter, setFilt
   const [loading,   setLoading]   = useState(true);
   const [modal,     setModal]     = useState(null); // null | 'new' | opObj
   const [form,      setForm]      = useState(emptyOp());
-  const [confirm,   setConfirm]   = useState(null); // id to delete
+  // Borrado: { op, nivel: 'cargando' | 'simple' | 'tipada', motivos: [] }. El nivel
+  // se decide mirando qué tiene cargado la operación (gastos, proveedores, cobros,
+  // saldos): con plata o vínculos se exige tipear una palabra.
+  const [confirm,   setConfirm]   = useState(null);
+  const [borrando,  setBorrando]  = useState(false);
+  // Candado de entrega: { op, estado, cargando?, saldo, clientes: [], error? }.
+  const [candado,   setCandado]   = useState(null);
+  const [aplicando, setAplicando] = useState(false);
   const [statusPop, setStatusPop] = useState(null); // op.id with open status picker
   const [showCerradas, setShowCerradas] = useState(false); // sección de cerradas: colapsada por defecto
   const [deepLinkDone, setDeepLinkDone] = useState(false);
@@ -437,6 +467,16 @@ function OperationsList({ onSelect, deepLinkId, query, setQuery, filter, setFilt
   }, []);
   const flowShipByBL = useMemo(() => { const m = {}; flowShips.forEach(x => { if (x.bl) m[blNorm(x.bl)] = x; }); return m; }, [flowShips]);
   const flowDespByBL = useMemo(() => { const m = {}; flowDesps.forEach(x => { if (x.bl) m[blNorm(x.bl)] = x; }); return m; }, [flowDesps]);
+  // Vínculo canónico por operation_id; el match por B/L queda como fallback
+  // mientras dure la migración (filas viejas sin operation_id).
+  const flowShipByOp = useMemo(() => { const m = {}; flowShips.forEach(x => { if (x.operation_id) m[String(x.operation_id)] = x; }); return m; }, [flowShips]);
+  const flowDespByOp = useMemo(() => { const m = {}; flowDesps.forEach(x => { if (x.operation_id) m[String(x.operation_id)] = x; }); return m; }, [flowDesps]);
+  const shipDe = useCallback((op) => op ? (flowShipByOp[String(op.id)] || flowShipByBL[blNorm(op.bl)] || null) : null, [flowShipByOp, flowShipByBL]);
+  const despDe = useCallback((op) => op ? (flowDespByOp[String(op.id)] || flowDespByBL[blNorm(op.bl)] || null) : null, [flowDespByOp, flowDespByBL]);
+  // Saldos que le debés a terceros por esta operación (para "Debo pagar" y para
+  // decidir si borrar exige confirmación tipada).
+  const saldoAgente = useCallback((op) => { const sh = shipDe(op); return sh ? trackBalNum(sh.balance_usd) : 0; }, [shipDe]);
+  const saldoDesp   = useCallback((op) => { const d = despDe(op); return d ? numDesp(d.saldo) : 0; }, [despDe]);
 
   // Load from API
   const loadOps = useRef(null);
@@ -477,8 +517,67 @@ function OperationsList({ onSelect, deepLinkId, query, setQuery, filter, setFilt
   };
 
   const openNew  = () => { setForm(emptyOp()); setModal('new'); };
-  const openEdit = (op, e) => { e.stopPropagation(); setForm({ ...emptyOp(), ...op }); setModal(op); };
-  const askDel   = (id, e) => { e.stopPropagation(); setConfirm(id); };
+  const openEdit = (op, e) => { if (e && e.stopPropagation) e.stopPropagation(); setForm({ ...emptyOp(), ...op }); setModal(op); };
+
+  // Qué tiene cargado la operación antes de borrarla. La lista no trae gastos ni
+  // cobros: se pide el detalle (solo lectura) y se suma lo que ya se sabe de la
+  // fila (saldo al agente, al despachante, acta de cierre). Si no se puede
+  // verificar se asume que hay vínculos: la fricción es el lado seguro.
+  const vinculosDe = async (op) => {
+    const motivos = [];
+    const sa = saldoAgente(op);
+    if (sa > 0) motivos.push(`saldo al agente ${fmtU(sa)}`);
+    const sd = saldoDesp(op);
+    if (sd !== 0) motivos.push(`saldo con el despachante ${fmtU(Math.abs(sd))}`);
+    const c = cierreDe(op);
+    if (c && !c.completo && c.totalUsd > 0) motivos.push(`cierre con ${fmtU(c.totalUsd)} sin resolver`);
+    try {
+      const r = await fetch(`/api/db/operations/${op.id}/detail`);
+      if (!r.ok) throw new Error('failed');
+      const det = await r.json();
+      const provs  = Array.isArray(det.proveedores) ? det.proveedores.length : 0;
+      const cobros = Array.isArray(det.cobrar) ? det.cobrar.filter(cb => cb && cb.cobrado).length : 0;
+      const gastos = Object.keys(det)
+        .filter(k => Array.isArray(det[k]) && !['proveedores', 'cobrar', 'customGastos'].includes(k))
+        .reduce((s, k) => s + det[k].filter(row => row && (n(row.usd) > 0 || n(row.pesos) > 0 || String(row.desc || '').trim())).length, 0);
+      const pl = (k, sing, plur) => `${k} ${k === 1 ? sing : plur}`;
+      if (gastos) motivos.unshift(pl(gastos, 'gasto', 'gastos'));
+      if (provs)  motivos.unshift(pl(provs, 'proveedor', 'proveedores'));
+      if (cobros) motivos.unshift(pl(cobros, 'cobro registrado', 'cobros registrados'));
+      return { nivel: motivos.length ? 'tipada' : 'simple', motivos };
+    } catch {
+      return { nivel: 'tipada', motivos: motivos.length ? motivos : ['datos que no se pudieron verificar'] };
+    }
+  };
+  const askDel = async (op) => {
+    if (!op) return;
+    setConfirm({ op, nivel: 'cargando', motivos: [] });
+    const v = await vinculosDe(op);
+    // Si mientras tanto se cerró o se cambió de operación, no se pisa nada.
+    setConfirm(c => (c && c.op && c.op.id === op.id && c.nivel === 'cargando') ? { ...c, ...v } : c);
+  };
+
+  // Candado de cobro: clientes con "exigir pago antes de entregar" y saldo sin
+  // cobrar. Se calcula con el detalle (solo lectura) porque la lista no lo trae.
+  // Devuelve null si no hay nada que frene la entrega.
+  const candadoDe = async (op) => {
+    try {
+      const [r, rc] = await Promise.all([
+        fetch(`/api/db/operations/${op.id}/detail`),
+        fetch('/api/db/clientes').catch(() => null), // solo para el nombre del cliente
+      ]);
+      if (!r.ok) throw new Error('failed');
+      const det = await r.json();
+      const clientes = rc && rc.ok ? await rc.json().catch(() => []) : [];
+      const calc = computeCalc(det || {}, Array.isArray(clientes) ? clientes : []);
+      const bloq = calc.perProv.filter(p => p.cb && p.cb.exigirPago && !p.cb.cobrado);
+      if (!bloq.length) return null;
+      const nombres = [...new Set(bloq.map(p => toTitle(p.clienteNombre || p.nombre) || 'Cliente sin asignar'))];
+      return { saldo: bloq.reduce((s, p) => s + (p.totalUSD || 0), 0), clientes: nombres };
+    } catch {
+      return { saldo: null, clientes: [], error: true };
+    }
+  };
 
   // El acta de cierre de una operación (lo que quedó abierto al liquidarla).
   const cierreDe      = (o) => (o && (o.cierre || cierres[o.id])) || null;
@@ -487,12 +586,10 @@ function OperationsList({ onSelect, deepLinkId, query, setQuery, filter, setFilt
   // con saldo, sigue arriba con las activas en vez de irse a la sección colapsada.
   const esCerrada = (o) => ESTADOS_CERRADOS.includes(o.estado) && !conPendientes(o);
 
-  const setEstado = async (id, estado) => {
-    const op = ops.find(o => o.id === id);
-    if (!op) return;
-    // Liquidar no puede ser elegir una opción de un desplegable: primero se revisa
-    // qué queda abierto y por cuánta plata. Se puede cerrar igual, pero registrado.
-    if (estado === 'Liquidado') { setStatusPop(null); setCierreFor(op); return; }
+  // Escribe el estado (optimista, con reversión si falla). No pregunta nada:
+  // los controles previos viven en pedirEstado.
+  const aplicarEstado = async (op, estado) => {
+    const id = op.id;
     const prev = op.estado;
     const next = { ...op, estado };
     // Vuelve a un estado abierto: el acta de cierre anterior deja de aplicar
@@ -501,7 +598,7 @@ function OperationsList({ onSelect, deepLinkId, query, setQuery, filter, setFilt
       delete next.cierre;
       setCierres(c => { if (!c[id]) return c; const x = { ...c }; delete x[id]; return x; });
     }
-    setOps(ops.map(o => o.id === id ? next : o)); // optimista
+    setOps(curr => curr.map(o => o.id === id ? next : o)); // optimista
     setStatusPop(null);
     try {
       const r = await fetch(`/api/db/operations/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(next) });
@@ -513,6 +610,24 @@ function OperationsList({ onSelect, deepLinkId, query, setQuery, filter, setFilt
       gToast.error('No se pudo cambiar el estado. Intentá de nuevo.');
     }
   };
+  // Cambios de estado que exigen un paso más antes de escribirse:
+  //  · Liquidado → control de condiciones de cierre (qué queda abierto y por cuánto)
+  //  · Entregado → candado de cobro: si algún cliente tiene "exigir pago antes de
+  //    entregar" con saldo, se pide tipear ENTREGAR con el saldo a la vista.
+  const pedirEstado = async (op, estado) => {
+    if (!op) return;
+    if (estado === 'Liquidado') { setStatusPop(null); setCierreFor(op); return; }
+    if (estado === 'Entregado' && op.estado !== 'Entregado') {
+      setStatusPop(null);
+      setCandado({ op, estado, cargando: true });
+      const lock = await candadoDe(op);
+      if (!lock) { setCandado(null); await aplicarEstado(op, estado); return; }
+      setCandado({ op, estado, ...lock });
+      return;
+    }
+    await aplicarEstado(op, estado);
+  };
+  const setEstado = (id, estado) => pedirEstado(ops.find(o => o.id === id), estado);
 
   const submit = async () => {
     if (!form.nombre.trim()) { gToast.error('El nombre de la operación es obligatorio.'); return; }
@@ -534,13 +649,16 @@ function OperationsList({ onSelect, deepLinkId, query, setQuery, filter, setFilt
         // Liquidar desde el selector de estado del modal tampoco puede ser
         // directo: se guarda el resto y se abre el control de condiciones.
         const quiereLiquidar = form.estado === 'Liquidado' && modal.estado !== 'Liquidado';
-        const updated = { ...form, id, ...(quiereLiquidar ? { estado: modal.estado } : {}) };
+        // Entregar desde el modal pasa por el mismo candado de cobro que el selector de la fila.
+        const quiereEntregar = form.estado === 'Entregado' && modal.estado !== 'Entregado';
+        const updated = { ...form, id, ...((quiereLiquidar || quiereEntregar) ? { estado: modal.estado } : {}) };
         const r = await fetch(`/api/db/operations/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) });
         if (!r.ok) { gToast.error('No se pudieron guardar los cambios.'); return; }
         const row = { ...(ops.find(o => o.id === id) || {}), ...updated };
-        setOps(ops.map(o => o.id === id ? row : o));
+        setOps(curr => curr.map(o => o.id === id ? row : o));
         gToast.success('Operación actualizada.');
         if (quiereLiquidar) { setModal(null); setCierreFor(row); return; }
+        if (quiereEntregar) { setModal(null); pedirEstado(row, 'Entregado'); return; }
       }
       setModal(null);
     } catch {

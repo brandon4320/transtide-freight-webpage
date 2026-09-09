@@ -48,6 +48,39 @@ async function errMsg(res, fallback) {
   try { const j = await res.json(); return j.error || fallback } catch { return fallback }
 }
 
+// Fila de la papelera. Vive a nivel de módulo para que la lista no se remonte
+// cada vez que cambia el estado de la página (p. ej. al restaurar).
+function Fila({ g, item, busy, onRestaurar }) {
+  const { rel, restan } = tiempos(item.deleted_at)
+  const clave = `${g.key}:${item.id}`
+  const ocupado = busy === clave
+  const titulo = item.titulo || `${g.uno} #${item.id}`
+  const meta = [item.resumen, item.deleted_by ? `borrado por ${item.deleted_by}` : null, rel].filter(Boolean).join(' · ')
+  // Lo que está por vencer se marca en ámbar; lo demás no lleva color.
+  const restanTxt = restan == null ? '' : restan <= 0 ? 'se elimina hoy' : restan === 1 ? 'queda 1 día' : `quedan ${restan} días`
+  const restanColor = restan != null && restan <= 5 ? AMBAR : GRIS
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '0.6rem 0', borderBottom: '1px solid #f1f5f9' }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: '0.82rem', fontWeight: 600, color: TINTA, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{titulo}</p>
+        {meta && (
+          <p title={fechaLarga(item.deleted_at)} style={{ fontSize: '0.7rem', color: GRIS, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meta}</p>
+        )}
+      </div>
+      {restanTxt && (
+        <span className="ppl-restan" style={{ fontSize: '0.68rem', color: restanColor, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{restanTxt}</span>
+      )}
+      <button
+        onClick={() => onRestaurar(g, item)}
+        disabled={!!busy}
+        style={{ ...TXTBTN, fontWeight: 600, color: ocupado ? GRIS : TINTA, cursor: busy ? 'default' : 'pointer', opacity: busy && !ocupado ? 0.5 : 1 }}
+      >
+        {ocupado ? 'Restaurando…' : 'Restaurar'}
+      </button>
+    </div>
+  )
+}
+
 // devData: inyección para preview de diseño (evita auth/D1), como el resto del portal.
 export default function PapeleraPage({ devData = null } = {}) {
   const [data, setData] = useState({ operaciones: [], embarques: [], despachos: [] })
@@ -91,37 +124,6 @@ export default function PapeleraPage({ devData = null } = {}) {
     } finally { setBusy(null) }
   }
 
-  const Fila = ({ g, item }) => {
-    const { rel, restan } = tiempos(item.deleted_at)
-    const clave = `${g.key}:${item.id}`
-    const ocupado = busy === clave
-    const titulo = item.titulo || `${g.uno} #${item.id}`
-    const meta = [item.resumen, item.deleted_by ? `borrado por ${item.deleted_by}` : null, rel].filter(Boolean).join(' · ')
-    // Lo que está por vencer se marca en ámbar; lo demás no lleva color.
-    const restanTxt = restan == null ? '' : restan <= 0 ? 'se elimina hoy' : restan === 1 ? 'queda 1 día' : `quedan ${restan} días`
-    const restanColor = restan != null && restan <= 5 ? AMBAR : GRIS
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '0.6rem 0', borderBottom: '1px solid #f1f5f9' }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: '0.82rem', fontWeight: 600, color: TINTA, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{titulo}</p>
-          {meta && (
-            <p title={fechaLarga(item.deleted_at)} style={{ fontSize: '0.7rem', color: GRIS, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meta}</p>
-          )}
-        </div>
-        {restanTxt && (
-          <span className="ppl-restan" style={{ fontSize: '0.68rem', color: restanColor, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{restanTxt}</span>
-        )}
-        <button
-          onClick={() => restaurar(g, item)}
-          disabled={!!busy}
-          style={{ ...TXTBTN, fontWeight: 600, color: ocupado ? GRIS : TINTA, cursor: busy ? 'default' : 'pointer', opacity: busy && !ocupado ? 0.5 : 1 }}
-        >
-          {ocupado ? 'Restaurando…' : 'Restaurar'}
-        </button>
-      </div>
-    )
-  }
-
   return (
     <div>
       {/* Header */}
@@ -161,7 +163,7 @@ export default function PapeleraPage({ devData = null } = {}) {
                   {g.label} · {items.length}
                 </p>
                 <div style={{ borderTop: '1px solid #f1f5f9' }}>
-                  {items.map(item => <Fila key={`${g.key}-${item.id}`} g={g} item={item} />)}
+                  {items.map(item => <Fila key={`${g.key}-${item.id}`} g={g} item={item} busy={busy} onRestaurar={restaurar} />)}
                 </div>
               </section>
             )
