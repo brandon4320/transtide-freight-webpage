@@ -1,18 +1,34 @@
 'use client';
-// Cotizador: pestañas marítimo / aéreo, paneles de guardadas y NCM e importación con IA.
+// Cotizador: encabezado (título, pestañas Marítimo y Aéreo, acciones de texto) y
+// los dos cotizadores, montados a la vez para no perder lo cargado al cambiar de
+// pestaña. Desde acá se abren los paneles: guardadas, NCM e importar con IA.
 // Cada parte vive en su módulo: maritimo.jsx, aereo.jsx, guardadas.jsx, ncm.jsx,
-// comun.jsx (primitivas, guardado, borrador), calculo-maritimo.js y calculo-aereo.js
+// import-dialog.jsx, comun.jsx (guardado, borrador y diálogos), ui.jsx y
+// resultado.jsx (sistema visual), calculo-maritimo.js y calculo-aereo.js
 // (números) e impresion.js (documento del cliente).
-import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import { useState, useEffect, useRef, useCallback, useId, Suspense } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
+import './cotizador.css';
 import ImportDialog from './import-dialog';
-import { TBTN, PBTN, ShipIcon, PlaneIcon } from './comun';
+import { Dialogo } from './comun';
 import { CotizadorMaritimo } from './maritimo';
 import { CotizadorAereo } from './aereo';
 import { SavedQuotesPanel } from './guardadas';
 import { NcmPanel } from './ncm';
 
-// ─── tab switcher + default export ────────────────────────────────────────────
+const PESTANAS = [
+  { id: 'maritimo', label: 'Marítimo' },
+  { id: 'aereo', label: 'Aéreo' },
+];
+
+// Estilos propios de la página. En el celular las acciones pasan arriba de las
+// pestañas: así el subrayado de la pestaña activa sigue apoyado en la línea.
+const CSS_PAGINA = `
+@media (max-width: 640px){
+  .gestion-root .cz-cab .ct-acciones{order:-1;width:100%;padding-bottom:6px}
+}
+`;
+
 function CotizadorInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -22,6 +38,8 @@ function CotizadorInner() {
   const [importOpen, setImportOpen] = useState(false);
   const [savedOpen, setSavedOpen] = useState(false);
   const [ncmOpen, setNcmOpen] = useState(false);
+  const base = useId();
+  const refsPestanas = useRef({});
 
   // ── cambios sin guardar (uno por modo; los dos cotizadores viven montados) ──
   const [sucios, setSucios] = useState({ maritimo: false, aereo: false });
@@ -49,19 +67,15 @@ function CotizadorInner() {
     window.addEventListener('gestion:navigate', handler);
     return () => window.removeEventListener('gestion:navigate', handler);
   }, []);
-  useEffect(() => {
-    if (salidaPendiente === null) return;
-    const onKey = (e) => { if (e.key === 'Escape') setSalidaPendiente(null); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [salidaPendiente]);
   const salirIgual = () => {
     const href = salidaPendiente;
     setSalidaPendiente(null);
     suciosRef.current = { maritimo: false, aereo: false };
     router.push(href);
   };
-  const cualSucio = sucios.maritimo && sucios.aereo ? 'marítimo y el aéreo tienen' : (sucios.aereo ? 'aéreo tiene' : 'marítimo tiene');
+  const textoSalida = sucios.maritimo && sucios.aereo
+    ? 'Los cotizadores marítimo y aéreo tienen cambios que no guardaste.'
+    : `El cotizador ${sucios.aereo ? 'aéreo' : 'marítimo'} tiene cambios que no guardaste.`;
 
   useEffect(() => {
     const params = new URLSearchParams(Array.from(searchParams.entries()));
@@ -93,98 +107,99 @@ function CotizadorInner() {
     }, 0);
   };
 
+  // Pestañas: flechas, Inicio y Fin cambian de pestaña (patrón de tablist).
+  const alTeclaPestanas = (e) => {
+    const i = PESTANAS.findIndex(p => p.id === mode);
+    let j = null;
+    if (e.key === 'ArrowRight') j = (i + 1) % PESTANAS.length;
+    else if (e.key === 'ArrowLeft') j = (i - 1 + PESTANAS.length) % PESTANAS.length;
+    else if (e.key === 'Home') j = 0;
+    else if (e.key === 'End') j = PESTANAS.length - 1;
+    if (j === null) return;
+    e.preventDefault();
+    setMode(PESTANAS[j].id);
+    refsPestanas.current[PESTANAS[j].id]?.focus();
+  };
+  const idPestana = (id) => `${base}-pestana-${id}`;
+  const idPanel = (id) => `${base}-panel-${id}`;
+
   return (
-    <div className="cotz" style={{ background: '#fff' }}>
-      <style>{`
-        .cotz input:focus, .cotz textarea:focus, .cotz select:focus { border-color: #111827 !important; outline: none !important; box-shadow: none !important; }
-        .cotz .cz-tbtn:hover { color: #111827 !important; }
-        .cotz .cz-iconbtn:hover { color: #111827 !important; }
-        .cotz .cz-row:hover { background: #fafafa; }
-        @media (max-width: 640px) {
-          .cotz .cz-mid { display: none !important; }
-        }
-      `}</style>
+    <div className="ct-pagina">
+      <style>{CSS_PAGINA}</style>
 
-      {/* ── header de página ─────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '0.75rem 1.5rem', marginBottom: '0.9rem' }}>
-        <div>
-          <h2 style={{ fontSize: '1.45rem', fontWeight: 350, letterSpacing: '-0.02em', color: '#111827', lineHeight: 1.2 }}>Cotizador</h2>
-          <p style={{ fontSize: '0.74rem', color: '#9ca3af', marginTop: 2 }}>Costo real, cotización al cliente y rentabilidad</p>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.4rem', flexWrap: 'wrap' }}>
-          <button onClick={() => setSavedOpen(true)} className="cz-tbtn" style={{ ...TBTN, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-            </svg>
-            Cotizaciones guardadas
-          </button>
-
-          <button onClick={() => setNcmOpen(true)} className="cz-tbtn" style={{ ...TBTN, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
-              <line x1="7" y1="7" x2="7.01" y2="7" />
-            </svg>
-            NCM guardadas
-          </button>
-
-          <button onClick={() => setImportOpen(true)} className="cz-tbtn" style={{ ...TBTN, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="17 8 12 3 7 8" />
-              <line x1="12" y1="3" x2="12" y2="15" />
-            </svg>
-            Importar de PDF/foto
-            <span style={{ fontSize: '0.6rem', fontWeight: 600, color: '#9ca3af' }}>IA</span>
-          </button>
+      {/* ── encabezado ──────────────────────────────────────────────────── */}
+      <div className="cz-cab">
+        <h2 className="ct-titulo">Cotizador</h2>
+        <div className="ct-navegacion">
+          <div className="ct-pestanas" role="tablist" aria-label="Tipo de flete" onKeyDown={alTeclaPestanas}>
+            {PESTANAS.map(p => {
+              const activa = mode === p.id;
+              return (
+                <button
+                  key={p.id}
+                  ref={(el) => { refsPestanas.current[p.id] = el; }}
+                  type="button"
+                  role="tab"
+                  id={idPestana(p.id)}
+                  aria-selected={activa}
+                  aria-controls={idPanel(p.id)}
+                  tabIndex={activa ? 0 : -1}
+                  className="ct-pestana"
+                  onClick={() => setMode(p.id)}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+          <div className="ct-acciones">
+            <button type="button" className="ct-btn-texto" aria-haspopup="dialog" onClick={() => setSavedOpen(true)} title="Cotizaciones guardadas">
+              Guardadas
+            </button>
+            <button type="button" className="ct-btn-texto" aria-haspopup="dialog" onClick={() => setNcmOpen(true)} title="Posiciones arancelarias guardadas">
+              NCM
+            </button>
+            <button type="button" className="ct-btn-texto" aria-haspopup="dialog" onClick={() => setImportOpen(true)} title="La IA lee la factura, la proforma o el packing list y carga los datos">
+              Importar de PDF o foto
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* ── switcher marítimo / aéreo — tabs de texto ─────────────────────── */}
-      <div style={{ display: 'flex', gap: '1.5rem', borderBottom: '1px solid #f1f5f9', marginBottom: '1rem' }}>
-        {[
-          { id: 'maritimo', icon: <ShipIcon size={14} />, label: 'Marítimo' },
-          { id: 'aereo', icon: <PlaneIcon size={14} />, label: 'Aéreo' },
-        ].map(t => (
-          <button key={t.id} onClick={() => setMode(t.id)} style={{
-            display: 'flex', alignItems: 'center', gap: '0.4rem',
-            padding: '0 0 0.5rem', border: 'none', cursor: 'pointer',
-            borderBottom: mode === t.id ? '2px solid #111827' : '2px solid transparent',
-            marginBottom: -1,
-            fontSize: '0.82rem', fontWeight: mode === t.id ? 600 : 400,
-            background: 'transparent',
-            color: mode === t.id ? '#111827' : '#9ca3af',
-          }}>
-            {t.icon} {t.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Both mounted to preserve state on toggle */}
-      <div style={{ display: mode === 'maritimo' ? 'block' : 'none' }}>
+      {/* Los dos montados: cambiar de pestaña no pierde lo cargado. */}
+      <div role="tabpanel" id={idPanel('maritimo')} aria-labelledby={idPestana('maritimo')} style={{ display: mode === 'maritimo' ? 'block' : 'none' }}>
         <CotizadorMaritimo onDirty={onDirtyMar} />
       </div>
-      <div style={{ display: mode === 'aereo' ? 'block' : 'none' }}>
+      <div role="tabpanel" id={idPanel('aereo')} aria-labelledby={idPestana('aereo')} style={{ display: mode === 'aereo' ? 'block' : 'none' }}>
         <CotizadorAereo onDirty={onDirtyAer} />
       </div>
 
       {salidaPendiente !== null && (
-        <div onClick={() => setSalidaPendiente(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.35)', zIndex: 1300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, width: '100%', maxWidth: 400, padding: '1.5rem 1.75rem' }}>
-            <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#111827', marginBottom: '0.5rem' }}>Cambios sin guardar</h3>
-            <p style={{ fontSize: '0.82rem', color: '#6b7280', lineHeight: 1.5, marginBottom: '1.25rem' }}>
-              El cotizador {cualSucio} cambios que no guardaste como cotización. Queda un borrador en este navegador, pero no en el sistema.
-            </p>
-            <div style={{ display: 'flex', gap: '1.25rem', justifyContent: 'flex-end', alignItems: 'center' }}>
-              <button onClick={salirIgual} className="cz-tbtn" style={{ ...TBTN, fontSize: '0.78rem', fontWeight: 600, color: '#dc2626' }}>Salir igual</button>
-              <button onClick={() => setSalidaPendiente(null)} style={PBTN}>Seguir editando</button>
-            </div>
-          </div>
-        </div>
+        <Dialogo
+          titulo="¿Salir sin guardar?"
+          onClose={() => setSalidaPendiente(null)}
+          capa={1300}
+          ancho={420}
+          className="cz-dialogo-confirmar"
+          enfocar="[data-primario]"
+          pie={(
+            <>
+              <button type="button" className="ct-btn-texto cz-texto-peligro" onClick={salirIgual}>Salir igual</button>
+              <button type="button" className="ct-btn-primario cz-btn-auto" data-primario="" onClick={() => setSalidaPendiente(null)}>
+                Seguir editando
+              </button>
+            </>
+          )}
+        >
+          <p className="cz-texto">
+            {textoSalida} Quedan como borrador en este navegador, pero no se guardan en el sistema.
+          </p>
+        </Dialogo>
       )}
 
       {importOpen && (
         <ImportDialog
+          modo={mode}
           onClose={() => setImportOpen(false)}
           onApply={handleApply}
         />
@@ -206,7 +221,7 @@ function CotizadorInner() {
 
 export default function Cotizador() {
   return (
-    <Suspense fallback={<div style={{ padding: '2rem', color: '#9ca3af', background: '#fff' }}>Cargando cotizador…</div>}>
+    <Suspense fallback={<div className="ct-pagina" style={{ padding: '2rem 0', fontSize: 14, color: '#9ca3af' }}>Cargando el cotizador…</div>}>
       <CotizadorInner />
     </Suspense>
   );

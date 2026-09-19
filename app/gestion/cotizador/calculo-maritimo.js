@@ -1,6 +1,7 @@
 // Cotizador marítimo sin React: presets de contenedor, cálculo y documento del cliente.
 // calcularMaritimo(s) recibe el snapshot de serialize() y devuelve el objeto `c`;
-// htmlClienteMaritimo({ s, c }) devuelve el HTML que ve el cliente.
+// htmlClienteMaritimo({ s, c }) devuelve el HTML que ve el cliente y
+// resultadoMaritimo(s, c), lo que muestra el panel de la pantalla.
 // La prueba de oro (node scripts/cotizador-golden.mjs) congela los dos resultados.
 //
 // Cobro automático (s.cobroAuto === 1, lo emite siempre el formulario actual): un
@@ -228,6 +229,84 @@ function repartirEnteros(valores, total) {
   for (let k = 0; resto > 0 && k < orden.length; k++, resto--) out[orden[k][1]] += 1;
   for (let k = orden.length - 1; resto < 0 && k >= 0; k--, resto++) out[orden[k][1]] -= 1;
   return out;
+}
+
+// ─── resultado para la pantalla (panel de la derecha y barra del celular) ─────
+// Lo que muestra el panel, a partir del estado (s) y del cálculo (c):
+//  - listo / falta: hace falta FOB (en Importación personal, el FOB que te cuesta)
+//    y metros cúbicos de la carga; mientras falte algo no se muestran importes.
+//  - precio (con la sociedad del cliente, precioSinF), precioSinFactura (null si
+//    no hay diferencia), ganancia, gananciaPct (en %), costo.
+//  - desglose: renglones en dólares enteros que suman el precio redondeado.
+//  - rentabilidad (solo para cliente): costo, cobro y margen por concepto, lo que
+//    mostraba "Detalle real vs cobrado", más los honorarios. Con la sociedad del
+//    cliente los impuestos van en un solo renglón sin margen (los paga él).
+const casiCero = (v) => !Number.isFinite(v) || Math.abs(v) < 0.005;
+
+export function resultadoMaritimo(s, c) {
+  const personal = s.mode === 'personal';
+  const falta = [
+    { label: 'FOB de la mercadería', ok: (personal ? c.fobR : c.fobC) > 0 },
+    { label: 'Metros cúbicos de la carga', ok: n(s.m3Merch) > 0 },
+  ];
+  // Sin los m³ del contenedor no hay prorrateo (solo pasa si alguien los borra).
+  if (!(n(c.curM3) > 0)) falta.push({ label: 'Metros cúbicos del contenedor', ok: false });
+  const listo = falta.every((f) => f.ok);
+
+  if (personal) {
+    return {
+      listo, falta,
+      precio: c.precioVentaFinal,
+      precioSinFactura: null,
+      ganancia: c.gananciaNeta,
+      gananciaPct: c.totSinR > 0 ? (c.gananciaNeta / c.totSinR) * 100 : null,
+      costo: c.totSinR,
+      desglose: desgloseMaritimo(c, { enteros: true, personal: true }),
+      rentabilidad: null,
+    };
+  }
+
+  const propia = !!s.usaSociedadPropia;
+  const precio = propia ? c.precioSinF : c.precioConF;
+  const fila = (label, costo, cobro, margen) => ({ label, costo, cobro, margen });
+  const impuestos = propia
+    ? [fila(
+      'Impuestos (los paga el cliente)',
+      c.derR + c.tasR + c.ivaR + c.ivaAR + c.ganR + c.iibbR,
+      c.derC + c.tasC + c.ivaC + c.ivaAC + c.ganC + c.iibbC,
+      c.mArancEff,
+    )]
+    : [
+      fila('Derechos', c.derR, c.derC, c.mDer),
+      fila('Tasa estadística', c.tasR, c.tasC, c.mTas),
+      fila('IVA', c.ivaR, c.ivaC, c.mIva),
+      fila('IVA adicional', c.ivaAR, c.ivaAC, c.mIvaA),
+      fila('Percepción de Ganancias', c.ganR, c.ganC, c.mGan),
+      fila('Percepción de IIBB', c.iibbR, c.iibbC, c.mIIBB),
+    ];
+  const rentabilidad = [
+    fila('Mercadería', c.fobR, c.fobC, c.mFOB),
+    // Solo si lo declarado difiere: es la base de los aranceles y no tiene margen.
+    ...(c.fobDR !== c.fobR || c.fobDC !== c.fobC ? [fila('FOB declarado', c.fobDR, c.fobDC, null)] : []),
+    fila('Flete marítimo', c.fleteR, c.fleteC, c.mFlet),
+    fila('Seguro', c.segR, c.segC, c.segC - c.segR),
+    ...impuestos,
+    fila('Despachante', c.desR, c.desC, c.desC - c.desR),
+    fila('Terminal', c.terR, c.terC, c.terC - c.terR),
+    fila('Naviera', c.navR, c.navC, c.navC - c.navR),
+    fila('Logística', c.logR, c.logC, c.logC - c.logR),
+    fila('Honorarios', null, c.honorarios, c.honorarios),
+  ].filter((f) => !(casiCero(f.costo ?? 0) && casiCero(f.cobro) && casiCero(f.margen ?? 0)));
+
+  return {
+    listo, falta, precio,
+    precioSinFactura: !propia && c.gastFac > 0 ? c.precioSinF : null,
+    ganancia: c.ganTotal,
+    gananciaPct: precio > 0 ? (c.ganTotal / precio) * 100 : null,
+    costo: c.totConR,
+    desglose: desgloseMaritimo(c, { enteros: true }),
+    rentabilidad,
+  };
 }
 
 // ─── documento para el cliente ─────────────────────────────────────────────────

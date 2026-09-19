@@ -33,6 +33,11 @@ const hayValor = (v) => !(v === undefined || v === null || String(v).trim() === 
 // Kilos para leer: un decimal y miles agrupados ('417,5', '1.500').
 const kilos = (v) => fmtNum(Math.round(v * 10) / 10, 'dinero');
 const dias = (v) => `${fmtNum(v, 'decimal') || '0'} ${v === 1 ? 'día' : 'días'}`;
+// ¿El foco está en una pestaña a la que se llegó con el teclado? (:focus-visible;
+// un navegador que no lo entiende tira error: se toma como que no).
+const pestanaConTeclado = (el) => {
+  try { return !!el?.matches?.('[role="tab"]:focus-visible'); } catch { return false; }
+};
 
 // Una percepción: rótulo, porcentaje y si aplica (Sí/No). Con "No" el porcentaje
 // no juega en ninguna punta y el campo queda apagado.
@@ -385,7 +390,10 @@ function CotizadorAereo({ onDirty }) {
       if (desc) setDescripcion(desc);
       if (d.total_m3 != null) setM3Input(String(d.total_m3));
       if (d.total_kg != null) setPesoReal(String(d.total_kg));
-      if (d.total_fob != null) setFobCliente(String(d.total_fob));
+      if (d.total_fob != null) {
+        setFobCliente(String(d.total_fob));
+        setFobReal(''); // vacío = el FOB importado (antes se copiaba el mismo valor)
+      }
     };
     window.addEventListener('cotizador:apply', handler);
     return () => window.removeEventListener('cotizador:apply', handler);
@@ -417,7 +425,9 @@ function CotizadorAereo({ onDirty }) {
 
   // Con la pantalla vacía, el foco va al primer campo (Cliente) cuando el
   // cotizador aparece: al entrar a la página o al pasar a la pestaña Aéreo. En
-  // pantallas táctiles no, para no abrir el teclado sin que lo pidan.
+  // pantallas táctiles no, para no abrir el teclado sin que lo pidan; tampoco si
+  // se llegó con las flechas del teclado a la pestaña (la próxima flecha tiene
+  // que seguir cambiando de pestaña).
   const vacioInicial = useRef(null);
   if (vacioInicial.current === null) vacioInicial.current = sinModo(snapshot);
   const formVacioRef = useRef(true);
@@ -431,7 +441,7 @@ function CotizadorAereo({ onDirty }) {
       const ahora = entradas.some((en) => en.isIntersecting);
       if (ahora && !visible && !tactil && formVacioRef.current) {
         const act = document.activeElement;
-        const ocupado = act && act !== document.body && (act.matches?.('input, textarea, select, [contenteditable="true"]') || act.closest?.('[role="dialog"], .cz-modal'));
+        const ocupado = act && act !== document.body && (act.matches?.('input, textarea, select, [contenteditable="true"]') || act.closest?.('[role="dialog"], .cz-modal') || pestanaConTeclado(act));
         if (!ocupado) formRef.current?.querySelector('input:not([disabled])')?.focus({ preventScroll: true });
       }
       visible = ahora;
@@ -738,7 +748,8 @@ function CotizadorAereo({ onDirty }) {
           defaultCliente={cliente}
           getPayload={() => ({
             total_usd: String(Math.round(usaSociedadPropia ? c.precioSinF : c.precioConF)),
-            resumen: `FOB ${Math.round(c.fobC)} · ${c.chargeable.toFixed(0)}kg · USD ${(Math.round((usaSociedadPropia ? c.precioSinF : c.precioConF)) / 1000).toFixed(1)}k final`,
+            // Línea de la lista de guardadas, en es-AR: "FOB USD 12.000 · 418 kg · USD 20.345 final".
+            resumen: `FOB ${fmtUSD(c.fobC)} · ${fmtNum(Math.round(c.chargeable), 'dinero') || '0'} kg · ${fmtUSD(usaSociedadPropia ? c.precioSinF : c.precioConF)} final`,
             data: serialize(),
           })}
           ncmPayload={() => clasificacion.trim() ? ({ codigo: clasificacion.trim(), producto: descripcion, der: String(pDer), tasa: String(pTas), iva: String(pIva), iva_adic: String(pIvaA), ganancias: String(pGan), iibb: String(pIIBB) }) : null}

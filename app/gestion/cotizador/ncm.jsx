@@ -1,33 +1,77 @@
 'use client';
 // Biblioteca de NCM guardadas: alta, edición y baja de posiciones arancelarias.
-import { useState, useEffect } from 'react';
+// Panel lateral con buscador. El formulario se abre en el lugar (arriba para una
+// nueva, en la misma fila para editar) y su "Guardar" es el único botón primario.
+// Mismas llamadas a la API de siempre.
+import { useState, useEffect, useRef, useId } from 'react';
 import { gToast } from '../toast';
-import { LBL, INP, TBTN, PBTN } from './comun';
+import { Dialogo, Confirmar, IconoPapelera, IconoMas } from './comun';
+import { Campo, TextInput, NumInput, useSiguienteConEnter, fmtPct } from './ui';
 
 // ─── NCM library panel (manage saved NCM codes) ────────────────────────────────
+// [clave, rótulo, placeholder]. Una tasa vacía vale 0 % al aplicarla en el
+// cotizador: por eso el placeholder es 0.
 const NCM_FIELDS = [
-  ['codigo', 'Código NCM *', '8456.11.00'],
-  ['producto', 'Producto / descripción', 'Ej: Máquinas láser'],
-  ['der', 'DER %', '35'],
-  ['tasa', 'Tasa Estadística %', '0'],
-  ['iva', 'IVA %', '21'],
-  ['iva_adic', 'IVA Adicional %', '20'],
-  ['ganancias', 'Perc. Ganancias %', '6'],
-  ['iibb', 'Perc. IIBB %', '2.5'],
+  ['codigo', 'Código NCM', '8456.11.00'],
+  ['producto', 'Producto o descripción', 'Ej.: máquinas de corte láser'],
+  ['der', 'Derechos', '0'],
+  ['tasa', 'Tasa estadística', '0'],
+  ['iva', 'IVA', '0'],
+  ['iva_adic', 'IVA adicional', '0'],
+  ['ganancias', 'Percepción de Ganancias', '0'],
+  ['iibb', 'Percepción de IIBB', '0'],
 ];
+const TASAS = NCM_FIELDS.slice(2);
+const ROTULO_CORTO = { der: 'Derechos', tasa: 'Tasa estadística', iva: 'IVA', iva_adic: 'IVA adicional', ganancias: 'Ganancias', iibb: 'IIBB' };
+
+const normalizar = (s) => String(s ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+const soloCodigo = (s) => normalizar(s).replace(/[^a-z0-9]/g, '');
+const esTactil = () => {
+  try { return !!window.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches; } catch { return false; }
+};
+
+// "Derechos 35 % · IVA 21 % · …", sin las vacías (un 0 cargado sí se muestra:
+// "Derechos 0 %" es un dato).
+function lineaTasas(nc) {
+  return TASAS
+    .filter(([k]) => nc[k] != null && String(nc[k]).trim() !== '' && !isNaN(parseFloat(nc[k])))
+    .map(([k]) => `${ROTULO_CORTO[k]} ${fmtPct(nc[k])}`)
+    .join(' · ');
+}
 
 function NcmForm({ initial, onCancel, onSaved }) {
   const empty = { codigo: '', producto: '', der: '', tasa: '', iva: '', iva_adic: '', ganancias: '', iibb: '', notas: '' };
   const [form, setForm] = useState({ ...empty, ...(initial || {}) });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
+  const [faltaCodigo, setFaltaCodigo] = useState(false);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const caja = useRef(null);
+  const enCurso = useRef(false); // evita un doble envío (Enter + click)
+  const idNotas = useId();
+  const editando = !!(initial && initial.id);
+  useSiguienteConEnter(caja);
+
+  // Al abrir: a la vista y con el foco en el código (en pantallas táctiles no,
+  // para no abrir el teclado sin que lo pidan).
+  useEffect(() => {
+    const el = caja.current;
+    if (!el) return;
+    try { el.scrollIntoView({ block: 'nearest' }); } catch { /* nada */ }
+    if (!esTactil()) el.querySelector('input')?.focus({ preventScroll: true });
+  }, []);
 
   const save = async () => {
-    if (!form.codigo.trim()) { setErr('El código NCM es obligatorio.'); return; }
-    setSaving(true); setErr('');
+    if (enCurso.current) return;
+    if (!String(form.codigo ?? '').trim()) {
+      setFaltaCodigo(true); setErr('');
+      caja.current?.querySelector('input')?.focus();
+      return;
+    }
+    enCurso.current = true;
+    setSaving(true); setErr(''); setFaltaCodigo(false);
     const body = {
-      codigo: form.codigo.trim(), producto: form.producto, der: form.der, tasa: form.tasa,
+      codigo: String(form.codigo).trim(), producto: form.producto, der: form.der, tasa: form.tasa,
       iva: form.iva, iva_adic: form.iva_adic, ganancias: form.ganancias, iibb: form.iibb, notas: form.notas,
     };
     try {
@@ -40,38 +84,75 @@ function NcmForm({ initial, onCancel, onSaved }) {
       if (!res.ok) throw new Error('Error al guardar');
       onSaved();
     } catch (e) {
-      setErr(e.message || 'Error al guardar');
+      setErr('No se pudo guardar la NCM. Revisá la conexión y probá de nuevo.');
       setSaving(false);
+      enCurso.current = false;
     }
   };
 
+  // Escape cierra el formulario (no el panel); Cmd/Ctrl + Enter o S guarda.
+  const alTecla = (e) => {
+    if (e.nativeEvent?.isComposing) return;
+    if (e.key === 'Escape' && !e.defaultPrevented) {
+      e.preventDefault();
+      onCancel();
+      return;
+    }
+    if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && (e.key === 'Enter' || e.key === 's' || e.key === 'S')) {
+      e.preventDefault();
+      if (!e.repeat) save();
+    }
+  };
+
+  const [cCodigo, cProducto] = NCM_FIELDS;
+  const ultimaTasa = TASAS[TASAS.length - 1][0];
+
   return (
-    <div style={{ padding: '0.9rem 0 1.1rem', borderBottom: '1px solid #f1f5f9' }}>
-      <p style={{ fontSize: '0.9rem', fontWeight: 600, color: '#111827', marginBottom: '0.8rem' }}>{initial && initial.id ? 'Editar NCM' : 'Nueva NCM'}</p>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem 1.5rem' }}>
-        {NCM_FIELDS.map(([key, label, ph]) => (
-          <div key={key} style={key === 'codigo' || key === 'producto' ? { gridColumn: '1 / -1' } : {}}>
-            <label style={LBL}>{label}</label>
-            <input
-              type={['der','tasa','iva','iva_adic','ganancias','iibb'].includes(key) ? 'number' : 'text'}
-              inputMode={['der','tasa','iva','iva_adic','ganancias','iibb'].includes(key) ? 'decimal' : undefined}
-              step="any"
-              value={form[key] ?? ''}
-              onChange={e => set(key, e.target.value)}
-              placeholder={ph}
-              style={{ ...INP, fontFamily: key === 'codigo' ? 'ui-monospace, SFMono-Regular, Menlo, monospace' : 'inherit' }}
+    <div className="cz-form" ref={caja} onKeyDown={alTecla} role="group" aria-label={editando ? `Editar la NCM ${initial.codigo}` : 'Nueva NCM'}>
+      <p className="cz-form-titulo">
+        {editando ? <>Editar <span className="cz-mono">{initial.codigo}</span></> : 'Nueva NCM'}
+      </p>
+      <div className="cz-campos">
+        <div className="cz-grilla-codigo">
+          <Campo label={cCodigo[1]} error={faltaCodigo ? 'Escribí el código NCM.' : null}>
+            <TextInput
+              mono
+              value={form.codigo ?? ''}
+              onChange={(v) => { set('codigo', v); if (faltaCodigo && v.trim()) setFaltaCodigo(false); }}
+              placeholder={cCodigo[2]}
             />
+          </Campo>
+          <Campo label={cProducto[1]}>
+            <TextInput value={form.producto ?? ''} onChange={(v) => set('producto', v)} placeholder={cProducto[2]} />
+          </Campo>
+        </div>
+        <div>
+          <div className="cz-grilla-3">
+            {TASAS.map(([key, label, ph]) => (
+              <Campo key={key} label={label}>
+                <NumInput
+                  tipo="pct"
+                  sufijo="%"
+                  value={form[key]}
+                  onChange={(v) => set(key, v)}
+                  placeholder={ph}
+                  onEnter={key === ultimaTasa ? () => save() : undefined}
+                />
+              </Campo>
+            ))}
           </div>
-        ))}
+          <p className="ct-ayuda" style={{ marginTop: 8 }}>Vacías valen 0 %. Al elegir esta NCM en el cotizador se copian estas tasas.</p>
+        </div>
+        <Campo label="Notas" htmlFor={idNotas} ayuda="Opcional.">
+          <textarea id={idNotas} className="ct-input" rows={2} value={form.notas ?? ''} onChange={e => set('notas', e.target.value)} />
+        </Campo>
+        {err ? <p className="cz-error" role="alert">{err}</p> : null}
       </div>
-      <div style={{ marginTop: '0.6rem' }}>
-        <label style={LBL}>Notas</label>
-        <textarea value={form.notas ?? ''} onChange={e => set('notas', e.target.value)} placeholder="Opcional" rows={2} style={{ ...INP, resize: 'vertical', fontFamily: 'inherit' }} />
-      </div>
-      {err && <p style={{ fontSize: '0.78rem', color: '#dc2626', marginTop: '0.5rem' }}>{err}</p>}
-      <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', alignItems: 'center', marginTop: '0.75rem' }}>
-        <button onClick={onCancel} className="cz-tbtn" style={TBTN}>Cancelar</button>
-        <button onClick={save} disabled={saving} style={{ ...PBTN, background: saving ? '#9ca3af' : '#111827', cursor: saving ? 'default' : 'pointer' }}>{saving ? 'Guardando…' : 'Guardar'}</button>
+      <div className="cz-form-acciones">
+        <button type="button" className="ct-btn-texto" onClick={onCancel}>Cancelar</button>
+        <button type="button" className="ct-btn-primario cz-btn-auto" onClick={save} disabled={saving} title="Guardar (Cmd o Ctrl + Enter)">
+          {saving ? 'Guardando…' : 'Guardar'}
+        </button>
       </div>
     </div>
   );
@@ -94,7 +175,7 @@ function NcmPanel({ onClose }) {
       const json = await res.json();
       setList(Array.isArray(json) ? json : []);
     } catch (e) {
-      setErr(e.message || 'Error al cargar');
+      setErr('No se pudieron cargar las NCM.');
     } finally {
       setLoading(false);
     }
@@ -111,97 +192,147 @@ function NcmPanel({ onClose }) {
       setList(xs => xs.filter(x => x.id !== nc.id));
       gToast.success('NCM eliminada.');
     } catch {
-      gToast.error('No se pudo eliminar la NCM');
+      gToast.error('No se pudo eliminar la NCM.');
     } finally {
       setBusyId(null);
     }
   };
 
-  const onSaved = () => { setEditing(null); load(); };
-
-  const s = search.trim().toLowerCase();
-  const visible = list.filter(nc =>
-    !s || (nc.codigo || '').toLowerCase().includes(s) || (nc.producto || '').toLowerCase().includes(s)
-  );
-
-  // arma "DER 35% · IVA 21% · …" omitiendo vacíos/cero
-  const ratesLine = (nc) => {
-    const parts = [];
-    const add = (lbl, v) => { const num = parseFloat(v); if (v != null && v !== '' && !isNaN(num) && num !== 0) parts.push(`${lbl} ${v}%`); };
-    add('DER', nc.der); add('Tasa', nc.tasa); add('IVA', nc.iva);
-    add('IVA ad.', nc.iva_adic); add('Gan.', nc.ganancias); add('IIBB', nc.iibb);
-    return parts.join(' · ');
+  // Al cerrar el formulario el foco vuelve al botón que lo abrió ("Editar" de
+  // esa fila o "Nueva NCM"), no se pierde fuera del panel.
+  const focoPendiente = useRef(null);
+  useEffect(() => {
+    if (editing || !focoPendiente.current) return;
+    const sel = focoPendiente.current;
+    focoPendiente.current = null;
+    const el = document.querySelector(sel) || document.querySelector('[data-ncm-nueva]');
+    try { el?.focus({ preventScroll: true }); } catch { /* nada */ }
+  }, [editing]);
+  const cerrarForm = () => {
+    const e = editing;
+    focoPendiente.current = e && e.id != null ? `[data-ncm-editar="${CSS.escape(String(e.id))}"]` : '[data-ncm-nueva]';
+    setEditing(null);
   };
+  const onSaved = () => { cerrarForm(); gToast.success('NCM guardada.'); load(); };
+
+  // Busca por código (también sin puntos: 84561100) o por producto, sin acentos.
+  const s = normalizar(search.trim());
+  const sc = soloCodigo(search);
+  const visible = list.filter(nc =>
+    !s || normalizar(nc.codigo).includes(s) || normalizar(nc.producto).includes(s) || (!!sc && soloCodigo(nc.codigo).includes(sc))
+  );
+  const pareceCodigo = /^[\d.\s]+$/.test(search.trim()) && /\d{4}/.test(search);
+
+  const cantidad = list.length;
+  const primeraCarga = loading && cantidad === 0;
+  const sub = primeraCarga || (err && cantidad === 0) ? null
+    : cantidad === 0 ? 'Todavía no hay ninguna.'
+      : `${cantidad} ${cantidad === 1 ? 'posición arancelaria' : 'posiciones arancelarias'}`;
+  const nueva = editing && !editing.id;
+
+  const fijo = (
+    <div className="cz-barra">
+      <div className="cz-barra-busca">
+        <TextInput value={search} onChange={setSearch} placeholder="Buscar por código o producto" ariaLabel="Buscar por código o producto" />
+      </div>
+      <div className="cz-barra-lado">
+        <button type="button" className="ct-btn-texto cz-texto-fuerte" data-ncm-nueva="" onClick={() => setEditing({})} disabled={nueva}>
+          <IconoMas />
+          Nueva NCM
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <>
-    <div onClick={e => { if (e.target === e.currentTarget) onClose(); }} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.35)', zIndex: 1050, display: 'flex', alignItems: 'stretch', justifyContent: 'flex-end' }}>
-      <div className="cz-modal" style={{ background: '#fff', width: '100%', maxWidth: '560px', height: '100%', overflowY: 'auto', borderLeft: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column' }}>
-        {/* header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.1rem 1.5rem', borderBottom: '1px solid #f1f5f9', background: '#fff', position: 'sticky', top: 0, zIndex: 10 }}>
-          <div>
-            <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#111827' }}>NCM guardadas</h3>
-            <p style={{ fontSize: '0.74rem', color: '#9ca3af' }}>{list.length} posición{list.length === 1 ? '' : 'es'} arancelaria{list.length === 1 ? '' : 's'}</p>
+      <Dialogo
+        lateral
+        capa={1050}
+        ancho={580}
+        titulo="NCM guardadas"
+        sub={sub}
+        fijo={fijo}
+        enfocar="input"
+        onClose={onClose}
+      >
+        {nueva ? (
+          <NcmForm initial={editing} onCancel={cerrarForm} onSaved={onSaved} />
+        ) : null}
+
+        {primeraCarga ? <p className="cz-estado-vacio" role="status">Cargando las NCM…</p> : null}
+
+        {!loading && err ? (
+          <div className="cz-estado-vacio" role="alert">
+            <p className="cz-error">{err}</p>
+            <button type="button" className="ct-btn-texto cz-texto-fuerte" onClick={load} style={{ marginTop: 8 }}>Reintentar</button>
           </div>
-          <button onClick={onClose} aria-label="Cerrar" className="cz-tbtn" style={{ ...TBTN, fontSize: '1.05rem', lineHeight: 1 }}>×</button>
-        </div>
+        ) : null}
 
-        {/* search + new */}
-        <div style={{ padding: '0.9rem 1.5rem', background: '#fff', borderBottom: '1px solid #f1f5f9', position: 'sticky', top: '64px', zIndex: 9, display: 'flex', gap: '1.1rem', alignItems: 'center' }}>
-          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por código o producto…" style={{ ...INP, flex: 1 }} />
-          <button onClick={() => setEditing({})} style={{ ...PBTN, flexShrink: 0, whiteSpace: 'nowrap' }}>
-            + Nueva NCM
-          </button>
-        </div>
+        {!primeraCarga && !err && cantidad === 0 && !nueva ? (
+          <p className="cz-estado-vacio">
+            Todavía no hay NCM guardadas. Creá una con «Nueva NCM». También se guardan solas cuando guardás una cotización con NCM.
+          </p>
+        ) : null}
 
-        {/* body */}
-        <div style={{ padding: '0.5rem 1.5rem 1.25rem', display: 'flex', flexDirection: 'column', flex: 1 }}>
-          {editing && (
-            <NcmForm initial={editing.id ? editing : null} onCancel={() => setEditing(null)} onSaved={onSaved} />
-          )}
-
-          {loading && <p style={{ color: '#9ca3af', fontSize: '0.85rem', padding: '0.75rem 0' }}>Cargando…</p>}
-          {err && <p style={{ color: '#dc2626', fontSize: '0.85rem', padding: '0.75rem 0' }}>{err}</p>}
-          {!loading && !err && visible.length === 0 && !editing && <p style={{ color: '#9ca3af', fontSize: '0.85rem', padding: '0.75rem 0' }}>No hay NCM que coincidan. Creá una con “+ Nueva NCM”.</p>}
-
-          {visible.map(nc => {
-            const busy = busyId === nc.id;
-            const rl = ratesLine(nc);
-            return (
-              <div key={nc.id} className="cz-row" style={{ padding: '0.8rem 0.25rem', borderBottom: '1px solid #f1f5f9', opacity: busy ? 0.6 : 1 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem', marginBottom: '0.2rem' }}>
-                  <div style={{ minWidth: 0 }}>
-                    <p style={{ fontSize: '0.88rem', fontWeight: 600, color: '#111827', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>{nc.codigo}</p>
-                    {nc.producto && <p style={{ fontSize: '0.78rem', color: '#6b7280', marginTop: '0.1rem' }}>{nc.producto}</p>}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem', flexShrink: 0 }}>
-                    <button onClick={() => setEditing(nc)} disabled={busy} className="cz-tbtn" style={{ ...TBTN, fontSize: '0.72rem', cursor: busy ? 'default' : 'pointer' }}>Editar</button>
-                    <button onClick={() => remove(nc)} disabled={busy} title="Eliminar" aria-label="Eliminar" className="cz-iconbtn" style={{ border: 'none', cursor: busy ? 'default' : 'pointer', background: 'none', color: '#c4c9d4', padding: 2, display: 'inline-flex' }}>
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
-                    </button>
-                  </div>
-                </div>
-                {rl && <p style={{ fontSize: '0.72rem', color: '#9ca3af', fontVariantNumeric: 'tabular-nums' }}>{rl}</p>}
-                {nc.notas && <p style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '0.2rem' }}>{nc.notas}</p>}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-
-    {confirmDel && (
-      <div onClick={() => setConfirmDel(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, padding: '1rem' }}>
-        <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: '1.5rem 1.75rem', maxWidth: 360 }}>
-          <p style={{ fontSize: '1rem', fontWeight: 600, color: '#111827', marginBottom: '0.4rem' }}>¿Eliminar NCM?</p>
-          <p style={{ fontSize: '0.82rem', color: '#6b7280', marginBottom: '1.25rem' }}>Se borra la posición “<span style={{ color: '#dc2626' }}>{confirmDel.codigo}</span>”. No se puede deshacer.</p>
-          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', alignItems: 'center' }}>
-            <button onClick={() => setConfirmDel(null)} className="cz-tbtn" style={TBTN}>Cancelar</button>
-            <button onClick={() => doRemove(confirmDel)} style={{ ...TBTN, fontSize: '0.78rem', fontWeight: 600, color: '#dc2626' }}>Eliminar</button>
+        {!primeraCarga && !err && cantidad > 0 && visible.length === 0 ? (
+          <div className="cz-estado-vacio">
+            <p style={{ margin: 0 }}>Ninguna NCM coincide con «{search.trim()}».</p>
+            {pareceCodigo && !nueva ? (
+              <button type="button" className="ct-btn-texto cz-texto-fuerte" style={{ marginTop: 8 }} onClick={() => setEditing({ codigo: search.trim() })}>
+                <IconoMas />
+                Crear la NCM <span className="cz-mono">{search.trim()}</span>
+              </button>
+            ) : null}
           </div>
-        </div>
-      </div>
-    )}
+        ) : null}
+
+        {!primeraCarga && !err && visible.length > 0 ? (
+          <ul className="cz-lista">
+            {visible.map(nc => {
+              if (editing && editing.id === nc.id) {
+                return (
+                  <li key={nc.id}>
+                    <NcmForm initial={nc} onCancel={cerrarForm} onSaved={onSaved} />
+                  </li>
+                );
+              }
+              const busy = busyId === nc.id;
+              const tasas = lineaTasas(nc);
+              return (
+                <li key={nc.id} className="cz-item" aria-busy={busy || undefined}>
+                  <div className="cz-item-cab">
+                    <div className="cz-item-textos">
+                      <p className="cz-item-nombre cz-mono">{nc.codigo}</p>
+                      {nc.producto ? <p className="cz-item-meta">{nc.producto}</p> : null}
+                      <p className="cz-item-meta">{tasas || <span className="cz-gris">Sin tasas cargadas</span>}</p>
+                      {nc.notas ? <p className="cz-item-extra">{nc.notas}</p> : null}
+                    </div>
+                    <div className="cz-item-derecha" style={{ gap: 10 }}>
+                      <button type="button" className="ct-btn-texto" data-ncm-editar={nc.id} onClick={() => setEditing(nc)} disabled={busy}>Editar</button>
+                      <button type="button" className="cz-icono cz-icono-peligro" onClick={() => remove(nc)} disabled={busy} aria-label={`Eliminar la NCM ${nc.codigo}`} title="Eliminar">
+                        <IconoPapelera />
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
+      </Dialogo>
+
+      {confirmDel ? (
+        <Confirmar
+          titulo="¿Eliminar la NCM?"
+          confirmar="Eliminar"
+          peligro
+          onConfirmar={() => doRemove(confirmDel)}
+          onCancelar={() => setConfirmDel(null)}
+        >
+          Se borra la posición <strong className="cz-mono">{confirmDel.codigo}</strong> de la biblioteca. Las cotizaciones que ya la usan no cambian. No se puede deshacer.
+        </Confirmar>
+      ) : null}
     </>
   );
 }

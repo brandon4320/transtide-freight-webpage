@@ -64,7 +64,8 @@ try {
 } finally {
   rmSync(tmp, { recursive: true, force: true });
 }
-const { calcularMaritimo, htmlClienteMaritimo, migrarSnapshotMaritimo, efectivosMaritimo, desgloseMaritimo } = M;
+const { calcularMaritimo, htmlClienteMaritimo, migrarSnapshotMaritimo, efectivosMaritimo, desgloseMaritimo, resultadoMaritimo } = M;
+const n = (v) => parseFloat(v) || 0; // igual que n() de impresion.js
 
 // ── aserciones ────────────────────────────────────────────────────────────────
 let total = 0;
@@ -264,6 +265,71 @@ const VACIOS = { fleteCli: '', gDes: '', gTer: '', gNav: '', gLog: '' };
     const persRedondo = desgloseMaritimo(c, { personal: true, enteros: true }).reduce((a, f) => a + f.valor, 0);
     igual(persRedondo, Math.round(c.precioVentaFinal), `${id}: el desglose personal en enteros suma el precio de venta`);
   }
+}
+
+// 10. resultadoMaritimo: lo que muestra el panel de la pantalla.
+{
+  // Formulario vacío: no está listo y dice qué falta (no hay importes que mostrar).
+  const vacioS = migrarSnapshotMaritimo(clon(ESCENARIOS.find((e) => e.id === 'm01').s));
+  const r0 = resultadoMaritimo(vacioS, calcularMaritimo(vacioS));
+  ok(r0.listo === false, 'panel vacío: no está listo');
+  ok(JSON.stringify(r0.falta.map((f) => [f.label, f.ok])) === JSON.stringify([['FOB de la mercadería', false], ['Metros cúbicos de la carga', false]]),
+    `panel vacío: faltan FOB y metros cúbicos (${JSON.stringify(r0.falta)})`);
+  // Con FOB y sin m³: falta solo el volumen.
+  const sinM3 = auto({ m3Merch: '' });
+  const r1 = resultadoMaritimo(sinM3, calcularMaritimo(sinM3));
+  ok(!r1.listo && r1.falta[0].ok && !r1.falta[1].ok, 'panel: con FOB y sin m³ falta solo el volumen');
+  // Alguien borró los m³ del contenedor: no hay prorrateo y se pide.
+  const sinCont = auto({ contM3: { ...m02.contM3, [m02.contType]: '' } });
+  const r2 = resultadoMaritimo(sinCont, calcularMaritimo(sinCont));
+  ok(!r2.listo && r2.falta.some((f) => f.label === 'Metros cúbicos del contenedor' && !f.ok), 'panel: sin m³ del contenedor no está listo');
+  // Importación personal: el FOB que cuenta es el que te cuesta (vacío, el FOB cliente).
+  const pers = auto({ mode: 'personal', fobReal: '', fobCliente: '' });
+  ok(!resultadoMaritimo(pers, calcularMaritimo(pers)).falta[0].ok, 'panel personal: sin ningún FOB falta el FOB');
+  const pers2 = auto({ mode: 'personal', fobReal: '9000', fobCliente: '' });
+  ok(resultadoMaritimo(pers2, calcularMaritimo(pers2)).listo, 'panel personal: con el FOB que te cuesta está listo');
+
+  // Cada escenario de la línea base, migrado: mismo precio, desglose que suma y
+  // márgenes que explican la ganancia.
+  for (const { id, s: s0 } of ESCENARIOS) {
+    const s = migrarSnapshotMaritimo(clon(s0));
+    const c = calcularMaritimo(clon(s));
+    const r = resultadoMaritimo(s, c);
+    const personal = s.mode === 'personal';
+    const propia = !!s.usaSociedadPropia;
+    const base = BASE[id].c;
+    const precioBase = decodificar(personal ? base.precioVentaFinal : propia ? base.precioSinF : base.precioConF);
+    igual(r.precio, precioBase, `${id}: el precio del panel es el de la línea base`);
+    igual(r.desglose.reduce((a, f) => a + f.valor, 0), Math.round(r.precio), `${id}: el desglose del panel suma el precio que se ve`);
+    ok(r.desglose.every((f) => Number.isInteger(f.valor)), `${id}: el desglose va en dólares enteros`);
+    if (personal) {
+      ok(r.rentabilidad === null && r.precioSinFactura === null, `${id}: personal sin rentabilidad ni "Sin factura"`);
+      igual(r.ganancia, c.gananciaNeta, `${id}: personal, ganancia neta`);
+      igual(r.costo, c.totSinR, `${id}: personal, costo real sin IVA`);
+      if (c.totSinR > 0) igual(r.gananciaPct, n(s.pMrg), `${id}: personal, la ganancia es el margen sobre el costo`);
+      continue;
+    }
+    igual(r.ganancia, c.ganTotal, `${id}: tu ganancia = ganTotal`);
+    igual(r.costo, c.totConR, `${id}: tu costo = costo real con IVA`);
+    if (r.precio > 0) igual(r.gananciaPct, (c.ganTotal / r.precio) * 100, `${id}: % de ganancia sobre el precio`);
+    ok((r.precioSinFactura !== null) === (!propia && c.gastFac > 0), `${id}: "Sin factura" solo con la sociedad de Transtide y facturación`);
+    // Los márgenes por concepto suman la ganancia; el del seguro se muestra pero
+    // ganTotal no lo cuenta (así era "Detalle real vs cobrado").
+    const sumaMargenes = r.rentabilidad.reduce((a, f) => a + (f.margen ?? 0), 0);
+    ok(Math.abs(sumaMargenes - (c.ganTotal + (c.segC - c.segR))) < 0.1, `${id}: los márgenes suman la ganancia (${sumaMargenes} vs ${c.ganTotal})`);
+    ok(r.rentabilidad.some((f) => f.label === 'Impuestos (los paga el cliente)') === (propia && r.rentabilidad.some((f) => f.label.startsWith('Impuestos'))),
+      `${id}: con la sociedad del cliente los impuestos van en un renglón`);
+    ok(!propia || r.rentabilidad.every((f) => !['Derechos', 'IVA'].includes(f.label)), `${id}: con la sociedad del cliente no hay margen por arancel`);
+    ok(r.rentabilidad.every((f) => f.label !== 'Facturación'), `${id}: la facturación no es margen`);
+  }
+
+  // Cobro automático en el panel: vacío con recargo sube la ganancia en el recargo.
+  const conRec = auto({ ...VACIOS, markup: '10' });
+  const cRec = calcularMaritimo(conRec);
+  const rRec = resultadoMaritimo(conRec, cRec);
+  const flete = rRec.rentabilidad.find((f) => f.label === 'Flete marítimo');
+  igual(flete.cobro, cRec.fleteR * 1.1, 'panel: el flete cobrado es el efectivo (costo con recargo)');
+  igual(flete.margen, cRec.fleteR * 0.1, 'panel: el margen de flete es el recargo');
 }
 
 if (fallas.length) {

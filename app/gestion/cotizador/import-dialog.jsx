@@ -1,245 +1,201 @@
 'use client';
-
-import { useState, useRef } from 'react';
-
-const ACCENT = '#f97316';
-const DARK = '#0f172a';
-const MUTED = '#64748b';
-const BORDER = '#e2e8f0';
-const SOFT = '#f8fafc';
+// Importar de PDF o foto: subís la factura o proforma y/o el packing list, la IA
+// los lee (/api/ai/extract) y, antes de cargar, revisás y corregís lo que leyó.
+// Mismas llamadas a la API y el mismo `data` hacia el cotizador (onApply).
+// modo: el cotizador que está a la vista; su "Cargar en …" es el botón primario.
+import { useState, useRef, useEffect, useId } from 'react';
+import { Dialogo, IconoTilde } from './comun';
+import { Campo, TextInput, NumInput, fmtNum } from './ui';
 
 const MAX_BYTES = 10 * 1024 * 1024;
 const ACCEPT = '.pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp';
+const TIPOS_OK = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+const EXT_OK = /\.(pdf|png|jpe?g|webp)$/i;
 
 const TIPO_LABEL = {
   proforma: 'Proforma',
   packing_list: 'Packing list',
-  invoice: 'Invoice',
+  invoice: 'Factura',
   other: 'Documento',
 };
 
+// 800 B · 340 KB · 1,2 MB
 function formatSize(bytes) {
   if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+  if (bytes < 1024 * 1024) return `${fmtNum(Math.round(bytes / 1024), 'decimal')} KB`;
+  return `${fmtNum(Math.round((bytes / 1024 / 1024) * 10) / 10, 'decimal')} MB`;
 }
 
-const inputStyle = {
-  width: '100%',
-  padding: '0.5rem 0.65rem',
-  borderRadius: 8,
-  border: `1px solid ${BORDER}`,
-  fontSize: '0.82rem',
-  color: DARK,
-  background: '#fff',
-  outline: 'none',
-  fontFamily: 'inherit',
+// El servidor puede contestar en inglés o con detalles técnicos: en pantalla va
+// siempre un mensaje en castellano que diga qué hacer.
+function mensajeError(msg) {
+  const m = String(msg || '');
+  if (/^Se agotó|^El servicio de IA/.test(m)) return m;
+  if (/unauthorized|\b401\b/i.test(m)) return 'Tu sesión venció. Volvé a entrar y probá de nuevo.';
+  if (/GEMINI_API_KEY|not configured/i.test(m)) return 'La lectura con IA no está configurada en el servidor.';
+  if (/supera 10\s?MB/i.test(m)) return 'Un archivo supera los 10 MB. Probá con uno más liviano.';
+  if (/tipo no soportado/i.test(m)) return 'Ese tipo de archivo no se puede leer. Usá PDF, JPG, PNG o WEBP.';
+  if (/no file|invalid form data/i.test(m)) return 'No llegó ningún archivo. Probá de nuevo.';
+  if (/failed to fetch|networkerror|load failed/i.test(m)) return 'No hay conexión con el servidor. Revisá internet y probá de nuevo.';
+  if (/Respuesta vacía/i.test(m)) return 'La IA no devolvió datos. Probá con un PDF o una foto más nítida.';
+  const cod = m.match(/^Error (\d+)/);
+  if (cod) return `El servidor respondió con un error (${cod[1]}). Probá de nuevo en un rato.`;
+  return GENERICO;
+}
+const GENERICO = 'Probá de nuevo o con otro archivo.';
+// El consejo sobre la calidad del archivo solo tiene sentido si la IA no pudo leerlo.
+const conConsejo = (texto) => texto === GENERICO || /no devolvió datos/.test(texto);
+
+// ¿La moneda del documento no es el dólar? (el cotizador trabaja en USD)
+const otraMoneda = (m) => {
+  const t = String(m || '').trim();
+  return !!t && !/^(usd|us\s?\$|u\$s|u\$d|\$|d[oó]lar(es)?( estadounidenses?)?)$/i.test(t);
 };
 
-const labelStyle = {
-  display: 'block',
-  fontSize: '0.68rem',
-  fontWeight: 700,
-  color: MUTED,
-  textTransform: 'uppercase',
-  letterSpacing: '0.04em',
-  marginBottom: 4,
-};
-
-function Field({ label, children, span = 1 }) {
-  return (
-    <div style={{ gridColumn: `span ${span}` }}>
-      <label style={labelStyle}>{label}</label>
-      {children}
-    </div>
-  );
+const CSS_IMPORTAR = `
+.gestion-root .cz-archivos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.gestion-root .cz-archivo{display:flex;flex-direction:column;min-width:0;min-height:150px;border:1px dashed #d1d5db;border-radius:8px;background:#fff;transition:border-color 120ms ease,background-color 120ms ease}
+.gestion-root .cz-archivo:hover{border-color:#9ca3af}
+.gestion-root .cz-archivo.cz-archivo-sobre{border-style:solid;border-color:#111827;background:#f9fafb}
+.gestion-root .cz-archivo.cz-archivo-listo{border-style:solid;border-color:#e5e7eb}
+.gestion-root .cz-archivo-btn{flex:1 1 auto;display:flex;flex-direction:column;align-items:flex-start;gap:4px;width:100%;height:auto;min-height:0!important;min-width:0!important;margin:0;padding:16px!important;border:0;border-radius:8px!important;background:transparent;color:#111827;font-size:14px!important;font-weight:400;line-height:1.4;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent!important}
+.gestion-root .cz-archivo-btn:focus-visible{outline:2px solid #111827!important;outline-offset:2px;border-radius:8px!important}
+.gestion-root .cz-archivo-cuerpo{flex:1 1 auto;display:flex;flex-direction:column;gap:4px;min-width:0;padding:16px}
+.gestion-root .cz-archivo-titulo{margin:0;font-size:14px;font-weight:600;line-height:1.35;color:#111827}
+.gestion-root .cz-archivo-ayuda{margin:0;font-size:12.5px;line-height:1.45;color:#6b7280}
+.gestion-root .cz-archivo-accion{margin-top:auto;padding-top:16px;font-size:13px;font-weight:500;color:#111827}
+.gestion-root .cz-archivo-accion span{font-weight:400;color:#9ca3af}
+.gestion-root .cz-archivo-nombre{display:flex;align-items:flex-start;gap:8px;margin:10px 0 0;font-size:13.5px;font-weight:500;line-height:1.4;color:#111827;overflow-wrap:anywhere}
+.gestion-root .cz-archivo-botones{display:flex;align-items:center;gap:18px;margin-top:auto;padding-top:14px}
+.gestion-root .cz-importar-nota{margin:14px 0 0;font-size:12.5px;line-height:1.5;color:#6b7280}
+.gestion-root .cz-cargando{display:flex;flex-direction:column;align-items:center;gap:4px;padding:40px 0 28px;text-align:center}
+.gestion-root .cz-rueda{width:28px;height:28px;margin-bottom:12px;border:2px solid #e5e7eb;border-top-color:#111827;border-radius:50%;animation:cz-girar .9s linear infinite}
+@keyframes cz-girar{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.gestion-root .cz-rueda{animation-duration:2.4s}}
+.gestion-root .cz-doc{margin:0 0 20px;font-size:13.5px;line-height:1.5;color:#6b7280;font-variant-numeric:tabular-nums}
+.gestion-root .cz-doc strong{font-weight:600;color:#111827}
+.gestion-root .cz-seccion{margin:0 0 12px;font-size:13px;font-weight:600;line-height:1.4;color:#111827}
+.gestion-root .cz-seccion-sep{margin-top:28px;padding-top:20px;border-top:1px solid #f1f5f9}
+.gestion-root .cz-items{margin:0;padding:0;list-style:none}
+.gestion-root .cz-items-fila{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:6px 14px;padding:6px 0}
+.gestion-root .cz-items-num{font-size:12.5px;line-height:1.4;color:#6b7280;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+@media (max-width:560px){
+  .gestion-root .cz-archivos{grid-template-columns:minmax(0,1fr)}
+  .gestion-root .cz-archivo{min-height:0}
+  .gestion-root .cz-items-fila{grid-template-columns:minmax(0,1fr)}
+  .gestion-root .cz-items-num{text-align:left}
 }
+@media (max-width:640px){.gestion-root .cz-archivo-btn::after{content:none}}
+`;
 
-function NumberCard({ label, value, onChange, unit }) {
-  return (
-    <div style={{ padding: '0.7rem 0.8rem', background: SOFT, border: `1px solid ${BORDER}`, borderRadius: 10 }}>
-      <div style={{ fontSize: '0.66rem', fontWeight: 700, color: MUTED, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>{label}</div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-        <input
-          type="number"
-          inputMode="decimal"
-          step="any"
-          value={value ?? ''}
-          onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
-          placeholder="—"
-          style={{
-            ...inputStyle,
-            padding: '0.25rem 0.4rem',
-            fontSize: '1rem',
-            fontWeight: 700,
-            color: DARK,
-            background: '#fff',
-            border: `1px solid ${BORDER}`,
-          }}
-        />
-        {unit && <span style={{ fontSize: '0.72rem', color: MUTED, fontWeight: 600 }}>{unit}</span>}
-      </div>
-    </div>
-  );
-}
-
-function FileSlot({ label, hint, accent, file, setFile, setErr }) {
+// Una zona para un archivo: botón (o arrastrar y soltar) cuando está vacía; el
+// nombre, el peso, "Cambiar" y "Quitar" cuando ya hay uno.
+function FileSlot({ label, hint, file, setFile, setErr }) {
   const ref = useRef(null);
   const [over, setOver] = useState(false);
   const onPick = (files) => {
     const f = files?.[0];
     if (!f) return;
-    if (f.size > MAX_BYTES) { setErr(`"${label}" muy grande (${formatSize(f.size)}). Máx 10 MB.`); return; }
+    if (f.size > MAX_BYTES) { setErr(`«${f.name}» pesa ${formatSize(f.size)}: el máximo es 10 MB.`); return; }
+    const tipoOk = f.type ? TIPOS_OK.includes(f.type) : EXT_OK.test(f.name || '');
+    if (!tipoOk) {
+      setErr(/heic|heif/i.test(`${f.type} ${f.name}`)
+        ? `«${f.name}» es una foto HEIC del iPhone: exportala como JPG y subila de nuevo.`
+        : `«${f.name}» no se puede leer. Usá PDF, JPG, PNG o WEBP.`);
+      return;
+    }
     setErr(null);
     setFile(f);
   };
+  const abrir = () => ref.current?.click();
   return (
     <div
-      onClick={() => ref.current?.click()}
-      onDragOver={(e) => { e.preventDefault(); setOver(true); }}
-      onDragLeave={() => setOver(false)}
+      className={['cz-archivo', over && 'cz-archivo-sobre', file && 'cz-archivo-listo'].filter(Boolean).join(' ')}
+      onDragOver={(e) => { e.preventDefault(); if (!over) setOver(true); }}
+      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOver(false); }}
       onDrop={(e) => { e.preventDefault(); setOver(false); onPick(e.dataTransfer.files); }}
-      style={{
-        flex: 1,
-        border: `2px dashed ${file ? accent : (over ? accent : BORDER)}`,
-        background: file ? `${accent}10` : (over ? `${accent}10` : SOFT),
-        borderRadius: 12,
-        padding: '1.4rem 1rem',
-        textAlign: 'center',
-        cursor: 'pointer',
-        transition: 'all 0.15s',
-        position: 'relative',
-        minHeight: 170,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
     >
-      <div style={{ position: 'absolute', top: 10, left: 12, fontSize: '0.6rem', fontWeight: 700, color: accent, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>
       {file ? (
-        <>
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="2" style={{ marginBottom: 6 }}>
-            <polyline points="20 6 9 17 4 12"/>
-          </svg>
-          <div style={{ fontWeight: 700, color: DARK, fontSize: '0.82rem', marginBottom: 2, wordBreak: 'break-word', padding: '0 0.5rem' }}>{file.name}</div>
-          <div style={{ fontSize: '0.7rem', color: MUTED }}>{formatSize(file.size)}</div>
-          <button onClick={(e) => { e.stopPropagation(); setFile(null); }} style={{ marginTop: 8, background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}>Quitar</button>
-        </>
+        <div className="cz-archivo-cuerpo">
+          <p className="cz-archivo-titulo">{label}</p>
+          <p className="cz-archivo-nombre"><IconoTilde size={16} />{file.name}</p>
+          <p className="cz-archivo-ayuda">{formatSize(file.size)}</p>
+          <div className="cz-archivo-botones">
+            <button type="button" className="ct-btn-texto" onClick={abrir}>Cambiar</button>
+            <button type="button" className="ct-btn-texto" onClick={() => setFile(null)} aria-label={`Quitar ${file.name}`}>Quitar</button>
+          </div>
+        </div>
       ) : (
-        <>
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={MUTED} strokeWidth="2" style={{ marginBottom: 8 }}>
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="17 8 12 3 7 8" />
-            <line x1="12" y1="3" x2="12" y2="15" />
-          </svg>
-          <div style={{ fontWeight: 600, color: DARK, fontSize: '0.78rem', marginBottom: 4 }}>Subir o arrastrar</div>
-          <div style={{ fontSize: '0.68rem', color: MUTED }}>{hint}</div>
-        </>
+        <button type="button" className="cz-archivo-btn" onClick={abrir}>
+          <span className="cz-archivo-titulo">{label}</span>
+          <span className="cz-archivo-ayuda">{hint}</span>
+          <span className="cz-archivo-accion">Elegir archivo <span>o arrastralo acá</span></span>
+        </button>
       )}
       <input
         ref={ref}
         type="file"
         accept={ACCEPT}
-        style={{ display: 'none' }}
-        onChange={(e) => onPick(e.target.files)}
+        hidden
+        onChange={(e) => { onPick(e.target.files); e.target.value = ''; }}
       />
     </div>
   );
 }
 
-function UploadStage({ file, setFile, fileFactura, setFileFactura, filePacking, setFilePacking, onAnalyze }) {
+function UploadStage({ fileFactura, setFileFactura, filePacking, setFilePacking }) {
   const [localErr, setLocalErr] = useState(null);
   const hasAny = !!(fileFactura || filePacking);
   const both   = !!(fileFactura && filePacking);
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 12, marginBottom: 10 }}>
-        <FileSlot label="📄 Factura / Proforma" hint="precios, FOB, términos" accent="#0284c7" file={fileFactura} setFile={setFileFactura} setErr={setLocalErr} />
-        <FileSlot label="📦 Packing list"        hint="m³, peso, bultos"    accent="#059669" file={filePacking} setFile={setFilePacking} setErr={setLocalErr} />
+      <div className="cz-archivos">
+        <FileSlot label="Factura o proforma" hint="Precios, FOB y condiciones." file={fileFactura} setFile={setFileFactura} setErr={setLocalErr} />
+        <FileSlot label="Packing list" hint="Metros cúbicos, peso y bultos." file={filePacking} setFile={setFilePacking} setErr={setLocalErr} />
       </div>
-
-      <p style={{ fontSize: '0.72rem', color: MUTED, textAlign: 'center', marginBottom: 12 }}>
-        {both ? '✓ La IA combina la info de ambos documentos para máxima precisión.' : (hasAny ? 'Podés agregar el otro documento para mejorar la extracción.' : 'Subí al menos uno. Si tenés los dos, mejor.')}
+      {localErr ? <p className="cz-error" role="alert" style={{ marginTop: 12 }}>{localErr}</p> : null}
+      <p className="cz-importar-nota">
+        {both
+          ? 'La IA combina los dos documentos: la lectura sale más precisa.'
+          : hasAny
+            ? 'Si tenés el otro documento, sumalo: la lectura sale más precisa.'
+            : 'Subí al menos uno; con los dos, mejor. PDF, JPG, PNG o WEBP de hasta 10 MB.'}
       </p>
-
-      {localErr && (
-        <div style={{ marginBottom: 12, padding: '0.6rem 0.8rem', background: '#fef2f2', color: '#b91c1c', borderRadius: 8, fontSize: '0.78rem' }}>
-          {localErr}
-        </div>
-      )}
-
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-        <button
-          onClick={onAnalyze}
-          disabled={!hasAny}
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: 8,
-            padding: '0.65rem 1.25rem',
-            borderRadius: 10, border: 'none',
-            background: hasAny ? DARK : '#cbd5e1',
-            color: '#fff',
-            fontWeight: 700, fontSize: '0.85rem',
-            cursor: hasAny ? 'pointer' : 'not-allowed',
-            boxShadow: hasAny ? '0 2px 10px rgba(15,23,42,0.15)' : 'none',
-          }}
-        >
-          Analizar con IA
-          <span style={{ fontSize: '0.62rem', background: '#3b82f6', padding: '0.1rem 0.45rem', borderRadius: 99, fontWeight: 700 }}>IA</span>
-        </button>
-      </div>
     </div>
   );
 }
 
 function LoadingStage() {
   return (
-    <div style={{ padding: '3rem 1rem', textAlign: 'center' }}>
-      <div
-        style={{
-          width: 44, height: 44, margin: '0 auto 1rem',
-          border: `3px solid ${BORDER}`,
-          borderTopColor: ACCENT,
-          borderRadius: '50%',
-          animation: 'spin 0.9s linear infinite',
-        }}
-      />
-      <div style={{ fontWeight: 700, color: DARK, fontSize: '0.95rem' }}>Analizando documento…</div>
-      <div style={{ fontSize: '0.75rem', color: MUTED, marginTop: 4 }}>
-        Esto puede tardar entre 2 y 15 segundos.
-      </div>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    <div className="cz-cargando" role="status">
+      <span className="cz-rueda" aria-hidden="true" />
+      <p className="cz-subtitulo" style={{ fontSize: 15 }}>Leyendo los documentos…</p>
+      <p className="cz-texto" style={{ fontSize: 13, color: '#6b7280' }}>Tarda entre 2 y 15 segundos.</p>
     </div>
   );
 }
 
-function ErrorStage({ error, onRetry }) {
+function ErrorStage({ error }) {
   return (
-    <div style={{ padding: '2rem 1rem', textAlign: 'center' }}>
-      <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>⚠️</div>
-      <div style={{ fontWeight: 700, color: DARK, fontSize: '0.95rem', marginBottom: 4 }}>No pudimos extraer los datos</div>
-      <div style={{ fontSize: '0.78rem', color: '#b91c1c', background: '#fef2f2', padding: '0.6rem 0.8rem', borderRadius: 8, margin: '0.75rem auto', maxWidth: 420 }}>
-        {error}
-      </div>
-      <button
-        onClick={onRetry}
-        style={{
-          marginTop: '0.5rem',
-          padding: '0.55rem 1.1rem', borderRadius: 10, border: `1px solid ${BORDER}`,
-          background: '#fff', color: DARK, fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer',
-        }}
-      >
-        Probar de nuevo
-      </button>
+    <div role="alert">
+      <p className="cz-subtitulo" style={{ fontSize: 15 }}>No pudimos leer los datos</p>
+      <p className="cz-texto" style={{ marginTop: 6 }}>{error}</p>
+      {conConsejo(error) ? (
+        <p className="cz-texto" style={{ marginTop: 10, fontSize: 13, color: '#6b7280' }}>
+          Suele andar mejor con un PDF con texto (no escaneado) o con una foto derecha y bien iluminada.
+        </p>
+      ) : null}
     </div>
   );
 }
 
-function PreviewStage({ data, setData, onApply, onBack }) {
+function PreviewStage({ data, setData }) {
   const [showAllItems, setShowAllItems] = useState(false);
+  const idNotas = useId();
 
   const set = (patch) => setData({ ...data, ...patch });
+  const aNum = (v) => (v === '' ? null : Number(v));
   const items = data.items || [];
   const visibleItems = showAllItems ? items : items.slice(0, 5);
 
@@ -248,185 +204,143 @@ function PreviewStage({ data, setData, onApply, onBack }) {
     setData({ ...data, items: next });
   };
 
+  const encabezado = [
+    TIPO_LABEL[data.documento_tipo] || 'Documento',
+    data.numero ? `N.º ${data.numero}` : null,
+    data.fecha || null,
+  ].filter(Boolean);
+  const moneda = String(data.moneda || '').trim();
+
+  // "2 × 12.000 = 24.000": lo que leyó de cada ítem, para controlar.
+  const cuentaItem = (it) => {
+    const cant = it.cantidad != null && it.cantidad !== '' ? fmtNum(it.cantidad, 'decimal') : null;
+    const pu = it.precio_unitario != null && it.precio_unitario !== '' ? fmtNum(it.precio_unitario, 'dinero') : null;
+    const sub = it.subtotal != null && it.subtotal !== '' ? fmtNum(it.subtotal, 'dinero') : null;
+    const izq = [cant, pu].filter(Boolean).join(' × ');
+    return [izq, sub].filter(Boolean).join(' = ');
+  };
+
   return (
     <div>
-      {/* Tipo + número */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '1rem', flexWrap: 'wrap' }}>
-        <span style={{
-          fontSize: '0.7rem', fontWeight: 700, padding: '0.25rem 0.65rem',
-          background: '#fff7ed', color: '#c2410c', borderRadius: 99, border: '1px solid #fed7aa',
-          textTransform: 'uppercase', letterSpacing: '0.04em',
-        }}>
-          {TIPO_LABEL[data.documento_tipo] || 'Documento'}
-        </span>
-        {data.numero && <span style={{ fontSize: '0.78rem', color: MUTED }}>N° {data.numero}</span>}
-        {data.fecha && <span style={{ fontSize: '0.78rem', color: MUTED }}>· {data.fecha}</span>}
-      </div>
+      <p className="cz-doc">
+        <strong>{encabezado[0]}</strong>
+        {encabezado.length > 1 ? ` · ${encabezado.slice(1).join(' · ')}` : ''}
+      </p>
 
-      {/* Proveedor */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: '1rem' }}>
-        <Field label="Proveedor">
-          <input style={inputStyle} value={data.proveedor || ''} onChange={(e) => set({ proveedor: e.target.value })} placeholder="—" />
-        </Field>
-        <Field label="País">
-          <input style={inputStyle} value={data.proveedor_pais || ''} onChange={(e) => set({ proveedor_pais: e.target.value })} placeholder="—" />
-        </Field>
-      </div>
-
-      {/* Carga */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: '1rem' }}>
-        <NumberCard label="Volumen" value={data.total_m3} onChange={(v) => set({ total_m3: v })} unit="m³" />
-        <NumberCard label="Peso bruto" value={data.total_kg} onChange={(v) => set({ total_kg: v })} unit="kg" />
-        <NumberCard label="Bultos" value={data.total_bultos} onChange={(v) => set({ total_bultos: v })} unit="" />
-      </div>
-
-      {/* FOB + moneda + términos */}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 12, marginBottom: '1rem' }}>
-        <Field label="Total FOB">
-          <input
-            type="number"
-            inputMode="decimal"
-            step="any"
-            style={inputStyle}
-            value={data.total_fob ?? ''}
-            onChange={(e) => set({ total_fob: e.target.value === '' ? null : Number(e.target.value) })}
-            placeholder="—"
+      <p className="cz-seccion">Datos principales</p>
+      <div className="cz-campos">
+        <div>
+          <Campo label="FOB total" ayuda="Valor de la mercadería.">
+            <NumInput grande prefijo="USD" value={data.total_fob ?? ''} onChange={(v) => set({ total_fob: aNum(v) })} placeholder="Sin dato" />
+          </Campo>
+          {otraMoneda(moneda) ? (
+            <p className="cz-nota-ambar" style={{ marginTop: 6 }}>
+              El documento está en {moneda} y el cotizador trabaja en dólares: pasá el FOB a USD antes de cargarlo.
+            </p>
+          ) : null}
+        </div>
+        <div className="cz-grilla-2">
+          <Campo label="Volumen">
+            <NumInput tipo="decimal" sufijo="m³" value={data.total_m3 ?? ''} onChange={(v) => set({ total_m3: aNum(v) })} placeholder="Sin dato" />
+          </Campo>
+          <Campo label="Peso bruto">
+            <NumInput tipo="decimal" sufijo="kg" value={data.total_kg ?? ''} onChange={(v) => set({ total_kg: aNum(v) })} placeholder="Sin dato" />
+          </Campo>
+        </div>
+        <Campo label="Proveedor" ayuda="Se carga en el campo Cliente del cotizador.">
+          <TextInput value={data.proveedor || ''} onChange={(v) => set({ proveedor: v })} placeholder="Sin dato" />
+        </Campo>
+        <Campo label="Notas" htmlFor={idNotas} ayuda="Van a la descripción de la mercadería, junto con los primeros ítems.">
+          <textarea
+            id={idNotas}
+            className="ct-input"
+            rows={2}
+            value={data.notas || ''}
+            onChange={(e) => set({ notas: e.target.value })}
+            placeholder="Observaciones, condiciones de pago, etc."
           />
-        </Field>
-        <Field label="Moneda">
-          <input style={inputStyle} value={data.moneda || ''} onChange={(e) => set({ moneda: e.target.value })} placeholder="USD" />
-        </Field>
-        <Field label="Términos">
-          <input style={inputStyle} value={data.terminos || ''} onChange={(e) => set({ terminos: e.target.value })} placeholder="FOB" />
-        </Field>
+        </Campo>
       </div>
 
-      {/* Items */}
+      <div className="cz-seccion-sep">
+        <p className="cz-seccion">Otros datos del documento</p>
+        <div className="cz-grilla-2">
+          <Campo label="País del proveedor">
+            <TextInput value={data.proveedor_pais || ''} onChange={(v) => set({ proveedor_pais: v })} placeholder="Sin dato" />
+          </Campo>
+          <Campo label="Bultos">
+            <NumInput tipo="decimal" value={data.total_bultos ?? ''} onChange={(v) => set({ total_bultos: aNum(v) })} placeholder="Sin dato" />
+          </Campo>
+          <Campo label="Moneda">
+            <TextInput value={data.moneda || ''} onChange={(v) => set({ moneda: v })} placeholder="USD" />
+          </Campo>
+          <Campo label="Condición de venta">
+            <TextInput value={data.terminos || ''} onChange={(v) => set({ terminos: v })} placeholder="FOB" />
+          </Campo>
+        </div>
+      </div>
+
       {items.length > 0 && (
-        <div style={{ marginBottom: '1rem' }}>
-          <div style={{ ...labelStyle, marginBottom: 8 }}>Items ({items.length})</div>
-          <div style={{ border: `1px solid ${BORDER}`, borderRadius: 10, overflow: 'hidden' }}>
-            {visibleItems.map((it, idx) => (
-              <div
-                key={idx}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 70px 90px 90px',
-                  gap: 8,
-                  padding: '0.55rem 0.7rem',
-                  borderBottom: idx === visibleItems.length - 1 ? 'none' : `1px solid ${BORDER}`,
-                  alignItems: 'center',
-                  background: idx % 2 ? SOFT : '#fff',
-                }}
-              >
-                <input
-                  style={{ ...inputStyle, padding: '0.3rem 0.45rem', fontSize: '0.78rem' }}
-                  value={it.descripcion || ''}
-                  onChange={(e) => updateItem(idx, { descripcion: e.target.value })}
-                />
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  step="any"
-                  style={{ ...inputStyle, padding: '0.3rem 0.45rem', fontSize: '0.78rem', textAlign: 'right' }}
-                  value={it.cantidad ?? ''}
-                  onChange={(e) => updateItem(idx, { cantidad: e.target.value === '' ? null : Number(e.target.value) })}
-                  placeholder="cant."
-                />
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  step="any"
-                  style={{ ...inputStyle, padding: '0.3rem 0.45rem', fontSize: '0.78rem', textAlign: 'right' }}
-                  value={it.precio_unitario ?? ''}
-                  onChange={(e) => updateItem(idx, { precio_unitario: e.target.value === '' ? null : Number(e.target.value) })}
-                  placeholder="P/U"
-                />
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  step="any"
-                  style={{ ...inputStyle, padding: '0.3rem 0.45rem', fontSize: '0.78rem', textAlign: 'right', fontWeight: 700 }}
-                  value={it.subtotal ?? ''}
-                  onChange={(e) => updateItem(idx, { subtotal: e.target.value === '' ? null : Number(e.target.value) })}
-                  placeholder="subt."
-                />
-              </div>
-            ))}
-          </div>
+        <div className="cz-seccion-sep">
+          <p className="cz-seccion">Ítems <span className="cz-gris">{items.length}</span></p>
+          <ul className="cz-items">
+            {visibleItems.map((it, idx) => {
+              const cuenta = cuentaItem(it);
+              return (
+                <li key={idx} className="cz-items-fila">
+                  <TextInput
+                    value={it.descripcion || ''}
+                    onChange={(v) => updateItem(idx, { descripcion: v })}
+                    ariaLabel={`Descripción del ítem ${idx + 1}`}
+                  />
+                  {cuenta ? <span className="cz-items-num">{cuenta}</span> : null}
+                </li>
+              );
+            })}
+          </ul>
           {items.length > 5 && (
-            <button
-              onClick={() => setShowAllItems((s) => !s)}
-              style={{
-                marginTop: 8, background: 'none', border: 'none',
-                color: ACCENT, fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', padding: 0,
-              }}
-            >
-              {showAllItems ? '— Mostrar menos' : `+ Ver todos los ${items.length}`}
+            <button type="button" className="ct-btn-texto" style={{ marginTop: 8 }} onClick={() => setShowAllItems((s) => !s)}>
+              {showAllItems ? 'Ver menos' : `Ver los ${items.length} ítems`}
             </button>
           )}
         </div>
       )}
-
-      {/* Notas */}
-      <Field label="Notas">
-        <textarea
-          style={{ ...inputStyle, minHeight: 60, resize: 'vertical', fontFamily: 'inherit' }}
-          value={data.notas || ''}
-          onChange={(e) => set({ notas: e.target.value })}
-          placeholder="Observaciones, condiciones de pago, etc."
-        />
-      </Field>
-
-      {/* Action buttons */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: '1.5rem', flexWrap: 'wrap' }}>
-        <button
-          onClick={onBack}
-          style={{
-            padding: '0.6rem 1rem', borderRadius: 10, border: `1px solid ${BORDER}`,
-            background: '#fff', color: MUTED, fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer',
-          }}
-        >
-          ← Otro archivo
-        </button>
-
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <button
-            onClick={() => onApply('aereo')}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 8,
-              padding: '0.7rem 1.25rem', borderRadius: 10, border: 'none',
-              background: '#0ea5e9', color: '#fff',
-              fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer',
-              boxShadow: '0 2px 10px rgba(14,165,233,0.25)',
-            }}
-          >
-            Cargar en Aéreo ✈️
-          </button>
-          <button
-            onClick={() => onApply('maritimo')}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 8,
-              padding: '0.7rem 1.25rem', borderRadius: 10, border: 'none',
-              background: ACCENT, color: '#fff',
-              fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer',
-              boxShadow: '0 2px 10px rgba(249,115,22,0.25)',
-            }}
-          >
-            Cargar en Marítimo 🚢
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
 
-export default function ImportDialog({ onClose, onApply }) {
+export default function ImportDialog({ onClose, onApply, modo = 'maritimo' }) {
   const [stage, setStage] = useState('upload');
   const [fileFactura, setFileFactura] = useState(null);
   const [filePacking, setFilePacking] = useState(null);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
+  const cuerpoRef = useRef(null);
+  const primeraVez = useRef(true);
+
+  // Al cambiar de etapa el botón que tenía el foco desaparece: el foco vuelve
+  // al diálogo (así Tab y Escape siguen adentro).
+  useEffect(() => {
+    if (primeraVez.current) { primeraVez.current = false; return; }
+    const caja = cuerpoRef.current?.closest('.cz-dialogo');
+    try { caja?.focus({ preventScroll: true }); } catch { /* nada */ }
+  }, [stage]);
+
+  // Un archivo soltado fuera de las zonas no tiene que abrirse en el navegador
+  // (se perdería lo cargado): mientras el diálogo está abierto, se ignora.
+  useEffect(() => {
+    const evitar = (e) => {
+      if (Array.from(e.dataTransfer?.types || []).includes('Files')) e.preventDefault();
+    };
+    window.addEventListener('dragover', evitar);
+    window.addEventListener('drop', evitar);
+    return () => {
+      window.removeEventListener('dragover', evitar);
+      window.removeEventListener('drop', evitar);
+    };
+  }, []);
+
+  const hasAny = !!(fileFactura || filePacking);
 
   const analyze = async () => {
     if (!fileFactura && !filePacking) return;
@@ -450,7 +364,8 @@ export default function ImportDialog({ onClose, onApply }) {
       setData(json.data);
       setStage('preview');
     } catch (e) {
-      setError(e.message || 'Error desconocido');
+      console.warn('[importar] no se pudo leer el documento:', e?.message || e);
+      setError(mensajeError(e?.message));
       setStage('error');
     }
   };
@@ -459,66 +374,78 @@ export default function ImportDialog({ onClose, onApply }) {
     if (data) onApply(mode, data);
   };
 
-  return (
-    <>
-      <div
-        onClick={onClose}
-        style={{
-          position: 'fixed', inset: 0,
-          background: 'rgba(15,23,42,0.5)',
-          zIndex: 200,
-          animation: 'fadeIn 0.15s ease-out',
-        }}
-      />
-      <div
-        role="dialog"
-        aria-modal="true"
-        style={{
-          position: 'fixed', top: '50%', left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: 'min(720px, 94vw)',
-          maxHeight: '90vh', overflowY: 'auto',
-          background: '#fff', borderRadius: 14, zIndex: 210,
-          padding: '1.5rem',
-          boxShadow: '0 24px 64px rgba(0,0,0,0.2)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1.25rem', gap: 12 }}>
-          <div>
-            <h2 style={{ fontSize: '1.05rem', fontWeight: 800, color: DARK, margin: 0 }}>
-              Importar documento
-              <span style={{ marginLeft: 8, fontSize: '0.62rem', background: '#3b82f6', color: '#fff', padding: '0.15rem 0.5rem', borderRadius: 99, fontWeight: 700, verticalAlign: 'middle' }}>IA</span>
-            </h2>
-            <p style={{ fontSize: '0.72rem', color: MUTED, marginTop: 2, marginBottom: 0 }}>
-              Extrae datos de proformas, packing lists e invoices con Gemini.
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            aria-label="Cerrar"
-            style={{
-              background: 'none', border: 'none', fontSize: '1.5rem', lineHeight: 1,
-              color: MUTED, cursor: 'pointer', padding: 0,
-            }}
-          >
-            ×
-          </button>
-        </div>
+  const principal = modo === 'aereo' ? 'aereo' : 'maritimo';
+  const otro = principal === 'aereo' ? 'maritimo' : 'aereo';
+  const nombreModo = { maritimo: 'marítimo', aereo: 'aéreo' };
 
-        {stage === 'upload' && <UploadStage fileFactura={fileFactura} setFileFactura={setFileFactura} filePacking={filePacking} setFilePacking={setFilePacking} onAnalyze={analyze} />}
-        {stage === 'loading' && <LoadingStage />}
-        {stage === 'preview' && data && (
-          <PreviewStage
-            data={data}
-            setData={setData}
-            onApply={apply}
-            onBack={() => setStage('upload')}
+  let pie = null;
+  let onEnviar;
+  if (stage === 'upload') {
+    onEnviar = hasAny ? analyze : undefined;
+    pie = (
+      <>
+        <button type="button" className="ct-btn-texto" onClick={onClose}>Cancelar</button>
+        <button type="button" className="ct-btn-primario cz-btn-auto" data-primario="" onClick={analyze} disabled={!hasAny}>
+          Leer con IA
+        </button>
+      </>
+    );
+  } else if (stage === 'loading') {
+    pie = <button type="button" className="ct-btn-texto" onClick={onClose}>Cancelar</button>;
+  } else if (stage === 'error') {
+    onEnviar = () => { setError(null); setStage('upload'); };
+    pie = (
+      <>
+        <button type="button" className="ct-btn-texto" onClick={onClose}>Cancelar</button>
+        <button type="button" className="ct-btn-primario cz-btn-auto" data-primario="" onClick={() => { setError(null); setStage('upload'); }}>
+          Probar de nuevo
+        </button>
+      </>
+    );
+  } else if (stage === 'preview' && data) {
+    onEnviar = () => apply(principal);
+    pie = (
+      <>
+        <button type="button" className="ct-btn-texto cz-pie-izq" onClick={() => setStage('upload')}>Elegir otros archivos</button>
+        <button type="button" className="ct-btn-texto" onClick={() => apply(otro)}>Cargar en {nombreModo[otro]}</button>
+        <button type="button" className="ct-btn-primario cz-btn-auto" data-primario="" onClick={() => apply(principal)} title="Cmd o Ctrl + Enter">
+          Cargar en {nombreModo[principal]}
+        </button>
+      </>
+    );
+  }
+
+  const sub = stage === 'preview'
+    ? 'Revisá lo que leyó la IA y corregí lo que haga falta antes de cargarlo.'
+    : 'La IA lee la factura o proforma y el packing list, y carga los datos en el cotizador.';
+
+  return (
+    <Dialogo
+      capa={1050}
+      titulo="Importar de PDF o foto"
+      sub={sub}
+      onClose={onClose}
+      ancho={stage === 'preview' ? 680 : 600}
+      enfocar=".cz-archivo-btn"
+      cerrarConFondo={stage !== 'preview'}
+      pieConLinea={stage === 'preview'}
+      onEnviar={onEnviar}
+      pie={pie}
+    >
+      <style>{CSS_IMPORTAR}</style>
+      <div ref={cuerpoRef}>
+        {stage === 'upload' && (
+          <UploadStage
+            fileFactura={fileFactura}
+            setFileFactura={setFileFactura}
+            filePacking={filePacking}
+            setFilePacking={setFilePacking}
           />
         )}
-        {stage === 'error' && <ErrorStage error={error} onRetry={() => { setError(null); setStage('upload'); }} />}
-
-        <style>{`@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }`}</style>
+        {stage === 'loading' && <LoadingStage />}
+        {stage === 'preview' && data && <PreviewStage data={data} setData={setData} />}
+        {stage === 'error' && <ErrorStage error={error} />}
       </div>
-    </>
+    </Dialogo>
   );
 }
