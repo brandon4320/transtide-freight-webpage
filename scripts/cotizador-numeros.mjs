@@ -97,6 +97,26 @@ const extraParseos = [
 ];
 for (const [texto, tipo, esperado] of extraParseos) ver(`parseNum(${JSON.stringify(texto)}, '${tipo}')`, parseNum(texto, tipo), esperado);
 
+// ── 'peso' (kg): agrupa miles como 'dinero' y admite 3 decimales ────────────
+const pesos = [
+  ['1.500', 'peso', '1500'],        // kg de cuatro cifras, no 1,5
+  ['1.500', 'decimal', '1.5'],      // m³ y días siguen leyendo el punto como decimal
+  ['12.000', 'peso', '12000'],
+  ['1,5', 'peso', '1.5'],
+  ['0.550', 'peso', '0.55'],
+  ['1.500,25', 'peso', '1500.25'],
+  ['300', 'peso', '300'],
+  ['1.234.567', 'peso', '1234567'],
+];
+for (const [texto, tipo, esperado] of pesos) ver(`parseNum(${JSON.stringify(texto)}, '${tipo}')`, parseNum(texto, tipo), esperado);
+const pesosFmt = [
+  ['1500', 'peso', '1.500'],
+  ['1.5', 'peso', '1,5'],
+  ['1500.125', 'peso', '1.500,125'],
+  ['300', 'peso', '300'],
+];
+for (const [valor, tipo, esperado] of pesosFmt) ver(`fmtNum(${JSON.stringify(valor)}, '${tipo}')`, fmtNum(valor, tipo), esperado);
+
 const extraFormatos = [
   [35, 'pct', '35'],
   ['1500', 'dinero', '1.500'],
@@ -135,8 +155,8 @@ for (let i = 0; i < 400; i++) {
   const escala = [1, 10, 1000, 100000, 10000000][i % 5];
   muestras.push(Math.round(azar() * escala * 1000) / 1000);
 }
-for (const tipo of ['dinero', 'decimal', 'pct']) {
-  const dec = tipo === 'decimal' ? 3 : 2;
+for (const tipo of ['dinero', 'decimal', 'pct', 'peso']) {
+  const dec = tipo === 'decimal' || tipo === 'peso' ? 3 : 2;
   for (const base of muestras) {
     for (const v of [base, -base]) {
       const canon = String(Number(v.toFixed(dec)));

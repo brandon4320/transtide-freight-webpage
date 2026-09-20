@@ -393,6 +393,17 @@ function Confirmar({
   );
 }
 
+// Error del guardado en castellano. Si se corta la red, fetch tira un TypeError
+// con el mensaje del navegador en inglés: ese nunca se muestra.
+function errorDeGuardado(e) {
+  const m = String(e?.message || '');
+  if (/failed to fetch|networkerror|load failed|network request failed/i.test(m)) {
+    return 'No hay conexión con el servidor. Revisá internet y probá de nuevo.';
+  }
+  if (/unauthorized|\b401\b/i.test(m)) return 'Tu sesión venció. Volvé a entrar y probá de nuevo.';
+  return 'No se pudo guardar. Revisá la conexión y probá de nuevo.';
+}
+
 // ─── save-quote modal (shared) ──────────────────────────────────────────────────
 // Enter en Nombre o Cliente guarda (si hay una cargada, la actualiza), igual que
 // Cmd/Ctrl + Enter y Cmd/Ctrl + S. Escape cierra.
@@ -445,7 +456,8 @@ function SaveQuoteModal({ modo, defaultCliente, getPayload, ncmPayload = null, l
       setDone(updating ? 'actualizada' : 'nueva');
       setTimeout(onClose, 900);
     } catch (e) {
-      setErr(e.message === 'Error al guardar' ? 'No se pudo guardar. Revisá la conexión y probá de nuevo.' : (e.message || 'No se pudo guardar.'));
+      // Nada de mensajes del navegador en inglés ("Failed to fetch", "Load failed").
+      setErr(errorDeGuardado(e));
       setSaving(false);
       enCurso.current = false;
     }
@@ -521,13 +533,16 @@ function SaveQuoteModal({ modo, defaultCliente, getPayload, ncmPayload = null, l
 }
 
 // ─── NCM guardada → formulario (la usan los combobox de NCM de los dos cotizadores) ─
-// Aplica una NCM guardada: setea código, descripción (solo si la guardada no está vacía)
-// y todas las tasas tal cual están almacenadas (strings crudos).
+// Aplica una NCM guardada: setea código, descripción y todas las tasas tal cual
+// están almacenadas (strings crudos). La descripción se completa SOLO si está
+// vacía: con el orden nuevo (Cliente, Descripción, NCM) elegir la NCM llegaba
+// después de escribirla y le pasaba el trapo, y ese texto es el que va al
+// documento del cliente.
 function applyNcm(n, setters) {
   if (!n) return;
   const { setClasificacion, setDescripcion, setPDer, setPTas, setPIva, setPIvaA, setPGan, setPIIBB } = setters;
   setClasificacion(n.codigo || '');
-  if (n.producto) setDescripcion(n.producto);
+  if (n.producto) setDescripcion((d) => (String(d ?? '').trim() ? d : n.producto));
   setPDer(n.der || '');
   setPTas(n.tasa || '');
   setPIva(n.iva || '');
@@ -536,13 +551,64 @@ function applyNcm(n, setters) {
   setPIIBB(n.iibb || '');
 }
 
+// ─── biblioteca de NCM, al día ───────────────────────────────────────────────
+// Los combobox de NCM leían la lista una sola vez, al montar: una NCM recién
+// creada en el panel (o guardada sola al guardar una cotización) no aparecía
+// hasta recargar la página, y eso empujaba a tipear el código a mano. Quien la
+// cambia avisa con avisarNcmCambiada() y los dos cotizadores la vuelven a pedir.
+const EVENTO_NCM = 'cotizador:ncm';
+
+function avisarNcmCambiada() {
+  try { window.dispatchEvent(new Event(EVENTO_NCM)); } catch {}
+}
+
+function useNcmList() {
+  const [lista, setLista] = useState([]);
+  useEffect(() => {
+    let vivo = true;
+    const cargar = () => {
+      fetch('/api/db/ncm')
+        .then((r) => (r.ok ? r.json() : []))
+        .then((d) => { if (vivo) setLista(Array.isArray(d) ? d : []); })
+        .catch(() => {});
+    };
+    cargar();
+    window.addEventListener(EVENTO_NCM, cargar);
+    return () => { vivo = false; window.removeEventListener(EVENTO_NCM, cargar); };
+  }, []);
+  return lista;
+}
+
+// ─── NCM que se guarda sola al guardar una cotización ────────────────────────
+// Las tasas se actualizan (son las que se usaron para cotizar), pero el producto
+// se manda SOLO si la NCM no existe todavía o no tiene ninguno: la descripción
+// de UNA cotización no puede renombrar la posición para todas las demás. El
+// servidor conserva el producto anterior cuando le llega vacío.
+function ncmParaGuardar({ codigo, descripcion, ncmList, der, tasa, iva, ivaAdic, ganancias, iibb }) {
+  const cod = String(codigo || '').trim();
+  if (!cod) return null;
+  const norm = (s) => String(s || '').trim().toLowerCase();
+  const guardada = (Array.isArray(ncmList) ? ncmList : []).find((x) => x && norm(x.codigo) === norm(cod));
+  const yaTieneProducto = !!(guardada && String(guardada.producto || '').trim());
+  return {
+    codigo: cod,
+    producto: yaTieneProducto ? '' : String(descripcion || ''),
+    der: String(der ?? ''), tasa: String(tasa ?? ''), iva: String(iva ?? ''),
+    iva_adic: String(ivaAdic ?? ''), ganancias: String(ganancias ?? ''), iibb: String(iibb ?? ''),
+  };
+}
+
 // ─── borrador automático (localStorage) + cambios sin guardar ─────────────────
 // Cada modo persiste su snapshot (el mismo objeto `data` que viaja con la
 // cotización guardada) en 'cot-borrador:<modo>' con debounce de 800 ms. Al
-// montar, si hay borrador y el formulario está vacío, se ofrece restaurarlo o
-// descartarlo. "Sucio" = el snapshot actual difiere del último guardado en el
-// sistema (o de lo recién cargado desde "guardadas").
+// montar, si hay borrador, se ofrece restaurarlo o descartarlo. "Sucio" = el
+// snapshot actual difiere del último guardado en el sistema (o de lo recién
+// cargado desde "guardadas").
 const claveBorrador = (modo) => `cot-borrador:${modo}`;
+// Mientras hay un borrador sin decidir, lo que se va tipeando se guarda acá: el
+// anterior no se pisa hasta que alguien elija Restaurar o Descartar. Antes, la
+// primera tecla lo borraba a los 800 ms sin que nadie lo decidiera.
+const claveEnCurso = (modo) => `cot-borrador:${modo}:en-curso`;
 // Para decidir "formulario vacío" se ignora `mode` (cliente/personal): cambiar
 // de pestaña sin cargar nada no es un borrador.
 const sinModo = (s) => { const o = { ...(s || {}) }; delete o.mode; return JSON.stringify(o); };
@@ -560,17 +626,29 @@ function useBorrador({ modo, snapshot, aplicar, loadedQuote, setLoadedQuote, onD
   const [pendiente, setPendiente] = useState(null); // borrador encontrado al montar: { t, data, meta }
   const timer = useRef(null);
   const refs = useRef({});
-  refs.current = { snapshot, snapJson, aplicar, loadedQuote, setLoadedQuote, onDirty };
+  refs.current = { snapshot, snapJson, aplicar, loadedQuote, setLoadedQuote, onDirty, pendiente };
 
-  // Al montar: ¿quedó un borrador de la vez anterior?
+  // Al montar: ¿quedó un borrador de la vez anterior? Pueden ser dos (el que
+  // había sin decidir y lo que se tipeó encima): se ofrece el más reciente y
+  // queda uno solo en la clave de siempre.
   useEffect(() => {
+    const leer = (clave) => {
+      try {
+        const raw = localStorage.getItem(clave);
+        if (!raw) return null;
+        const b = JSON.parse(raw);
+        return (b && b.data && typeof b.t === 'number' && sinModo(b.data) !== vacioJson.current) ? b : null;
+      } catch { return null; }
+    };
+    const anterior = leer(claveBorrador(modo));
+    const enCurso = leer(claveEnCurso(modo));
+    const elegido = !anterior ? enCurso : (!enCurso ? anterior : (enCurso.t > anterior.t ? enCurso : anterior));
     try {
-      const raw = localStorage.getItem(claveBorrador(modo));
-      if (!raw) return;
-      const b = JSON.parse(raw);
-      if (b && b.data && typeof b.t === 'number' && sinModo(b.data) !== vacioJson.current) setPendiente(b);
+      localStorage.removeItem(claveEnCurso(modo));
+      if (elegido) localStorage.setItem(claveBorrador(modo), JSON.stringify(elegido));
       else localStorage.removeItem(claveBorrador(modo));
     } catch {}
+    setPendiente(elegido);
   }, [modo]);
 
   // Sucio = distinto de lo último guardado.
@@ -582,18 +660,31 @@ function useBorrador({ modo, snapshot, aplicar, loadedQuote, setLoadedQuote, onD
 
   const escribir = () => {
     timer.current = null;
-    const { snapshot: s, loadedQuote: lq } = refs.current;
+    const { snapshot: s, loadedQuote: lq, pendiente: p } = refs.current;
     const meta = lq && lq.id ? { id: lq.id, nombre: lq.nombre, cliente: lq.cliente, estado: lq.estado, notas: lq.notas } : null;
-    try { localStorage.setItem(claveBorrador(modo), JSON.stringify({ t: Date.now(), data: s, meta })); } catch {}
+    // Con un borrador sin decidir, lo nuevo va a la clave aparte: el anterior
+    // sigue ahí hasta que alguien elija Restaurar o Descartar.
+    const clave = p ? claveEnCurso(modo) : claveBorrador(modo);
+    try { localStorage.setItem(clave, JSON.stringify({ t: Date.now(), data: s, meta })); } catch {}
   };
   const escribirRef = useRef(escribir); escribirRef.current = escribir;
+
+  // Lo que se tipeó mientras el aviso estaba en pantalla pasa a ser EL borrador.
+  const consolidar = () => {
+    try {
+      const enCurso = localStorage.getItem(claveEnCurso(modo));
+      if (enCurso) localStorage.setItem(claveBorrador(modo), enCurso);
+      localStorage.removeItem(claveEnCurso(modo));
+      return !!enCurso;
+    } catch { return false; }
+  };
 
   // Autoguardado con debounce. Con el formulario vacío no escribe (así no pisa
   // un borrador pendiente); igual a lo guardado en el sistema, tampoco.
   useEffect(() => {
     if (esVacio || !dirty) return;
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => { escribirRef.current(); setPendiente(null); }, 800);
+    timer.current = setTimeout(() => { escribirRef.current(); }, 800);
   }, [snapJson, esVacio, dirty, modo]);
 
   // Si se va (cierra, recarga o navega) con un debounce pendiente, se escribe igual.
@@ -605,12 +696,15 @@ function useBorrador({ modo, snapshot, aplicar, loadedQuote, setLoadedQuote, onD
 
   const restaurar = () => {
     if (!pendiente) return;
+    // Lo que hubiera tipeado encima queda reemplazado por el borrador restaurado.
+    try { localStorage.removeItem(claveEnCurso(modo)); } catch {}
     refs.current.aplicar(pendiente.data || {});
     refs.current.setLoadedQuote?.(pendiente.meta || null);
     setPendiente(null);
   };
   const descartar = () => {
-    try { localStorage.removeItem(claveBorrador(modo)); } catch {}
+    // Si ya se estaba tipeando otra cosa, esa pasa a ser el borrador.
+    try { if (!consolidar()) localStorage.removeItem(claveBorrador(modo)); } catch {}
     setPendiente(null);
   };
   // Tras guardar en el sistema: lo actual pasa a ser "lo guardado" y el borrador sobra.
@@ -618,17 +712,26 @@ function useBorrador({ modo, snapshot, aplicar, loadedQuote, setLoadedQuote, onD
     if (timer.current) { clearTimeout(timer.current); timer.current = null; }
     ultimoGuardado.current = refs.current.snapJson;
     setDirty(false);
-    try { localStorage.removeItem(claveBorrador(modo)); } catch {}
+    try {
+      localStorage.removeItem(claveBorrador(modo));
+      localStorage.removeItem(claveEnCurso(modo));
+    } catch {}
     setPendiente(null);
   };
   // Al reactivar una cotización guardada: la aplica y la toma como punto "guardado".
   const cargarGuardada = (d) => {
+    // Abrir una guardada es decidir: el aviso se va y lo tipeado hasta acá,
+    // que la guardada está por reemplazar, queda como borrador.
+    consolidar();
+    setPendiente(null);
     marcarAlProximo.current = true;
     refs.current.aplicar(d || {});
     setTick(t => t + 1); // garantiza un render aunque nada haya cambiado
   };
 
-  return { aviso: pendiente && esVacio ? pendiente : null, dirty, restaurar, descartar, marcarGuardado, cargarGuardada };
+  // El aviso no se esconde al primer tecleo: si el borrador sigue sin decidirse,
+  // "Restaurar" tiene que seguir a mano (y el formulario no salta mientras se tipea).
+  return { aviso: pendiente, dirty, restaurar, descartar, marcarGuardado, cargarGuardada };
 }
 
 // "hoy, 12:05" · "ayer, 18:30" · "12/09, 09:15" · "12/09/2025, 09:15"
@@ -671,7 +774,7 @@ function AvisoBorrador({ b }) {
 
 export {
   printHTML, printInPage,
-  ESTADOS, estadoMeta, SaveQuoteModal, applyNcm,
+  ESTADOS, estadoMeta, SaveQuoteModal, applyNcm, ncmParaGuardar, useNcmList, avisarNcmCambiada,
   sinModo, useBorrador, AvisoBorrador,
   Dialogo, Confirmar, EstilosDialogo, IconoCerrar, IconoPapelera, IconoMas, IconoTilde,
 };

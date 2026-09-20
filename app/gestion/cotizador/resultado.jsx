@@ -28,7 +28,12 @@ const tonoDe = (v) => {
 // Porcentaje con un decimal: 7,6.
 const pct1 = (v) => fmtNum(Math.round(v * 10) / 10, 'pct');
 
-function TablaRentabilidad({ filas }) {
+// Con `soloCosto` queda la columna de costo sola: es el detalle de una
+// Importación personal, donde no hay cobro por concepto ni margen.
+function TablaRentabilidad({ filas, soloCosto, nota }) {
+  // Los renglones sin margen (seguro, FOB declarado) están para que la columna
+  // Costo cierre, pero no entran en "Tu ganancia": la tabla lo dice.
+  const haySinMargen = !soloCosto && filas.some((f) => aNumero(f.margen) === null);
   return (
     <div className="ct-rent">
       <table className="ct-rent-tabla">
@@ -36,8 +41,8 @@ function TablaRentabilidad({ filas }) {
           <tr>
             <th scope="col">Concepto</th>
             <th scope="col">Costo</th>
-            <th scope="col">Cobro</th>
-            <th scope="col">Margen</th>
+            {soloCosto ? null : <th scope="col">Cobro</th>}
+            {soloCosto ? null : <th scope="col">Margen</th>}
           </tr>
         </thead>
         <tbody>
@@ -45,13 +50,17 @@ function TablaRentabilidad({ filas }) {
             <tr key={`${f.label}-${i}`}>
               <th scope="row">{f.label}</th>
               <td>{entero(f.costo)}</td>
-              <td>{entero(f.cobro)}</td>
-              <td className={cx('ct-rent-margen', tonoDe(f.margen))}>{conSigno(f.margen)}</td>
+              {soloCosto ? null : <td>{entero(f.cobro)}</td>}
+              {soloCosto ? null : <td className={cx('ct-rent-margen', tonoDe(f.margen))}>{conSigno(f.margen)}</td>}
             </tr>
           ))}
         </tbody>
       </table>
-      <p className="ct-rent-nota">Importes en USD.</p>
+      <p className="ct-rent-nota">
+        {nota || (haySinMargen
+          ? 'Importes en USD. Los renglones con “—” en Margen no entran en tu ganancia.'
+          : 'Importes en USD.')}
+      </p>
     </div>
   );
 }
@@ -59,6 +68,9 @@ function TablaRentabilidad({ filas }) {
 export function PanelResultado({
   listo, falta = [], nota, titulo = 'Precio al cliente', precio, subPrecio, precioAlt = null,
   ganancia, gananciaPct, costo, costoLabel = 'Tu costo', desglose = [], rentabilidad = null,
+  // Importación personal: costo por concepto (sin cobro ni margen) y el IVA del
+  // despacho, que es crédito fiscal y por eso no está en "Tu costo".
+  costosPorConcepto = null, ivaCredito = null,
   onVerCliente, onGuardar, verClienteLabel = 'Ver cotización al cliente', children,
   // Opcionales (Importación personal): "Ganancia neta", "sobre el costo", etc.
   gananciaLabel = 'Tu ganancia', gananciaPctLabel = 'del precio', guardarLabel = 'Guardar cotización',
@@ -70,6 +82,11 @@ export function PanelResultado({
   const c = aNumero(costo);
   const filasDesglose = Array.isArray(desglose) ? desglose : [];
   const filasRent = Array.isArray(rentabilidad) ? rentabilidad : [];
+  const filasCostos = Array.isArray(costosPorConcepto) ? costosPorConcepto : [];
+  const iva = aNumero(ivaCredito);
+  const notaCostos = iva && Math.round(iva) > 0
+    ? `Importes en USD. Suman el costo real sin IVA. El IVA del despacho (${fmtNum(Math.round(iva), 'dinero')}) no está: es crédito fiscal recuperable.`
+    : 'Importes en USD. Suman el costo real sin IVA.';
 
   return (
     <aside className={cx('ct-panel', !listo && 'ct-panel-falta')} aria-labelledby={idTitulo}>
@@ -84,7 +101,6 @@ export function PanelResultado({
               <Monto valor={precioAlt.valor} tam="sm" />
             </div>
           ) : null}
-          {nota ? <p className="ct-nota">{nota}</p> : null}
 
           {g !== null || c !== null ? (
             <div className="ct-panel-bloque">
@@ -127,9 +143,18 @@ export function PanelResultado({
                 <TablaRentabilidad filas={filasRent} />
               </Revelar>
             </div>
+          ) : filasCostos.length ? (
+            <div className="ct-panel-rentabilidad">
+              <Revelar label="Ver costos por concepto" abierto={verRentabilidad} onToggle={() => setVerRentabilidad((v) => !v)}>
+                <TablaRentabilidad filas={filasCostos} soloCosto nota={notaCostos} />
+              </Revelar>
+            </div>
           ) : null}
 
           {children}
+          {/* Los avisos van al final: si aparecen y desaparecen mientras se
+              tipea, no mueven el precio ni el desglose. */}
+          {nota ? <p className="ct-nota">{nota}</p> : null}
         </>
       ) : (
         <>

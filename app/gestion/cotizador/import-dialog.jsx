@@ -244,7 +244,7 @@ function PreviewStage({ data, setData }) {
             <NumInput tipo="decimal" sufijo="m³" value={data.total_m3 ?? ''} onChange={(v) => set({ total_m3: aNum(v) })} placeholder="Sin dato" />
           </Campo>
           <Campo label="Peso bruto">
-            <NumInput tipo="decimal" sufijo="kg" value={data.total_kg ?? ''} onChange={(v) => set({ total_kg: aNum(v) })} placeholder="Sin dato" />
+            <NumInput tipo="peso" sufijo="kg" value={data.total_kg ?? ''} onChange={(v) => set({ total_kg: aNum(v) })} placeholder="Sin dato" />
           </Campo>
         </div>
         <Campo label="Proveedor" ayuda="Se carga en el campo Cliente del cotizador.">
@@ -269,7 +269,7 @@ function PreviewStage({ data, setData }) {
             <TextInput value={data.proveedor_pais || ''} onChange={(v) => set({ proveedor_pais: v })} placeholder="Sin dato" />
           </Campo>
           <Campo label="Bultos">
-            <NumInput tipo="decimal" value={data.total_bultos ?? ''} onChange={(v) => set({ total_bultos: aNum(v) })} placeholder="Sin dato" />
+            <NumInput tipo="peso" value={data.total_bultos ?? ''} onChange={(v) => set({ total_bultos: aNum(v) })} placeholder="Sin dato" />
           </Campo>
           <Campo label="Moneda">
             <TextInput value={data.moneda || ''} onChange={(v) => set({ moneda: v })} placeholder="USD" />

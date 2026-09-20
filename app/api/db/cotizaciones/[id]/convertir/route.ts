@@ -208,7 +208,12 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const cliente = (data.cliente || q.cliente || q.nombre || 'Cliente').toString()
   const contenedor = modo === 'aereo' ? 'Aéreo' : (CONT_LABEL[data.contType] || '40HQ')
   const m3 = modo === 'aereo' ? (data.m3Input || '') : (data.m3Merch || '')
-  const fob = (efectivo(data, 'fobReal') || data.fobCliente || '').toString()
+  // FOB del proveedor inicial: el que te cuesta y, si no hay, el del cliente.
+  // Se mira el VALOR, no el string: una cotización vieja que se reguardó trae
+  // efectivos.fobReal = '0' (la migración convierte el vacío en cero para que el
+  // precio no cambie) y '0' es truthy, así que la operación nacía con FOB 0.
+  const efFob = n(efectivo(data, 'fobReal'))
+  const fob = (efFob > 0 ? efFob : (n(data.fobCliente) || '')).toString()
   const ncm = (data.clasificacion || '').toString().trim()
   const mercaderia = (data.descripcion || '').toString().trim()
 

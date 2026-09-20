@@ -293,8 +293,20 @@ grupo('10. panel: el desglose suma el precio y los márgenes suman la ganancia',
       : [c.fobC, c.fleteC + c.segC, c.derC + c.tasC + c.ivaC + c.ivaAC + c.ganC + c.iibbC, c.gasC, c.honorarios, ...(c.gastFac > 0 ? [c.gastFac] : [])];
     ok(exactas.length === r.desglose.length && r.desglose.every((f, i) => Math.abs(f.valor - exactas[i]) < 1), `${id}: alguna fila del desglose se alejó un dólar o más de su valor`);
     if (r.rentabilidad) {
-      const margenes = r.rentabilidad.reduce((t, f) => t + f.margen, 0);
+      // Los renglones que no entran en la ganancia (el seguro) van con margen
+      // null; los costos, en cambio, tienen que cerrar contra "Tu costo".
+      const margenes = r.rentabilidad.reduce((t, f) => t + (f.margen ?? 0), 0);
       igual(margenes, c.ganTotal, `${id}: los márgenes por concepto suman la ganancia`);
+      const costos = r.rentabilidad.reduce((t, f) => t + (f.costo ?? 0), 0);
+      ok(Math.abs(costos - c.totConR) < 0.1, `${id}: los costos por concepto suman tu costo (${costos} vs ${c.totConR})`);
+    }
+    if (s.mode === 'personal') {
+      // "Ver costos por concepto": el detalle real suma "Tu costo" (sin IVA, que
+      // es crédito fiscal y va informado aparte).
+      const detalle = r.costosPorConcepto.reduce((t, f) => t + f.costo, 0);
+      ok(Math.abs(detalle - c.totSinR) < 0.1, `${id}: personal, los costos por concepto suman tu costo (${detalle} vs ${c.totSinR})`);
+      ok(r.costosPorConcepto.every((f) => !/IVA/.test(f.label)), `${id}: personal, el IVA no va como costo`);
+      igual(r.ivaCredito, c.ivaR + c.ivaAR, `${id}: personal, el IVA del despacho se informa aparte`);
     }
     const precioEsperado = s.mode === 'personal' ? c.precioVentaFinal : (s.usaSociedadPropia ? c.precioSinF : c.precioConF);
     igual(r.precio, precioEsperado, `${id}: precio del panel`);

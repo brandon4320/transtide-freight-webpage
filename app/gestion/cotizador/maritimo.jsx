@@ -13,7 +13,7 @@ import {
   PRESETS, PRESET_M3, PRESET_COSTS, calcularMaritimo, htmlClienteMaritimo,
   migrarSnapshotMaritimo, efectivosMaritimo, resultadoMaritimo,
 } from './calculo-maritimo';
-import { printHTML, SaveQuoteModal, applyNcm, useBorrador, AvisoBorrador, sinModo } from './comun';
+import { printHTML, SaveQuoteModal, applyNcm, ncmParaGuardar, useNcmList, avisarNcmCambiada, useBorrador, AvisoBorrador, sinModo } from './comun';
 import {
   Paso, Campo, NumInput, TextInput, Segmentado, SiNo, LineaResumen, Revelar, Combobox,
   TablaGastos, FilaGasto, useSiguienteConEnter, useAtajos, fmtNum, fmtPct, fmtUSD,
@@ -248,10 +248,8 @@ function CotizadorMaritimo({ onDirty }) {
     })();
     return () => { cancelled = true; };
   }, []);
-  const [ncmList, setNcmList] = useState([]);
-  useEffect(() => {
-    fetch('/api/db/ncm').then(r => r.ok ? r.json() : []).then(d => setNcmList(Array.isArray(d) ? d : [])).catch(() => {});
-  }, []);
+  // La biblioteca de NCM se recarga sola cuando algo la cambia (ver useNcmList).
+  const ncmList = useNcmList();
 
   // ── lo que se cobra (vacío = cobro automático: el costo con el recargo) ──
   const [fobCliente, setFobCliente] = useState('');       // lo que paga el cliente por la mercadería
@@ -400,7 +398,7 @@ function CotizadorMaritimo({ onDirty }) {
       const desc = [
         d.notas,
         d.items && d.items.length
-          ? `Items: ${d.items.slice(0, 5).map((it) => it.descripcion).filter(Boolean).join(', ')}${d.items.length > 5 ? '…' : ''}`
+          ? `Ítems: ${d.items.slice(0, 5).map((it) => it.descripcion).filter(Boolean).join(', ')}${d.items.length > 5 ? '…' : ''}`
           : null,
       ].filter(Boolean).join(' — ');
       if (desc) setDescripcion(desc);
@@ -446,7 +444,9 @@ function CotizadorMaritimo({ onDirty }) {
   const vacioInicial = useRef(null);
   if (vacioInicial.current === null) vacioInicial.current = sinModo(snapshot);
   const formVacioRef = useRef(true);
-  formVacioRef.current = sinModo(snapshot) === vacioInicial.current;
+  // Con un borrador sin decidir tampoco: la primera tecla lo hace desaparecer y
+  // a los 800 ms el autoguardado lo pisa, sin que nadie haya elegido Descartar.
+  formVacioRef.current = sinModo(snapshot) === vacioInicial.current && !borrador.aviso;
   useEffect(() => {
     const raiz = raizRef.current;
     if (!raiz || typeof IntersectionObserver === 'undefined') return undefined;
@@ -492,9 +492,10 @@ function CotizadorMaritimo({ onDirty }) {
   const resumenPlazos = `producción ${dias(hitos.prod)} · tránsito ${dias(hitos.tran)}${llega ? ` · llega el ${llega}` : ''}`;
 
   // FOB alternativos: abiertos si alguno tiene algo cargado (o si los abrís vos).
+  // El flete real no está acá: se carga en su propia fila de la tabla de gastos.
   const hayFobAlt = personal
-    ? hayValor(fobDecReal) || hayValor(fobDecCli) || hayValor(fleteRealInput)
-    : hayValor(fobReal) || hayValor(fobDecCli) || hayValor(fobDecReal) || hayValor(fleteRealInput);
+    ? hayValor(fobDecReal) || hayValor(fobDecCli)
+    : hayValor(fobReal) || hayValor(fobDecCli) || hayValor(fobDecReal);
   const fobAltAbierto = fobAltManual ?? hayFobAlt;
   // Lo que valen vacíos (los placeholders dicen el valor que se usa).
   const fobDecRealDefecto = n(fobDecCli) || c.fobR;
@@ -520,20 +521,32 @@ function CotizadorMaritimo({ onDirty }) {
     setContCosts((prev) => ({ ...prev, [contType]: { ...PRESET_COSTS[contType] } }));
   };
 
-  // Gastos: "Tu costo" es el prorrateo del contenedor (el flete, el real si se cargó).
+  // Gastos: "Tu costo" es el prorrateo del contenedor. El del flete además se
+  // puede pisar acá mismo (antes había que subir al paso 1 y abrir el bloque de
+  // los FOB para encontrar "Flete real"); vacío vale el prorrateo, en gris.
   const hayRecargo = n(markup) !== 0;
   const recargo = 1 + n(markup) / 100; // el mismo factor que usa el cálculo
   const gastos = [
-    { id: 'flete', concepto: 'Flete marítimo', costo: c.fleteR, valor: fleteCli, onChange: setFleteCli },
+    {
+      id: 'flete',
+      concepto: 'Flete marítimo',
+      costo: fleteRealInput,
+      onCosto: setFleteRealInput,
+      costoPlaceholder: fleteProrrateado,
+      costoEfectivo: c.fleteR,
+      valor: fleteCli,
+      onChange: setFleteCli,
+    },
     { id: 'des', concepto: 'Despachante', costo: c.desR, valor: gDes, onChange: setGDes },
     { id: 'ter', concepto: 'Terminal', costo: c.terR, valor: gTer, onChange: setGTer },
     { id: 'nav', concepto: 'Naviera', costo: c.navR, valor: gNav, onChange: setGNav },
     { id: 'log', concepto: 'Logística', costo: c.logR, valor: gLog, onChange: setGLog },
   ];
 
-  // Avisos en ámbar del panel.
+  // Avisos en ámbar del panel. Recién cuando hay un precio que mirar: con la
+  // pantalla vacía no tiene sentido avisar de algo que todavía no se cargó.
   const notas = [];
-  if (!String(clasificacion || '').trim()) {
+  if (r.listo && !String(clasificacion || '').trim()) {
     const arancelesDeSiempre = n(pDer) === 35 && n(pTas) === 0 && n(pIva) === 21;
     notas.push(arancelesDeSiempre
       ? 'Sin NCM: se usan los aranceles por defecto.'
@@ -609,16 +622,13 @@ function CotizadorMaritimo({ onDirty }) {
               </Campo>
             )}
             {personal ? (
-              <Revelar label="¿Declarás otro valor o el flete es distinto?" abierto={fobAltAbierto} onToggle={(v) => setFobAltManual(v)}>
+              <Revelar label="¿Declarás otro valor?" abierto={fobAltAbierto} onToggle={(v) => setFobAltManual(v)}>
                 <div className="ct-fila">
                   <Campo label="FOB declarado" ayuda="Base de los aranceles.">
                     <NumInput prefijo="USD" value={fobDecReal} onChange={setFobDecReal} placeholder={ph(fobDecRealDefecto)} />
                   </Campo>
-                  <Campo label="Flete real" ayuda="Si no es el prorrateo del contenedor.">
-                    <NumInput prefijo="USD" value={fleteRealInput} onChange={setFleteRealInput} placeholder={ph(fleteProrrateado)} />
-                  </Campo>
                 </div>
-                <p className="ct-ayuda">Si los dejás vacíos, valen lo que se ve en gris.</p>
+                <p className="ct-ayuda">Si lo dejás vacío, vale lo que se ve en gris.</p>
               </Revelar>
             ) : (
               <Revelar label="¿Te cuesta o declarás otro valor?" abierto={fobAltAbierto} onToggle={(v) => setFobAltManual(v)}>
@@ -631,9 +641,6 @@ function CotizadorMaritimo({ onDirty }) {
                   </Campo>
                   <Campo label="FOB declarado real">
                     <NumInput prefijo="USD" value={fobDecReal} onChange={setFobDecReal} placeholder={ph(fobDecRealDefecto)} />
-                  </Campo>
-                  <Campo label="Flete real" ayuda="Si no es el prorrateo del contenedor.">
-                    <NumInput prefijo="USD" value={fleteRealInput} onChange={setFleteRealInput} placeholder={ph(fleteProrrateado)} />
                   </Campo>
                 </div>
                 <p className="ct-ayuda">Si los dejás vacíos, valen lo que se ve en gris. Los FOB declarados son la base de los aranceles: el del cliente para la cotización y el real para tu costo.</p>
@@ -664,32 +671,40 @@ function CotizadorMaritimo({ onDirty }) {
 
             <TablaGastos
               ocultarCobro={personal}
-              pie={personal ? null : (
+              intro={personal ? null : (
                 <>
-                  <p style={{ margin: 0 }}>
-                    {hayRecargo
-                      ? `Si no escribís nada, cobrás tu costo más el ${fmtPct(markup)} de recargo.`
-                      : 'Si no escribís nada, cobrás tu costo.'}
-                  </p>
                   <div style={{ maxWidth: 220 }}>
                     <Campo label="Recargo sobre costos" ayuda="Se suma en las filas sin cobro.">
                       <NumInput tipo="pct" sufijo="%" value={markup} onChange={setMarkup} placeholder="0" />
                     </Campo>
                   </div>
+                  <p style={{ margin: 0 }}>
+                    {hayRecargo
+                      ? `Si no escribís nada, cobrás tu costo más el ${fmtPct(markup)} de recargo.`
+                      : 'Si no escribís nada, cobrás tu costo.'}
+                  </p>
                 </>
               )}
             >
-              {gastos.map((g) => (
-                <FilaGasto
-                  key={g.id}
-                  concepto={g.concepto}
-                  costo={g.costo}
-                  valor={g.valor}
-                  onChange={g.onChange}
-                  sugerido={hayRecargo ? g.costo * recargo : undefined}
-                  ocultarCobro={personal}
-                />
-              ))}
+              {gastos.map((g) => {
+                // El recargo se calcula sobre el costo EFECTIVO (el del flete
+                // puede venir del prorrateo, no de lo que se tipeó).
+                const efectivo = g.costoEfectivo !== undefined ? g.costoEfectivo : g.costo;
+                return (
+                  <FilaGasto
+                    key={g.id}
+                    concepto={g.concepto}
+                    costo={g.costo}
+                    onCosto={g.onCosto}
+                    costoPlaceholder={g.costoPlaceholder}
+                    costoEfectivo={g.costoEfectivo}
+                    valor={g.valor}
+                    onChange={g.onChange}
+                    sugerido={hayRecargo ? n(efectivo) * recargo : undefined}
+                    ocultarCobro={personal}
+                  />
+                );
+              })}
             </TablaGastos>
 
             <Revelar
@@ -798,6 +813,8 @@ function CotizadorMaritimo({ onDirty }) {
           costoLabel={personal ? 'Costo real sin IVA' : 'Tu costo'}
           desglose={r.desglose}
           rentabilidad={r.rentabilidad}
+          costosPorConcepto={r.costosPorConcepto}
+          ivaCredito={r.ivaCredito}
           onVerCliente={personal ? undefined : abrirVista}
           onGuardar={abrirGuardar}
         >
@@ -825,14 +842,19 @@ function CotizadorMaritimo({ onDirty }) {
           modo="maritimo"
           defaultCliente={cliente}
           getPayload={() => ({
-            total_usd: String(Math.round(usaSociedadPropia ? c.precioSinF : c.precioConF)),
+            // El mismo número que muestra el panel: en Importación personal es
+            // el precio de venta, no el precio al cliente (que ahí no existe).
+            total_usd: String(Math.round(r.precio)),
             // Línea de la lista de guardadas, en es-AR: "FOB USD 53.000 · 12,5 m³ · USD 71.234 final".
-            resumen: `FOB ${fmtUSD(c.fobC)} · ${fmtNum(n(m3Merch), 'decimal') || '0'} m³ · ${fmtUSD(usaSociedadPropia ? c.precioSinF : c.precioConF)} final`,
+            resumen: `FOB ${fmtUSD(personal ? c.fobR : c.fobC)} · ${fmtNum(n(m3Merch), 'decimal') || '0'} m³ · ${fmtUSD(r.precio)} final`,
             data: serialize(),
           })}
-          ncmPayload={() => clasificacion.trim() ? ({ codigo: clasificacion.trim(), producto: descripcion, der: String(pDer), tasa: String(pTas), iva: String(pIva), iva_adic: String(pIvaA), ganancias: String(pGan), iibb: String(pIIBB) }) : null}
+          ncmPayload={() => ncmParaGuardar({
+            codigo: clasificacion, descripcion, ncmList,
+            der: pDer, tasa: pTas, iva: pIva, ivaAdic: pIvaA, ganancias: pGan, iibb: pIIBB,
+          })}
           loadedQuote={loadedQuote}
-          onSaved={(meta) => { setLoadedQuote(meta); borrador.marcarGuardado(); }}
+          onSaved={(meta) => { setLoadedQuote(meta); borrador.marcarGuardado(); avisarNcmCambiada(); }}
           onClose={() => setShowSave(false)}
         />
       )}

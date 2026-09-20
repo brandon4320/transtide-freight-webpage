@@ -99,6 +99,8 @@ function enfocarDesdeCaja(e, ref) {
 export function NumInput({
   id, value, onChange, tipo = 'dinero', prefijo, sufijo, placeholder, grande, autoFocus,
   onEnter, ariaLabel, placeholderFuerte, disabled, className, style,
+  // El Enter no se detiene acá (el Tab sí): ver useSiguienteConEnter.
+  saltarConEnter,
 }) {
   const ctx = useContext(CampoCtx);
   const inputRef = useRef(null);
@@ -123,8 +125,13 @@ export function NumInput({
     }
   }, [canonProp, tipo]);
 
+  // Texto escrito que no es un número: NO se emite ''. Vaciar el campo es una
+  // orden ("cobrá tu costo", "usá el prorrateo"), así que un tipeo suelto
+  // ("53k", "5000 aprox") no puede valer lo mismo: queda el valor anterior y al
+  // salir del campo se vuelve a ver formateado.
   const emitir = (t) => {
     const c = parseNum(t, tipo);
+    if (c === '' && String(t).trim() !== '') return;
     if (c === ultimo.current) return;
     ultimo.current = c;
     onChangeRef.current?.(c);
@@ -188,6 +195,7 @@ export function NumInput({
         aria-label={ariaLabel}
         aria-describedby={ctx?.describedBy}
         aria-invalid={ctx?.invalido || undefined}
+        data-ct-enter-saltar={saltarConEnter ? '' : undefined}
         onFocus={alEntrar}
         onBlur={alSalir}
         onChange={alEscribir}
@@ -432,9 +440,20 @@ export function Combobox({
   // Tras elegir (o al abrir con una opción ya elegida) se muestran todas; al
   // tipear, se filtra por lo tipeado.
   const [filtrando, setFiltrando] = useState(false);
+  // Lo último que se tipeó acá adentro. Sirve para distinguir "lo escribió el
+  // usuario" de "el valor vino de afuera" (una guardada, un borrador): solo lo
+  // tipeado se aplica solo al salir del campo.
+  const tecleado = useRef(null);
   const texto = value ?? '';
   const textoNormal = normalizar(texto).trim();
-  const coincideExacta = () => (Array.isArray(opciones) ? opciones : []).some((o) => normalizar(o.label).trim() === textoNormal);
+  // "Es exactamente esta opción" se compara sin acentos, mayúsculas, espacios ni
+  // puntos: '84561100' y '8456 11 00' son la NCM '8456.11.00'. Es la misma regla
+  // con la que la lista le pone el tilde, así que lo que se ve elegido es lo que
+  // se aplica al salir del campo.
+  const textoClave = compacto(textoNormal);
+  const mismaOpcion = (o) => !!textoClave && compacto(normalizar(o.label)) === textoClave;
+  const buscarExacta = () => (Array.isArray(opciones) ? opciones : []).find(mismaOpcion) || null;
+  const coincideExacta = () => !!buscarExacta();
 
   const resultados = useMemo(
     () => filtrarOpciones(opciones, filtrando ? texto : '', maxResultados),
@@ -451,10 +470,22 @@ export function Combobox({
     setAbierto(true);
   };
   const elegir = (o) => {
+    tecleado.current = null;
     onChange?.(o.label);
     onElegir?.(o);
     setFiltrando(false);
     cerrar();
+  };
+
+  // Al salir del campo (Enter, Tab o click afuera) sin haber marcado ninguna
+  // opción: si lo TIPEADO es exactamente una guardada, se aplica igual. Sin
+  // esto, escribir la NCM entera dejaba los aranceles de siempre y nada avisaba.
+  // Solo se aplica lo tipeado en este campo (no un valor que vino de afuera) y
+  // una sola vez: después de aplicar, cambiar los aranceles a mano no se pisa.
+  const aplicarTecleado = () => {
+    if (!onElegir || tecleado.current === null || tecleado.current !== texto) return;
+    const o = buscarExacta();
+    if (o) elegir(o);
   };
 
   // Click o toque afuera: cierra.
@@ -497,6 +528,7 @@ export function Combobox({
           elegir(resultados[activa]);
           return;
         }
+        aplicarTecleado();
         if (abierto) cerrar();
         if (onEnter) { e.preventDefault(); onEnter(e); }
         return;
@@ -507,6 +539,7 @@ export function Combobox({
         cerrar();
         return;
       case 'Tab':
+        aplicarTecleado();
         if (abierto) cerrar();
         return;
       default:
@@ -543,6 +576,7 @@ export function Combobox({
           autoFocus={autoFocus}
           disabled={disabled}
           onChange={(e) => {
+            tecleado.current = e.target.value;
             onChange?.(e.target.value);
             setFiltrando(true);
             setActiva(-1);
@@ -552,8 +586,11 @@ export function Combobox({
           onKeyDown={alTecla}
           onBlur={() => {
             // Por si el foco se fue sin click (programático): cerrar si ya no está adentro.
+            // El timeout deja pasar primero el click en una opción de la lista.
             setTimeout(() => {
-              if (raiz.current && !raiz.current.contains(document.activeElement)) cerrar();
+              if (!raiz.current || raiz.current.contains(document.activeElement)) return;
+              aplicarTecleado();
+              cerrar();
             }, 0);
           }}
         />
@@ -561,7 +598,7 @@ export function Combobox({
       {conLista ? (
         <ul className="ct-combo-lista" id={idLista} role="listbox" aria-label={ariaLabel}>
           {resultados.map((o, i) => {
-            const esLaActual = !!textoNormal && normalizar(o.label).trim() === textoNormal;
+            const esLaActual = mismaOpcion(o);
             return (
               <li
                 key={`${String(o.id ?? '')}-${i}`}
@@ -595,9 +632,12 @@ export function Combobox({
 
 // Encabezado de la tabla de gastos (Concepto · Tu costo · Cobrás) + filas + pie.
 // Usa la misma grilla que FilaGasto, así las columnas quedan alineadas.
-export function TablaGastos({ ocultarCobro, costoLabel = 'Tu costo', cobroLabel = 'Cobrás', pie, children }) {
+// `intro` va ARRIBA de todo: lo que hay que decidir antes de la tabla (el
+// recargo, que es lo que se cobra en las filas que queden vacías).
+export function TablaGastos({ ocultarCobro, costoLabel = 'Tu costo', cobroLabel = 'Cobrás', intro, pie, children }) {
   return (
     <div className="ct-gastos">
+      {intro ? <div className="ct-gastos-intro">{intro}</div> : null}
       <div className={cx('ct-gasto', 'ct-gastos-cab', ocultarCobro && 'ct-gasto-sin-cobro')} aria-hidden="true">
         <span className="ct-gasto-concepto">Concepto</span>
         <span className="ct-gasto-costo">{costoLabel}</span>
@@ -614,13 +654,25 @@ export function TablaGastos({ ocultarCobro, costoLabel = 'Tu costo', cobroLabel 
 // "Cobrás" muestra como placeholder lo que se cobra si queda vacío: el costo, o
 // `sugerido` si se cobra con recargo. Si lo cobrado queda por debajo del costo,
 // avisa en ámbar (no mientras se está tipeando).
-export function FilaGasto({ id, concepto, costo, onCosto, valor, onChange, ocultarCobro, onEnter, sugerido }) {
+export function FilaGasto({
+  id, concepto, costo, onCosto, valor, onChange, ocultarCobro, onEnter, sugerido,
+  // Cuando "Tu costo" se carga a mano pero tiene un valor por defecto (el flete
+  // marítimo, que sale del prorrateo del contenedor): costoPlaceholder es lo que
+  // se ve en gris en la caja vacía y costoEfectivo es lo que realmente se paga,
+  // que es lo que manda para el placeholder de "Cobrás" y para el aviso.
+  costoPlaceholder, costoEfectivo,
+  // Con los dos campos editables (el aéreo), el Enter baja al "Tu costo" de la
+  // fila siguiente en vez de parar en el "Cobrás" que casi siempre queda vacío;
+  // al "Cobrás" se llega con Tab.
+  cobroFueraDelEnter,
+}) {
   const auto = useId();
   const base = id || auto;
   const [tipeando, setTipeando] = useState(false);
-  const costoNum = aNumero(costo);
+  const costoNum = aNumero(costoEfectivo !== undefined ? costoEfectivo : costo);
+  const phCosto = aNumero(costoPlaceholder);
   const valorNum = aNumero(valor);
-  const porDefecto = aNumero(sugerido ?? costo);
+  const porDefecto = aNumero(sugerido !== undefined ? sugerido : costoNum);
   const cobraMenos = !ocultarCobro && valorNum !== null && costoNum !== null && costoNum > 0
     && Math.round(valorNum * 100) < Math.round(costoNum * 100);
 
@@ -629,7 +681,15 @@ export function FilaGasto({ id, concepto, costo, onCosto, valor, onChange, ocult
       <span className="ct-gasto-concepto">{concepto}</span>
       <div className="ct-gasto-costo">
         {onCosto ? (
-          <NumInput id={`${base}-costo`} value={costo} onChange={onCosto} prefijo="USD" ariaLabel={`${concepto}: tu costo`} />
+          <NumInput
+            id={`${base}-costo`}
+            value={costo}
+            onChange={onCosto}
+            prefijo="USD"
+            placeholder={phCosto ? fmtNum(phCosto, 'dinero') : ''}
+            placeholderFuerte={!!phCosto}
+            ariaLabel={`${concepto}: tu costo`}
+          />
         ) : (
           <span className={cx('ct-gasto-costo-txt', !costoNum && 'ct-vacio')}>
             {costoNum ? fmtNum(costoNum, 'dinero') : '—'}
@@ -647,6 +707,7 @@ export function FilaGasto({ id, concepto, costo, onCosto, valor, onChange, ocult
             placeholderFuerte
             ariaLabel={`${concepto}: cobrás`}
             onEnter={onEnter}
+            saltarConEnter={cobroFueraDelEnter}
           />
         </div>
       )}
@@ -729,6 +790,10 @@ function esDestino(el) {
 // si el campo ya manejó el Enter (preventDefault: onEnter, combobox eligiendo)
 // ni en el último campo. Escucha en window para correr después de los onKeyDown
 // de React.
+//
+// Un campo con data-ct-enter-saltar no es destino del Enter (el Tab sí llega):
+// es para los campos de una fila que la mayoría de las veces se dejan vacíos,
+// como el "Cobrás" del aéreo cuando solo se cargan los costos del agente.
 export function useSiguienteConEnter(refContenedor) {
   useEffect(() => {
     const alTecla = (e) => {
@@ -739,7 +804,8 @@ export function useSiguienteConEnter(refContenedor) {
       if (!cont || !(t instanceof HTMLElement) || !cont.contains(t) || !esInputDeTexto(t)) return;
       // Un combobox ajeno con la lista abierta: el Enter es para elegir.
       if (t.getAttribute('role') === 'combobox' && t.getAttribute('aria-expanded') === 'true' && !t.hasAttribute('data-ct-combo')) return;
-      const campos = Array.from(cont.querySelectorAll('input, select, [data-ct-campo]')).filter((el) => el === t || esDestino(el));
+      const campos = Array.from(cont.querySelectorAll('input, select, [data-ct-campo]'))
+        .filter((el) => el === t || (esDestino(el) && !el.hasAttribute('data-ct-enter-saltar')));
       const i = campos.indexOf(t);
       if (i < 0 || i === campos.length - 1) return;
       let destino = campos[i + 1];

@@ -10,7 +10,7 @@ import { useState, useEffect, useRef, useCallback, useId, Suspense } from 'react
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import './cotizador.css';
 import ImportDialog from './import-dialog';
-import { Dialogo } from './comun';
+import { Dialogo, avisarNcmCambiada } from './comun';
 import { CotizadorMaritimo } from './maritimo';
 import { CotizadorAereo } from './aereo';
 import { SavedQuotesPanel } from './guardadas';
@@ -213,7 +213,9 @@ function CotizadorInner() {
       )}
 
       {ncmOpen && (
-        <NcmPanel onClose={() => setNcmOpen(false)} />
+        // Al cerrar el panel, los combobox de NCM vuelven a pedir la lista: lo
+        // que se creó o se editó acá tiene que estar ahí sin recargar la página.
+        <NcmPanel onClose={() => { setNcmOpen(false); avisarNcmCambiada(); }} />
       )}
     </div>
   );

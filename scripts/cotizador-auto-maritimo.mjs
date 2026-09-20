@@ -307,16 +307,23 @@ const VACIOS = { fleteCli: '', gDes: '', gTer: '', gNav: '', gLog: '' };
       igual(r.ganancia, c.gananciaNeta, `${id}: personal, ganancia neta`);
       igual(r.costo, c.totSinR, `${id}: personal, costo real sin IVA`);
       if (c.totSinR > 0) igual(r.gananciaPct, n(s.pMrg), `${id}: personal, la ganancia es el margen sobre el costo`);
+      // "Ver costos por concepto": el detalle real tiene que sumar "Tu costo".
+      // El IVA y el IVA adicional van aparte (crédito fiscal, no costo).
+      const detalle = r.costosPorConcepto.reduce((a, f) => a + f.costo, 0);
+      ok(Math.abs(detalle - c.totSinR) < 0.1, `${id}: personal, los costos por concepto suman tu costo (${detalle} vs ${c.totSinR})`);
+      ok(r.costosPorConcepto.every((f) => !/IVA/.test(f.label)), `${id}: personal, el IVA no va como costo`);
+      igual(r.ivaCredito, c.ivaR + c.ivaAR, `${id}: personal, el IVA del despacho se informa aparte`);
       continue;
     }
     igual(r.ganancia, c.ganTotal, `${id}: tu ganancia = ganTotal`);
     igual(r.costo, c.totConR, `${id}: tu costo = costo real con IVA`);
     if (r.precio > 0) igual(r.gananciaPct, (c.ganTotal / r.precio) * 100, `${id}: % de ganancia sobre el precio`);
     ok((r.precioSinFactura !== null) === (!propia && c.gastFac > 0), `${id}: "Sin factura" solo con la sociedad de Transtide y facturación`);
-    // Los márgenes por concepto suman la ganancia; el del seguro se muestra pero
-    // ganTotal no lo cuenta (así era "Detalle real vs cobrado").
+    // Los márgenes por concepto suman EXACTO la ganancia: los renglones que
+    // ganTotal no cuenta (el seguro, el FOB declarado) van con margen null.
     const sumaMargenes = r.rentabilidad.reduce((a, f) => a + (f.margen ?? 0), 0);
-    ok(Math.abs(sumaMargenes - (c.ganTotal + (c.segC - c.segR))) < 0.1, `${id}: los márgenes suman la ganancia (${sumaMargenes} vs ${c.ganTotal})`);
+    ok(Math.abs(sumaMargenes - c.ganTotal) < 0.1, `${id}: los márgenes suman la ganancia (${sumaMargenes} vs ${c.ganTotal})`);
+    ok(r.rentabilidad.every((f) => f.label !== 'Seguro' || f.margen === null), `${id}: el seguro va sin margen`);
     ok(r.rentabilidad.some((f) => f.label === 'Impuestos (los paga el cliente)') === (propia && r.rentabilidad.some((f) => f.label.startsWith('Impuestos'))),
       `${id}: con la sociedad del cliente los impuestos van en un renglón`);
     ok(!propia || r.rentabilidad.every((f) => !['Derechos', 'IVA'].includes(f.label)), `${id}: con la sociedad del cliente no hay margen por arancel`);

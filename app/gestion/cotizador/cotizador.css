@@ -699,6 +699,16 @@
   font-size: 12px;
   color: #9ca3af;
 }
+/* Lo que se decide ANTES de la tabla (el recargo y qué pasa con las filas
+   vacías): mismo tono que el pie, pegado arriba del encabezado. */
+.gestion-root .ct-gastos-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 14px;
+  font-size: 12px;
+  color: #9ca3af;
+}
 
 /* ── Lectura: falta, montos, notas ─────────────────────────────────────────── */
 
@@ -1102,6 +1112,15 @@
   .gestion-root .ct-btn-primario::after,
   .gestion-root .ct-pestana::after {
     content: none;
+  }
+  /* globals.css le pone a TODO <label> 1rem, display block y margen abajo: los
+     rótulos de las percepciones quedaban más grandes que el resto y despegados
+     de su campo. Acá mandan los tokens del cotizador. */
+  .gestion-root label.ct-linea-label {
+    font-size: 12.5px !important;
+    font-weight: 500 !important;
+    margin: 0 !important;
+    display: inline !important;
   }
 }
 

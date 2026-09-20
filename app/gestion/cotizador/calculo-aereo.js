@@ -215,14 +215,38 @@ export function repartirRedondeo(valores, total) {
 
 const casiCero = (v) => !Number.isFinite(v) || Math.abs(v) < 0.005;
 
+// Costos reales por concepto (Importación personal): el detalle que antes
+// mostraba "Desglose de costos reales". Suman EXACTO "Tu costo" (c.totSinR).
+// El IVA y el IVA adicional del despacho no están: son crédito fiscal
+// recuperable, no costo, y por eso tampoco entran en totSinR (van aparte, en
+// r.ivaCredito, para que se puedan ver).
+function costosAereo(c) {
+  return [
+    { label: 'Mercadería', costo: c.fobR },
+    { label: 'Flete aéreo', costo: c.fleteR },
+    { label: 'Seguro', costo: c.segR },
+    { label: 'Derechos', costo: c.derR },
+    { label: 'Tasa estadística', costo: c.tasR },
+    { label: 'Percepción de Ganancias', costo: c.ganR },
+    { label: 'Percepción de IIBB', costo: c.iibbR },
+    { label: 'AWB', costo: c.awbRv },
+    { label: 'Handling', costo: c.handRv },
+    { label: 'Terminal', costo: c.terRv },
+    { label: 'Despachante', costo: c.desRv },
+    { label: 'Transporte interno', costo: c.traRv },
+  ].filter((f) => !casiCero(f.costo));
+}
+
 // Lo que muestra el panel de resultado, a partir del estado (s) y del cálculo (c):
 //  - listo / falta: hace falta FOB (en Importación personal, el FOB real) y peso
 //    cobrable; mientras falte algo no se muestran importes;
 //  - precio, precioSinFactura (null si no hay diferencia), ganancia, gananciaPct,
 //    costo;
 //  - desglose: filas que suman exacto el precio (redondeado a dólares);
-//  - rentabilidad (solo para cliente): costo, cobro y margen por concepto; los
-//    márgenes suman la ganancia (c.ganTotal).
+//  - rentabilidad (solo para cliente): costo, cobro y margen por concepto. Los
+//    costos suman "Tu costo" (c.totConR) y los márgenes suman la ganancia
+//    (c.ganTotal); los renglones que no entran en la ganancia van con margen
+//    null y se ven como '—'.
 export function resultadoAereo(s, c) {
   const personal = s.mode === 'personal';
   const fob = personal ? c.fobR : c.fobC;
@@ -251,6 +275,8 @@ export function resultadoAereo(s, c) {
       costo: c.totSinR,
       desglose: filas.map(([label], i) => ({ label, valor: red[i] })),
       rentabilidad: null,
+      costosPorConcepto: costosAereo(c),
+      ivaCredito: c.ivaR + c.ivaAR,
     };
   }
 
@@ -269,6 +295,9 @@ export function resultadoAereo(s, c) {
   const rentabilidad = [
     { label: 'Mercadería', costo: c.fobR, cobro: c.fobC, margen: c.mFOB },
     { label: 'Flete aéreo', costo: c.fleteR, cobro: c.fleteC, margen: c.mFlet },
+    // Sin margen a propósito: la ganancia (c.ganTotal) no lo incluye. Va igual
+    // para que la columna Costo cierre contra "Tu costo" (c.totConR lo suma).
+    { label: 'Seguro', costo: c.segR, cobro: c.segC, margen: null },
     {
       label: propia ? 'Impuestos (los paga el cliente)' : 'Impuestos y aranceles',
       costo: c.derR + c.tasR + c.ivaR + c.ivaAR + c.ganR + c.iibbR,
@@ -281,7 +310,7 @@ export function resultadoAereo(s, c) {
     { label: 'Despachante', costo: c.desRv, cobro: c.desC, margen: c.mDes },
     { label: 'Transporte', costo: c.traRv, cobro: c.traC, margen: c.mTra },
     { label: 'Honorarios', costo: null, cobro: c.honorarios, margen: c.honorarios },
-  ].filter((f) => !(casiCero(f.costo ?? 0) && casiCero(f.cobro) && casiCero(f.margen)));
+  ].filter((f) => !(casiCero(f.costo ?? 0) && casiCero(f.cobro) && casiCero(f.margen ?? 0)));
   return {
     listo, falta, precio,
     precioSinFactura: !propia && c.gastFac > 0 ? c.precioSinF : null,

@@ -12,7 +12,7 @@ import { n, qDiaMas, LEYENDA_AER } from './impresion';
 import {
   KG_PER_M3, calcularAereo, htmlClienteAereo, migrarSnapshotAereo, efectivosAereo, resultadoAereo, conRecargo,
 } from './calculo-aereo';
-import { printHTML, SaveQuoteModal, applyNcm, useBorrador, AvisoBorrador, sinModo } from './comun';
+import { printHTML, SaveQuoteModal, applyNcm, ncmParaGuardar, useNcmList, avisarNcmCambiada, useBorrador, AvisoBorrador, sinModo } from './comun';
 import {
   Paso, Campo, NumInput, TextInput, Segmentado, SiNo, LineaResumen, Revelar, Combobox,
   TablaGastos, FilaGasto, useSiguienteConEnter, useAtajos, fmtNum, fmtPct, fmtUSD,
@@ -220,10 +220,8 @@ function CotizadorAereo({ onDirty }) {
     })();
     return () => { cancelled = true; };
   }, []);
-  const [ncmList, setNcmList] = useState([]);
-  useEffect(() => {
-    fetch('/api/db/ncm').then(r => r.ok ? r.json() : []).then(d => setNcmList(Array.isArray(d) ? d : [])).catch(() => {});
-  }, []);
+  // La biblioteca de NCM se recarga sola cuando algo la cambia (ver useNcmList).
+  const ncmList = useNcmList();
 
   // carga: el agente nos pasa m³ y peso real, no diferenciamos por bulto
   const [m3Input,  setM3Input]  = useState('');
@@ -384,7 +382,7 @@ function CotizadorAereo({ onDirty }) {
       const desc = [
         d.notas,
         d.items && d.items.length
-          ? `Items: ${d.items.slice(0, 5).map((it) => it.descripcion).filter(Boolean).join(', ')}${d.items.length > 5 ? '…' : ''}`
+          ? `Ítems: ${d.items.slice(0, 5).map((it) => it.descripcion).filter(Boolean).join(', ')}${d.items.length > 5 ? '…' : ''}`
           : null,
       ].filter(Boolean).join(' — ');
       if (desc) setDescripcion(desc);
@@ -431,7 +429,9 @@ function CotizadorAereo({ onDirty }) {
   const vacioInicial = useRef(null);
   if (vacioInicial.current === null) vacioInicial.current = sinModo(snapshot);
   const formVacioRef = useRef(true);
-  formVacioRef.current = sinModo(snapshot) === vacioInicial.current;
+  // Con un borrador sin decidir tampoco: la primera tecla lo hace desaparecer y
+  // a los 800 ms el autoguardado lo pisa, sin que nadie haya elegido Descartar.
+  formVacioRef.current = sinModo(snapshot) === vacioInicial.current && !borrador.aviso;
   useEffect(() => {
     const raiz = raizRef.current;
     if (!raiz || typeof IntersectionObserver === 'undefined') return undefined;
@@ -502,9 +502,15 @@ function CotizadorAereo({ onDirty }) {
     { id: 'tra', concepto: 'Transporte interno', costo: traReal, onCosto: setTraReal, valor: traCli, onChange: setTraCli },
   ];
 
-  // Avisos en ámbar del panel.
+  // Avisos en ámbar del panel. Recién cuando hay un precio que mirar: con la
+  // pantalla vacía no tiene sentido avisar de algo que todavía no se cargó.
   const notas = [];
-  if (!String(clasificacion || '').trim()) notas.push('Sin NCM: revisá que los aranceles sean los de esta mercadería.');
+  if (r.listo && !String(clasificacion || '').trim()) {
+    const arancelesDeSiempre = n(pDer) === 35 && n(pTas) === 0 && n(pIva) === 21;
+    notas.push(arancelesDeSiempre
+      ? 'Sin NCM: se usan los aranceles por defecto.'
+      : 'Sin NCM: revisá que los aranceles sean los de esta mercadería.');
+  }
   if (r.listo && !((personal ? c.fleteR : c.fleteC) > 0)) notas.push('Sin flete aéreo: el precio todavía no lo incluye.');
   const nota = notas.length ? notas.join(' ') : null;
 
@@ -529,7 +535,11 @@ function CotizadorAereo({ onDirty }) {
 
           {/* ── 1. Mercadería ─────────────────────────────────────────────── */}
           <Paso n={1} titulo="Mercadería">
-            {!personal ? (
+            {personal ? (
+              <Campo label="Referencia">
+                <TextInput value={cliente} onChange={setCliente} placeholder="Referencia de la importación" />
+              </Campo>
+            ) : (
               <Campo label="Cliente">
                 <Combobox
                   value={cliente}
@@ -538,7 +548,7 @@ function CotizadorAereo({ onDirty }) {
                   placeholder="Nombre o razón social"
                 />
               </Campo>
-            ) : null}
+            )}
             <Campo label="Descripción">
               <TextInput value={descripcion} onChange={setDescripcion} placeholder="Ej.: componentes electrónicos" />
             </Campo>
@@ -603,7 +613,7 @@ function CotizadorAereo({ onDirty }) {
                 <NumInput tipo="decimal" sufijo="m³" value={m3Input} onChange={setM3Input} />
               </Campo>
               <Campo label="Peso real" ayuda="Peso bruto de la carga">
-                <NumInput tipo="decimal" sufijo="kg" value={pesoReal} onChange={setPesoReal} />
+                <NumInput tipo="peso" sufijo="kg" value={pesoReal} onChange={setPesoReal} />
               </Campo>
             </div>
             {c.chargeable > 0 ? (
@@ -620,20 +630,21 @@ function CotizadorAereo({ onDirty }) {
 
             <TablaGastos
               ocultarCobro={personal}
-              pie={personal ? null : (
+              intro={personal ? null : (
                 <>
-                  <p style={{ margin: 0 }}>
-                    {hayRecargo
-                      ? `Si no escribís nada, cobrás tu costo más el ${fmtPct(markup)} de recargo.`
-                      : 'Si no escribís nada, cobrás tu costo.'}
-                  </p>
                   <div style={{ maxWidth: 220 }}>
                     <Campo label="Recargo sobre costos" ayuda="Se suma en las filas sin cobro.">
                       <NumInput tipo="pct" sufijo="%" value={markup} onChange={setMarkup} placeholder="0" />
                     </Campo>
                   </div>
+                  <p style={{ margin: 0 }}>
+                    {hayRecargo
+                      ? `Si no escribís nada, cobrás tu costo más el ${fmtPct(markup)} de recargo.`
+                      : 'Si no escribís nada, cobrás tu costo.'}
+                  </p>
                 </>
               )}
+              pie={personal ? null : <p style={{ margin: 0 }}>Enter baja al costo siguiente; con Tab llegás a “Cobrás”.</p>}
             >
               {gastos.map((g) => (
                 <FilaGasto
@@ -645,6 +656,9 @@ function CotizadorAereo({ onDirty }) {
                   onChange={g.onChange}
                   sugerido={hayRecargo ? conRecargo(n(g.costo), markup) : undefined}
                   ocultarCobro={personal}
+                  // Los seis costos del agente se cargan de corrido: el Enter no
+                  // para en "Cobrás", que casi siempre queda vacío.
+                  cobroFueraDelEnter
                 />
               ))}
             </TablaGastos>
@@ -726,6 +740,8 @@ function CotizadorAereo({ onDirty }) {
           costoLabel={personal ? 'Costo real sin IVA' : 'Tu costo'}
           desglose={r.desglose}
           rentabilidad={r.rentabilidad}
+          costosPorConcepto={r.costosPorConcepto}
+          ivaCredito={r.ivaCredito}
           onVerCliente={personal ? undefined : abrirVista}
           onGuardar={abrirGuardar}
         />
@@ -747,14 +763,19 @@ function CotizadorAereo({ onDirty }) {
           modo="aereo"
           defaultCliente={cliente}
           getPayload={() => ({
-            total_usd: String(Math.round(usaSociedadPropia ? c.precioSinF : c.precioConF)),
+            // El mismo número que muestra el panel: en Importación personal es
+            // el precio de venta, no el precio al cliente (que ahí no existe).
+            total_usd: String(Math.round(r.precio)),
             // Línea de la lista de guardadas, en es-AR: "FOB USD 12.000 · 418 kg · USD 20.345 final".
-            resumen: `FOB ${fmtUSD(c.fobC)} · ${fmtNum(Math.round(c.chargeable), 'dinero') || '0'} kg · ${fmtUSD(usaSociedadPropia ? c.precioSinF : c.precioConF)} final`,
+            resumen: `FOB ${fmtUSD(personal ? c.fobR : c.fobC)} · ${fmtNum(Math.round(c.chargeable), 'dinero') || '0'} kg · ${fmtUSD(r.precio)} final`,
             data: serialize(),
           })}
-          ncmPayload={() => clasificacion.trim() ? ({ codigo: clasificacion.trim(), producto: descripcion, der: String(pDer), tasa: String(pTas), iva: String(pIva), iva_adic: String(pIvaA), ganancias: String(pGan), iibb: String(pIIBB) }) : null}
+          ncmPayload={() => ncmParaGuardar({
+            codigo: clasificacion, descripcion, ncmList,
+            der: pDer, tasa: pTas, iva: pIva, ivaAdic: pIvaA, ganancias: pGan, iibb: pIIBB,
+          })}
           loadedQuote={loadedQuote}
-          onSaved={(meta) => { setLoadedQuote(meta); borrador.marcarGuardado(); }}
+          onSaved={(meta) => { setLoadedQuote(meta); borrador.marcarGuardado(); avisarNcmCambiada(); }}
           onClose={() => setShowSave(false)}
         />
       )}

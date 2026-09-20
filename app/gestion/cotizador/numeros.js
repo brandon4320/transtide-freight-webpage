@@ -7,10 +7,15 @@
 // '0,55'). parseNum pasa de lo que tipea el usuario al canónico y fmtNum vuelve;
 // el viaje de ida y vuelta es estable para los tres tipos.
 //
-// Tipos: 'dinero' (importes en USD), 'decimal' (m³, kg) y 'pct' (porcentajes).
+// Tipos: 'dinero' (importes en USD), 'decimal' (m³, días), 'peso' (kg) y 'pct'
+// (porcentajes). 'peso' es 'decimal' con separador de miles: un peso de cuatro
+// cifras se tipea y se lee '1.500' como los importes, no como 1,5.
 
 const MONEDA_Y_ESPACIOS = /u\$s|us\$|usd|\$|%|\s/gi;
 const GUIONES = /[−‒–—]/g; // signos menos tipográficos → '-'
+
+// Tipos que muestran y leen el punto como separador de miles.
+const agrupaMiles = (tipo) => tipo === 'dinero' || tipo === 'peso';
 
 // Valor del estado (número o string canónico) → número finito, o null si no hay
 // dato. Usa parseFloat, igual que n() del cálculo: lo que se muestra es lo que
@@ -31,9 +36,10 @@ export function aNumero(valor) {
 //    si además aparece un punto DESPUÉS de la coma, es un número pegado en
 //    formato inglés ('53,000.50') y se lee al revés;
 //  - si hay más de un punto, son de miles ('1.500.000');
-//  - con un solo punto, es de miles solo si el tipo es 'dinero', detrás hay
-//    exactamente 3 dígitos y adelante no hay solo un 0 ('1.500' → 1500,
-//    '0.550' → 0.55); si no, es decimal ('1.5', '2.5' en pct, '0.550' en m³).
+//  - con un solo punto, es de miles solo si el tipo agrupa miles ('dinero' o
+//    'peso'), detrás hay exactamente 3 dígitos y adelante no hay solo un 0
+//    ('1.500' → 1500, '0.550' → 0.55); si no, es decimal ('1.5', '2.5' en pct,
+//    '0.550' en m³).
 export function parseNum(texto, tipo = 'dinero') {
   if (texto === null || texto === undefined) return '';
   if (typeof texto === 'number') return Number.isFinite(texto) ? String(texto) : '';
@@ -62,7 +68,7 @@ export function parseNum(texto, tipo = 'dinero') {
     s = s.split('.').join('');
   } else if (puntos === 1) {
     const [antes, despues] = s.split('.');
-    const esMiles = tipo === 'dinero' && /^\d{3}$/.test(despues) && !/^0*$/.test(antes);
+    const esMiles = agrupaMiles(tipo) && /^\d{3}$/.test(despues) && !/^0*$/.test(antes);
     if (esMiles) s = antes + despues;
   }
 
@@ -93,13 +99,14 @@ function formatear(num, { maxDec, minDec = 0, miles }) {
 }
 
 // Valor del estado → texto es-AR para mostrar en un campo ('' si no hay dato).
-// Hasta 2 decimales para 'dinero' y 'pct', hasta 3 para 'decimal'.
-// Solo 'dinero' agrupa miles: en 'decimal' y 'pct' un punto solo se lee como
-// decimal, así que agrupar rompería la vuelta ('1.500' kg volvería como 1,5).
+// Hasta 2 decimales para 'dinero' y 'pct', hasta 3 para 'decimal' y 'peso'.
+// 'decimal' y 'pct' no agrupan miles: ahí un punto se lee siempre como decimal,
+// así que agrupar rompería la vuelta ('1.500' volvería como 1,5).
 export function fmtNum(valor, tipo = 'dinero') {
   const num = aNumero(valor);
   if (num === null) return '';
-  return formatear(num, { maxDec: tipo === 'decimal' ? 3 : 2, miles: tipo === 'dinero' });
+  const finos = tipo === 'decimal' || tipo === 'peso';
+  return formatear(num, { maxDec: finos ? 3 : 2, miles: agrupaMiles(tipo) });
 }
 
 // Importe para leer: 'USD 71.234'. Sin dato (o no finito): '—'.

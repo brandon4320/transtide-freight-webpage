@@ -243,6 +243,27 @@ function repartirEnteros(valores, total) {
 //    cliente los impuestos van en un solo renglón sin margen (los paga él).
 const casiCero = (v) => !Number.isFinite(v) || Math.abs(v) < 0.005;
 
+// Costos reales por concepto (Importación personal): el detalle que antes
+// mostraba "Desglose de costos reales". Suman EXACTO "Tu costo" (c.totSinR).
+// El IVA y el IVA adicional del despacho no están: son crédito fiscal
+// recuperable, no costo, y por eso tampoco entran en totSinR (van aparte, en
+// r.ivaCredito, para que se puedan ver).
+function costosMaritimo(c) {
+  return [
+    { label: 'Mercadería', costo: c.fobR },
+    { label: 'Flete marítimo', costo: c.fleteR },
+    { label: 'Seguro', costo: c.segR },
+    { label: 'Derechos', costo: c.derR },
+    { label: 'Tasa estadística', costo: c.tasR },
+    { label: 'Percepción de Ganancias', costo: c.ganR },
+    { label: 'Percepción de IIBB', costo: c.iibbR },
+    { label: 'Despachante', costo: c.desR },
+    { label: 'Terminal', costo: c.terR },
+    { label: 'Naviera', costo: c.navR },
+    { label: 'Logística', costo: c.logR },
+  ].filter((f) => !casiCero(f.costo));
+}
+
 export function resultadoMaritimo(s, c) {
   const personal = s.mode === 'personal';
   const falta = [
@@ -263,6 +284,8 @@ export function resultadoMaritimo(s, c) {
       costo: c.totSinR,
       desglose: desgloseMaritimo(c, { enteros: true, personal: true }),
       rentabilidad: null,
+      costosPorConcepto: costosMaritimo(c),
+      ivaCredito: c.ivaR + c.ivaAR,
     };
   }
 
@@ -289,7 +312,10 @@ export function resultadoMaritimo(s, c) {
     // Solo si lo declarado difiere: es la base de los aranceles y no tiene margen.
     ...(c.fobDR !== c.fobR || c.fobDC !== c.fobC ? [fila('FOB declarado', c.fobDR, c.fobDC, null)] : []),
     fila('Flete marítimo', c.fleteR, c.fleteC, c.mFlet),
-    fila('Seguro', c.segR, c.segC, c.segC - c.segR),
+    // El seguro va sin margen a propósito: la ganancia (c.ganTotal) nunca lo
+    // incluyó, así que mostrarlo acá haría que la columna Margen no cerrara
+    // contra "Tu ganancia". Costo y cobro sí se muestran: son parte del total.
+    fila('Seguro', c.segR, c.segC, null),
     ...impuestos,
     fila('Despachante', c.desR, c.desC, c.desC - c.desR),
     fila('Terminal', c.terR, c.terC, c.terC - c.terR),
