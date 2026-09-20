@@ -72,9 +72,18 @@ export function calcularMaritimo(s) {
     fobCliente, fobDecCli, fleteCli, gDes, gTer, gNav, gLog,
     fobReal, fobDecReal, fleteRealInput, m3Merch,
     pDer, pTas, pIva, pIvaA, pagaIvaA, pGan, pagaGan, pIIBB, pagaIIBB,
+    cobraIvaA, cobraGan, cobraIIBB,
     pHon, pHonMin, pFac, pMrg, usaSociedadPropia,
     cobroAuto, markup,
   } = s;
+  // Percepciones, dos puntas independientes: `cobra*` es lo que va en la
+  // cotización del cliente y `paga*` lo que sale de tu bolsillo. Cobrar sin
+  // pagar (pasa con IVA adicional, Ganancias e IIBB, que se recuperan) es
+  // ganancia tuya. Las cotizaciones guardadas sin `cobra*` cobraban y pagaban
+  // lo mismo: el valor por defecto conserva su precio y su margen.
+  const cobraA = cobraIvaA === undefined ? pagaIvaA : cobraIvaA;
+  const cobraG = cobraGan === undefined ? pagaGan : cobraGan;
+  const cobraB = cobraIIBB === undefined ? pagaIIBB : cobraIIBB;
   const curM3 = contM3[contType];
   const curCosts = contCosts[contType];
 
@@ -115,10 +124,10 @@ export function calcularMaritimo(s) {
   const tasC   = cifC * tas;
   const bivC   = cifC + derC + tasC;
   const ivaC   = bivC * iva; // IVA siempre aplica
-  // Percepciones: si aplican, juegan en las DOS puntas (cobro y costo real).
-  const ivaAC  = pagaIvaA ? bivC * ivaA : 0;
-  const ganC   = pagaGan  ? bivC * gan  : 0;
-  const iibbC  = pagaIIBB ? bivC * iibb : 0;
+  // Percepciones que se le cobran al cliente (ver `cobra*` arriba).
+  const ivaAC  = cobraA ? bivC * ivaA : 0;
+  const ganC   = cobraG ? bivC * gan  : 0;
+  const iibbC  = cobraB ? bivC * iibb : 0;
   const arcC   = fleteC + segC + derC + tasC + ivaC + ivaAC + ganC + iibbC;
   const desC   = cobro(gDes, desR), terC = cobro(gTer, terR), navC = cobro(gNav, navR), logC = cobro(gLog, logR);
   const gasC   = desC + terC + navC + logC;

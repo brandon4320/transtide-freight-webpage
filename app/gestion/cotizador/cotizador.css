@@ -1187,3 +1187,42 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ── Percepciones: porcentaje + dos interruptores (se la cobrás / la pagás) ── */
+.gestion-root .ct-percepcion {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 92px 104px 104px;
+  align-items: center;
+  column-gap: 12px;
+}
+.gestion-root .ct-percepcion + .ct-percepcion {
+  margin-top: 8px;
+}
+.gestion-root .ct-percepcion-cab > span:nth-child(n + 3) {
+  font-size: 11.5px;
+  color: #9ca3af;
+  text-align: center;
+  line-height: 1.2;
+}
+.gestion-root .ct-percepcion-cab {
+  margin-bottom: 6px;
+}
+
+@media (max-width: 560px) {
+  .gestion-root .ct-percepcion {
+    grid-template-columns: minmax(0, 1fr) 68px 92px 92px;
+    column-gap: 6px;
+  }
+  .gestion-root .ct-percepcion-cab > span:nth-child(n + 3) {
+    font-size: 10.5px;
+  }
+}
+
+.gestion-root .ct-percepcion .ct-seg {
+  flex-wrap: nowrap;
+  width: 100%;
+}
+.gestion-root .ct-percepcion .ct-seg-op {
+  flex: 1 1 0;
+  padding: 0 6px !important;
+}

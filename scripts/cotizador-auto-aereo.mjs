@@ -324,6 +324,35 @@ grupo('10. panel: el desglose suma el precio y los márgenes suman la ganancia',
   ok(JSON.stringify(repartirRedondeo([0, 0], 0)) === JSON.stringify([0, 0]), 'repartir ceros');
 });
 
+grupo('percepciones: cobrar sin pagar', () => {
+  const ambas = con({
+    usaSociedadPropia: false,
+    pIvaA: 20, pGan: 6, pIIBB: 2.5,
+    pagaIvaA: true, cobraIvaA: true, pagaGan: true, cobraGan: true, pagaIIBB: true, cobraIIBB: true,
+  });
+  const cAmbas = calcularAereo(ambas);
+  ok(cAmbas.ivaAR > 0 && cAmbas.ganR > 0 && cAmbas.iibbR > 0, 'el escenario base las cobra y las paga');
+
+  const soloCobra = calcularAereo({ ...ambas, pagaIvaA: false, pagaGan: false, pagaIIBB: false });
+  const ahorro = cAmbas.ivaAR + cAmbas.ganR + cAmbas.iibbR;
+  igual(soloCobra.ivaAC, cAmbas.ivaAC, 'solo al cliente: se le sigue cobrando el IVA adicional');
+  igual(soloCobra.ivaAR, 0, 'solo al cliente: el IVA adicional no es costo tuyo');
+  igual(soloCobra.precioConF, cAmbas.precioConF, 'solo al cliente: el precio al cliente no cambia');
+  igual(soloCobra.totConR, cAmbas.totConR - ahorro, 'solo al cliente: tu costo baja lo que no pagás');
+  igual(soloCobra.ganTotal, cAmbas.ganTotal + ahorro, 'solo al cliente: la ganancia sube lo que no pagás');
+
+  const soloPaga = calcularAereo({ ...ambas, cobraIvaA: false, cobraGan: false, cobraIIBB: false });
+  igual(soloPaga.ivaAC, 0, 'solo tu costo: no se le cobra el IVA adicional');
+  igual(soloPaga.ivaAR, cAmbas.ivaAR, 'solo tu costo: lo seguís pagando');
+  ok(soloPaga.precioConF < cAmbas.precioConF, 'solo tu costo: el precio al cliente baja');
+
+  const vieja = con({ usaSociedadPropia: false, pagaIvaA: false, pagaGan: true, pagaIIBB: true });
+  delete vieja.cobraIvaA; delete vieja.cobraGan; delete vieja.cobraIIBB;
+  const cVieja = calcularAereo(vieja);
+  igual(cVieja.ivaAC, 0, 'sin cobra*: el interruptor viejo apaga las dos puntas');
+  igual(cVieja.ivaAR, 0, 'sin cobra*: tampoco queda como costo');
+});
+
 // ── salida ────────────────────────────────────────────────────────────────────
 for (const g of grupos) console.log(`${g.ok ? 'ok   ' : 'FALLA'} ${g.nombre} (${g.n} verificaciones)`);
 if (fallas.length) {

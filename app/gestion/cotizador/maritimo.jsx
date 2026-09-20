@@ -58,13 +58,27 @@ const fechaCorta = (d) => {
 
 // Una percepción: rótulo, porcentaje y si aplica (Sí/No). Con "No" el porcentaje
 // no juega en ninguna punta y el campo queda apagado.
-function FilaPercepcion({ label, valor, onValor, aplica, onAplica }) {
+function FilaPercepcion({ label, valor, onValor, cobra, onCobra, paga, onPaga }) {
   const id = useId();
+  const usada = cobra || paga;
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 112px auto', alignItems: 'center', columnGap: 12 }}>
+    <div className="ct-percepcion">
       <label htmlFor={id} className="ct-linea-label">{label}</label>
-      <NumInput id={id} tipo="pct" sufijo="%" value={valor} onChange={onValor} disabled={!aplica} />
-      <SiNo valor={aplica} onChange={onAplica} ariaLabel={`¿Aplica ${label}?`} />
+      <NumInput id={id} tipo="pct" sufijo="%" value={valor} onChange={onValor} disabled={!usada} />
+      <SiNo valor={cobra} onChange={onCobra} ariaLabel={`¿Le cobrás ${label} al cliente?`} />
+      <SiNo valor={paga} onChange={onPaga} ariaLabel={`¿Pagás ${label}?`} />
+    </div>
+  );
+}
+
+// Encabezado de la tabla de percepciones: qué significa cada columna de Sí/No.
+function EncabezadoPercepciones() {
+  return (
+    <div className="ct-percepcion ct-percepcion-cab" aria-hidden="true">
+      <span />
+      <span />
+      <span>Se la cobrás</span>
+      <span>La pagás vos</span>
     </div>
   );
 }
@@ -274,6 +288,12 @@ function CotizadorMaritimo({ onDirty }) {
   const [pIvaA, setPIvaA] = useState(20);  const [pagaIvaA, setPagaIvaA] = useState(true);
   const [pGan, setPGan] = useState(6);     const [pagaGan, setPagaGan] = useState(true);
   const [pIIBB, setPIIBB] = useState(2.5); const [pagaIIBB, setPagaIIBB] = useState(true);
+  // Las percepciones tienen dos puntas: qué le COBRÁS al cliente y qué PAGÁS vos.
+  // IVA adicional, Ganancias e IIBB se suelen cobrar sin pagarlos (se recuperan):
+  // esa diferencia es ganancia tuya y se ve en el panel.
+  const [cobraIvaA, setCobraIvaA] = useState(true);
+  const [cobraGan, setCobraGan] = useState(true);
+  const [cobraIIBB, setCobraIIBB] = useState(true);
 
   // ── cierre ──
   const [pHon, setPHon] = useState(4);
@@ -312,8 +332,11 @@ function CotizadorMaritimo({ onDirty }) {
     fobCliente, fobDecCli, fleteCli, gDes, gTer, gNav, gLog,
     fobReal, fobDecReal, fleteRealInput, m3Merch,
     pDer, pTas, pIva, pagaIva, pIvaA, pagaIvaA, pGan, pagaGan, pIIBB, pagaIIBB,
+    cobraIvaA, cobraGan, cobraIIBB,
     pHon, pHonMin, pFac, pMrg, usaSociedadPropia,
-    arancelToggles: 'v2', // v2: percepciones con toggle afectan cobro Y costo real
+    // v3: cada percepción tiene su cobro y su pago por separado (antes, un solo
+    // interruptor movía las dos puntas juntas).
+    arancelToggles: 'v3',
     cobroAuto: 1, // cobro vacío = costo con recargo (ver calculo-maritimo.js)
     markup,
   });
@@ -356,13 +379,24 @@ function CotizadorMaritimo({ onDirty }) {
     if (d.pIva !== undefined) setPIva(d.pIva);
     if (d.pagaIva !== undefined) setPagaIva(d.pagaIva);
     if (d.pIvaA !== undefined) setPIvaA(d.pIvaA);
-    // Migración pre-v2: el cliente pagaba toda percepción con % > 0 (el toggle
-    // solo tocaba el costo real) — restaurar "aplica" preserva el precio guardado.
-    if (d.pagaIvaA !== undefined) setPagaIvaA(d.arancelToggles === 'v2' ? d.pagaIvaA : (d.pagaIvaA || n(d.pIvaA) > 0));
+    // Percepciones al restaurar. Lo guardado puede venir de tres épocas:
+    //  v3 → trae cobro y pago por separado, se usan tal cual.
+    //  v2 → un solo interruptor movía las dos puntas: se cobraba lo que se pagaba.
+    //  v1 (sin marca) → al cliente se le cobraba toda percepción con % > 0 y el
+    //  interruptor decía solo si la pagabas vos. Restaurarlo así conserva el
+    //  precio Y el margen con los que se hizo esa cotización.
+    const v1 = d.arancelToggles !== 'v2' && d.arancelToggles !== 'v3';
+    const restaurar = (pctGuardado, pagaGuardado, cobraGuardado, setPaga, setCobra) => {
+      const paga = pagaGuardado === undefined ? true : !!pagaGuardado;
+      if (pagaGuardado !== undefined) setPaga(paga);
+      if (cobraGuardado !== undefined) setCobra(!!cobraGuardado);
+      else if (pagaGuardado !== undefined || pctGuardado !== undefined) setCobra(v1 ? n(pctGuardado) > 0 : paga);
+    };
+    restaurar(d.pIvaA, d.pagaIvaA, d.cobraIvaA, setPagaIvaA, setCobraIvaA);
     if (d.pGan !== undefined) setPGan(d.pGan);
-    if (d.pagaGan !== undefined) setPagaGan(d.arancelToggles === 'v2' ? d.pagaGan : (d.pagaGan || n(d.pGan) > 0));
+    restaurar(d.pGan, d.pagaGan, d.cobraGan, setPagaGan, setCobraGan);
     if (d.pIIBB !== undefined) setPIIBB(d.pIIBB);
-    if (d.pagaIIBB !== undefined) setPagaIIBB(d.arancelToggles === 'v2' ? d.pagaIIBB : (d.pagaIIBB || n(d.pIIBB) > 0));
+    restaurar(d.pIIBB, d.pagaIIBB, d.cobraIIBB, setPagaIIBB, setCobraIIBB);
     if (d.pHon !== undefined) setPHon(d.pHon);
     // Cotizaciones guardadas ANTES del mínimo: sin pHonMin → '' (no cambia el número guardado).
     setPHonMin(d.pHonMin !== undefined ? d.pHonMin : '');
@@ -480,11 +514,17 @@ function CotizadorMaritimo({ onDirty }) {
     n(pHonMin) > 0 ? `mínimo ${fmtUSD(n(pHonMin))}` : 'sin mínimo',
     usaSociedadPropia ? null : `facturación ${fmtPct(pFac)}`,
   ].filter(Boolean).join(' · ');
-  const percepcion = (label, v, aplica) => (aplica ? `${label} ${fmtPct(v)}` : `${label} no aplica`);
+  // Resumen de una percepción: el porcentaje y, cuando las dos puntas no
+  // coinciden, de qué lado juega ("solo al cliente" es la que te deja ganancia).
+  const percepcion = (label, v, cobra, paga) => {
+    if (!cobra && !paga) return `${label} no aplica`;
+    const detalle = cobra && paga ? '' : (cobra ? ' solo al cliente' : ' solo tu costo');
+    return `${label} ${fmtPct(v)}${detalle}`;
+  };
   const resumenPercepciones = [
-    percepcion('IVA adicional', pIvaA, pagaIvaA),
-    percepcion('Ganancias', pGan, pagaGan),
-    percepcion('IIBB', pIIBB, pagaIIBB),
+    percepcion('IVA adicional', pIvaA, cobraIvaA, pagaIvaA),
+    percepcion('Ganancias', pGan, cobraGan, pagaGan),
+    percepcion('IIBB', pIIBB, cobraIIBB, pagaIIBB),
   ].join(' · ');
   // Mismos días y misma fecha de arribo que el cronograma del documento.
   const hitos = qFechasHitos(n(diasProd), n(diasTransito));
@@ -775,10 +815,11 @@ function CotizadorMaritimo({ onDirty }) {
             )}
             <LineaResumen label="Percepciones" resumen={resumenPercepciones}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <FilaPercepcion label="IVA adicional" valor={pIvaA} onValor={setPIvaA} aplica={!!pagaIvaA} onAplica={setPagaIvaA} />
-                <FilaPercepcion label="Ganancias" valor={pGan} onValor={setPGan} aplica={!!pagaGan} onAplica={setPagaGan} />
-                <FilaPercepcion label="IIBB" valor={pIIBB} onValor={setPIIBB} aplica={!!pagaIIBB} onAplica={setPagaIIBB} />
-                <p className="ct-ayuda" style={{ margin: 0 }}>Con Sí se cobran en la cotización y cuentan en tu costo; con No, en ninguno.</p>
+                <EncabezadoPercepciones />
+                <FilaPercepcion label="IVA adicional" valor={pIvaA} onValor={setPIvaA} cobra={!!cobraIvaA} onCobra={setCobraIvaA} paga={!!pagaIvaA} onPaga={setPagaIvaA} />
+                <FilaPercepcion label="Ganancias" valor={pGan} onValor={setPGan} cobra={!!cobraGan} onCobra={setCobraGan} paga={!!pagaGan} onPaga={setPagaGan} />
+                <FilaPercepcion label="IIBB" valor={pIIBB} onValor={setPIIBB} cobra={!!cobraIIBB} onCobra={setCobraIIBB} paga={!!pagaIIBB} onPaga={setPagaIIBB} />
+                <p className="ct-ayuda" style={{ margin: 0 }}>IVA adicional, Ganancias e IIBB se recuperan: si se las cobrás al cliente y no las pagás, quedan de ganancia.</p>
               </div>
             </LineaResumen>
             {personal ? null : (

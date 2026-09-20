@@ -339,6 +339,42 @@ const VACIOS = { fleteCli: '', gDes: '', gTer: '', gNav: '', gLog: '' };
   igual(flete.margen, cRec.fleteR * 0.1, 'panel: el margen de flete es el recargo');
 }
 
+// 9. Percepciones: dos puntas (se la cobrás al cliente / la pagás vos).
+{
+  const ambas = auto({
+    usaSociedadPropia: false,
+    pIvaA: 20, pGan: 6, pIIBB: 2.5,
+    pagaIvaA: true, cobraIvaA: true, pagaGan: true, cobraGan: true, pagaIIBB: true, cobraIIBB: true,
+  });
+  const cAmbas = calcularMaritimo(ambas);
+  ok(cAmbas.ivaAR > 0 && cAmbas.ganR > 0 && cAmbas.iibbR > 0, 'percepciones: el escenario base las cobra y las paga');
+
+  // Solo al cliente: mismo precio, menos costo, más ganancia.
+  const soloCobra = calcularMaritimo({ ...ambas, pagaIvaA: false, pagaGan: false, pagaIIBB: false });
+  const ahorro = cAmbas.ivaAR + cAmbas.ganR + cAmbas.iibbR;
+  igual(soloCobra.ivaAC, cAmbas.ivaAC, 'solo al cliente: se le sigue cobrando el IVA adicional');
+  igual(soloCobra.ivaAR, 0, 'solo al cliente: el IVA adicional no es costo tuyo');
+  igual(soloCobra.ganR, 0, 'solo al cliente: Ganancias no es costo tuyo');
+  igual(soloCobra.iibbR, 0, 'solo al cliente: IIBB no es costo tuyo');
+  igual(soloCobra.precioConF, cAmbas.precioConF, 'solo al cliente: el precio al cliente no cambia');
+  igual(soloCobra.totConR, cAmbas.totConR - ahorro, 'solo al cliente: tu costo baja lo que no pagás');
+  igual(soloCobra.ganTotal, cAmbas.ganTotal + ahorro, 'solo al cliente: la ganancia sube lo que no pagás');
+
+  // Solo tu costo: no se le cobra y el precio baja.
+  const soloPaga = calcularMaritimo({ ...ambas, cobraIvaA: false, cobraGan: false, cobraIIBB: false });
+  igual(soloPaga.ivaAC, 0, 'solo tu costo: no se le cobra el IVA adicional');
+  igual(soloPaga.ivaAR, cAmbas.ivaAR, 'solo tu costo: lo seguís pagando');
+  ok(soloPaga.precioConF < cAmbas.precioConF, 'solo tu costo: el precio al cliente baja');
+
+  // Cotización guardada de antes (sin cobra*): el interruptor viejo movía las dos puntas.
+  const vieja = auto({ usaSociedadPropia: false, pagaIvaA: false, pagaGan: true, pagaIIBB: true });
+  delete vieja.cobraIvaA; delete vieja.cobraGan; delete vieja.cobraIIBB;
+  const cVieja = calcularMaritimo(vieja);
+  igual(cVieja.ivaAC, 0, 'sin cobra*: el interruptor viejo apaga las dos puntas');
+  igual(cVieja.ivaAR, 0, 'sin cobra*: tampoco queda como costo');
+  ok(cVieja.ganC > 0 && cVieja.ganR > 0, 'sin cobra*: las encendidas siguen en las dos puntas');
+}
+
 if (fallas.length) {
   console.log(`FALLA: ${fallas.length} de ${total} aserciones.`);
   for (const f of fallas) console.log(`  - ${f}`);

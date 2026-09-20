@@ -58,9 +58,18 @@ export function calcularAereo(s) {
     fobCliente, fobDecCli, fleteCliInput, awbCli, handCli, terCli, desCli, traCli,
     fobReal, fobDecReal, fleteRealInput, awbReal, handReal, terReal, desReal, traReal,
     pDer, pTas, pIva, pIvaA, pagaIvaA, pGan, pagaGan, pIIBB, pagaIIBB,
+    cobraIvaA, cobraGan, cobraIIBB,
     pHon, pHonMin, pFac, pMrg, usaSociedadPropia,
     cobroAuto, markup,
   } = s;
+  // Percepciones, dos puntas independientes: `cobra*` es lo que va en la
+  // cotización del cliente y `paga*` lo que sale de tu bolsillo. Cobrar sin
+  // pagar (pasa con IVA adicional, Ganancias e IIBB, que se recuperan) es
+  // ganancia tuya. Las cotizaciones guardadas sin `cobra*` cobraban y pagaban
+  // lo mismo: el valor por defecto conserva su precio y su margen.
+  const cobraA = cobraIvaA === undefined ? pagaIvaA : cobraIvaA;
+  const cobraG = cobraGan === undefined ? pagaGan : cobraGan;
+  const cobraB = cobraIIBB === undefined ? pagaIIBB : cobraIIBB;
   const pesoVol       = n(m3Input) * KG_PER_M3;
   const chargeable    = Math.max(n(pesoReal), pesoVol);
   const usaVolumetrico = pesoVol > n(pesoReal) && pesoVol > 0;
@@ -94,10 +103,10 @@ export function calcularAereo(s) {
   const tasC   = cifC * tas;
   const bivC   = cifC + derC + tasC;
   const ivaC   = bivC * iva; // IVA siempre aplica
-  // Percepciones: si aplican, juegan en las DOS puntas (cobro y costo real).
-  const ivaAC  = pagaIvaA ? bivC * ivaA : 0;
-  const ganC   = pagaGan  ? bivC * gan  : 0;
-  const iibbC  = pagaIIBB ? bivC * iibb : 0;
+  // Percepciones que se le cobran al cliente (ver `cobra*` arriba).
+  const ivaAC  = cobraA ? bivC * ivaA : 0;
+  const ganC   = cobraG ? bivC * gan  : 0;
+  const iibbC  = cobraB ? bivC * iibb : 0;
   const arcC   = fleteC + segC + derC + tasC + ivaC + ivaAC + ganC + iibbC;
   const awbCv  = cobro(awbCli, awbRv), handCv = cobro(handCli, handRv), terCv = cobro(terCli, terRv),
         desCv  = cobro(desCli, desRv), traCv = cobro(traCli, traRv);
