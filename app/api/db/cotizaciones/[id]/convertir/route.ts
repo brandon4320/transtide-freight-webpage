@@ -49,14 +49,6 @@ const n = (v: any) => {
 }
 const r2 = (v: number) => Math.round(v * 100) / 100
 
-/**
- * Valor de un campo de COBRO (o de fobReal) tal como lo usó el cotizador. Con el
- * cobro automático, un campo vacío vale el costo con recargo (y fobReal vacío, el
- * FOB cliente): el cotizador guarda esos valores en `efectivos` para no tener que
- * recalcularlos acá. Sin `efectivos` (cotizaciones anteriores) se lee el campo crudo.
- */
-const efectivo = (d: any, k: string) => (d.efectivos && d.efectivos[k] !== undefined ? d.efectivos[k] : d[k])
-
 /** % de la cotización; si el dato no viaja (cotización vieja) vale el default del cotizador. */
 const pc = (d: any, k: string, def: number) => (d[k] === undefined || d[k] === null || d[k] === '' ? def : n(d[k]))
 
@@ -99,7 +91,6 @@ const EST = 'estimado s/cotización'
  * que se le pone el T.C. de la factura verdadera.
  */
 function estimar(modo: string, d: any) {
-  const ef = (k: string) => efectivo(d, k)
   const lineas: Linea[] = []
   const push = (cat: string, concepto: string, usd: number) => {
     if (usd > 0.005) lineas.push({ cat, desc: `${concepto} — ${EST}`, usd: r2(usd) })
@@ -112,7 +103,7 @@ function estimar(modo: string, d: any) {
 
   if (modo === 'aereo') {
     fleteR = n(d.fleteRealInput)
-    fleteC = n(ef('fleteCliInput'))
+    fleteC = n(d.fleteCliInput)
     const awb = n(d.awbReal), hand = n(d.handReal), ter = n(d.terReal), des = n(d.desReal), tra = n(d.traReal)
     push('fleteIntl', 'Flete aéreo', fleteR)
     push('naviera', 'AWB / aerolínea', awb)
@@ -121,7 +112,7 @@ function estimar(modo: string, d: any) {
     push('despachante', 'Despachante', des)
     push('transporte', 'Transporte interno', tra)
     gasR = awb + hand + ter + des + tra
-    gasC = n(ef('awbCli')) + n(ef('handCli')) + n(ef('terCli')) + n(ef('desCli')) + n(ef('traCli'))
+    gasC = n(d.awbCli) + n(d.handCli) + n(d.terCli) + n(d.desCli) + n(d.traCli)
   } else {
     const contType = d.contType || '40hq'
     const capM3 = n((d.contM3 || {})[contType])
@@ -130,7 +121,7 @@ function estimar(modo: string, d: any) {
     // Prorrateo por m³ ocupados en el contenedor, igual que el cotizador.
     const ratio = capM3 > 0 && m3 > 0 ? m3 / capM3 : 0
     fleteR = n(d.fleteRealInput) || n(costs.flete) * ratio
-    fleteC = n(ef('fleteCli'))
+    fleteC = n(d.fleteCli)
     const des = n(costs.despachante) * ratio
     const ter = n(costs.terminal) * ratio
     const nav = n(costs.naviera) * ratio
@@ -141,13 +132,13 @@ function estimar(modo: string, d: any) {
     push('despachante', 'Despachante', des)
     push('transporte', 'Logística interna', log)
     gasR = des + ter + nav + log
-    gasC = n(ef('gDes')) + n(ef('gTer')) + n(ef('gNav')) + n(ef('gLog'))
+    gasC = n(d.gDes) + n(d.gTer) + n(d.gNav) + n(d.gLog)
   }
 
   // Tributos: se siembran como línea de VEP estimado. El VEP real (en pesos) se
   // carga después; el `tributosUSD` por proveedor se deja vacío a propósito, para
   // no cobrarle al cliente un estimado creyendo que es el VEP verdadero.
-  const fobR = n(ef('fobReal'))
+  const fobR = n(d.fobReal)
   const fobC = n(d.fobCliente)
   const fobDR = n(d.fobDecReal) || n(d.fobDecCli) || fobR
   const fobDC = n(d.fobDecCli) || fobC
@@ -208,12 +199,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const cliente = (data.cliente || q.cliente || q.nombre || 'Cliente').toString()
   const contenedor = modo === 'aereo' ? 'Aéreo' : (CONT_LABEL[data.contType] || '40HQ')
   const m3 = modo === 'aereo' ? (data.m3Input || '') : (data.m3Merch || '')
-  // FOB del proveedor inicial: el que te cuesta y, si no hay, el del cliente.
-  // Se mira el VALOR, no el string: una cotización vieja que se reguardó trae
-  // efectivos.fobReal = '0' (la migración convierte el vacío en cero para que el
-  // precio no cambie) y '0' es truthy, así que la operación nacía con FOB 0.
-  const efFob = n(efectivo(data, 'fobReal'))
-  const fob = (efFob > 0 ? efFob : (n(data.fobCliente) || '')).toString()
+  const fob = (data.fobReal || data.fobCliente || '').toString()
   const ncm = (data.clasificacion || '').toString().trim()
   const mercaderia = (data.descripcion || '').toString().trim()
 

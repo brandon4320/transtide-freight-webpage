@@ -522,6 +522,25 @@
   }
 }
 
+/* Cotizador / clientes responsive */
+@media (max-width: 900px) {
+  .cot-setup-grid,
+  .cot-main-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .cot-right-rail {
+    position: static !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+}
+/* Fila superior (Contenedor | Identificación): apilar si no hay ancho suficiente
+   para que la tabla de costos no quede apretada en laptops chicas. */
+@media (max-width: 1150px) {
+  .cot-top-row {
+    grid-template-columns: 1fr !important;
+  }
+}
 /* Filas del tracking: hover sutil que respeta el tinte de estado de cada fila */
 .track-row { transition: filter .12s ease; }
 .track-row:hover { filter: brightness(0.96); }
@@ -588,6 +607,36 @@
   body.estado-print .no-print { display: none !important; }
 }
 
+/* Aranceles | Honorarios&cierre lado a lado; apilar en pantallas medianas/chicas */
+@media (max-width: 1150px) {
+  .cot-sections-2col {
+    grid-template-columns: 1fr !important;
+  }
+}
+/* Mosaico de entradas del cotizador: 2 columnas en desktop, 1 en pantallas chicas */
+@media (max-width: 720px) {
+  .cot-sections-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+@media (max-width: 640px) {
+  .cot-charges-row,
+  .cot-charges-header {
+    grid-template-columns: 1.2fr 1fr !important;
+  }
+  .cot-charges-row .cot-charges-prorated,
+  .cot-charges-header .cot-charges-prorated { display: none !important; }
+  .cot-detalle-row {
+    grid-template-columns: 1.4fr 1fr 1fr !important;
+    font-size: 0.72rem !important;
+  }
+  .cot-detalle-row .cot-detalle-margen,
+  .cot-detalle-header .cot-detalle-margen { display: none !important; }
+  .cot-detalle-header {
+    grid-template-columns: 1.4fr 1fr 1fr !important;
+  }
+}
+
 /* Generic: keep modals comfortable on mobile */
 @media (max-width: 480px) {
   .gestion-root [role="dialog"], .gestion-root .modal-card {
@@ -650,3 +699,9 @@
 .gestion-root textarea:focus-visible {
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
 }
+
+/* Secciones colapsables (<details>) — oculta el marcador nativo y rota el chevron. */
+.cot-collapse > summary { list-style: none; cursor: pointer; user-select: none; }
+.cot-collapse > summary::-webkit-details-marker { display: none; }
+.cot-collapse .cot-chev { display: inline-block; transition: transform 0.15s ease; }
+.cot-collapse[open] > summary .cot-chev { transform: rotate(90deg); }
