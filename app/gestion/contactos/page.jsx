@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { gToast } from '../toast';
+import { SOCIEDAD_PROPIA, sociedadLabel } from '../sociedades';
 
 const INK = '#111827';
 
@@ -18,6 +19,36 @@ const TIPOS = [
   { id: 'otro',        label: 'Otros',            sing: 'Otro' },
 ];
 const tipoSing = (id) => (TIPOS.find(t => t.id === id) || TIPOS[4]).sing;
+
+// ─── cartas de garantía ──────────────────────────────────────────────────────
+// Se presentan ante la naviera y las firma una sociedad: la propia (Successi) o
+// la del cliente cuando la importación va por su CUIT.
+const cartaVacia = () => ({
+  sociedad: SOCIEDAD_PROPIA.nombre, sociedad_cuit: SOCIEDAD_PROPIA.cuit,
+  fecha: hoyISO(), vence: '', bl: '', notas: '',
+});
+function hoyISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+const fechaCorta = (iso) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : String(iso || '');
+};
+const diasHasta = (iso) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
+  if (!m) return null;
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  return Math.round((new Date(+m[1], +m[2] - 1, +m[3]) - hoy) / 86400000);
+};
+// El estado sale de la fecha de vencimiento: sin fecha, no vence.
+function estadoCarta(k) {
+  const d = diasHasta(k.vence);
+  if (d === null) return { texto: 'sin vencimiento', color: '#9ca3af' };
+  if (d < 0) return { texto: `vencida el ${fechaCorta(k.vence)}`, color: '#dc2626' };
+  if (d <= 30) return { texto: `vence el ${fechaCorta(k.vence)}`, color: '#d97706' };
+  return { texto: `vigente hasta ${fechaCorta(k.vence)}`, color: '#059669' };
+}
 
 const nuevaPersona = () => ({ nombre: '', puesto: '', email: '', telefono: '' });
 const emptyForm = () => ({ tipo: 'naviera', nombre: '', contacto: '', email: '', telefono: '', web: '', observaciones: '', personas: [nuevaPersona()] });
@@ -48,15 +79,29 @@ export default function ContactosPage({ devItems = null } = {}) {
   const [search, setSearch]   = useState('');
   const [tipoFilter, setTipoFilter] = useState('todos');
   const [confirm, setConfirm] = useState(null);
+  // Cartas de garantía por naviera: { [contacto_id]: [cartas] }
+  const [cartas, setCartas] = useState({});
+  const [cartaModal, setCartaModal] = useState(null);   // null | { contacto, carta? }
+  const [cartaForm, setCartaForm] = useState(cartaVacia());
+  const [cartaArchivo, setCartaArchivo] = useState(null);
+  const [cartaSaving, setCartaSaving] = useState(false);
+  const [confirmCarta, setConfirmCarta] = useState(null);
 
   const load = useCallback(async () => {
     if (devItems) { setItems(devItems); setLoading(false); return; }
     setLoading(true); setLoadError(false);
     try {
-      const r = await fetch('/api/db/contactos');
+      const [r, rc] = await Promise.all([fetch('/api/db/contactos'), fetch('/api/db/cartas')]);
       if (!r.ok) throw new Error('failed');
       const data = await r.json();
       setItems(Array.isArray(data) ? data : []);
+      // Las cartas son accesorias: si fallan, los contactos se ven igual.
+      if (rc.ok) {
+        const lista = await rc.json();
+        const porContacto = {};
+        (Array.isArray(lista) ? lista : []).forEach(k => { (porContacto[k.contacto_id] = porContacto[k.contacto_id] || []).push(k); });
+        setCartas(porContacto);
+      }
     } catch {
       setLoadError(true);
       gToast.error('No se pudieron cargar los contactos.');
@@ -143,6 +188,64 @@ export default function ContactosPage({ devItems = null } = {}) {
       gToast.error('Error de conexión. Intentá de nuevo.');
     } finally {
       setConfirm(null);
+    }
+  };
+
+  // ── cartas de garantía ──
+  const abrirCarta = (contacto, carta = null) => {
+    setCartaForm(carta
+      ? { sociedad: carta.sociedad || '', sociedad_cuit: carta.sociedad_cuit || '', fecha: carta.fecha || '', vence: carta.vence || '', bl: carta.bl || '', notas: carta.notas || '' }
+      : cartaVacia());
+    setCartaArchivo(null);
+    setCartaModal({ contacto, carta });
+  };
+
+  const guardarCarta = async () => {
+    if (cartaSaving || !cartaModal) return;
+    if (!String(cartaForm.sociedad || '').trim()) { gToast.error('Poné con qué sociedad se presentó.'); return; }
+    setCartaSaving(true);
+    const { contacto, carta } = cartaModal;
+    try {
+      if (carta) {
+        const r = await fetch(`/api/db/cartas/${carta.id}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cartaForm),
+        });
+        if (!r.ok) { gToast.error(await errMsg(r, 'No se pudo guardar la carta.')); return; }
+        setCartas(prev => ({ ...prev, [contacto.id]: (prev[contacto.id] || []).map(k => k.id === carta.id ? { ...k, ...cartaForm } : k) }));
+        gToast.success('Carta actualizada.');
+      } else {
+        const fd = new FormData();
+        fd.append('contacto_id', contacto.id);
+        Object.entries(cartaForm).forEach(([k, v]) => fd.append(k, v ?? ''));
+        if (cartaArchivo) fd.append('archivo', cartaArchivo);
+        const r = await fetch('/api/db/cartas', { method: 'POST', body: fd });
+        if (!r.ok) { gToast.error(await errMsg(r, 'No se pudo guardar la carta.')); return; }
+        const { id } = await r.json();
+        const nueva = {
+          id, contacto_id: contacto.id, ...cartaForm,
+          archivo_nombre: cartaArchivo ? cartaArchivo.name : '',
+        };
+        setCartas(prev => ({ ...prev, [contacto.id]: [nueva, ...(prev[contacto.id] || [])] }));
+        gToast.success('Carta de garantía presentada.');
+      }
+      setCartaModal(null);
+    } catch {
+      gToast.error('Error de conexión. Intentá de nuevo.');
+    } finally {
+      setCartaSaving(false);
+    }
+  };
+
+  const borrarCarta = async (contactoId, id) => {
+    try {
+      const r = await fetch(`/api/db/cartas/${id}`, { method: 'DELETE' });
+      if (!r.ok) { gToast.error(await errMsg(r, 'No se pudo eliminar la carta.')); return; }
+      setCartas(prev => ({ ...prev, [contactoId]: (prev[contactoId] || []).filter(k => k.id !== id) }));
+      gToast.success('Carta eliminada.');
+    } catch {
+      gToast.error('Error de conexión. Intentá de nuevo.');
+    } finally {
+      setConfirmCarta(null);
     }
   };
 
@@ -265,6 +368,45 @@ export default function ContactosPage({ devItems = null } = {}) {
                       </div>
                     )}
 
+                    {/* Cartas de garantía presentadas ante esta naviera, con la sociedad que las firmó */}
+                    {(c.tipo || 'naviera') === 'naviera' && (() => {
+                      const lista = cartas[c.id] || [];
+                      return (
+                        <div style={{ marginTop: 8, paddingLeft: '0.9rem', borderLeft: '1px solid #f1f5f9' }}>
+                          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                            <span style={{ fontSize: '0.66rem', fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cartas de garantía</span>
+                            {lista.length > 0 && <span style={{ fontSize: '0.68rem', color: '#c4c9d4' }}>{lista.length}</span>}
+                            <button onClick={() => abrirCarta(c)} style={{ marginLeft: 'auto', border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.7rem', color: '#9ca3af', padding: 0 }}>
+                              + Carta
+                            </button>
+                          </div>
+                          {lista.length === 0 ? (
+                            <p style={{ fontSize: '0.72rem', color: '#c4c9d4', lineHeight: 1.9 }}>Todavía no presentaste ninguna.</p>
+                          ) : lista.map(k => {
+                            const est = estadoCarta(k);
+                            return (
+                              <p key={k.id} className="ct-carta" style={{ fontSize: '0.74rem', color: '#6b7280', lineHeight: 1.9 }}>
+                                <span style={{ color: INK }}>{sociedadLabel(k.sociedad, k.sociedad_cuit) || 'Sin sociedad'}</span>
+                                {k.fecha && <span> · presentada {fechaCorta(k.fecha)}</span>}
+                                {k.bl && <span> · B/L {k.bl}</span>}
+                                <span style={{ color: est.color }}> · {est.texto}</span>
+                                {k.archivo_nombre && (
+                                  <> · <a href={`/api/db/cartas/${k.id}?archivo=1`} target="_blank" rel="noopener noreferrer" className="ct-lnk" style={LNK}>ver PDF</a></>
+                                )}
+                                <span className="ct-carta-acts">
+                                  {' · '}
+                                  <button onClick={() => abrirCarta(c, k)} style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.72rem', color: '#9ca3af' }}>editar</button>
+                                  {' · '}
+                                  <button onClick={() => setConfirmCarta({ contactoId: c.id, carta: k, naviera: c.nombre })} style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.72rem', color: '#9ca3af' }}>eliminar</button>
+                                </span>
+                                {k.notas && <span style={{ display: 'block', fontSize: '0.7rem', color: '#c4c9d4' }}>{k.notas}</span>}
+                              </p>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+
                     {c.observaciones && (
                       <p style={{ marginTop: '0.4rem', fontSize: '0.72rem', color: '#9ca3af', lineHeight: 1.45 }}>{c.observaciones}</p>
                     )}
@@ -273,6 +415,109 @@ export default function ContactosPage({ devItems = null } = {}) {
               })}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Modal: presentar o editar una carta de garantía */}
+      {cartaModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }} onClick={() => setCartaModal(null)}>
+          <div style={{ background: '#fff', borderRadius: 12, width: '100%', maxWidth: '520px', maxHeight: '90vh', overflowY: 'auto', padding: '1.5rem 1.75rem' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 600, color: INK }}>
+                {cartaModal.carta ? 'Editar carta de garantía' : 'Carta de garantía'}
+              </h3>
+              <button onClick={() => setCartaModal(null)} aria-label="Cerrar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: '1.4rem', lineHeight: 1 }}>×</button>
+            </div>
+            <p style={{ fontSize: '0.74rem', color: '#9ca3af', marginBottom: '1.1rem' }}>Presentada ante {cartaModal.contacto.nombre}</p>
+
+            <div style={{ display: 'grid', gap: '0.8rem' }}>
+              <div>
+                <label style={LBL}>Sociedad que la presenta</label>
+                <select
+                  value={cartaForm.sociedad === SOCIEDAD_PROPIA.nombre ? 'propia' : 'otra'}
+                  onChange={e => setCartaForm(f => (e.target.value === 'propia'
+                    ? { ...f, sociedad: SOCIEDAD_PROPIA.nombre, sociedad_cuit: SOCIEDAD_PROPIA.cuit }
+                    : { ...f, sociedad: '', sociedad_cuit: '' }))}
+                  className="ct-min" style={{ ...MINP, cursor: 'pointer' }}
+                >
+                  <option value="propia">{SOCIEDAD_PROPIA.nombre}</option>
+                  <option value="otra">Otra sociedad (la del cliente)</option>
+                </select>
+              </div>
+              {cartaForm.sociedad !== SOCIEDAD_PROPIA.nombre && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
+                  <div>
+                    <label style={LBL}>Nombre de la sociedad</label>
+                    <input value={cartaForm.sociedad} onChange={e => setCartaForm(f => ({ ...f, sociedad: e.target.value }))} placeholder="Razón social" className="ct-min" style={MINP} />
+                  </div>
+                  <div>
+                    <label style={LBL}>CUIT</label>
+                    <input value={cartaForm.sociedad_cuit} onChange={e => setCartaForm(f => ({ ...f, sociedad_cuit: e.target.value }))} placeholder="30-00000000-0" className="ct-min" style={MINP} />
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
+                <div>
+                  <label style={LBL}>Fecha de presentación</label>
+                  <input type="date" value={cartaForm.fecha} onChange={e => setCartaForm(f => ({ ...f, fecha: e.target.value }))} className="ct-min" style={MINP} />
+                </div>
+                <div>
+                  <label style={LBL}>Vence</label>
+                  <input type="date" value={cartaForm.vence} onChange={e => setCartaForm(f => ({ ...f, vence: e.target.value }))} className="ct-min" style={MINP} />
+                  <p style={{ fontSize: '0.66rem', color: '#c4c9d4', marginTop: 4 }}>Vacío si no vence o si es por una operación.</p>
+                </div>
+              </div>
+
+              <div>
+                <label style={LBL}>B/L u operación</label>
+                <input value={cartaForm.bl} onChange={e => setCartaForm(f => ({ ...f, bl: e.target.value }))} placeholder="Opcional, si la carta es por un embarque" className="ct-min" style={MINP} />
+              </div>
+
+              {cartaModal.carta ? (
+                <p style={{ fontSize: '0.72rem', color: '#9ca3af' }}>
+                  {cartaModal.carta.archivo_nombre
+                    ? `Archivo: ${cartaModal.carta.archivo_nombre}. Para cambiarlo, cargá una carta nueva y eliminá esta.`
+                    : 'Esta carta no tiene archivo adjunto.'}
+                </p>
+              ) : (
+                <div>
+                  <label style={LBL}>Archivo de la carta</label>
+                  <input type="file" accept="application/pdf,image/*" onChange={e => setCartaArchivo(e.target.files?.[0] || null)} style={{ fontSize: '0.78rem', color: '#6b7280' }} />
+                  <p style={{ fontSize: '0.66rem', color: '#c4c9d4', marginTop: 4 }}>PDF o foto, hasta 10 MB. Opcional.</p>
+                </div>
+              )}
+
+              <div>
+                <label style={LBL}>Notas</label>
+                <input value={cartaForm.notas} onChange={e => setCartaForm(f => ({ ...f, notas: e.target.value }))} placeholder="Ej: cubre devolución de contenedor" className="ct-min" style={MINP} />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1.1rem', marginTop: '1.5rem' }}>
+              <button onClick={() => setCartaModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.8rem', color: '#6b7280' }}>Cancelar</button>
+              <button onClick={guardarCarta} disabled={cartaSaving} style={{ background: INK, color: '#fff', border: 'none', borderRadius: 6, padding: '0.5rem 1.1rem', fontSize: '0.8rem', fontWeight: 600, cursor: cartaSaving ? 'default' : 'pointer', fontFamily: 'inherit', opacity: cartaSaving ? 0.6 : 1 }}>
+                {cartaSaving ? 'Guardando…' : (cartaModal.carta ? 'Guardar' : 'Guardar carta')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmación: eliminar una carta */}
+      {confirmCarta && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }} onClick={() => setConfirmCarta(null)}>
+          <div style={{ background: '#fff', borderRadius: 12, width: '100%', maxWidth: '420px', padding: '1.5rem 1.75rem' }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: INK, marginBottom: '0.5rem' }}>Eliminar la carta</h3>
+            <p style={{ fontSize: '0.8rem', color: '#6b7280', lineHeight: 1.5 }}>
+              {sociedadLabel(confirmCarta.carta.sociedad, confirmCarta.carta.sociedad_cuit)} ante {confirmCarta.naviera}
+              {confirmCarta.carta.fecha ? `, presentada el ${fechaCorta(confirmCarta.carta.fecha)}` : ''}.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1.1rem', marginTop: '1.5rem' }}>
+              <button onClick={() => setConfirmCarta(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.8rem', color: '#6b7280' }}>Cancelar</button>
+              <button onClick={() => borrarCarta(confirmCarta.contactoId, confirmCarta.carta.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.8rem', fontWeight: 600, color: '#dc2626' }}>Eliminar</button>
+            </div>
+          </div>
         </div>
       )}
 
