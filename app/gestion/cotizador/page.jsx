@@ -418,9 +418,9 @@ const PRESET_COSTS = Object.fromEntries(Object.entries(PRESETS).map(([k, p]) =>
 // Hoja plana: inputs subrayados en la pantalla de cálculo, inputs con caja fina
 // solo dentro de modales/paneles (MINP). Headers de sección en micro-uppercase.
 const LBL = { display: 'block', fontSize: '0.68rem', fontWeight: 500, color: '#9ca3af', marginBottom: '0.2rem', letterSpacing: 0 };
-const INP = { width: '100%', padding: '0.35rem 0.05rem', border: 'none', borderBottom: '1px solid #e5e7eb', borderRadius: 0, fontSize: '0.84rem', color: '#111827', background: 'transparent', outline: 'none', fontVariantNumeric: 'tabular-nums' };
+const INP = { width: '100%', padding: '0.35rem 0.05rem', border: 'none', borderBottom: '1px solid #d1d5db', borderRadius: 0, fontSize: '0.84rem', color: '#111827', background: 'transparent', outline: 'none', fontVariantNumeric: 'tabular-nums' };
 const MINP = { width: '100%', padding: '0.45rem 0.65rem', border: '1px solid #e5e7eb', borderRadius: 6, fontSize: '0.84rem', color: '#111827', background: '#fff', outline: 'none', fontVariantNumeric: 'tabular-nums' };
-const SECL = { fontSize: '0.64rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#9ca3af', margin: '0.6rem 0 0.45rem' };
+const SECL = { fontSize: '0.66rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#6b7280', margin: '0.6rem 0 0.45rem' };
 // Botón secundario: texto plano, sin borde ni fondo (hover via <style> .cz-tbtn).
 const TBTN = { border: 'none', background: 'transparent', padding: '0.25rem 0', cursor: 'pointer', fontSize: '0.74rem', fontWeight: 500, color: '#6b7280' };
 // Único botón primario de la pantalla / confirmar de modal.
@@ -431,6 +431,26 @@ function F({ label, children, half }) {
     <div style={{ marginBottom: '0.5rem', ...(half ? {} : {}) }}>
       {label && <label style={LBL}>{label}</label>}
       {children}
+    </div>
+  );
+}
+// Una alícuota: rótulo, número y, si es percepción, su SÍ/NO al costado.
+// Las seis tienen el mismo alto y ancho para que se lean como un solo bloque.
+function CeldaArancel({ label, value, onChange, paga, onPaga }) {
+  const esPercepcion = typeof onPaga === 'function';
+  const activo = !esPercepcion || paga;
+  return (
+    <div style={{ minWidth: 0 }}>
+      <label style={LBL}>{label}</label>
+      <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #d1d5db' }}>
+        <input type="number" inputMode="decimal" step="any" min="0" value={value} onChange={e => onChange(e.target.value)} onWheel={e => e.currentTarget.blur()}
+          style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', padding: '0.35rem 0.05rem', fontSize: '0.84rem', color: activo ? '#111827' : '#d1d5db', fontVariantNumeric: 'tabular-nums' }} />
+        {esPercepcion && (
+          <button onClick={() => onPaga(!paga)} title="¿Aplica en esta importación? Afecta la cotización al cliente y tu costo real" style={{ border: 'none', background: 'transparent', padding: '0 0.1rem 0 0.6rem', cursor: 'pointer', fontSize: '0.66rem', fontWeight: 700, color: paga ? '#059669' : '#dc2626' }}>
+            {paga ? 'SÍ' : 'NO'}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -510,9 +530,9 @@ function Tab({ active, onClick, children }) {
     </button>
   );
 }
-// "Card" ahora es una sección plana: sin caja ni sombra, separada por línea fina.
+// Cada bloque es un cuadro con borde: separa las secciones de un vistazo.
 function Card({ children, style = {}, className }) {
-  return <div className={className} style={{ background: '#fff', padding: '1rem 0 1.25rem', borderBottom: '1px solid #f1f5f9', ...style }}>{children}</div>;
+  return <div className={className} style={{ background: '#fff', padding: '1.1rem 1.25rem 1.2rem', border: '1px solid #e2e5ea', borderRadius: 12, ...style }}>{children}</div>;
 }
 function RRow({ label, val, val2, diff, dimmed, bold }) {
   const s = { fontSize: bold ? '0.86rem' : '0.8rem', fontWeight: bold ? 700 : 400, fontVariantNumeric: 'tabular-nums' };
@@ -1071,88 +1091,9 @@ function CotizadorMaritimo({ onDirty }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', minWidth: 0 }}>
 
       {/* fila superior: Contenedor (izq, angosto) + Identificación (der) */}
-      <div className="cot-top-row" style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: '0.75rem', alignItems: 'start' }}>
+      <div className="cot-top-row" style={{ display: 'grid', gridTemplateColumns: '0.9fr 1.1fr', gap: '0.9rem', alignItems: 'start' }}>
 
-      {/* ── Contenedor + Mi carga (primera sección de datos) ── */}
-      <Card>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
-
-          {/* controles: contenedor + m³ mercadería + ratio en una sola fila */}
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1.25rem', flexWrap: 'wrap' }}>
-            <div style={{ flex: '1 1 300px', minWidth: 220 }}>
-              <label style={LBL}>Contenedor</label>
-              <div style={{ display: 'flex', gap: '1.25rem', paddingBottom: 2 }}>
-                {Object.entries(PRESETS).map(([key, p]) => {
-                  const on = contType === key;
-                  return (
-                    <button key={key} onClick={() => setContType(key)} style={{ padding: '0.3rem 0 4px', border: 'none', borderBottom: on ? '2px solid #111827' : '2px solid transparent', cursor: 'pointer', fontSize: '0.76rem', fontWeight: on ? 600 : 400, background: 'transparent', color: on ? '#111827' : '#9ca3af' }}>
-                      {p.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <div>
-              <label style={LBL}>M³ de mi mercadería</label>
-              <input type="number" inputMode="decimal" step="any" min="0" placeholder="0" value={m3Merch} onChange={e => setM3Merch(e.target.value)} onWheel={e => e.currentTarget.blur()} style={{ ...INP, width: '120px' }} />
-            </div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: '0.45rem' }}>
-              <span style={{ fontSize: '0.62rem', color: '#9ca3af' }}>Ratio de prorrateo</span>
-              <span style={{ fontSize: '0.95rem', fontWeight: 700, color: c.ratio > 0 ? '#111827' : '#9ca3af', fontVariantNumeric: 'tabular-nums' }}>{c.ratio.toFixed(3)}</span>
-              <span style={{ fontSize: '0.62rem', color: '#d1d5db' }}>({n(m3Merch)}/{c.curM3} m³)</span>
-            </div>
-          </div>
-
-          {/* ajustar contenedor: m³ contenedor + costos de referencia (colapsado) */}
-          <details className="cot-collapse">
-            <summary style={{ ...SECL, margin: '0 0 0.3rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span className="cot-chev" style={{ fontSize: '0.7rem', color: '#9ca3af' }}>▸</span> Ajustar contenedor y costos de referencia</span>
-              <span style={{ fontSize: '0.6rem', color: '#9ca3af', textTransform: 'none', letterSpacing: 0, fontWeight: 500 }}>{PRESETS[contType]?.label} · {contM3[contType]}m³</span>
-            </summary>
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.85rem', flexWrap: 'wrap', marginTop: '0.4rem' }}>
-              <div>
-                <label style={{ ...LBL, fontSize: '0.6rem' }}>M³ del contenedor</label>
-                <input type="number" inputMode="decimal" step="any" min="1" value={contM3[contType]} onChange={e => setM3(contType, e.target.value)} onWheel={e => e.currentTarget.blur()} style={{ ...INP, width: '100px' }} />
-              </div>
-              {[['Flete','flete'],['Despachante','despachante'],['Terminal','terminal'],['Naviera','naviera'],['Logística','logistica']].map(([label, key]) => (
-                <div key={key}>
-                  <label style={{ ...LBL, fontSize: '0.6rem' }}>{label}</label>
-                  <input type="number" inputMode="decimal" step="any" min="0" value={contCosts[contType][key]} onChange={e => setCost(contType, key, e.target.value)} onWheel={e => e.currentTarget.blur()} style={{ ...INP, width: '100px' }} />
-                </div>
-              ))}
-            </div>
-          </details>
-
-          {/* charges — filas planas. La columna "lo que cobrás" solo aplica para cliente */}
-          <div>
-              <div className="cot-charges-header" style={{ display: 'grid', gridTemplateColumns: mode === 'cliente' ? '1fr 1fr 1.4fr' : '1fr 1.2fr', padding: '0 0 0.3rem', borderBottom: '1px solid #f1f5f9', gap: '0.5rem' }}>
-                <span style={{ fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#9ca3af' }}>Concepto</span>
-                <span className="cot-charges-prorated" style={{ fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#9ca3af', textAlign: 'right' }}>Tu costo prorrateado</span>
-                {mode === 'cliente' && <span style={{ fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#9ca3af', textAlign: 'right' }}>Lo que cobrás al cliente</span>}
-              </div>
-              {[
-                ['Flete', c.fleteR, fleteCli, setFleteCli],
-                ['Despachante', c.desR, gDes, setGDes],
-                ['Terminal', c.terR, gTer, setGTer],
-                ['Naviera', c.navR, gNav, setGNav],
-                ['Logística', c.logR, gLog, setGLog],
-              ].map(([label, prorated, val, setVal], i, arr) => (
-                <div key={label} className="cot-charges-row" style={{ display: 'grid', gridTemplateColumns: mode === 'cliente' ? '1fr 1fr 1.4fr' : '1fr 1.2fr', alignItems: 'center', padding: '0.35rem 0', borderBottom: i < arr.length - 1 ? '1px solid #f1f5f9' : 'none', gap: '0.5rem' }}>
-                  <span style={{ fontSize: '0.78rem', color: '#6b7280' }}>{label}</span>
-                  <span className="cot-charges-prorated" style={{ fontSize: '0.78rem', color: c.ratio > 0 ? '#111827' : '#d1d5db', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{usd(prorated)}</span>
-                  {mode === 'cliente' && (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 3, marginLeft: 'auto', width: '120px', borderBottom: '1px solid #e5e7eb', padding: '0.15rem 0' }}>
-                      <span style={{ fontSize: '0.72rem', color: '#9ca3af' }}>$</span>
-                      <input type="number" inputMode="decimal" step="any" min="0" placeholder="0" value={val} onChange={e => setVal(e.target.value)} onWheel={e => e.currentTarget.blur()} style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', textAlign: 'right', fontSize: '0.78rem', color: '#111827', fontVariantNumeric: 'tabular-nums', padding: 0 }} />
-                    </div>
-                  )}
-                </div>
-              ))}
-          </div>
-        </div>
-      </Card>
-
-          {/* identification */}
+          {/* ── Identificación: lo primero que se carga (cliente, mercadería, NCM, FOB) ── */}
           <Card>
             <p style={{ ...SECL, margin: '0 0 0.6rem' }}>Identificación del embarque</p>
             {/* NCM primero: elegir una guardada autocompleta posición + las 6 alícuotas de un saque */}
@@ -1227,6 +1168,85 @@ function CotizadorMaritimo({ onDirty }) {
               </div>
             </div>
           </Card>
+
+      {/* ── Contenedor + Mi carga (primera sección de datos) ── */}
+      <Card>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
+
+          {/* controles: contenedor + m³ mercadería + ratio en una sola fila */}
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1.25rem', flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 300px', minWidth: 220 }}>
+              <label style={LBL}>Contenedor</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem 1rem', paddingBottom: 2 }}>
+                {Object.entries(PRESETS).map(([key, p]) => {
+                  const on = contType === key;
+                  return (
+                    <button key={key} onClick={() => setContType(key)} style={{ whiteSpace: 'nowrap', padding: '0.3rem 0 4px', border: 'none', borderBottom: on ? '2px solid #111827' : '2px solid transparent', cursor: 'pointer', fontSize: '0.76rem', fontWeight: on ? 600 : 400, background: 'transparent', color: on ? '#111827' : '#9ca3af' }}>
+                      {p.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div>
+              <label style={LBL}>M³ de mi mercadería</label>
+              <input type="number" inputMode="decimal" step="any" min="0" placeholder="0" value={m3Merch} onChange={e => setM3Merch(e.target.value)} onWheel={e => e.currentTarget.blur()} style={{ ...INP, width: '120px' }} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: '0.45rem' }}>
+              <span style={{ fontSize: '0.62rem', color: '#9ca3af' }}>Ratio de prorrateo</span>
+              <span style={{ fontSize: '0.95rem', fontWeight: 700, color: c.ratio > 0 ? '#111827' : '#9ca3af', fontVariantNumeric: 'tabular-nums' }}>{c.ratio.toFixed(3)}</span>
+              <span style={{ fontSize: '0.62rem', color: '#d1d5db' }}>({n(m3Merch)}/{c.curM3} m³)</span>
+            </div>
+          </div>
+
+          {/* ajustar contenedor: m³ contenedor + costos de referencia (colapsado) */}
+          <details className="cot-collapse">
+            <summary style={{ ...SECL, margin: '0 0 0.3rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span className="cot-chev" style={{ fontSize: '0.7rem', color: '#9ca3af' }}>▸</span> Ajustar contenedor y costos de referencia</span>
+              <span style={{ fontSize: '0.6rem', color: '#9ca3af', textTransform: 'none', letterSpacing: 0, fontWeight: 500 }}>{PRESETS[contType]?.label} · {contM3[contType]}m³</span>
+            </summary>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.85rem', flexWrap: 'wrap', marginTop: '0.4rem' }}>
+              <div>
+                <label style={{ ...LBL, fontSize: '0.6rem' }}>M³ del contenedor</label>
+                <input type="number" inputMode="decimal" step="any" min="1" value={contM3[contType]} onChange={e => setM3(contType, e.target.value)} onWheel={e => e.currentTarget.blur()} style={{ ...INP, width: '100px' }} />
+              </div>
+              {[['Flete','flete'],['Despachante','despachante'],['Terminal','terminal'],['Naviera','naviera'],['Logística','logistica']].map(([label, key]) => (
+                <div key={key}>
+                  <label style={{ ...LBL, fontSize: '0.6rem' }}>{label}</label>
+                  <input type="number" inputMode="decimal" step="any" min="0" value={contCosts[contType][key]} onChange={e => setCost(contType, key, e.target.value)} onWheel={e => e.currentTarget.blur()} style={{ ...INP, width: '100px' }} />
+                </div>
+              ))}
+            </div>
+          </details>
+
+          {/* charges — filas planas. La columna "lo que cobrás" solo aplica para cliente */}
+          <div>
+              <div className="cot-charges-header" style={{ display: 'grid', gridTemplateColumns: mode === 'cliente' ? '1fr 1fr 1.4fr' : '1fr 1.2fr', padding: '0 0 0.3rem', borderBottom: '1px solid #f1f5f9', gap: '0.5rem' }}>
+                <span style={{ fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#9ca3af' }}>Concepto</span>
+                <span className="cot-charges-prorated" style={{ fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#9ca3af', textAlign: 'right' }}>Tu costo prorrateado</span>
+                {mode === 'cliente' && <span style={{ fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#9ca3af', textAlign: 'right' }}>Lo que cobrás al cliente</span>}
+              </div>
+              {[
+                ['Flete', c.fleteR, fleteCli, setFleteCli],
+                ['Despachante', c.desR, gDes, setGDes],
+                ['Terminal', c.terR, gTer, setGTer],
+                ['Naviera', c.navR, gNav, setGNav],
+                ['Logística', c.logR, gLog, setGLog],
+              ].map(([label, prorated, val, setVal], i, arr) => (
+                <div key={label} className="cot-charges-row" style={{ display: 'grid', gridTemplateColumns: mode === 'cliente' ? '1fr 1fr 1.4fr' : '1fr 1.2fr', alignItems: 'center', padding: '0.35rem 0', borderBottom: i < arr.length - 1 ? '1px solid #f1f5f9' : 'none', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '0.78rem', color: '#6b7280' }}>{label}</span>
+                  <span className="cot-charges-prorated" style={{ fontSize: '0.78rem', color: c.ratio > 0 ? '#111827' : '#d1d5db', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{usd(prorated)}</span>
+                  {mode === 'cliente' && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 3, marginLeft: 'auto', width: '120px', borderBottom: '1px solid #e5e7eb', padding: '0.15rem 0' }}>
+                      <span style={{ fontSize: '0.72rem', color: '#9ca3af' }}>$</span>
+                      <input type="number" inputMode="decimal" step="any" min="0" placeholder="0" value={val} onChange={e => setVal(e.target.value)} onWheel={e => e.currentTarget.blur()} style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', textAlign: 'right', fontSize: '0.78rem', color: '#111827', fontVariantNumeric: 'tabular-nums', padding: 0 }} />
+                    </div>
+                  )}
+                </div>
+              ))}
+          </div>
+        </div>
+      </Card>
       </div>
 
           {/* secciones de entrada: aranceles (izq) · honorarios/cierre (der) */}
@@ -1237,37 +1257,17 @@ function CotizadorMaritimo({ onDirty }) {
               <div>
                 <p style={{ ...SECL, margin: '0 0 0.9rem' }}>Configuración arancelaria</p>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.9rem', marginBottom: '1rem' }}>
-                  <F label="Derechos de Importación %">
-                    <input type="number" inputMode="decimal" step="any" min="0" value={pDer} onChange={e => setPDer(e.target.value)} style={INP} />
-                  </F>
-                  <F label="Tasa Estadística %">
-                    <input type="number" inputMode="decimal" step="any" min="0" value={pTas} onChange={e => setPTas(e.target.value)} style={INP} />
-                  </F>
-                  <F label="IVA %">
-                    <input type="number" inputMode="decimal" step="any" min="0" value={pIva} onChange={e => setPIva(e.target.value)} style={INP} />
-                  </F>
+                {/* Las seis alícuotas en la misma grilla y del mismo tamaño; las
+                    percepciones llevan su SÍ/NO al costado del número. */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '0.9rem 1.1rem', alignItems: 'end' }}>
+                  <CeldaArancel label="Derechos de Importación %" value={pDer} onChange={setPDer} />
+                  <CeldaArancel label="Tasa Estadística %" value={pTas} onChange={setPTas} />
+                  <CeldaArancel label="IVA %" value={pIva} onChange={setPIva} />
+                  <CeldaArancel label="IVA Adicional %" value={pIvaA} onChange={setPIvaA} paga={pagaIvaA} onPaga={setPagaIvaA} />
+                  <CeldaArancel label="Perc. Ganancias %" value={pGan} onChange={setPGan} paga={pagaGan} onPaga={setPagaGan} />
+                  <CeldaArancel label="Perc. IIBB %" value={pIIBB} onChange={setPIIBB} paga={pagaIIBB} onPaga={setPagaIIBB} />
                 </div>
-
-                <p style={{ fontSize: '0.72rem', color: '#9ca3af', marginBottom: '0.65rem' }}>Percepciones — ¿aplican en esta importación? Con SÍ se cobran en la cotización y cuentan en el costo real; con NO, en ninguno.</p>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem 1.5rem' }}>
-                  {[
-                    ['IVA Adicional %', pIvaA, setPIvaA, pagaIvaA, setPagaIvaA],
-                    ['Perc. Ganancias %', pGan, setPGan, pagaGan, setPagaGan],
-                    ['Perc. IIBB %', pIIBB, setPIIBB, pagaIIBB, setPagaIIBB],
-                  ].map(([lbl, val, setVal, paga, setPaga]) => (
-                    <div key={lbl} style={{ minWidth: 0 }}>
-                      <label style={{ ...LBL, marginBottom: '0.12rem' }}>{lbl}</label>
-                      <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #e5e7eb', maxWidth: '100%' }}>
-                        <input type="number" inputMode="decimal" step="any" min="0" value={val} onChange={e => setVal(e.target.value)} onWheel={e => e.currentTarget.blur()} style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', padding: '0.35rem 0.05rem', fontSize: '0.84rem', color: paga ? '#111827' : '#d1d5db', fontVariantNumeric: 'tabular-nums' }} />
-                        <button onClick={() => setPaga(!paga)} title="¿Aplica en esta importación? Afecta la cotización al cliente y tu costo real" style={{ border: 'none', background: 'transparent', padding: '0 0.1rem 0 0.6rem', cursor: 'pointer', fontSize: '0.66rem', fontWeight: 700, color: paga ? '#059669' : '#dc2626' }}>
-                        {paga ? 'SÍ' : 'NO'}
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <p style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '0.75rem', lineHeight: 1.45 }}>Percepciones: con SÍ se cobran en la cotización y cuentan en el costo real; con NO, en ninguno.</p>
               </div>
             )}
 
@@ -1364,7 +1364,7 @@ function CotizadorMaritimo({ onDirty }) {
         </div>
 
         {/* ── resultado: columna de números fija a la derecha ──────────────── */}
-        <div className="cot-right-rail" style={{ position: 'sticky', top: '1rem', maxHeight: 'calc(100vh - 110px)', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+        <div className="cot-right-rail" style={{ position: 'sticky', top: '1rem', maxHeight: 'calc(100vh - 110px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
 
           {/* ══ MODO CLIENTE ════════════════════════════════════════════════ */}
           {mode === 'cliente' && (<>
@@ -2305,37 +2305,17 @@ function CotizadorAereo({ onDirty }) {
                 <p style={{ ...SECL, margin: '0 0 0.4rem' }}>Configuración arancelaria</p>
                 <p style={{ fontSize: '0.68rem', color: '#9ca3af', marginBottom: '0.85rem' }}>Misma lógica que importación marítima — CIF = FOB declarado + Flete + Seguro 1%.</p>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.9rem', marginBottom: '1rem' }}>
-                  <F label="Derechos de Importación %">
-                    <input type="number" inputMode="decimal" step="any" min="0" value={pDer} onChange={e => setPDer(e.target.value)} style={INP} />
-                  </F>
-                  <F label="Tasa Estadística %">
-                    <input type="number" inputMode="decimal" step="any" min="0" value={pTas} onChange={e => setPTas(e.target.value)} style={INP} />
-                  </F>
-                  <F label="IVA %">
-                    <input type="number" inputMode="decimal" step="any" min="0" value={pIva} onChange={e => setPIva(e.target.value)} style={INP} />
-                  </F>
+                {/* Las seis alícuotas en la misma grilla y del mismo tamaño; las
+                    percepciones llevan su SÍ/NO al costado del número. */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '0.9rem 1.1rem', alignItems: 'end' }}>
+                  <CeldaArancel label="Derechos de Importación %" value={pDer} onChange={setPDer} />
+                  <CeldaArancel label="Tasa Estadística %" value={pTas} onChange={setPTas} />
+                  <CeldaArancel label="IVA %" value={pIva} onChange={setPIva} />
+                  <CeldaArancel label="IVA Adicional %" value={pIvaA} onChange={setPIvaA} paga={pagaIvaA} onPaga={setPagaIvaA} />
+                  <CeldaArancel label="Perc. Ganancias %" value={pGan} onChange={setPGan} paga={pagaGan} onPaga={setPagaGan} />
+                  <CeldaArancel label="Perc. IIBB %" value={pIIBB} onChange={setPIIBB} paga={pagaIIBB} onPaga={setPagaIIBB} />
                 </div>
-
-                <p style={{ fontSize: '0.72rem', color: '#9ca3af', marginBottom: '0.65rem' }}>Percepciones — ¿aplican en esta importación? Con SÍ se cobran en la cotización y cuentan en el costo real; con NO, en ninguno.</p>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem 1.5rem' }}>
-                  {[
-                    ['IVA Adicional %', pIvaA, setPIvaA, pagaIvaA, setPagaIvaA],
-                    ['Perc. Ganancias %', pGan, setPGan, pagaGan, setPagaGan],
-                    ['Perc. IIBB %', pIIBB, setPIIBB, pagaIIBB, setPagaIIBB],
-                  ].map(([lbl, val, setVal, paga, setPaga]) => (
-                    <div key={lbl} style={{ minWidth: 0 }}>
-                      <label style={{ ...LBL, marginBottom: '0.12rem' }}>{lbl}</label>
-                      <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #e5e7eb', maxWidth: '100%' }}>
-                        <input type="number" inputMode="decimal" step="any" min="0" value={val} onChange={e => setVal(e.target.value)} onWheel={e => e.currentTarget.blur()} style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', padding: '0.35rem 0.05rem', fontSize: '0.84rem', color: paga ? '#111827' : '#d1d5db', fontVariantNumeric: 'tabular-nums' }} />
-                        <button onClick={() => setPaga(!paga)} title="¿Aplica en esta importación? Afecta la cotización al cliente y tu costo real" style={{ border: 'none', background: 'transparent', padding: '0 0.1rem 0 0.6rem', cursor: 'pointer', fontSize: '0.66rem', fontWeight: 700, color: paga ? '#059669' : '#dc2626' }}>
-                        {paga ? 'SÍ' : 'NO'}
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <p style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '0.75rem', lineHeight: 1.45 }}>Percepciones: con SÍ se cobran en la cotización y cuentan en el costo real; con NO, en ninguno.</p>
 
                 <div style={{ display: 'flex', gap: '2.5rem', marginTop: '0.9rem', paddingTop: '0.6rem', borderTop: '1px solid #f1f5f9' }}>
                   {[['Base IVA cliente', c.bivC], ['Base IVA real', c.bivR]].map(([l, v]) => (
@@ -2425,7 +2405,7 @@ function CotizadorAereo({ onDirty }) {
         </div>
 
         {/* RIGHT: results */}
-        <div className="cot-right-rail" style={{ position: 'sticky', top: '1rem', maxHeight: 'calc(100vh - 110px)', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+        <div className="cot-right-rail" style={{ position: 'sticky', top: '1rem', maxHeight: 'calc(100vh - 110px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
 
           {mode === 'personal' && (
             <Card>
