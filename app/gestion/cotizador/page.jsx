@@ -892,8 +892,16 @@ function CotizadorMaritimo({ onDirty }) {
     const fleteR = n(fleteRealInput) || (curCosts.flete * ratio);
 
     // ── LADO CLIENTE ──
-    const segC   = fobDC * 0.01;
-    const cifC   = fobDC + n(fleteCli) + segC;
+    // Con la sociedad del cliente, él importa a su nombre: la aduana le cobra
+    // sobre lo declarado real (FOB declarado + flete real + seguro) y a la
+    // terminal y la naviera les paga directo. Esos conceptos van al valor real
+    // y sin margen. FOB, flete, despachante y logística sí pasan por Transtide
+    // y conservan lo que se les cobra.
+    const socCli = !!usaSociedadPropia;
+    const baseFobC   = socCli ? fobDR : fobDC;
+    const baseFleteC = socCli ? fleteR : n(fleteCli);
+    const segC   = baseFobC * 0.01;
+    const cifC   = baseFobC + baseFleteC + segC;
     const derC   = cifC * der;
     const tasC   = cifC * tas;
     const bivC   = cifC + derC + tasC;
@@ -903,7 +911,9 @@ function CotizadorMaritimo({ onDirty }) {
     const ganC   = pagaGan  ? bivC * gan  : 0;
     const iibbC  = pagaIIBB ? bivC * iibb : 0;
     const arcC   = n(fleteCli) + segC + derC + tasC + ivaC + ivaAC + ganC + iibbC;
-    const desC   = n(gDes), terC = n(gTer), navC = n(gNav), logC = n(gLog);
+    const desC   = n(gDes), logC = n(gLog);
+    const terC   = socCli ? curCosts.terminal * ratio : n(gTer);
+    const navC   = socCli ? curCosts.naviera  * ratio : n(gNav);
     const gasC   = desC + terC + navC + logC;
     const totConC = fobC + arcC + gasC;
     const totSinC = totConC - ivaC - ivaAC;
@@ -1001,12 +1011,12 @@ function CotizadorMaritimo({ onDirty }) {
           qSection('Base de la Importación', [
             qRow('Valor de Mercadería (FOB)', qFmt(c.fobC)),
             qRow('Flete Internacional', qFmt(n(fleteCli))),
-            qRow('Seguro Marítimo (1% FOB)', qFmt(c.segC)),
+            qRow(usaSociedadPropia ? 'Seguro Marítimo (1% FOB declarado)' : 'Seguro Marítimo (1% FOB)', qFmt(c.segC)),
             // Cuando se declara menos de lo que se paga, el CIF sale del declarado:
             // se muestra para que el cliente entienda por qué los aranceles no dan
             // sobre el FOB de arriba.
-            c.fobDC !== c.fobC ? qRow('FOB Declarado (base arancelaria)', qFmt(c.fobDC), { sub: true }) : '',
-            qRow('CIF — Base Arancelaria', qFmt(c.cifC), { bold: true, highlight: true }),
+            !usaSociedadPropia && c.fobDC !== c.fobC ? qRow('FOB Declarado (base arancelaria)', qFmt(c.fobDC), { sub: true }) : '',
+            qRow(usaSociedadPropia ? 'CIF declarado — base arancelaria (importa el cliente)' : 'CIF — Base Arancelaria', qFmt(c.cifC), { bold: true, highlight: true }),
           ]),
           qSection('Gastos Locales', [
             c.desC > 0 ? qRow('Despachante de Aduana', qFmt(c.desC)) : '',
@@ -1229,14 +1239,20 @@ function CotizadorMaritimo({ onDirty }) {
               {[
                 ['Flete', c.fleteR, fleteCli, setFleteCli],
                 ['Despachante', c.desR, gDes, setGDes],
-                ['Terminal', c.terR, gTer, setGTer],
-                ['Naviera', c.navR, gNav, setGNav],
+                ['Terminal', c.terR, gTer, setGTer, true],
+                ['Naviera', c.navR, gNav, setGNav, true],
                 ['Logística', c.logR, gLog, setGLog],
-              ].map(([label, prorated, val, setVal], i, arr) => (
+              ].map(([label, prorated, val, setVal, pagoDirecto], i, arr) => (
                 <div key={label} className="cot-charges-row" style={{ display: 'grid', gridTemplateColumns: mode === 'cliente' ? '1fr 1fr 1.4fr' : '1fr 1.2fr', alignItems: 'center', padding: '0.35rem 0', borderBottom: i < arr.length - 1 ? '1px solid #f1f5f9' : 'none', gap: '0.5rem' }}>
                   <span style={{ fontSize: '0.78rem', color: '#6b7280' }}>{label}</span>
                   <span className="cot-charges-prorated" style={{ fontSize: '0.78rem', color: c.ratio > 0 ? '#111827' : '#d1d5db', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{usd(prorated)}</span>
-                  {mode === 'cliente' && (
+                  {mode === 'cliente' && usaSociedadPropia && pagoDirecto ? (
+                    // Con la sociedad del cliente la paga él directo: va al costo, sin margen.
+                    <div title="Con la sociedad del cliente la paga él directo: va al costo, sin margen" style={{ marginLeft: 'auto', width: '120px', textAlign: 'right', lineHeight: 1.2 }}>
+                      <span style={{ fontSize: '0.8rem', color: '#111827', fontVariantNumeric: 'tabular-nums' }}>{usd(prorated)}</span>
+                      <span style={{ display: 'block', fontSize: '0.62rem', color: '#9ca3af' }}>paga el cliente</span>
+                    </div>
+                  ) : mode === 'cliente' && (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 3, marginLeft: 'auto', width: '120px', borderBottom: '1px solid #e5e7eb', padding: '0.15rem 0' }}>
                       <span style={{ fontSize: '0.72rem', color: '#9ca3af' }}>$</span>
                       <input type="number" inputMode="decimal" step="any" min="0" placeholder="0" value={val} onChange={e => setVal(e.target.value)} onWheel={e => e.currentTarget.blur()} style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', textAlign: 'right', fontSize: '0.78rem', color: '#111827', fontVariantNumeric: 'tabular-nums', padding: 0 }} />
@@ -1288,7 +1304,7 @@ function CotizadorMaritimo({ onDirty }) {
                     </button>
                   </div>
                   <p style={{ fontSize: '0.68rem', color: '#9ca3af', marginTop: '0.35rem' }}>
-                    {usaSociedadPropia ? 'Sin gastos de facturación.' : 'Se suman gastos de facturación.'}
+                    {usaSociedadPropia ? 'Sin gastos de facturación. Tributos, terminal y naviera van al valor real: los paga el cliente directo.' : 'Se suman gastos de facturación.'}
                   </p>
                 </div>
 
@@ -1403,8 +1419,8 @@ function CotizadorMaritimo({ onDirty }) {
                 </div>
               </div>
               <div style={{ marginTop: '0.6rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.7rem', color: '#9ca3af' }}>FOB dec. cliente · CIF aranceles</span>
-                <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#d97706', fontVariantNumeric: 'tabular-nums' }}>{usd(c.fobDC)} · {usd(c.cifC)}</span>
+                <span style={{ fontSize: '0.7rem', color: '#9ca3af' }}>{usaSociedadPropia ? 'FOB declarado · CIF aranceles (real)' : 'FOB dec. cliente · CIF aranceles'}</span>
+                <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#d97706', fontVariantNumeric: 'tabular-nums' }}>{usd(usaSociedadPropia ? c.fobDR : c.fobDC)} · {usd(c.cifC)}</span>
               </div>
             </Card>
 
@@ -1651,7 +1667,7 @@ function CotizadorMaritimo({ onDirty }) {
                 {[
                   ['Valor de Mercadería (FOB)', usd(c.fobC)],
                   ['Flete Internacional', usd(n(fleteCli))],
-                  ['Seguro Marítimo (1% FOB)', usd(c.segC)],
+                  [usaSociedadPropia ? 'Seguro Marítimo (1% FOB declarado)' : 'Seguro Marítimo (1% FOB)', usd(c.segC)],
                   ...(c.fobDC !== c.fobC ? [['FOB Declarado (base arancelaria)', usd(c.fobDC)]] : []),
                 ].map(([l, v]) => (
                   <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.35rem 0', borderBottom: '1px solid #f1f5f9', fontSize: '0.8rem', color: '#6b7280' }}>
@@ -1659,7 +1675,7 @@ function CotizadorMaritimo({ onDirty }) {
                   </div>
                 ))}
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: '1px solid #f1f5f9', fontSize: '0.84rem', fontWeight: 700, color: '#111827' }}>
-                  <span>CIF — Base Arancelaria</span><span style={{ fontVariantNumeric: 'tabular-nums' }}>{usd(c.cifC)}</span>
+                  <span>{usaSociedadPropia ? 'CIF declarado — base arancelaria (importa el cliente)' : 'CIF — Base Arancelaria'}</span><span style={{ fontVariantNumeric: 'tabular-nums' }}>{usd(c.cifC)}</span>
                 </div>
 
                 {/* aranceles */}
@@ -1953,8 +1969,16 @@ function CotizadorAereo({ onDirty }) {
     const fleteR = n(fleteRealInput);
 
     // ── LADO CLIENTE ──
-    const segC   = fobDC * 0.01;
-    const cifC   = fobDC + fleteC + segC;
+    // Con la sociedad del cliente, él importa a su nombre: la aduana le cobra
+    // sobre lo declarado real (FOB declarado + flete real + seguro) y a la
+    // terminal y la naviera les paga directo. Esos conceptos van al valor real
+    // y sin margen. FOB, flete, AWB, handling, despachante y transporte sí pasan por Transtide
+    // y conservan lo que se les cobra.
+    const socCli = !!usaSociedadPropia;
+    const baseFobC   = socCli ? fobDR : fobDC;
+    const baseFleteC = socCli ? fleteR : fleteC;
+    const segC   = baseFobC * 0.01;
+    const cifC   = baseFobC + baseFleteC + segC;
     const derC   = cifC * der;
     const tasC   = cifC * tas;
     const bivC   = cifC + derC + tasC;
@@ -1964,7 +1988,8 @@ function CotizadorAereo({ onDirty }) {
     const ganC   = pagaGan  ? bivC * gan  : 0;
     const iibbC  = pagaIIBB ? bivC * iibb : 0;
     const arcC   = fleteC + segC + derC + tasC + ivaC + ivaAC + ganC + iibbC;
-    const awbCv  = n(awbCli), handCv = n(handCli), terCv = n(terCli), desCv = n(desCli), traCv = n(traCli);
+    const awbCv  = n(awbCli), handCv = n(handCli), desCv = n(desCli), traCv = n(traCli);
+    const terCv  = socCli ? n(terReal) : n(terCli);
     const gasC   = awbCv + handCv + terCv + desCv + traCv;
     const totConC = fobC + arcC + gasC;
     const totSinC = totConC - ivaC - ivaAC;
@@ -2061,9 +2086,9 @@ function CotizadorAereo({ onDirty }) {
           qSection('Base de la Importación', [
             qRow('Valor de Mercadería (FOB)', qFmt(c.fobC)),
             qRow(`Flete Aéreo (${chargeable.toFixed(2)} kg chargeable)`, qFmt(c.fleteC)),
-            qRow('Seguro (1% FOB)', qFmt(c.segC)),
-            c.fobDC !== c.fobC ? qRow('FOB Declarado (base arancelaria)', qFmt(c.fobDC), { sub: true }) : '',
-            qRow('CIF — Base Arancelaria', qFmt(c.cifC), { bold: true, highlight: true }),
+            qRow(usaSociedadPropia ? 'Seguro (1% FOB declarado)' : 'Seguro (1% FOB)', qFmt(c.segC)),
+            !usaSociedadPropia && c.fobDC !== c.fobC ? qRow('FOB Declarado (base arancelaria)', qFmt(c.fobDC), { sub: true }) : '',
+            qRow(usaSociedadPropia ? 'CIF declarado — base arancelaria (importa el cliente)' : 'CIF — Base Arancelaria', qFmt(c.cifC), { bold: true, highlight: true }),
           ]),
           qSection('Gastos Aeroportuarios', [
             c.awbCv > 0 ? qRow('AWB', qFmt(c.awbCv)) : '',
@@ -2248,7 +2273,15 @@ function CotizadorAereo({ onDirty }) {
                   <F label="Flete aéreo (USD)"><NI value={fleteCliInput} onChange={setFleteCliInput} /></F>
                   <F label="AWB"><NI value={awbCli} onChange={setAwbCli} /></F>
                   <F label="Handling"><NI value={handCli} onChange={setHandCli} /></F>
-                  <F label="Terminal aérea"><NI value={terCli} onChange={setTerCli} /></F>
+                  {usaSociedadPropia ? (
+                    <F label="Terminal aérea">
+                      <p title="Con la sociedad del cliente la paga él directo: va al costo, sin margen" style={{ padding: '0.35rem 0.05rem', fontSize: '0.84rem', color: '#111827', fontVariantNumeric: 'tabular-nums', borderBottom: '1px solid #f1f5f9' }}>
+                        {usd(n(terReal))} <span style={{ fontSize: '0.66rem', color: '#9ca3af' }}>· paga el cliente</span>
+                      </p>
+                    </F>
+                  ) : (
+                    <F label="Terminal aérea"><NI value={terCli} onChange={setTerCli} /></F>
+                  )}
                   <F label="Despachante"><NI value={desCli} onChange={setDesCli} /></F>
                   <F label="Transporte interno"><NI value={traCli} onChange={setTraCli} /></F>
                 </div>
@@ -2344,7 +2377,7 @@ function CotizadorAereo({ onDirty }) {
                     </button>
                   </div>
                   <p style={{ fontSize: '0.68rem', color: '#9ca3af', marginTop: '0.35rem' }}>
-                    {usaSociedadPropia ? 'Sin gastos de facturación.' : 'Se suman gastos de facturación.'}
+                    {usaSociedadPropia ? 'Sin gastos de facturación. Tributos y terminal aérea van al valor real: los paga el cliente directo.' : 'Se suman gastos de facturación.'}
                   </p>
                 </div>
 
@@ -2586,7 +2619,7 @@ function CotizadorAereo({ onDirty }) {
                 {[
                   ['Valor de Mercadería (FOB)', usd(c.fobC)],
                   [`Flete Aéreo (${chargeable.toFixed(2)} kg chargeable)`, usd(c.fleteC)],
-                  ['Seguro (1% FOB)', usd(c.segC)],
+                  [usaSociedadPropia ? 'Seguro (1% FOB declarado)' : 'Seguro (1% FOB)', usd(c.segC)],
                   ...(c.fobDC !== c.fobC ? [['FOB Declarado (base arancelaria)', usd(c.fobDC)]] : []),
                 ].map(([l, v]) => (
                   <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.35rem 0', borderBottom: '1px solid #f1f5f9', fontSize: '0.8rem', color: '#6b7280' }}>
@@ -2594,7 +2627,7 @@ function CotizadorAereo({ onDirty }) {
                   </div>
                 ))}
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: '1px solid #f1f5f9', fontSize: '0.84rem', fontWeight: 700, color: '#111827' }}>
-                  <span>CIF — Base Arancelaria</span><span style={{ fontVariantNumeric: 'tabular-nums' }}>{usd(c.cifC)}</span>
+                  <span>{usaSociedadPropia ? 'CIF declarado — base arancelaria (importa el cliente)' : 'CIF — Base Arancelaria'}</span><span style={{ fontVariantNumeric: 'tabular-nums' }}>{usd(c.cifC)}</span>
                 </div>
                 <p style={{ ...SECL, margin: '1.1rem 0 0.2rem' }}>Aranceles Aduaneros</p>
                 {[
