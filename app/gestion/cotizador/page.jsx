@@ -2,6 +2,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import ImportDialog from './import-dialog';
+import { Aduanix, aplicarAduanix, guardarNcmDesdeAduanix } from './aduanix';
 import { gToast } from '../toast';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -1160,6 +1161,13 @@ function CotizadorMaritimo({ onDirty }) {
                 <NcmPicker ncmList={ncmList} onPick={(nc) => applyNcm(nc, { setClasificacion, setDescripcion, setPDer, setPTas, setPIva, setPIvaA, setPGan, setPIIBB })} />
               </F>
             )}
+            {/* Puente con el clasificador de Aduanix: abre allá con la descripción
+                copiada y trae de vuelta posición y alícuotas pegando el resultado. */}
+            <Aduanix
+              descripcion={descripcion}
+              onAplicar={(d) => aplicarAduanix(d, { setClasificacion, setDescripcion, setPDer, setPTas, setPIva, setPIvaA, setPGan, setPIIBB })}
+              onGuardarNcm={async (d) => { if (await guardarNcmDesdeAduanix(d, descripcion)) { try { const r = await fetch('/api/db/ncm'); if (r.ok) setNcmList(await r.json()); } catch {} } }}
+            />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '0.6rem' }}>
               <F label={mode === 'cliente' ? 'Cliente' : 'Cliente / Referencia'}>
                 <input type="text" list="clientes-list-mar" value={cliente} onChange={e => setCliente(e.target.value)} placeholder={mode === 'cliente' ? 'Nombre del cliente' : 'Referencia de la importación'} style={INP} />
@@ -2192,6 +2200,13 @@ function CotizadorAereo({ onDirty }) {
                 <NcmPicker ncmList={ncmList} onPick={(nc) => applyNcm(nc, { setClasificacion, setDescripcion, setPDer, setPTas, setPIva, setPIvaA, setPGan, setPIIBB })} />
               </F>
             )}
+            {/* Puente con el clasificador de Aduanix: abre allá con la descripción
+                copiada y trae de vuelta posición y alícuotas pegando el resultado. */}
+            <Aduanix
+              descripcion={descripcion}
+              onAplicar={(d) => aplicarAduanix(d, { setClasificacion, setDescripcion, setPDer, setPTas, setPIva, setPIvaA, setPGan, setPIIBB })}
+              onGuardarNcm={async (d) => { if (await guardarNcmDesdeAduanix(d, descripcion)) { try { const r = await fetch('/api/db/ncm'); if (r.ok) setNcmList(await r.json()); } catch {} } }}
+            />
             <F label="Descripción de la mercadería"><TI value={descripcion} onChange={setDescripcion} placeholder="Ej: Componentes electrónicos" /></F>
             {/* Alimentan las fechas estimadas del cronograma que ve el cliente. */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginTop: '0.6rem' }}>
