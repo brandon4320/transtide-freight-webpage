@@ -591,9 +591,13 @@ function useBorrador({ modo, snapshot, aplicar, loadedQuote, setLoadedQuote, onD
   const snapJson = JSON.stringify(snapshot);
   const vacioJson = useRef(null);                 // snapshot del formulario recién montado
   if (vacioJson.current === null) vacioJson.current = sinModo(snapshot);
+  const ultimoGuardado = useRef(snapJson);        // último snapshot guardado en el sistema
+  // Cuando llegan los costos estándar a un formulario recién abierto, ese estado
+  // pasa a ser el "vacío" y lo "guardado": abrir la pantalla no cuenta como cambio.
+  const rebase = useRef(false);
+  if (rebase.current) { rebase.current = false; vacioJson.current = sinModo(snapshot); ultimoGuardado.current = snapJson; }
   const esVacio = sinModo(snapshot) === vacioJson.current;
 
-  const ultimoGuardado = useRef(snapJson);        // último snapshot guardado en el sistema
   const marcarAlProximo = useRef(false);          // tras cargar una guardada: el próximo render es "guardado"
   const [tick, setTick] = useState(0);
   const [dirty, setDirty] = useState(false);
@@ -668,7 +672,10 @@ function useBorrador({ modo, snapshot, aplicar, loadedQuote, setLoadedQuote, onD
     setTick(t => t + 1); // garantiza un render aunque nada haya cambiado
   };
 
-  return { aviso: pendiente && esVacio ? pendiente : null, dirty, restaurar, descartar, marcarGuardado, cargarGuardada };
+  // Toma el próximo render como base: se usa al cargar los costos estándar.
+  const nuevaBase = () => { rebase.current = true; setTick(t => t + 1); };
+
+  return { aviso: pendiente && esVacio ? pendiente : null, dirty, esVacio, restaurar, descartar, marcarGuardado, cargarGuardada, nuevaBase };
 }
 
 function AvisoBorrador({ b }) {
@@ -699,10 +706,21 @@ function CotizadorMaritimo({ onDirty }) {
   const [contM3, setContM3] = useState(() => ({ ...PRESET_M3 }));
   const [contCosts, setContCosts] = useState(() => ({ ...PRESET_COSTS }));
 
-  const setCost = (type, field, val) =>
+  // Costos de referencia editados a mano en esta cotización: al guardarla, pasan
+  // a ser el estándar para las próximas (ver guardarReferencias).
+  const refTocadas = useRef({});
+  // Si se cargó una cotización guardada o un borrador, sus costos mandan sobre el estándar.
+  const cotizacionCargada = useRef(false);
+  const [refInfo, setRefInfo] = useState({}); // { [tipo]: { updated_at, updated_by } } del estándar
+
+  const setCost = (type, field, val) => {
+    refTocadas.current[type] = true;
     setContCosts(prev => ({ ...prev, [type]: { ...prev[type], [field]: val } }));
-  const setM3 = (type, val) =>
+  };
+  const setM3 = (type, val) => {
+    refTocadas.current[type] = true;
     setContM3(prev => ({ ...prev, [type]: val }));
+  };
 
   const curM3 = contM3[contType];
   const curCosts = contCosts[contType];
@@ -800,6 +818,10 @@ function CotizadorMaritimo({ onDirty }) {
     if (d.contType !== undefined) setContType(d.contType);
     if (d.diasProd !== undefined) setDiasProd(d.diasProd);
     if (d.diasTransito !== undefined) setDiasTransito(d.diasTransito);
+    // Lo cargado trae sus propios costos: no se pisan con el estándar ni cuentan
+    // como editados a mano (reabrir una vieja y guardarla no cambia el estándar).
+    cotizacionCargada.current = true;
+    refTocadas.current = {};
     // Cotización guardada antes de que existiera un tipo: completa los que falten.
     if (d.contM3 !== undefined) setContM3({ ...PRESET_M3, ...d.contM3 });
     if (d.contCosts !== undefined) setContCosts({ ...PRESET_COSTS, ...d.contCosts });
@@ -839,6 +861,56 @@ function CotizadorMaritimo({ onDirty }) {
 
   const borrador = useBorrador({ modo: 'maritimo', snapshot: serialize(), aplicar: aplicarSnapshot, loadedQuote, setLoadedQuote, onDirty });
   const borradorRef = useRef(borrador); borradorRef.current = borrador;
+
+  // Costos estándar: al abrir, una cotización nueva arranca con los últimos que
+  // se guardaron (y no con los de fábrica). No pisa una cotización ya cargada ni
+  // costos que se hayan tocado a mano antes de que llegue la respuesta.
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      try {
+        const r = await fetch('/api/db/cotizador-referencias');
+        if (!r.ok) return;
+        const refs = await r.json();
+        if (!vivo || !refs || typeof refs !== 'object') return;
+        setRefInfo(refs);
+        if (cotizacionCargada.current) return;
+        const m3 = {}, costos = {};
+        for (const [tipo, v] of Object.entries(refs)) {
+          if (!PRESETS[tipo] || refTocadas.current[tipo] || !v) continue;
+          m3[tipo] = v.m3;
+          costos[tipo] = { flete: v.flete, despachante: v.despachante, terminal: v.terminal, naviera: v.naviera, logistica: v.logistica };
+        }
+        if (!Object.keys(m3).length) return;
+        const sinTocar = borradorRef.current?.esVacio;
+        setContM3(prev => ({ ...prev, ...m3 }));
+        setContCosts(prev => ({ ...prev, ...costos }));
+        if (sinTocar) borradorRef.current.nuevaBase();
+      } catch { /* sin estándar guardado: quedan los de fábrica */ }
+    })();
+    return () => { vivo = false; };
+  }, []);
+
+  // Al guardar la cotización: los costos de referencia tocados a mano pasan a
+  // ser el estándar para las próximas cotizaciones de todo el equipo.
+  const guardarReferencias = async () => {
+    const tipos = Object.keys(refTocadas.current).filter(t => PRESETS[t]);
+    if (!tipos.length) return;
+    const payload = {};
+    for (const t of tipos) payload[t] = { m3: contM3[t], ...contCosts[t] };
+    try {
+      const r = await fetch('/api/db/cotizador-referencias', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tipos: payload }),
+      });
+      if (!r.ok) { gToast.error('La cotización se guardó, pero no se pudieron actualizar los costos de referencia.'); return; }
+      refTocadas.current = {};
+      const ahora = new Date().toISOString();
+      setRefInfo(prev => { const nx = { ...prev }; for (const t of tipos) nx[t] = { ...payload[t], updated_at: ahora }; return nx; });
+      gToast.success(`Costos de referencia actualizados (${tipos.map(t => PRESETS[t].label).join(', ')}): las próximas cotizaciones arrancan con estos valores.`);
+    } catch {
+      gToast.error('La cotización se guardó, pero no se pudieron actualizar los costos de referencia.');
+    }
+  };
 
   useEffect(() => {
     const handler = (e) => {
@@ -1213,8 +1285,9 @@ function CotizadorMaritimo({ onDirty }) {
           <details className="cot-collapse">
             <summary style={{ ...SECL, margin: '0 0 0.3rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span className="cot-chev" style={{ fontSize: '0.7rem', color: '#9ca3af' }}>▸</span> Ajustar contenedor y costos de referencia</span>
-              <span style={{ fontSize: '0.6rem', color: '#9ca3af', textTransform: 'none', letterSpacing: 0, fontWeight: 500 }}>{PRESETS[contType]?.label} · {contM3[contType]}m³</span>
+              <span style={{ fontSize: '0.6rem', color: '#9ca3af', textTransform: 'none', letterSpacing: 0, fontWeight: 500 }}>{PRESETS[contType]?.label} · {contM3[contType]}m³{refInfo[contType]?.updated_at ? ` · estándar del ${String(refInfo[contType].updated_at).slice(8, 10)}/${String(refInfo[contType].updated_at).slice(5, 7)}` : ''}</span>
             </summary>
+            <p style={{ fontSize: '0.66rem', color: '#9ca3af', margin: '0.25rem 0 0' }}>Si los cambiás y guardás la cotización, quedan como estándar para las próximas.</p>
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.85rem', flexWrap: 'wrap', marginTop: '0.4rem' }}>
               <div>
                 <label style={{ ...LBL, fontSize: '0.6rem' }}>M³ del contenedor</label>
@@ -1760,7 +1833,7 @@ function CotizadorMaritimo({ onDirty }) {
           })}
           ncmPayload={() => clasificacion.trim() ? ({ codigo: clasificacion.trim(), producto: descripcion, der: String(pDer), tasa: String(pTas), iva: String(pIva), iva_adic: String(pIvaA), ganancias: String(pGan), iibb: String(pIIBB) }) : null}
           loadedQuote={loadedQuote}
-          onSaved={(meta) => { setLoadedQuote(meta); borrador.marcarGuardado(); }}
+          onSaved={(meta) => { setLoadedQuote(meta); borrador.marcarGuardado(); guardarReferencias(); }}
           onClose={() => setShowSave(false)}
         />
       )}
