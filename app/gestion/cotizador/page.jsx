@@ -4,6 +4,7 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import ImportDialog from './import-dialog';
 import { Aduanix, aplicarAduanix, guardarNcmDesdeAduanix } from './aduanix';
 import { gToast } from '../toast';
+import { ImagenesProducto, imagenesParaDocumento, htmlImagenes, urlImagen } from './imagenes';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 const usd = (n) => {
@@ -111,6 +112,14 @@ function qSection(title, rows) {
   const divider = `<tr><td colspan="2" style="padding:10px 12px 5px;font-size:0.65rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;border-bottom:2px solid #e2e8f0;"><span style="border-left:3px solid #ea580c;padding-left:8px;">${title}</span></td></tr>`;
   return `<table class="sec" style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:12px;">${divider}${filas}</table>`;
 }
+// Cierre de la sección "Base de la Importación": el subtotal de lo que se le
+// cobra (FOB + flete + seguro). Si coincide con el CIF, que es lo habitual, va una
+// sola línea; si no (FOB declarado distinto o sociedad del cliente), el CIF queda
+// debajo como dato de la base arancelaria.
+function qCierreBase(subtotal, cif, rotuloCif) {
+  if (Math.abs(subtotal - cif) < 0.01) return qRow('Subtotal base de la importación (CIF)', qFmt(subtotal), { bold: true, highlight: true });
+  return qRow('Subtotal base de la importación', qFmt(subtotal), { bold: true, highlight: true }) + qRow(rotuloCif, qFmt(cif), { sub: true });
+}
 
 // Fechas estimadas de los hitos, contadas desde HOY (el día que se genera la
 // cotización). El arribo sale de producción + tránsito; el flete se paga 10 días
@@ -165,7 +174,7 @@ function qCronograma({ c, fleteMonto, fleteLabel, sinFacturaDistinto, diasProd, 
   </table>`;
 }
 
-function buildQuoteHTML({ titulo, cliente, fecha, subtitulo, descripcion, clasificacion, izq, der, precio, cronograma, footer }) {
+function buildQuoteHTML({ titulo, cliente, fecha, subtitulo, descripcion, clasificacion, imagenesHTML = '', izq, der, precio, cronograma, footer }) {
   const cols = (arr) => (arr || []).filter(Boolean).join('');
   const chipTxt = [
     descripcion ? `<strong style="color:#9a3412;font-size:0.72rem;">Descripción:</strong> ${descripcion}` : '',
@@ -225,6 +234,8 @@ function buildQuoteHTML({ titulo, cliente, fecha, subtitulo, descripcion, clasif
       </table>
 
       ${chipTxt ? `<div class="sec" style="background:#fff4ee;border:1px solid #fed7aa;border-radius:8px;padding:7px 14px;margin-bottom:12px;font-size:0.78rem;color:#1e293b;">${chipTxt}</div>` : ''}
+
+      ${imagenesHTML || ''}
 
       <table style="margin-bottom:12px;"><tr>
         <td style="width:49.5%;vertical-align:top;">${cols(izq)}</td>
@@ -534,6 +545,38 @@ function Tab({ active, onClick, children }) {
 function Card({ children, style = {}, className }) {
   return <div className={className} style={{ background: '#fff', padding: '1.1rem 1.25rem 1.2rem', border: '1px solid #e2e5ea', borderRadius: 12, ...style }}>{children}</div>;
 }
+// Vista previa al cliente: renglón de subtotal de una sección.
+function FilaSubtotal({ label, valor }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: '1px solid #e5e7eb', fontSize: '0.82rem', fontWeight: 700, color: '#111827' }}>
+      <span>{label}</span><span style={{ fontVariantNumeric: 'tabular-nums' }}>{usd(valor)}</span>
+    </div>
+  );
+}
+// Cierre de "Base de la Importación" en la vista previa: igual criterio que el documento.
+function CierreBasePreview({ subtotal, cif, rotuloCif }) {
+  if (Math.abs(subtotal - cif) < 0.01) return <FilaSubtotal label="Subtotal base de la importación (CIF)" valor={subtotal} />;
+  return (<>
+    <FilaSubtotal label="Subtotal base de la importación" valor={subtotal} />
+    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.35rem 0', borderBottom: '1px solid #f1f5f9', fontSize: '0.78rem', color: '#9ca3af' }}>
+      <span>{rotuloCif}</span><span style={{ fontVariantNumeric: 'tabular-nums' }}>{usd(cif)}</span>
+    </div>
+  </>);
+}
+// Vista previa al cliente: las fotos del producto.
+function ImagenesVistaPrevia({ imagenes }) {
+  if (!imagenes || !imagenes.length) return null;
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(imagenes.length, 4)}, minmax(0, 1fr))`, gap: '0.5rem', marginBottom: '1.1rem' }}>
+      {imagenes.map((im) => (
+        <div key={im.key} style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 4, textAlign: 'center' }}>
+          <img src={urlImagen(im.key)} alt={im.leyenda || 'Producto'} style={{ width: '100%', height: 110, objectFit: 'contain', display: 'block' }} />
+          {im.leyenda && <p style={{ fontSize: '0.68rem', color: '#6b7280', marginTop: 3 }}>{im.leyenda}</p>}
+        </div>
+      ))}
+    </div>
+  );
+}
 function RRow({ label, val, val2, diff, dimmed, bold }) {
   const s = { fontSize: bold ? '0.86rem' : '0.8rem', fontWeight: bold ? 700 : 400, fontVariantNumeric: 'tabular-nums' };
   return (
@@ -729,6 +772,7 @@ function CotizadorMaritimo({ onDirty }) {
   const [cliente, setCliente] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [clasificacion, setClasificacion] = useState('');
+  const [imagenes, setImagenes] = useState([]); // fotos del producto: [{ key, nombre, leyenda }]
   // Plazos para las fechas del cronograma que ve el cliente. Un solo criterio para
   // todas: 15 días de producción y 50 de tránsito (el marítimo desde China va de 45
   // a 60). Si en una operación es distinto, se ajusta acá y las fechas se recalculan.
@@ -800,7 +844,7 @@ function CotizadorMaritimo({ onDirty }) {
   // ── serialize / restore (saved quotes) ──
   const serialize = () => ({
     mode, // 'cliente' | 'personal' — para reactivar con el formato elegido
-    contType, contM3, contCosts, cliente, descripcion, clasificacion,
+    contType, contM3, contCosts, cliente, descripcion, clasificacion, imagenes,
     diasProd, diasTransito,
     fobCliente, fobDecCli, fleteCli, gDes, gTer, gNav, gLog,
     fobReal, fobDecReal, fleteRealInput, m3Merch,
@@ -828,6 +872,7 @@ function CotizadorMaritimo({ onDirty }) {
     if (d.cliente !== undefined) setCliente(d.cliente);
     if (d.descripcion !== undefined) setDescripcion(d.descripcion);
     if (d.clasificacion !== undefined) setClasificacion(d.clasificacion);
+    setImagenes(Array.isArray(d.imagenes) ? d.imagenes : []);
     if (d.fobCliente !== undefined) setFobCliente(d.fobCliente);
     if (d.fobDecCli !== undefined) setFobDecCli(d.fobDecCli);
     if (d.fleteCli !== undefined) setFleteCli(d.fleteCli);
@@ -1073,12 +1118,15 @@ function CotizadorMaritimo({ onDirty }) {
   const switchMode = (m) => { setMode(m); setTab(m === 'cliente' ? 'cliente_fob' : 'real_fob'); if (m === 'personal') setUsaSociedadPropia(false); };
 
   // ─── print client quote ───────────────────────────────────────────────────
-  const printClienteQuote = () => {
+  const printClienteQuote = async () => {
     try {
+      // Las fotos van incrustadas: la página de impresión dispara el diálogo enseguida.
+      const fotos = await imagenesParaDocumento(imagenes);
       const today = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
       const html = buildQuoteHTML({
         titulo: 'COTIZACIÓN DE IMPORTACIÓN',
         cliente, fecha: today, descripcion, clasificacion,
+        imagenesHTML: htmlImagenes(fotos),
         izq: [
           qSection('Base de la Importación', [
             qRow('Valor de Mercadería (FOB)', qFmt(c.fobC)),
@@ -1088,13 +1136,14 @@ function CotizadorMaritimo({ onDirty }) {
             // se muestra para que el cliente entienda por qué los aranceles no dan
             // sobre el FOB de arriba.
             !usaSociedadPropia && c.fobDC !== c.fobC ? qRow('FOB Declarado (base arancelaria)', qFmt(c.fobDC), { sub: true }) : '',
-            qRow(usaSociedadPropia ? 'CIF declarado — base arancelaria (importa el cliente)' : 'CIF — Base Arancelaria', qFmt(c.cifC), { bold: true, highlight: true }),
+            qCierreBase(c.fobC + n(fleteCli) + c.segC, c.cifC, usaSociedadPropia ? 'CIF declarado — base arancelaria (importa el cliente)' : 'CIF — Base Arancelaria'),
           ]),
           qSection('Gastos Locales', [
             c.desC > 0 ? qRow('Despachante de Aduana', qFmt(c.desC)) : '',
             c.terC > 0 ? qRow('Terminal Portuaria', qFmt(c.terC)) : '',
             c.navC > 0 ? qRow('Naviera', qFmt(c.navC)) : '',
             c.logC > 0 ? qRow('Logística Interna', qFmt(c.logC)) : '',
+            c.gasC > 0 ? qRow('Subtotal gastos locales', qFmt(c.gasC), { bold: true }) : '',
           ]),
         ],
         der: [
@@ -1106,8 +1155,13 @@ function CotizadorMaritimo({ onDirty }) {
             c.ivaAC > 0 ? qRow(`IVA Adicional (${qPct(pIvaA)})`, qFmt(c.ivaAC)) : '',
             c.ganC > 0 ? qRow(`Percepción Ganancias (${qPct(pGan)})`, qFmt(c.ganC)) : '',
             c.iibbC > 0 ? qRow(`Percepción IIBB (${qPct(pIIBB)})`, qFmt(c.iibbC)) : '',
+            qRow('Subtotal aranceles e impuestos', qFmt(c.derC + c.tasC + c.ivaC + c.ivaAC + c.ganC + c.iibbC), { bold: true }),
           ]),
           qSection('Totales', [
+            // Suma por categoría: base + aranceles + gastos = costo total con IVA.
+            qRow('Base de la importación', qFmt(c.fobC + n(fleteCli) + c.segC)),
+            qRow('Aranceles e impuestos', qFmt(c.derC + c.tasC + c.ivaC + c.ivaAC + c.ganC + c.iibbC)),
+            qRow('Gastos locales', qFmt(c.gasC)),
             qRow('Costo Total CON IVA', qFmt(c.totConC), { bold: true }),
             qRow('Costo Total SIN IVA', qFmt(c.totSinC), { sub: true }),
             qRow(c.honMinAplica ? 'Honorarios del Servicio' : `Honorarios del Servicio (${qPct(pHon)})`, qFmt(c.honorarios)),
@@ -1206,6 +1260,7 @@ function CotizadorMaritimo({ onDirty }) {
               </F>
             </div>
             <F label="Descripción de la mercadería"><TI value={descripcion} onChange={setDescripcion} placeholder="Ej: Máquinas cortadoras láser 1000W" /></F>
+            <ImagenesProducto imagenes={imagenes} onChange={setImagenes} />
             {/* Alimentan las fechas estimadas del cronograma que ve el cliente. */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginTop: '0.6rem' }}>
               <F label="Días de producción"><input type="number" inputMode="numeric" min="0" value={diasProd} onChange={e => setDiasProd(e.target.value)} onWheel={e => e.currentTarget.blur()} style={INP} /></F>
@@ -1732,6 +1787,8 @@ function CotizadorMaritimo({ onDirty }) {
                 </div>
               )}
 
+              <ImagenesVistaPrevia imagenes={imagenes} />
+
               {/* desglose — filas planas por sección */}
               <div style={{ marginBottom: '1rem' }}>
 
@@ -1747,9 +1804,7 @@ function CotizadorMaritimo({ onDirty }) {
                     <span>{l}</span><span style={{ color: '#111827', fontVariantNumeric: 'tabular-nums' }}>{v}</span>
                   </div>
                 ))}
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: '1px solid #f1f5f9', fontSize: '0.84rem', fontWeight: 700, color: '#111827' }}>
-                  <span>{usaSociedadPropia ? 'CIF declarado — base arancelaria (importa el cliente)' : 'CIF — Base Arancelaria'}</span><span style={{ fontVariantNumeric: 'tabular-nums' }}>{usd(c.cifC)}</span>
-                </div>
+                <CierreBasePreview subtotal={c.fobC + n(fleteCli) + c.segC} cif={c.cifC} rotuloCif={usaSociedadPropia ? 'CIF declarado — base arancelaria (importa el cliente)' : 'CIF — Base Arancelaria'} />
 
                 {/* aranceles */}
                 <p style={{ ...SECL, margin: '1.1rem 0 0.2rem' }}>Aranceles Aduaneros</p>
@@ -1766,6 +1821,7 @@ function CotizadorMaritimo({ onDirty }) {
                     <span>{l}</span><span style={{ color: sub ? '#9ca3af' : '#111827', fontVariantNumeric: 'tabular-nums' }}>{v}</span>
                   </div>
                 ))}
+                <FilaSubtotal label="Subtotal aranceles e impuestos" valor={c.derC + c.tasC + c.ivaC + c.ivaAC + c.ganC + c.iibbC} />
 
                 {/* gastos locales */}
                 {(c.desC > 0 || c.terC > 0 || c.navC > 0 || c.logC > 0) && (<>
@@ -1780,11 +1836,15 @@ function CotizadorMaritimo({ onDirty }) {
                       <span>{l}</span><span style={{ color: '#111827', fontVariantNumeric: 'tabular-nums' }}>{usd(v)}</span>
                     </div>
                   ))}
+                  <FilaSubtotal label="Subtotal gastos locales" valor={c.gasC} />
                 </>)}
 
                 {/* totales */}
                 <p style={{ ...SECL, margin: '1.1rem 0 0.2rem' }}>Resumen</p>
                 {[
+                  ['Base de la importación', usd(c.fobC + n(fleteCli) + c.segC), false, false],
+                  ['Aranceles e impuestos', usd(c.derC + c.tasC + c.ivaC + c.ivaAC + c.ganC + c.iibbC), false, false],
+                  ['Gastos locales', usd(c.gasC), false, false],
                   ['Costo Total CON IVA', usd(c.totConC), false, true],
                   ['Costo Total SIN IVA', usd(c.totSinC), true, false],
                   [c.honMinAplica ? 'Honorarios del Servicio' : `Honorarios del Servicio (${pHon}%)`, usd(c.honorarios), false, false],
@@ -1848,6 +1908,7 @@ function CotizadorAereo({ onDirty }) {
   const [cliente, setCliente] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [clasificacion, setClasificacion] = useState('');
+  const [imagenes, setImagenes] = useState([]); // fotos del producto: [{ key, nombre, leyenda }]
   // Plazos para las fechas del cronograma. Aéreo regular: 5-10 días de tránsito.
   const [diasProd, setDiasProd] = useState('15');
   const [diasTransito, setDiasTransito] = useState('7');
@@ -1932,7 +1993,7 @@ function CotizadorAereo({ onDirty }) {
   // ── serialize / restore (saved quotes) ──
   const serialize = () => ({
     mode, // 'cliente' | 'personal'
-    cliente, descripcion, clasificacion, m3Input, pesoReal,
+    cliente, descripcion, clasificacion, imagenes, m3Input, pesoReal,
     fobCliente, fobDecCli, fleteCliInput, awbCli, handCli, terCli, desCli, traCli,
     fobReal, fobDecReal, fleteRealInput, awbReal, handReal, terReal, desReal, traReal,
     pDer, pTas, pIva, pagaIva, pIvaA, pagaIvaA, pGan, pagaGan, pIIBB, pagaIIBB,
@@ -1949,6 +2010,7 @@ function CotizadorAereo({ onDirty }) {
     if (d.cliente !== undefined) setCliente(d.cliente);
     if (d.descripcion !== undefined) setDescripcion(d.descripcion);
     if (d.clasificacion !== undefined) setClasificacion(d.clasificacion);
+    setImagenes(Array.isArray(d.imagenes) ? d.imagenes : []);
     if (d.m3Input !== undefined) setM3Input(d.m3Input);
     if (d.pesoReal !== undefined) setPesoReal(d.pesoReal);
     if (d.fobCliente !== undefined) setFobCliente(d.fobCliente);
@@ -2148,12 +2210,15 @@ function CotizadorAereo({ onDirty }) {
     : [['real_fob','Mis costos'],['aranceles','Aranceles'],['venta','Precio de venta']];
 
   // ─── print client quote (mismo documento que marítimo) ────────────────────
-  const printClienteQuote = () => {
+  const printClienteQuote = async () => {
     try {
+      // Las fotos van incrustadas: la página de impresión dispara el diálogo enseguida.
+      const fotos = await imagenesParaDocumento(imagenes);
       const today = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
       const html = buildQuoteHTML({
         titulo: 'COTIZACIÓN DE IMPORTACIÓN AÉREA',
         cliente, fecha: today, descripcion, clasificacion,
+        imagenesHTML: htmlImagenes(fotos),
         subtitulo: `Chargeable ${chargeable.toFixed(2)} kg (${n(m3Input).toFixed(2)} m³ · ${n(pesoReal).toFixed(2)} kg real)`,
         izq: [
           qSection('Base de la Importación', [
@@ -2161,7 +2226,7 @@ function CotizadorAereo({ onDirty }) {
             qRow(`Flete Aéreo (${chargeable.toFixed(2)} kg chargeable)`, qFmt(c.fleteC)),
             qRow(usaSociedadPropia ? 'Seguro (1% FOB declarado)' : 'Seguro (1% FOB)', qFmt(c.segC)),
             !usaSociedadPropia && c.fobDC !== c.fobC ? qRow('FOB Declarado (base arancelaria)', qFmt(c.fobDC), { sub: true }) : '',
-            qRow(usaSociedadPropia ? 'CIF declarado — base arancelaria (importa el cliente)' : 'CIF — Base Arancelaria', qFmt(c.cifC), { bold: true, highlight: true }),
+            qCierreBase(c.fobC + c.fleteC + c.segC, c.cifC, usaSociedadPropia ? 'CIF declarado — base arancelaria (importa el cliente)' : 'CIF — Base Arancelaria'),
           ]),
           qSection('Gastos Aeroportuarios', [
             c.awbCv > 0 ? qRow('AWB', qFmt(c.awbCv)) : '',
@@ -2169,6 +2234,7 @@ function CotizadorAereo({ onDirty }) {
             c.terCv > 0 ? qRow('Terminal Aérea', qFmt(c.terCv)) : '',
             c.desCv > 0 ? qRow('Despachante de Aduana', qFmt(c.desCv)) : '',
             c.traCv > 0 ? qRow('Transporte Interno', qFmt(c.traCv)) : '',
+            c.gasC > 0 ? qRow('Subtotal gastos aeroportuarios', qFmt(c.gasC), { bold: true }) : '',
           ]),
         ],
         der: [
@@ -2180,8 +2246,13 @@ function CotizadorAereo({ onDirty }) {
             c.ivaAC > 0 ? qRow(`IVA Adicional (${qPct(pIvaA)})`, qFmt(c.ivaAC)) : '',
             c.ganC > 0 ? qRow(`Percepción Ganancias (${qPct(pGan)})`, qFmt(c.ganC)) : '',
             c.iibbC > 0 ? qRow(`Percepción IIBB (${qPct(pIIBB)})`, qFmt(c.iibbC)) : '',
+            qRow('Subtotal aranceles e impuestos', qFmt(c.derC + c.tasC + c.ivaC + c.ivaAC + c.ganC + c.iibbC), { bold: true }),
           ]),
           qSection('Totales', [
+            // Suma por categoría: base + aranceles + gastos = costo total con IVA.
+            qRow('Base de la importación', qFmt(c.fobC + c.fleteC + c.segC)),
+            qRow('Aranceles e impuestos', qFmt(c.derC + c.tasC + c.ivaC + c.ivaAC + c.ganC + c.iibbC)),
+            qRow('Gastos aeroportuarios', qFmt(c.gasC)),
             qRow('Costo Total CON IVA', qFmt(c.totConC), { bold: true }),
             qRow('Costo Total SIN IVA', qFmt(c.totSinC), { sub: true }),
             qRow(c.honMinAplica ? 'Honorarios del Servicio' : `Honorarios del Servicio (${qPct(pHon)})`, qFmt(c.honorarios)),
@@ -2306,6 +2377,7 @@ function CotizadorAereo({ onDirty }) {
               onGuardarNcm={async (d) => { if (await guardarNcmDesdeAduanix(d, descripcion)) { try { const r = await fetch('/api/db/ncm'); if (r.ok) setNcmList(await r.json()); } catch {} } }}
             />
             <F label="Descripción de la mercadería"><TI value={descripcion} onChange={setDescripcion} placeholder="Ej: Componentes electrónicos" /></F>
+            <ImagenesProducto imagenes={imagenes} onChange={setImagenes} />
             {/* Alimentan las fechas estimadas del cronograma que ve el cliente. */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginTop: '0.6rem' }}>
               <F label="Días de producción"><input type="number" inputMode="numeric" min="0" value={diasProd} onChange={e => setDiasProd(e.target.value)} onWheel={e => e.currentTarget.blur()} style={INP} /></F>
@@ -2687,6 +2759,8 @@ function CotizadorAereo({ onDirty }) {
                 <p style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '3px', fontVariantNumeric: 'tabular-nums' }}>Servicio aéreo · Chargeable {chargeable.toFixed(2)} kg ({n(m3Input).toFixed(2)} m³ · {n(pesoReal).toFixed(2)} kg real)</p>
               </div>
 
+              <ImagenesVistaPrevia imagenes={imagenes} />
+
               <div style={{ marginBottom: '1rem' }}>
                 <p style={{ ...SECL, margin: '0 0 0.2rem' }}>Base de la Importación</p>
                 {[
@@ -2699,9 +2773,7 @@ function CotizadorAereo({ onDirty }) {
                     <span>{l}</span><span style={{ color: '#111827', fontVariantNumeric: 'tabular-nums' }}>{v}</span>
                   </div>
                 ))}
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: '1px solid #f1f5f9', fontSize: '0.84rem', fontWeight: 700, color: '#111827' }}>
-                  <span>{usaSociedadPropia ? 'CIF declarado — base arancelaria (importa el cliente)' : 'CIF — Base Arancelaria'}</span><span style={{ fontVariantNumeric: 'tabular-nums' }}>{usd(c.cifC)}</span>
-                </div>
+                <CierreBasePreview subtotal={c.fobC + c.fleteC + c.segC} cif={c.cifC} rotuloCif={usaSociedadPropia ? 'CIF declarado — base arancelaria (importa el cliente)' : 'CIF — Base Arancelaria'} />
                 <p style={{ ...SECL, margin: '1.1rem 0 0.2rem' }}>Aranceles Aduaneros</p>
                 {[
                   [`Derechos de Importación (${pDer}%)`, usd(c.derC)],
@@ -2715,6 +2787,7 @@ function CotizadorAereo({ onDirty }) {
                     <span>{l}</span><span style={{ color: '#111827', fontVariantNumeric: 'tabular-nums' }}>{v}</span>
                   </div>
                 ))}
+                <FilaSubtotal label="Subtotal aranceles e impuestos" valor={c.derC + c.tasC + c.ivaC + c.ivaAC + c.ganC + c.iibbC} />
                 {c.gasC > 0 && (<>
                   <p style={{ ...SECL, margin: '1.1rem 0 0.2rem' }}>Gastos Aeroportuarios</p>
                   {[['AWB', c.awbCv], ['Handling', c.handCv], ['Terminal aérea', c.terCv], ['Despachante', c.desCv], ['Transporte interno', c.traCv]].filter(([,v]) => v > 0).map(([l, v]) => (
@@ -2722,12 +2795,22 @@ function CotizadorAereo({ onDirty }) {
                       <span>{l}</span><span style={{ color: '#111827', fontVariantNumeric: 'tabular-nums' }}>{usd(v)}</span>
                     </div>
                   ))}
+                  <FilaSubtotal label="Subtotal gastos aeroportuarios" valor={c.gasC} />
                 </>)}
               </div>
 
               {/* Honorarios & cierre — itemizado */}
               <div style={{ marginBottom: '1.2rem' }}>
                 <p style={{ ...SECL, margin: '0 0 0.2rem' }}>Servicio Transtide</p>
+                {[
+                  ['Base de la importación', c.fobC + c.fleteC + c.segC],
+                  ['Aranceles e impuestos', c.derC + c.tasC + c.ivaC + c.ivaAC + c.ganC + c.iibbC],
+                  ['Gastos aeroportuarios', c.gasC],
+                ].map(([l, v]) => (
+                  <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.35rem 0', borderBottom: '1px solid #f1f5f9', fontSize: '0.8rem', color: '#6b7280' }}>
+                    <span>{l}</span><span style={{ color: '#111827', fontVariantNumeric: 'tabular-nums' }}>{usd(v)}</span>
+                  </div>
+                ))}
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.35rem 0', borderBottom: '1px solid #f1f5f9', fontSize: '0.8rem', fontWeight: 600, color: '#111827' }}>
                   <span>Costo Total (mercadería + flete + aranceles + gastos)</span><span style={{ fontVariantNumeric: 'tabular-nums' }}>{usd(c.totConC)}</span>
                 </div>

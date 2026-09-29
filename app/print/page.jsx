@@ -22,7 +22,17 @@ export default function PrintPage() {
     document.open()
     document.write(html)
     document.close()
-    if (!noAuto) setTimeout(() => { try { window.focus(); window.print() } catch {} }, 500)
+    if (!noAuto) {
+      // Espera a que carguen las imágenes (logo y fotos del producto) antes de
+      // abrir el diálogo: si no, el PDF puede salir con huecos. Tope de 4 s.
+      const imgs = Array.from(document.images || [])
+      const cargadas = Promise.all(imgs.map(img => (img.complete ? Promise.resolve() : new Promise(r => {
+        img.addEventListener('load', r, { once: true })
+        img.addEventListener('error', r, { once: true })
+      }))))
+      const tope = new Promise(r => setTimeout(r, 4000))
+      Promise.race([cargadas, tope]).then(() => setTimeout(() => { try { window.focus(); window.print() } catch {} }, 300))
+    }
   }, [])
 
   return (
