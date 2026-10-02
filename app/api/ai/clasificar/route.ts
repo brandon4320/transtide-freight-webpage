@@ -1,0 +1,276 @@
+// Clasificador arancelario con IA para el Cotizador.
+//
+// Cómo decide, en dos pasos con Gemini:
+//   1. ORIENTAR: con la descripción (y las fotos del producto, si hay) propone
+//      partidas probables y palabras de búsqueda. Si falta un dato que cambia la
+//      posición (material, uso, potencia...), devuelve preguntas con opciones.
+//   2. ELEGIR: se le dan posiciones REALES de la NCM vigente (las que cuelgan de
+//      esas partidas más las que coinciden por texto) y elige hasta tres.
+// Después todo se valida contra el nomenclador oficial: un código que no existe
+// se ajusta al más cercano de la misma partida o se descarta. Nunca se inventa.
+//
+// Cada candidato vuelve enriquecido con datos de fuentes oficiales: descripción y
+// jerarquía de la NCM, Arancel Externo Común, medidas antidumping vigentes para el
+// país de origen (CNCE) y, si la posición ya está en la biblioteca de NCM del
+// sistema, sus alícuotas validadas, que mandan sobre cualquier sugerencia.
+//
+// POST /api/ai/clasificar
+//   { descripcion, origen?, imagenes?: [r2Key], respuestas?: [{ pregunta, respuesta }], saltarPreguntas? }
+import { NextResponse } from 'next/server'
+import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai'
+import { getSessionInfo, hasSection, isAdmin } from '@/lib/perms'
+import { d1Query } from '@/lib/d1'
+import { r2SignedGetUrl } from '@/lib/r2'
+import {
+  buscarPorTexto, hijos, jerarquia, buscarPosicion, codigoMasCercano, existe, formatear,
+  soloDigitos, infoNomenclador, type Posicion,
+} from '@/lib/nomenclador'
+import { medidasPara, infoAntidumping } from '@/lib/antidumping'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+export const maxDuration = 60
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '')
+const MODELOS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-flash-latest']
+const PREFIJO_IMAGENES = 'cotizaciones/imagenes/'
+
+// ── Gemini con respaldo de modelos (mismo criterio que /api/ai/extract) ─────────
+async function pedirJSON(partes: any[], schema: any, temperatura = 0.1): Promise<any> {
+  const reintentable = (e: any) => /\b503\b|\b429\b|\b500\b|overloaded|unavailable|rate.limit|temporar/i.test(String(e?.message || ''))
+  let ultimo: any = null
+  for (const nombre of MODELOS) {
+    for (let intento = 0; intento < 2; intento++) {
+      try {
+        const modelo = genAI.getGenerativeModel({
+          model: nombre,
+          generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature: temperatura },
+        })
+        const r = await modelo.generateContent(partes)
+        return JSON.parse(r.response.text())
+      } catch (e: any) {
+        ultimo = e
+        if (!reintentable(e)) break
+        await new Promise((ok) => setTimeout(ok, 700 * (intento + 1)))
+      }
+    }
+  }
+  throw ultimo || new Error('Sin respuesta del modelo')
+}
+
+// Fotos del producto: se bajan de R2 y van como imagen al modelo (hasta 3).
+async function partesDeImagenes(keys: unknown): Promise<any[]> {
+  const lista = Array.isArray(keys) ? keys.filter((k) => typeof k === 'string' && k.startsWith(PREFIJO_IMAGENES) && !k.includes('..')).slice(0, 3) : []
+  const partes: any[] = []
+  for (const key of lista) {
+    try {
+      const r = await fetch(await r2SignedGetUrl(key, undefined, 120))
+      if (!r.ok) continue
+      const buf = Buffer.from(await r.arrayBuffer())
+      if (buf.length > 6 * 1024 * 1024) continue
+      partes.push({ inlineData: { data: buf.toString('base64'), mimeType: r.headers.get('content-type') || 'image/jpeg' } })
+    } catch { /* una foto que no baja no frena la clasificación */ }
+  }
+  return partes
+}
+
+const S = SchemaType
+const ESQUEMA_ORIENTAR: any = {
+  type: S.OBJECT,
+  properties: {
+    producto_normalizado: { type: S.STRING },
+    partidas_probables: { type: S.ARRAY, items: { type: S.STRING } },
+    palabras_clave: { type: S.ARRAY, items: { type: S.STRING } },
+    necesita_aclaracion: { type: S.BOOLEAN },
+    preguntas: {
+      type: S.ARRAY,
+      items: { type: S.OBJECT, properties: { pregunta: { type: S.STRING }, opciones: { type: S.ARRAY, items: { type: S.STRING } } }, required: ['pregunta', 'opciones'] },
+    },
+  },
+  required: ['producto_normalizado', 'partidas_probables', 'palabras_clave', 'necesita_aclaracion', 'preguntas'],
+}
+const ESQUEMA_ELEGIR: any = {
+  type: S.OBJECT,
+  properties: {
+    candidatos: {
+      type: S.ARRAY,
+      items: {
+        type: S.OBJECT,
+        properties: { ncm: { type: S.STRING }, confianza: { type: S.NUMBER }, justificacion: { type: S.STRING } },
+        required: ['ncm', 'confianza', 'justificacion'],
+      },
+    },
+    iva_reducido_probable: { type: S.BOOLEAN },
+    motivo_iva: { type: S.STRING },
+    intervenciones_probables: {
+      type: S.ARRAY,
+      items: { type: S.OBJECT, properties: { organismo: { type: S.STRING }, motivo: { type: S.STRING } }, required: ['organismo', 'motivo'] },
+    },
+    advertencias: { type: S.ARRAY, items: { type: S.STRING } },
+  },
+  required: ['candidatos', 'iva_reducido_probable', 'motivo_iva', 'intervenciones_probables', 'advertencias'],
+}
+
+const REGLAS = `Sos un clasificador arancelario experto en la Nomenclatura Común del MERCOSUR (NCM) aplicada en Argentina.
+Aplicás las Reglas Generales Interpretativas del Sistema Armonizado: primero los textos de partida y notas de sección y capítulo, la materia constitutiva, la función principal, el grado de elaboración y el uso. No adivines: si un dato cambia la posición, decilo.`
+
+// ── alícuotas sugeridas ─────────────────────────────────────────────────────────
+type Fuente = 'biblioteca' | 'aec' | 'regla'
+type Alicuota = { valor: number; fuente: Fuente }
+function alicuotasSugeridas(aec: number | null, ivaReducido: boolean, lib: any | null) {
+  const n = (v: any) => { const x = parseFloat(String(v ?? '').replace(',', '.')); return Number.isFinite(x) ? x : null }
+  const de = (campo: string, defecto: number | null, fuenteDefecto: Fuente): Alicuota | null => {
+    const v = lib ? n(lib[campo]) : null
+    if (v !== null) return { valor: v, fuente: 'biblioteca' }
+    return defecto === null ? null : { valor: defecto, fuente: fuenteDefecto }
+  }
+  const ivaRegla = ivaReducido ? 10.5 : 21
+  return {
+    der: de('der', aec, 'aec'),
+    tasa: de('tasa', 3, 'regla'),
+    iva: de('iva', ivaRegla, 'regla'),
+    ivaAdic: de('iva_adic', ivaRegla === 10.5 ? 10 : 20, 'regla'),
+    ganancias: de('ganancias', 6, 'regla'),
+    iibb: de('iibb', 2.5, 'regla'),
+  }
+}
+
+export async function POST(request: Request) {
+  const s = await getSessionInfo()
+  if (!s) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!isAdmin(s) && !hasSection(s, 'cotizador')) return NextResponse.json({ error: 'Sin acceso al cotizador.' }, { status: 403 })
+  if (!process.env.GEMINI_API_KEY) return NextResponse.json({ error: 'La IA no está configurada.' }, { status: 500 })
+
+  const body = await request.json().catch(() => ({}))
+  const descripcion = String(body.descripcion || '').trim().slice(0, 1500)
+  const origen = String(body.origen || '').trim().slice(0, 60)
+  const respuestas = Array.isArray(body.respuestas) ? body.respuestas.slice(0, 8) : []
+  const saltarPreguntas = !!body.saltarPreguntas
+  if (descripcion.length < 3) return NextResponse.json({ error: 'Escribí una descripción del producto.' }, { status: 400 })
+
+  let fuenteNomenclador: any
+  try { fuenteNomenclador = await infoNomenclador() } catch {
+    return NextResponse.json({ error: 'No está cargado el nomenclador oficial.' }, { status: 500 })
+  }
+
+  const fotos = await partesDeImagenes(body.imagenes)
+  const aclaraciones = respuestas
+    .filter((r: any) => r && r.pregunta && r.respuesta)
+    .map((r: any) => `- ${String(r.pregunta).slice(0, 200)}: ${String(r.respuesta).slice(0, 200)}`)
+    .join('\n')
+  const contexto = [
+    `Producto: ${descripcion}`,
+    origen ? `País de origen: ${origen}` : '',
+    aclaraciones ? `Aclaraciones del usuario:\n${aclaraciones}` : '',
+    fotos.length ? `Se adjuntan ${fotos.length} foto(s) del producto.` : '',
+  ].filter(Boolean).join('\n')
+
+  try {
+    // ── 1. orientar ──
+    const orientacion = await pedirJSON([
+      ...fotos,
+      { text: `${REGLAS}
+
+${contexto}
+
+Tarea: orientá la clasificación.
+- producto_normalizado: nombre técnico y claro del producto, como figuraría en una factura comercial bien hecha.
+- partidas_probables: hasta 5 partidas (4 dígitos, ej. "8303") o subpartidas (6 dígitos, ej. "8471.30") donde podría estar.
+- palabras_clave: hasta 8 palabras en castellano como las usaría el texto de la NCM (ej. "cajas de caudales", "maquinas automaticas para procesamiento de datos").
+- necesita_aclaracion: true solo si falta un dato que cambia la posición y que no se deduce de la descripción ni de las fotos.
+- preguntas: si necesita_aclaracion, hasta 3 preguntas cortas, cada una con 2 a 5 opciones concretas. Si no, lista vacía.` },
+    ], ESQUEMA_ORIENTAR, 0.1)
+
+    const preguntas = (orientacion.preguntas || []).filter((p: any) => p && p.pregunta && Array.isArray(p.opciones) && p.opciones.length)
+    if (orientacion.necesita_aclaracion && preguntas.length && !respuestas.length && !saltarPreguntas) {
+      return NextResponse.json({ ok: true, etapa: 'preguntas', producto_normalizado: orientacion.producto_normalizado, preguntas: preguntas.slice(0, 3) })
+    }
+
+    // ── 2. posiciones reales entre las que elegir ──
+    const vistos = new Map<string, Posicion>()
+    for (const pref of (orientacion.partidas_probables || []).slice(0, 5)) {
+      for (const p of await hijos(pref, 60)) vistos.set(soloDigitos(p.c), p)
+    }
+    const textoBusqueda = [descripcion, orientacion.producto_normalizado, ...(orientacion.palabras_clave || [])].join(' ')
+    for (const p of await buscarPorTexto(textoBusqueda, 40)) vistos.set(soloDigitos(p.c), p)
+    const lista = Array.from(vistos.values()).slice(0, 220)
+
+    const renglones: string[] = []
+    for (const p of lista) {
+      const arriba = (await jerarquia(p.c)).filter((x) => x.n === 4 || x.n === 6).map((x) => x.d).join(' > ')
+      renglones.push(`${p.c} | ${arriba ? arriba.slice(0, 160) + ' > ' : ''}${p.d.slice(0, 200)}`)
+    }
+
+    const eleccion = await pedirJSON([
+      ...fotos,
+      { text: `${REGLAS}
+
+${contexto}
+Producto normalizado: ${orientacion.producto_normalizado}
+
+Posiciones vigentes de la NCM entre las que elegir (código | partida > descripción):
+${renglones.join('\n') || '(no se encontraron posiciones por texto)'}
+
+Tarea:
+- candidatos: de 1 a 3 posiciones de 8 dígitos, la más probable primero. Elegí de la lista; solo si ninguna corresponde, proponé otro código de 8 dígitos de la NCM que conozcas. confianza de 0 a 100. justificacion breve en castellano, citando la regla o el texto de partida que la decide.
+- iva_reducido_probable: true si la mercadería suele tributar IVA de 10,5 % en Argentina (por ejemplo bienes de capital o informática). motivo_iva breve.
+- intervenciones_probables: organismos que suelen intervenir en la importación de este producto en Argentina (SENASA, ANMAT, INAL, INTI, Seguridad eléctrica, ENACOM, etc.) con el motivo. Si no corresponde ninguno, lista vacía.
+- advertencias: datos a confirmar con el despachante (por ejemplo, si la posición depende de una medida o material no informado).` },
+    ], ESQUEMA_ELEGIR, 0.1)
+
+    // ── 3. validar contra el nomenclador y enriquecer ──
+    let biblioteca: any[] = []
+    try { biblioteca = await d1Query<any>(`SELECT * FROM ncm`) } catch { biblioteca = [] }
+    const enBiblioteca = (codigo: string) => biblioteca.find((r) => soloDigitos(r.codigo).slice(0, 8) === soloDigitos(codigo).slice(0, 8)) || null
+
+    const candidatos: any[] = []
+    const usados = new Set<string>()
+    for (const cand of (eleccion.candidatos || []).slice(0, 3)) {
+      const propuesto = String(cand.ncm || '')
+      let pos = (await existe(propuesto)) ? await buscarPosicion(propuesto) : null
+      let ajustado = false
+      if (!pos) { pos = await codigoMasCercano(propuesto); ajustado = !!pos }
+      if (!pos || usados.has(soloDigitos(pos.c))) continue
+      usados.add(soloDigitos(pos.c))
+      const arriba = await jerarquia(pos.c)
+      const lib = enBiblioteca(pos.c)
+      const medidas = await medidasPara(pos.c, origen || null)
+      // IVA de 10,5 %: las posiciones BK y BIT del nomenclador oficial lo tienen en general.
+      // Si la posición no está marcada, se toma la estimación de la IA solo como aviso.
+      const ivaReducido = pos.r === 'BK' || pos.r === 'BIT'
+      candidatos.push({
+        ncm: formatear(pos.c),
+        descripcion: pos.d,
+        descripcion_en_portugues: !!pos.pt,
+        jerarquia: arriba.map((p) => ({ codigo: formatear(p.c), descripcion: p.d })),
+        aec: pos.a,
+        confianza: Math.max(0, Math.min(100, Math.round(Number(cand.confianza) || 0))),
+        justificacion: String(cand.justificacion || ''),
+        ajustado_desde: ajustado ? formatear(propuesto) : null,
+        en_biblioteca: !!lib,
+        regimen: pos.r || null,
+        alicuotas: alicuotasSugeridas(pos.a, ivaReducido, lib),
+        antidumping: medidas,
+      })
+    }
+
+    if (!candidatos.length) {
+      return NextResponse.json({ ok: false, error: 'No encontré una posición válida. Probá con una descripción más técnica: material, uso y características.' }, { status: 422 })
+    }
+
+    return NextResponse.json({
+      ok: true,
+      etapa: 'resultado',
+      producto_normalizado: orientacion.producto_normalizado,
+      candidatos,
+      iva_reducido_probable: !!eleccion.iva_reducido_probable,
+      motivo_iva: eleccion.motivo_iva || '',
+      intervenciones_probables: eleccion.intervenciones_probables || [],
+      advertencias: eleccion.advertencias || [],
+      fuentes: { nomenclador: fuenteNomenclador, antidumping: await infoAntidumping() },
+    })
+  } catch (e: any) {
+    console.error('[clasificar]', e?.message)
+    return NextResponse.json({ error: 'La IA no respondió. Probá de nuevo en un momento.' }, { status: 502 })
+  }
+}

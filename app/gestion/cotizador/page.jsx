@@ -3,6 +3,7 @@ import { useState, useMemo, useEffect, useRef, useCallback, Suspense } from 'rea
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import ImportDialog from './import-dialog';
 import { Aduanix, aplicarAduanix, guardarNcmDesdeAduanix } from './aduanix';
+import { ClasificadorIA } from './clasificador-ia';
 import { gToast } from '../toast';
 import { ImagenesProducto, imagenesParaDocumento, htmlImagenes, urlImagen } from './imagenes';
 
@@ -1244,6 +1245,9 @@ function CotizadorMaritimo({ onDirty }) {
               descripcion={descripcion}
               onAplicar={(d) => aplicarAduanix(d, { setClasificacion, setDescripcion, setPDer, setPTas, setPIva, setPIvaA, setPGan, setPIIBB })}
               onGuardarNcm={async (d) => { if (await guardarNcmDesdeAduanix(d, descripcion)) { try { const r = await fetch('/api/db/ncm'); if (r.ok) setNcmList(await r.json()); } catch {} } }}
+              antes={<ClasificadorIA descripcion={descripcion} imagenes={imagenes}
+                setters={{ setClasificacion, setDescripcion, setPDer, setPTas, setPIva, setPIvaA, setPGan, setPIIBB }}
+                onNcmGuardada={async () => { try { const r = await fetch('/api/db/ncm'); if (r.ok) setNcmList(await r.json()); } catch {} }} />}
             />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '0.6rem' }}>
               <F label={mode === 'cliente' ? 'Cliente' : 'Cliente / Referencia'}>
@@ -2375,6 +2379,9 @@ function CotizadorAereo({ onDirty }) {
               descripcion={descripcion}
               onAplicar={(d) => aplicarAduanix(d, { setClasificacion, setDescripcion, setPDer, setPTas, setPIva, setPIvaA, setPGan, setPIIBB })}
               onGuardarNcm={async (d) => { if (await guardarNcmDesdeAduanix(d, descripcion)) { try { const r = await fetch('/api/db/ncm'); if (r.ok) setNcmList(await r.json()); } catch {} } }}
+              antes={<ClasificadorIA descripcion={descripcion} imagenes={imagenes}
+                setters={{ setClasificacion, setDescripcion, setPDer, setPTas, setPIva, setPIvaA, setPGan, setPIIBB }}
+                onNcmGuardada={async () => { try { const r = await fetch('/api/db/ncm'); if (r.ok) setNcmList(await r.json()); } catch {} }} />}
             />
             <F label="Descripción de la mercadería"><TI value={descripcion} onChange={setDescripcion} placeholder="Ej: Componentes electrónicos" /></F>
             <ImagenesProducto imagenes={imagenes} onChange={setImagenes} />

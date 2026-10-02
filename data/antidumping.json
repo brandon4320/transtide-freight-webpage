@@ -1,0 +1,1607 @@
+{
+ "fuente": "https://www.argentina.gob.ar/sites/default/files/2deg_informe_semestral_a_la_omc_n419arg_-_2025.pdf",
+ "informe": "Informe semestral de Argentina al Comité de Prácticas Antidumping de la OMC, G/ADP/N/419/ARG (5 de febrero de 2026), período 1 de julio al 31 de diciembre de 2025; anexo \"Medidas antidumping definitivas en vigor al 31 de diciembre de 2025\". Montos y posiciones SA tomados de las determinaciones informadas en los informes semestrales anteriores de la CNCE (2016-2025, misma página oficial).",
+ "generado": "2026-10-02",
+ "medidas": [
+  {
+   "ncm": "8536.10",
+   "producto": "Bornes de conexión eléctrica para sección de cable de hasta 35 mm2",
+   "pais": "Alemania",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 138%",
+   "desde": "2021-07-30",
+   "hasta": null,
+   "norma": "B.O. Nº 34713 (30.07.2021); medida original desde 04.04.2009"
+  },
+  {
+   "ncm": "8536.50",
+   "producto": "Bornes de conexión eléctrica para sección de cable de hasta 35 mm2",
+   "pais": "Alemania",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 138%",
+   "desde": "2021-07-30",
+   "hasta": null,
+   "norma": "B.O. Nº 34713 (30.07.2021); medida original desde 04.04.2009"
+  },
+  {
+   "ncm": "8536.90",
+   "producto": "Bornes de conexión eléctrica para sección de cable de hasta 35 mm2",
+   "pais": "Alemania",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 138%",
+   "desde": "2021-07-30",
+   "hasta": null,
+   "norma": "B.O. Nº 34713 (30.07.2021); medida original desde 04.04.2009"
+  },
+  {
+   "ncm": "6116.10",
+   "producto": "Guantes confeccionados con tejido de punto 100% material textil",
+   "pais": "Bangladesh",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 42%",
+   "desde": "2021-02-04",
+   "hasta": null,
+   "norma": "B.O. Nº 34578 (04.02.2021)"
+  },
+  {
+   "ncm": "6910.10",
+   "producto": "Sanitarios (artículos sanitarios de cerámica)",
+   "pais": "Brasil",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem: DEXCO S.A. 20,94% a 65,17%; resto 50,89% a 147,40%. Compromiso de precios ROCA SANITARIOS BRASIL LTDA: USD 15,85 a USD 79,80 por unidad",
+   "desde": "2022-04-21",
+   "hasta": null,
+   "norma": "RESOL-2022-295-APN-MDP - B.O. Nº 34904 (21.04.2022); medida original desde 12.12.2005"
+  },
+  {
+   "ncm": "6910.90",
+   "producto": "Sanitarios (artículos sanitarios de cerámica)",
+   "pais": "Brasil",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem: DEXCO S.A. 20,94% a 65,17%; resto 50,89% a 147,40%. Compromiso de precios ROCA SANITARIOS BRASIL LTDA: USD 15,85 a USD 79,80 por unidad",
+   "desde": "2022-04-21",
+   "hasta": null,
+   "norma": "RESOL-2022-295-APN-MDP - B.O. Nº 34904 (21.04.2022); medida original desde 12.12.2005"
+  },
+  {
+   "ncm": "8509.40",
+   "producto": "Procesadoras o multiprocesadoras, excluidas las de uso manual",
+   "pais": "Brasil",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 24%",
+   "desde": "2022-02-25",
+   "hasta": null,
+   "norma": "RESOL-2022-90-APN-MDP - B.O. Nº 34866 (25.02.2022); medida original desde 08.07.2010"
+  },
+  {
+   "ncm": "7307.19",
+   "producto": "Accesorios de tuberías",
+   "pais": "Brasil",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 143%",
+   "desde": "2022-12-23",
+   "hasta": null,
+   "norma": "RESOL-2022-1078-APN-MEC - B.O. Nº 35074 (23.12.2022); medida original desde 20.11.2010"
+  },
+  {
+   "ncm": "8414.30",
+   "producto": "Unidades compresoras a tornillo para gases (excepto aire)",
+   "pais": "Brasil",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 33% para MAYEKAWA DO BRASIL REFRIGERAÇÃO LTDA; 51% para el resto del origen",
+   "desde": "2022-10-22",
+   "hasta": null,
+   "norma": "RESOL-2022-751-APN-MEC - B.O. Nº 35030 (22.10.2022); medida original desde 17.03.2011"
+  },
+  {
+   "ncm": "8414.80",
+   "producto": "Unidades compresoras a tornillo para gases (excepto aire)",
+   "pais": "Brasil",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 33% para MAYEKAWA DO BRASIL REFRIGERAÇÃO LTDA; 51% para el resto del origen",
+   "desde": "2022-10-22",
+   "hasta": null,
+   "norma": "RESOL-2022-751-APN-MEC - B.O. Nº 35030 (22.10.2022); medida original desde 17.03.2011"
+  },
+  {
+   "ncm": "8546.20",
+   "producto": "Aisladores de porcelana",
+   "pais": "Brasil",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 70,97%",
+   "desde": "2021-12-02",
+   "hasta": null,
+   "norma": "B.O. Nº 34806 (02.12.2021); medida original desde 05.06.2015"
+  },
+  {
+   "ncm": "6907.21",
+   "producto": "Placas y baldosas (cerámicas)",
+   "pais": "Brasil",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 48,2%. Compromisos de precio: DELTA, DEXCO, MOHAWK COCAL DO SUL y MOHAWK CRICIÚMA FOB mínimo USD 13,13/m2; INCEPA FOB USD 13,30/m2",
+   "desde": "2024-08-07",
+   "hasta": null,
+   "norma": "RESOL-2024-691-APN-MEC - B.O. Nº 35477 (07.08.2024); medida original desde 16.02.2018"
+  },
+  {
+   "ncm": "3004.90",
+   "producto": "Disoluciones parenterales",
+   "pais": "Brasil",
+   "tipo": "antidumping",
+   "medida": "Derecho específico USD 0,21 a 0,31 por unidad",
+   "desde": "2023-11-22",
+   "hasta": null,
+   "norma": "RESOL-2023-1649-APN-MEC - B.O. Nº 35303 (22.11.2023); medida original desde 02.12.2019"
+  },
+  {
+   "ncm": "3808.92",
+   "producto": "Fungicidas a base de hidróxido de cobre (excluidos los de óxido cuproso NCM 3808.92.91.300P)",
+   "pais": "Brasil",
+   "tipo": "antidumping",
+   "medida": "Valor FOB mínimo de exportación USD 5,47 por kg. Compromiso de precio ALBAUGH AGRO BRASIL LTDA (oxicloruro de cobre, NCM 3808.92.91.200J): FOB mínimo USD 5,47 por kg",
+   "desde": "2023-03-21",
+   "hasta": null,
+   "norma": "RESOL-2023-330-APN-MEC - B.O. Nº 35134 (21.03.2023)"
+  },
+  {
+   "ncm": "8509.40",
+   "producto": "Aparatos de funciones múltiples (licuadoras, batidoras, procesadoras)",
+   "pais": "Brasil",
+   "tipo": "antidumping",
+   "medida": "MK BR S.A.: ad valorem 4,69%. Resto: licuadoras 52,79% ad valorem si FOB <= USD 22,35/u, o USD 7,77/u si FOB mayor; batidoras 52,79% si FOB <= USD 17,21/u, o USD 9,46/u si mayor; procesadoras 52,79% si FOB <= USD 27,17/u, o USD 3,51/u si mayor",
+   "desde": "2023-09-29",
+   "hasta": null,
+   "norma": "RESOL-2023-1486-APN-MEC - B.O. Nº 35268 (29.09.2023)"
+  },
+  {
+   "ncm": "3808.92",
+   "producto": "Fungicidas a base de cobre (excluidos los de óxido cuproso NCM 3808.92.91.300P, Res. MEC 1333/2023)",
+   "pais": "Chile",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 61,04%",
+   "desde": "2021-04-16",
+   "hasta": null,
+   "norma": "B.O. Nº 34633 (16.04.2021); medida original desde 17.10.2014"
+  },
+  {
+   "ncm": "8712.00",
+   "producto": "Bicicletas",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo (el informe no detalla el valor)",
+   "desde": "2021-05-10",
+   "hasta": null,
+   "norma": "B.O. Nº 34652 (10.05.2021); medida original desde 23.11.1995"
+  },
+  {
+   "ncm": "8207.50",
+   "producto": "Brocas helicoidales",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo según norma DIN (el informe no detalla los valores)",
+   "desde": "2021-07-23",
+   "hasta": null,
+   "norma": "B.O. Nº 34708 (23.07.2021); medida original desde 17.08.2000"
+  },
+  {
+   "ncm": "8482.10.10",
+   "producto": "Rodamientos radiales a bolas",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo entre USD 6,45 y USD 15,62 por kg",
+   "desde": "2022-05-30",
+   "hasta": null,
+   "norma": "RESOL-2022-455-APN-MDP - B.O. Nº 34930 (30.05.2022); medida original desde 04.12.2002"
+  },
+  {
+   "ncm": "8415.10",
+   "producto": "Equipos de aire acondicionado",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo entre USD 110,49 y USD 332,42 por unidad",
+   "desde": "2022-07-06",
+   "hasta": null,
+   "norma": "RESOL-2022-543-APN-MDP - B.O. Nº 34955 (06.07.2022); medida original desde 24.02.2003"
+  },
+  {
+   "ncm": "8415.90",
+   "producto": "Equipos de aire acondicionado",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo entre USD 110,49 y USD 332,42 por unidad",
+   "desde": "2022-07-06",
+   "hasta": null,
+   "norma": "RESOL-2022-543-APN-MDP - B.O. Nº 34955 (06.07.2022); medida original desde 24.02.2003"
+  },
+  {
+   "ncm": "4011.50",
+   "producto": "Neumáticos nuevos de caucho del tipo utilizado en bicicletas",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 7,03 por kg",
+   "desde": "2021-05-31",
+   "hasta": null,
+   "norma": "B.O. Nº 34667 (31.05.2021); medida original desde 21.03.2003"
+  },
+  {
+   "ncm": "9017.80",
+   "producto": "Cintas métricas",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho específico USD 0,57 por metro lineal",
+   "desde": "2022-07-06",
+   "hasta": null,
+   "norma": "RESOL-2022-542-APN-MDP - B.O. Nº 34955 (06.07.2022); medida original desde 18.05.2007"
+  },
+  {
+   "ncm": "8516.40",
+   "producto": "Planchas eléctricas (excluidas las que se conectan por tubería a un generador de vapor externo)",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho específico USD 13,22/u planchas secas; USD 15,41/u planchas a vapor",
+   "desde": "2021-08-19",
+   "hasta": null,
+   "norma": "B.O. Nº 34728 (19.08.2021); medida original desde 20.10.2008"
+  },
+  {
+   "ncm": "8708.99",
+   "producto": "Crucetas y tricetas",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho específico USD 11,09/kg crucetas; USD 16,02/kg tricetas",
+   "desde": "2021-08-19",
+   "hasta": null,
+   "norma": "B.O. Nº 34728 (19.08.2021); medida original desde 07.01.2009"
+  },
+  {
+   "ncm": "8536.10",
+   "producto": "Bornes de conexión eléctrica para sección de cable de hasta 35 mm2",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 208%",
+   "desde": "2021-07-30",
+   "hasta": null,
+   "norma": "B.O. Nº 34713 (30.07.2021); medida original desde 04.04.2009"
+  },
+  {
+   "ncm": "8536.50",
+   "producto": "Bornes de conexión eléctrica para sección de cable de hasta 35 mm2",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 208%",
+   "desde": "2021-07-30",
+   "hasta": null,
+   "norma": "B.O. Nº 34713 (30.07.2021); medida original desde 04.04.2009"
+  },
+  {
+   "ncm": "8536.90",
+   "producto": "Bornes de conexión eléctrica para sección de cable de hasta 35 mm2",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 208%",
+   "desde": "2021-07-30",
+   "hasta": null,
+   "norma": "B.O. Nº 34713 (30.07.2021); medida original desde 04.04.2009"
+  },
+  {
+   "ncm": "6911.10",
+   "producto": "Vajilla: conjuntos y piezas sueltas, juegos de mesa, té y café y accesorios",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho específico USD 3,71 por kg",
+   "desde": "2021-09-15",
+   "hasta": null,
+   "norma": "B.O. Nº 34748 (15.09.2021); medida original desde 25.09.2009"
+  },
+  {
+   "ncm": "6911.90",
+   "producto": "Vajilla: conjuntos y piezas sueltas, juegos de mesa, té y café y accesorios",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho específico USD 3,71 por kg",
+   "desde": "2021-09-15",
+   "hasta": null,
+   "norma": "B.O. Nº 34748 (15.09.2021); medida original desde 25.09.2009"
+  },
+  {
+   "ncm": "6912.00",
+   "producto": "Vajilla: conjuntos y piezas sueltas, juegos de mesa, té y café y accesorios",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho específico USD 3,71 por kg",
+   "desde": "2021-09-15",
+   "hasta": null,
+   "norma": "B.O. Nº 34748 (15.09.2021); medida original desde 25.09.2009"
+  },
+  {
+   "ncm": "7307.19",
+   "producto": "Accesorios de cañería para soldar a tope (fittings) - codos y tes - de acero al carbono",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 4,67 por kg",
+   "desde": "2021-09-22",
+   "hasta": null,
+   "norma": "B.O. Nº 34754 (22.09.2021); medida original desde 24.10.2009"
+  },
+  {
+   "ncm": "7307.93",
+   "producto": "Accesorios de cañería para soldar a tope (fittings) - codos y tes - de acero al carbono",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 4,67 por kg",
+   "desde": "2021-09-22",
+   "hasta": null,
+   "norma": "B.O. Nº 34754 (22.09.2021); medida original desde 24.10.2009"
+  },
+  {
+   "ncm": "8413.30",
+   "producto": "Bombas de agua",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 246%",
+   "desde": "2021-09-07",
+   "hasta": null,
+   "norma": "B.O. Nº 34742 (07.09.2021); medida original desde 29.01.2010"
+  },
+  {
+   "ncm": "6401.10",
+   "producto": "Calzados",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 15,70 por par. Compromiso de precio SOJITZ CORPORATION OF AMERICA: USD 15,70 por par",
+   "desde": "2021-12-14",
+   "hasta": null,
+   "norma": "B.O. Nº 34813 (14.12.2021); medida original desde 22.03.2010"
+  },
+  {
+   "ncm": "6401.92",
+   "producto": "Calzados",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 15,70 por par. Compromiso de precio SOJITZ CORPORATION OF AMERICA: USD 15,70 por par",
+   "desde": "2021-12-14",
+   "hasta": null,
+   "norma": "B.O. Nº 34813 (14.12.2021); medida original desde 22.03.2010"
+  },
+  {
+   "ncm": "6401.99",
+   "producto": "Calzados",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 15,70 por par. Compromiso de precio SOJITZ CORPORATION OF AMERICA: USD 15,70 por par",
+   "desde": "2021-12-14",
+   "hasta": null,
+   "norma": "B.O. Nº 34813 (14.12.2021); medida original desde 22.03.2010"
+  },
+  {
+   "ncm": "6402.19",
+   "producto": "Calzados",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 15,70 por par. Compromiso de precio SOJITZ CORPORATION OF AMERICA: USD 15,70 por par",
+   "desde": "2021-12-14",
+   "hasta": null,
+   "norma": "B.O. Nº 34813 (14.12.2021); medida original desde 22.03.2010"
+  },
+  {
+   "ncm": "6402.20",
+   "producto": "Calzados",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 15,70 por par. Compromiso de precio SOJITZ CORPORATION OF AMERICA: USD 15,70 por par",
+   "desde": "2021-12-14",
+   "hasta": null,
+   "norma": "B.O. Nº 34813 (14.12.2021); medida original desde 22.03.2010"
+  },
+  {
+   "ncm": "6402.91",
+   "producto": "Calzados",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 15,70 por par. Compromiso de precio SOJITZ CORPORATION OF AMERICA: USD 15,70 por par",
+   "desde": "2021-12-14",
+   "hasta": null,
+   "norma": "B.O. Nº 34813 (14.12.2021); medida original desde 22.03.2010"
+  },
+  {
+   "ncm": "6402.99",
+   "producto": "Calzados",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 15,70 por par. Compromiso de precio SOJITZ CORPORATION OF AMERICA: USD 15,70 por par",
+   "desde": "2021-12-14",
+   "hasta": null,
+   "norma": "B.O. Nº 34813 (14.12.2021); medida original desde 22.03.2010"
+  },
+  {
+   "ncm": "6403.19",
+   "producto": "Calzados",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 15,70 por par. Compromiso de precio SOJITZ CORPORATION OF AMERICA: USD 15,70 por par",
+   "desde": "2021-12-14",
+   "hasta": null,
+   "norma": "B.O. Nº 34813 (14.12.2021); medida original desde 22.03.2010"
+  },
+  {
+   "ncm": "6403.20",
+   "producto": "Calzados",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 15,70 por par. Compromiso de precio SOJITZ CORPORATION OF AMERICA: USD 15,70 por par",
+   "desde": "2021-12-14",
+   "hasta": null,
+   "norma": "B.O. Nº 34813 (14.12.2021); medida original desde 22.03.2010"
+  },
+  {
+   "ncm": "6403.40",
+   "producto": "Calzados",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 15,70 por par. Compromiso de precio SOJITZ CORPORATION OF AMERICA: USD 15,70 por par",
+   "desde": "2021-12-14",
+   "hasta": null,
+   "norma": "B.O. Nº 34813 (14.12.2021); medida original desde 22.03.2010"
+  },
+  {
+   "ncm": "6403.51",
+   "producto": "Calzados",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 15,70 por par. Compromiso de precio SOJITZ CORPORATION OF AMERICA: USD 15,70 por par",
+   "desde": "2021-12-14",
+   "hasta": null,
+   "norma": "B.O. Nº 34813 (14.12.2021); medida original desde 22.03.2010"
+  },
+  {
+   "ncm": "6403.59",
+   "producto": "Calzados",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 15,70 por par. Compromiso de precio SOJITZ CORPORATION OF AMERICA: USD 15,70 por par",
+   "desde": "2021-12-14",
+   "hasta": null,
+   "norma": "B.O. Nº 34813 (14.12.2021); medida original desde 22.03.2010"
+  },
+  {
+   "ncm": "6403.91",
+   "producto": "Calzados",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 15,70 por par. Compromiso de precio SOJITZ CORPORATION OF AMERICA: USD 15,70 por par",
+   "desde": "2021-12-14",
+   "hasta": null,
+   "norma": "B.O. Nº 34813 (14.12.2021); medida original desde 22.03.2010"
+  },
+  {
+   "ncm": "6403.99",
+   "producto": "Calzados",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 15,70 por par. Compromiso de precio SOJITZ CORPORATION OF AMERICA: USD 15,70 por par",
+   "desde": "2021-12-14",
+   "hasta": null,
+   "norma": "B.O. Nº 34813 (14.12.2021); medida original desde 22.03.2010"
+  },
+  {
+   "ncm": "6404.11",
+   "producto": "Calzados",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 15,70 por par. Compromiso de precio SOJITZ CORPORATION OF AMERICA: USD 15,70 por par",
+   "desde": "2021-12-14",
+   "hasta": null,
+   "norma": "B.O. Nº 34813 (14.12.2021); medida original desde 22.03.2010"
+  },
+  {
+   "ncm": "6404.19",
+   "producto": "Calzados",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 15,70 por par. Compromiso de precio SOJITZ CORPORATION OF AMERICA: USD 15,70 por par",
+   "desde": "2021-12-14",
+   "hasta": null,
+   "norma": "B.O. Nº 34813 (14.12.2021); medida original desde 22.03.2010"
+  },
+  {
+   "ncm": "6404.20",
+   "producto": "Calzados",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 15,70 por par. Compromiso de precio SOJITZ CORPORATION OF AMERICA: USD 15,70 por par",
+   "desde": "2021-12-14",
+   "hasta": null,
+   "norma": "B.O. Nº 34813 (14.12.2021); medida original desde 22.03.2010"
+  },
+  {
+   "ncm": "6405.10",
+   "producto": "Calzados",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 15,70 por par. Compromiso de precio SOJITZ CORPORATION OF AMERICA: USD 15,70 por par",
+   "desde": "2021-12-14",
+   "hasta": null,
+   "norma": "B.O. Nº 34813 (14.12.2021); medida original desde 22.03.2010"
+  },
+  {
+   "ncm": "6405.20",
+   "producto": "Calzados",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 15,70 por par. Compromiso de precio SOJITZ CORPORATION OF AMERICA: USD 15,70 por par",
+   "desde": "2021-12-14",
+   "hasta": null,
+   "norma": "B.O. Nº 34813 (14.12.2021); medida original desde 22.03.2010"
+  },
+  {
+   "ncm": "6405.90",
+   "producto": "Calzados",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 15,70 por par. Compromiso de precio SOJITZ CORPORATION OF AMERICA: USD 15,70 por par",
+   "desde": "2021-12-14",
+   "hasta": null,
+   "norma": "B.O. Nº 34813 (14.12.2021); medida original desde 22.03.2010"
+  },
+  {
+   "ncm": "8509.40",
+   "producto": "Procesadoras o multiprocesadoras, excluidas las de uso manual",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 202,79%",
+   "desde": "2022-02-25",
+   "hasta": null,
+   "norma": "RESOL-2022-90-APN-MDP - B.O. Nº 34866 (25.02.2022); medida original desde 08.07.2010"
+  },
+  {
+   "ncm": "5208.43",
+   "producto": "Tejidos denim",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 3,93 por metro lineal",
+   "desde": "2022-04-27",
+   "hasta": null,
+   "norma": "RESOL-2022-326-APN-MDP - B.O. Nº 34908 (27.04.2022); medida original desde 09.09.2010"
+  },
+  {
+   "ncm": "5209.42",
+   "producto": "Tejidos denim",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 3,93 por metro lineal",
+   "desde": "2022-04-27",
+   "hasta": null,
+   "norma": "RESOL-2022-326-APN-MDP - B.O. Nº 34908 (27.04.2022); medida original desde 09.09.2010"
+  },
+  {
+   "ncm": "5210.49",
+   "producto": "Tejidos denim",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 3,93 por metro lineal",
+   "desde": "2022-04-27",
+   "hasta": null,
+   "norma": "RESOL-2022-326-APN-MDP - B.O. Nº 34908 (27.04.2022); medida original desde 09.09.2010"
+  },
+  {
+   "ncm": "5211.42",
+   "producto": "Tejidos denim",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 3,93 por metro lineal",
+   "desde": "2022-04-27",
+   "hasta": null,
+   "norma": "RESOL-2022-326-APN-MDP - B.O. Nº 34908 (27.04.2022); medida original desde 09.09.2010"
+  },
+  {
+   "ncm": "7307.19",
+   "producto": "Accesorios de tuberías",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 295% (los compromisos de Jinan Meide Casting y Qingdao H.R. no están vigentes)",
+   "desde": "2022-12-23",
+   "hasta": null,
+   "norma": "RESOL-2022-1078-APN-MEC - B.O. Nº 35074 (23.12.2022); medida original desde 20.11.2010"
+  },
+  {
+   "ncm": "8516.29",
+   "producto": "Aparatos eléctricos para calefacción",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 378%",
+   "desde": "2023-07-03",
+   "hasta": null,
+   "norma": "RESOL-2023-907-APN-MEC - B.O. Nº 35202 (03.07.2023); medida original desde 05.05.2011"
+  },
+  {
+   "ncm": "8414.51",
+   "producto": "Ventiladores",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 164%",
+   "desde": "2023-07-13",
+   "hasta": null,
+   "norma": "RESOL-2023-978-APN-MEC - B.O. Nº 35210 (13.07.2023); medida original desde 01.06.2011"
+  },
+  {
+   "ncm": "8414.59",
+   "producto": "Ventiladores",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 164%",
+   "desde": "2023-07-13",
+   "hasta": null,
+   "norma": "RESOL-2023-978-APN-MEC - B.O. Nº 35210 (13.07.2023); medida original desde 01.06.2011"
+  },
+  {
+   "ncm": "8202.91",
+   "producto": "Hojas de sierra manuales rectas de acero rápido",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho específico USD 0,46 por unidad",
+   "desde": "2023-03-23",
+   "hasta": null,
+   "norma": "RESOL-2023-331-APN-MEC - B.O. Nº 35136 (23.03.2023); medida original desde 08.09.2011"
+  },
+  {
+   "ncm": "8202.99",
+   "producto": "Hojas de sierra manuales rectas de acero rápido",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho específico USD 0,46 por unidad",
+   "desde": "2023-03-23",
+   "hasta": null,
+   "norma": "RESOL-2023-331-APN-MEC - B.O. Nº 35136 (23.03.2023); medida original desde 08.09.2011"
+  },
+  {
+   "ncm": "8501.40",
+   "producto": "Motores eléctricos de corriente alterna, asincrónicos, monofásicos",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo por unidad según potencia y polos: >0,12-0,18 kW USD 39,92 (2 polos) / 35,64 (4+ polos); >0,18-0,37 kW USD 43,96 / 51,53; >0,37-0,75 kW USD 64,20 / 64,24; >0,75-1,5 kW USD 87,22 / 101,90; >1,5-3 kW USD 131,95 / 181,64",
+   "desde": "2024-12-04",
+   "hasta": null,
+   "norma": "RESOL-2024-1311-APN-MEC - B.O. Nº 35560 (04.12.2024); medida original desde 04.09.2012"
+  },
+  {
+   "ncm": "9003.11",
+   "producto": "Anteojos y armazones",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho específico USD 7,10 a 9,31 por unidad si el FOB es menor o igual a un FOB límite; ad valorem 154% si lo supera",
+   "desde": "2021-11-24",
+   "hasta": null,
+   "norma": "B.O. Nº 34800 (24.11.2021); medida original desde 04.10.2012"
+  },
+  {
+   "ncm": "9003.19",
+   "producto": "Anteojos y armazones",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho específico USD 7,10 a 9,31 por unidad si el FOB es menor o igual a un FOB límite; ad valorem 154% si lo supera",
+   "desde": "2021-11-24",
+   "hasta": null,
+   "norma": "B.O. Nº 34800 (24.11.2021); medida original desde 04.10.2012"
+  },
+  {
+   "ncm": "9004.10",
+   "producto": "Anteojos y armazones",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho específico USD 7,10 a 9,31 por unidad si el FOB es menor o igual a un FOB límite; ad valorem 154% si lo supera",
+   "desde": "2021-11-24",
+   "hasta": null,
+   "norma": "B.O. Nº 34800 (24.11.2021); medida original desde 04.10.2012"
+  },
+  {
+   "ncm": "9004.90",
+   "producto": "Anteojos y armazones",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho específico USD 7,10 a 9,31 por unidad si el FOB es menor o igual a un FOB límite; ad valorem 154% si lo supera",
+   "desde": "2021-11-24",
+   "hasta": null,
+   "norma": "B.O. Nº 34800 (24.11.2021); medida original desde 04.10.2012"
+  },
+  {
+   "ncm": "6907.21",
+   "producto": "Placas y baldosas (cerámicas) - expediente S01:0075046/2011",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 27,7%. Compromiso de precio FOSHAN JUNJING INDUSTRIAL CO. LTD: FOB mínimo USD 6,28/m2",
+   "desde": "2024-08-07",
+   "hasta": null,
+   "norma": "RESOL-2024-691-APN-MEC - B.O. Nº 35477 (07.08.2024); medida original desde 25.01.2013"
+  },
+  {
+   "ncm": "9506.61.00",
+   "producto": "Pelotas de tenis",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho específico USD 0,46 por unidad",
+   "desde": "2021-07-15",
+   "hasta": null,
+   "norma": "B.O. Nº 34702 (15.07.2021); medida original desde 23.01.2015"
+  },
+  {
+   "ncm": "8413.70",
+   "producto": "Electrobombas",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho específico (el informe no detalla el monto)",
+   "desde": "2021-04-16",
+   "hasta": null,
+   "norma": "B.O. Nº 34633 (16.04.2021); medida original desde 17.04.2015"
+  },
+  {
+   "ncm": "8546.20",
+   "producto": "Aisladores de porcelana",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 227,74%",
+   "desde": "2021-12-02",
+   "hasta": null,
+   "norma": "B.O. Nº 34806 (02.12.2021); medida original desde 05.06.2015"
+  },
+  {
+   "ncm": "8451.30",
+   "producto": "Prensas de planchar eléctricas",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho específico USD 505,21 por unidad",
+   "desde": "2021-08-19",
+   "hasta": null,
+   "norma": "B.O. Nº 34728 (19.08.2021); medida original desde 30.10.2015"
+  },
+  {
+   "ncm": "8708.91",
+   "producto": "Radiadores (evaporadores y condensadores quedaron sin derecho)",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Radiadores: derecho ad valorem 187,47%. Evaporadores y condensadores: sin aplicación de derechos",
+   "desde": "2022-07-29",
+   "hasta": null,
+   "norma": "RESOL-2022-589-APN-MDP - B.O. Nº 34972 (29.07.2022); medida original desde 07.12.2016"
+  },
+  {
+   "ncm": "9503.00",
+   "producto": "Globos de caucho",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 97%",
+   "desde": "2023-07-06",
+   "hasta": null,
+   "norma": "RESOL-2023-923-APN-MEC - B.O. Nº 35205 (06.07.2023); medida original desde 24.11.2017"
+  },
+  {
+   "ncm": "9505.90",
+   "producto": "Globos de caucho",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 97%",
+   "desde": "2023-07-06",
+   "hasta": null,
+   "norma": "RESOL-2023-923-APN-MEC - B.O. Nº 35205 (06.07.2023); medida original desde 24.11.2017"
+  },
+  {
+   "ncm": "6907.21",
+   "producto": "Placas y baldosas (cerámicas) - expediente S01:0003540/2016",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 27,7%. Compromiso de precio FOSHAN JUNJING INDUSTRIAL CO. LTD: FOB mínimo USD 5,43/m2",
+   "desde": "2024-08-07",
+   "hasta": null,
+   "norma": "RESOL-2024-691-APN-MEC - B.O. Nº 35477 (07.08.2024); medida original desde 16.02.2018"
+  },
+  {
+   "ncm": "8211.10",
+   "producto": "Cubiertos de acero inoxidable con mango de plástico o madera",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 48% (prorrogado por 2 años)",
+   "desde": "2024-06-04",
+   "hasta": "2026-06-04",
+   "norma": "RESOL-2024-386-APN-MEC - B.O. Nº 35435 (04.06.2024); medida original desde 26.04.2018"
+  },
+  {
+   "ncm": "8211.91",
+   "producto": "Cubiertos de acero inoxidable con mango de plástico o madera",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 48% (prorrogado por 2 años)",
+   "desde": "2024-06-04",
+   "hasta": "2026-06-04",
+   "norma": "RESOL-2024-386-APN-MEC - B.O. Nº 35435 (04.06.2024); medida original desde 26.04.2018"
+  },
+  {
+   "ncm": "8215.20",
+   "producto": "Cubiertos de acero inoxidable con mango de plástico o madera",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 48% (prorrogado por 2 años)",
+   "desde": "2024-06-04",
+   "hasta": "2026-06-04",
+   "norma": "RESOL-2024-386-APN-MEC - B.O. Nº 35435 (04.06.2024); medida original desde 26.04.2018"
+  },
+  {
+   "ncm": "8215.99",
+   "producto": "Cubiertos de acero inoxidable con mango de plástico o madera",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 48% (prorrogado por 2 años)",
+   "desde": "2024-06-04",
+   "hasta": "2026-06-04",
+   "norma": "RESOL-2024-386-APN-MEC - B.O. Nº 35435 (04.06.2024); medida original desde 26.04.2018"
+  },
+  {
+   "ncm": "8509.40",
+   "producto": "Aparatos de funciones múltiples (licuadoras, batidoras, procesadoras)",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 26,08/u licuadoras; USD 21,07/u batidoras; USD 23,60/u procesadoras",
+   "desde": "2024-12-04",
+   "hasta": null,
+   "norma": "RESOL-2024-1303-APN-MEC - B.O. Nº 35560 (04.12.2024); medida original desde 05.06.2018"
+  },
+  {
+   "ncm": "9503.00",
+   "producto": "Triciclos, excepto con motor eléctrico",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 30,21%",
+   "desde": "2021-01-28",
+   "hasta": null,
+   "norma": "B.O. Nº 34572 (28.01.2021)"
+  },
+  {
+   "ncm": "6116.10",
+   "producto": "Guantes confeccionados con tejido de punto 100% material textil",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 42%",
+   "desde": "2021-02-04",
+   "hasta": null,
+   "norma": "B.O. Nº 34578 (04.02.2021)"
+  },
+  {
+   "ncm": "8516.10.00",
+   "producto": "Calentadores eléctricos de agua, de acumulación, de 20 a 150 litros",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 131%. Compromisos de precio (WUHU MIDEA, GUANGDONG VANWARD, GUANGDONG GEMAKE): USD 60,62 a USD 178,56 por unidad",
+   "desde": "2022-02-04",
+   "hasta": null,
+   "norma": "RESOL-2022-40-APN-MDP - B.O. Nº 34851 (04.02.2022)"
+  },
+  {
+   "ncm": "7308.30",
+   "producto": "Puertas de acero de 24 kg a 100 kg (excluidas puertas blindadas, norma IRAM 11992 punto 3.14)",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 116%",
+   "desde": "2022-05-31",
+   "hasta": null,
+   "norma": "RESOL-2022-465-APN-MDP - B.O. Nº 34931 (31.05.2022)"
+  },
+  {
+   "ncm": "8414.90",
+   "producto": "Rejillas metálicas de protección",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 79%",
+   "desde": "2022-07-04",
+   "hasta": null,
+   "norma": "RESOL-2022-533-APN-MDP - B.O. Nº 34953 (04.07.2022)"
+  },
+  {
+   "ncm": "9019.20",
+   "producto": "Nebulizadores",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 25,36 por unidad",
+   "desde": "2022-09-30",
+   "hasta": null,
+   "norma": "RESOL-2022-658-APN-MEC - B.O. Nº 35016 (30.09.2022)"
+  },
+  {
+   "ncm": "2916.31",
+   "producto": "Benzoato de sodio",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 2,42%",
+   "desde": "2022-10-28",
+   "hasta": null,
+   "norma": "RESOL-2022-764-APN-MEC - B.O. Nº 35035 (28.10.2022)"
+  },
+  {
+   "ncm": "3920.51",
+   "producto": "Placas, láminas, hojas y tiras de poli(metacrilato de metilo)",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 55%",
+   "desde": "2022-12-23",
+   "hasta": null,
+   "norma": "RESOL-2022-1079-APN-MDP - B.O. Nº 35074 (23.12.2022)"
+  },
+  {
+   "ncm": "3926.90",
+   "producto": "Placas, láminas, hojas y tiras de poli(metacrilato de metilo)",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 55%",
+   "desde": "2022-12-23",
+   "hasta": null,
+   "norma": "RESOL-2022-1079-APN-MDP - B.O. Nº 35074 (23.12.2022)"
+  },
+  {
+   "ncm": "8516.79",
+   "producto": "Jarras o pavas electrotérmicas de uso doméstico",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 12,46 por unidad",
+   "desde": "2023-01-05",
+   "hasta": null,
+   "norma": "RESOL-2023-4-APN-MEC - B.O. Nº 35083 (05.01.2023)"
+  },
+  {
+   "ncm": "7321.81",
+   "producto": "Estufas de gas licuado en garrafas",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 43,47%",
+   "desde": "2023-09-29",
+   "hasta": null,
+   "norma": "RESOL-2023-1487-APN-MEC - B.O. Nº 35268 (29.09.2023)"
+  },
+  {
+   "ncm": "9607.11",
+   "producto": "Cierres de cremallera y cintas (dientes de metal común, monofilamento de nailon o poliéster y plástico inyectado)",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD/kg: cierres de metal 28,7; de poliéster 13,5; de plástico 12,8; cintas con dientes de bronce o aluminio 12,5; de nailon o poliéster 7,5; de plástico 6,6; demás cintas 15,4",
+   "desde": "2024-11-29",
+   "hasta": null,
+   "norma": "RESOL-2024-1280-APN-MEC - B.O. Nº 35557 (29.11.2024)"
+  },
+  {
+   "ncm": "9607.19",
+   "producto": "Cierres de cremallera y cintas (dientes de metal común, monofilamento de nailon o poliéster y plástico inyectado)",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD/kg: cierres de metal 28,7; de poliéster 13,5; de plástico 12,8; cintas con dientes de bronce o aluminio 12,5; de nailon o poliéster 7,5; de plástico 6,6; demás cintas 15,4",
+   "desde": "2024-11-29",
+   "hasta": null,
+   "norma": "RESOL-2024-1280-APN-MEC - B.O. Nº 35557 (29.11.2024)"
+  },
+  {
+   "ncm": "9607.20",
+   "producto": "Cierres de cremallera y cintas (dientes de metal común, monofilamento de nailon o poliéster y plástico inyectado)",
+   "pais": "China",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD/kg: cierres de metal 28,7; de poliéster 13,5; de plástico 12,8; cintas con dientes de bronce o aluminio 12,5; de nailon o poliéster 7,5; de plástico 6,6; demás cintas 15,4",
+   "desde": "2024-11-29",
+   "hasta": null,
+   "norma": "RESOL-2024-1280-APN-MEC - B.O. Nº 35557 (29.11.2024)"
+  },
+  {
+   "ncm": "8546.20",
+   "producto": "Aisladores de porcelana",
+   "pais": "Colombia",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 21,39%",
+   "desde": "2021-12-02",
+   "hasta": null,
+   "norma": "B.O. Nº 34806 (02.12.2021); medida original desde 05.06.2015"
+  },
+  {
+   "ncm": "3808.92",
+   "producto": "Fungicidas a base de cobre (excluidos los de óxido cuproso NCM 3808.92.91.300P, Res. MEC 1333/2023)",
+   "pais": "Estados Unidos",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 40,55%",
+   "desde": "2021-04-16",
+   "hasta": null,
+   "norma": "B.O. Nº 34633 (16.04.2021); medida original desde 17.10.2014"
+  },
+  {
+   "ncm": "9506.61.00",
+   "producto": "Pelotas de tenis",
+   "pais": "Filipinas",
+   "tipo": "antidumping",
+   "medida": "Derecho específico USD 0,20 por unidad",
+   "desde": "2021-07-15",
+   "hasta": null,
+   "norma": "B.O. Nº 34702 (15.07.2021); medida original desde 23.01.2015"
+  },
+  {
+   "ncm": "8202.91",
+   "producto": "Hojas de sierra manuales rectas de acero rápido",
+   "pais": "India",
+   "tipo": "antidumping",
+   "medida": "Derecho específico USD 0,13 por unidad",
+   "desde": "2023-12-06",
+   "hasta": null,
+   "norma": "RESOL-2023-1698-APN-MEC - B.O. Nº 35314 (06.12.2023); medida original desde 05.10.2012"
+  },
+  {
+   "ncm": "8202.99",
+   "producto": "Hojas de sierra manuales rectas de acero rápido",
+   "pais": "India",
+   "tipo": "antidumping",
+   "medida": "Derecho específico USD 0,13 por unidad",
+   "desde": "2023-12-06",
+   "hasta": null,
+   "norma": "RESOL-2023-1698-APN-MEC - B.O. Nº 35314 (06.12.2023); medida original desde 05.10.2012"
+  },
+  {
+   "ncm": "6907.21",
+   "producto": "Placas y baldosas (cerámicas)",
+   "pais": "India",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 75,8%",
+   "desde": "2024-08-07",
+   "hasta": null,
+   "norma": "RESOL-2024-691-APN-MEC - B.O. Nº 35477 (07.08.2024); medida original desde 16.02.2018"
+  },
+  {
+   "ncm": "6116.10",
+   "producto": "Guantes confeccionados con tejido de punto 100% material textil",
+   "pais": "India",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 35,06%",
+   "desde": "2021-02-04",
+   "hasta": null,
+   "norma": "B.O. Nº 34578 (04.02.2021)"
+  },
+  {
+   "ncm": "9017.80",
+   "producto": "Metros de cinta",
+   "pais": "India",
+   "tipo": "antidumping",
+   "medida": "Derecho específico USD 0,48 por metro lineal",
+   "desde": "2021-08-20",
+   "hasta": null,
+   "norma": "B.O. Nº 34729 (20.08.2021)"
+  },
+  {
+   "ncm": "7307.19",
+   "producto": "Tes y codos para soldar a tope (fittings), excepto codos de 180° y de reducción",
+   "pais": "India",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 4,45 por kg",
+   "desde": "2023-10-25",
+   "hasta": null,
+   "norma": "RESOL-2023-1610-APN-MEC - B.O. Nº 35284 (25.10.2023)"
+  },
+  {
+   "ncm": "7307.93",
+   "producto": "Tes y codos para soldar a tope (fittings), excepto codos de 180° y de reducción",
+   "pais": "India",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 4,45 por kg",
+   "desde": "2023-10-25",
+   "hasta": null,
+   "norma": "RESOL-2023-1610-APN-MEC - B.O. Nº 35284 (25.10.2023)"
+  },
+  {
+   "ncm": "4011.50",
+   "producto": "Neumáticos nuevos de caucho del tipo utilizado en bicicletas",
+   "pais": "India",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 16,29% (no se aplica a RALSON INDIA LTD)",
+   "desde": "2023-11-22",
+   "hasta": null,
+   "norma": "RESOL-2023-1648-APN-MEC - B.O. Nº 35303 (22.11.2023)"
+  },
+  {
+   "ncm": "9607.11",
+   "producto": "Cierres de cremallera y cintas (dientes de metal común, monofilamento de nailon o poliéster y plástico inyectado)",
+   "pais": "India",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD/kg: cierres de metal 37,8; de poliéster 42,8; de plástico 23,3; cintas con dientes de bronce o aluminio 24,0; de nailon o poliéster 14,9; de plástico 13,1; demás cintas 30,7",
+   "desde": "2024-11-29",
+   "hasta": null,
+   "norma": "RESOL-2024-1280-APN-MEC - B.O. Nº 35557 (29.11.2024)"
+  },
+  {
+   "ncm": "9607.19",
+   "producto": "Cierres de cremallera y cintas (dientes de metal común, monofilamento de nailon o poliéster y plástico inyectado)",
+   "pais": "India",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD/kg: cierres de metal 37,8; de poliéster 42,8; de plástico 23,3; cintas con dientes de bronce o aluminio 24,0; de nailon o poliéster 14,9; de plástico 13,1; demás cintas 30,7",
+   "desde": "2024-11-29",
+   "hasta": null,
+   "norma": "RESOL-2024-1280-APN-MEC - B.O. Nº 35557 (29.11.2024)"
+  },
+  {
+   "ncm": "9607.20",
+   "producto": "Cierres de cremallera y cintas (dientes de metal común, monofilamento de nailon o poliéster y plástico inyectado)",
+   "pais": "India",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD/kg: cierres de metal 37,8; de poliéster 42,8; de plástico 23,3; cintas con dientes de bronce o aluminio 24,0; de nailon o poliéster 14,9; de plástico 13,1; demás cintas 30,7",
+   "desde": "2024-11-29",
+   "hasta": null,
+   "norma": "RESOL-2024-1280-APN-MEC - B.O. Nº 35557 (29.11.2024)"
+  },
+  {
+   "ncm": "4011.50",
+   "producto": "Neumáticos nuevos de caucho del tipo utilizado en bicicletas",
+   "pais": "Indonesia",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 6,45 por kg",
+   "desde": "2021-05-31",
+   "hasta": null,
+   "norma": "B.O. Nº 34667 (31.05.2021); medida original desde 21.03.2003"
+  },
+  {
+   "ncm": "9607.11",
+   "producto": "Cierres de cremallera y cintas (dientes de metal común, monofilamento de nailon o poliéster y plástico inyectado)",
+   "pais": "Indonesia",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD/kg: cierres de metal 38,1; de poliéster 22,5; de plástico 23,0; cintas con dientes de bronce o aluminio 23,4; de nailon o poliéster 14,2; de plástico 12,5; demás cintas 29,3",
+   "desde": "2024-11-29",
+   "hasta": null,
+   "norma": "RESOL-2024-1280-APN-MEC - B.O. Nº 35557 (29.11.2024)"
+  },
+  {
+   "ncm": "9607.19",
+   "producto": "Cierres de cremallera y cintas (dientes de metal común, monofilamento de nailon o poliéster y plástico inyectado)",
+   "pais": "Indonesia",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD/kg: cierres de metal 38,1; de poliéster 22,5; de plástico 23,0; cintas con dientes de bronce o aluminio 23,4; de nailon o poliéster 14,2; de plástico 12,5; demás cintas 29,3",
+   "desde": "2024-11-29",
+   "hasta": null,
+   "norma": "RESOL-2024-1280-APN-MEC - B.O. Nº 35557 (29.11.2024)"
+  },
+  {
+   "ncm": "9607.20",
+   "producto": "Cierres de cremallera y cintas (dientes de metal común, monofilamento de nailon o poliéster y plástico inyectado)",
+   "pais": "Indonesia",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD/kg: cierres de metal 38,1; de poliéster 22,5; de plástico 23,0; cintas con dientes de bronce o aluminio 23,4; de nailon o poliéster 14,2; de plástico 12,5; demás cintas 29,3",
+   "desde": "2024-11-29",
+   "hasta": null,
+   "norma": "RESOL-2024-1280-APN-MEC - B.O. Nº 35557 (29.11.2024)"
+  },
+  {
+   "ncm": "6907.90",
+   "producto": "Placas y baldosas (cerámicas)",
+   "pais": "Malasia",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 32%",
+   "desde": "2024-08-07",
+   "hasta": null,
+   "norma": "RESOL-2024-691-APN-MEC - B.O. Nº 35477 (07.08.2024); medida original desde 16.02.2018"
+  },
+  {
+   "ncm": "6908.90",
+   "producto": "Placas y baldosas (cerámicas)",
+   "pais": "Malasia",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 32%",
+   "desde": "2024-08-07",
+   "hasta": null,
+   "norma": "RESOL-2024-691-APN-MEC - B.O. Nº 35477 (07.08.2024); medida original desde 16.02.2018"
+  },
+  {
+   "ncm": "6907.21",
+   "producto": "Placas y baldosas (cerámicas)",
+   "pais": "Malasia",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 32%",
+   "desde": "2024-08-07",
+   "hasta": null,
+   "norma": "RESOL-2024-691-APN-MEC - B.O. Nº 35477 (07.08.2024); medida original desde 16.02.2018"
+  },
+  {
+   "ncm": "6116.10",
+   "producto": "Guantes confeccionados con tejido de punto 100% material textil",
+   "pais": "Malasia",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 42%",
+   "desde": "2021-02-04",
+   "hasta": null,
+   "norma": "B.O. Nº 34578 (04.02.2021)"
+  },
+  {
+   "ncm": "3004.90",
+   "producto": "Disoluciones parenterales",
+   "pais": "México",
+   "tipo": "antidumping",
+   "medida": "Derecho específico USD 0,21 a 0,31 por unidad",
+   "desde": "2023-11-22",
+   "hasta": null,
+   "norma": "RESOL-2023-1649-APN-MEC - B.O. Nº 35303 (22.11.2023); medida original desde 02.12.2019"
+  },
+  {
+   "ncm": "2916.31",
+   "producto": "Benzoato de sodio",
+   "pais": "Países Bajos",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 32,28%",
+   "desde": "2022-10-28",
+   "hasta": null,
+   "norma": "RESOL-2022-764-APN-MEC - B.O. Nº 35035 (28.10.2022)"
+  },
+  {
+   "ncm": "9607.11",
+   "producto": "Cierres de cremallera y cintas (dientes de metal común, monofilamento de nailon o poliéster y plástico inyectado)",
+   "pais": "Perú",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD/kg: cierres de metal 44,8; de poliéster 28,7; de plástico 27,6; cintas con dientes de bronce o aluminio 28,4; de nailon o poliéster 14,6; de plástico 12,8; demás cintas 31,9",
+   "desde": "2024-11-29",
+   "hasta": null,
+   "norma": "RESOL-2024-1280-APN-MEC - B.O. Nº 35557 (29.11.2024)"
+  },
+  {
+   "ncm": "9607.19",
+   "producto": "Cierres de cremallera y cintas (dientes de metal común, monofilamento de nailon o poliéster y plástico inyectado)",
+   "pais": "Perú",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD/kg: cierres de metal 44,8; de poliéster 28,7; de plástico 27,6; cintas con dientes de bronce o aluminio 28,4; de nailon o poliéster 14,6; de plástico 12,8; demás cintas 31,9",
+   "desde": "2024-11-29",
+   "hasta": null,
+   "norma": "RESOL-2024-1280-APN-MEC - B.O. Nº 35557 (29.11.2024)"
+  },
+  {
+   "ncm": "9607.20",
+   "producto": "Cierres de cremallera y cintas (dientes de metal común, monofilamento de nailon o poliéster y plástico inyectado)",
+   "pais": "Perú",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD/kg: cierres de metal 44,8; de poliéster 28,7; de plástico 27,6; cintas con dientes de bronce o aluminio 28,4; de nailon o poliéster 14,6; de plástico 12,8; demás cintas 31,9",
+   "desde": "2024-11-29",
+   "hasta": null,
+   "norma": "RESOL-2024-1280-APN-MEC - B.O. Nº 35557 (29.11.2024)"
+  },
+  {
+   "ncm": "6116.10",
+   "producto": "Guantes confeccionados con tejido de punto 100% material textil",
+   "pais": "Sri Lanka",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 42%",
+   "desde": "2021-02-04",
+   "hasta": null,
+   "norma": "B.O. Nº 34578 (04.02.2021)"
+  },
+  {
+   "ncm": "8202.91",
+   "producto": "Hojas de sierra manuales rectas de acero rápido y de acero bimetal",
+   "pais": "Suecia",
+   "tipo": "antidumping",
+   "medida": "Derecho específico USD 0,28 por unidad",
+   "desde": "2023-03-03",
+   "hasta": null,
+   "norma": "RESOL-2023-242-APN-MEC - B.O. Nº 35122 (03.03.2023); medida original desde 14.02.2008"
+  },
+  {
+   "ncm": "8202.99",
+   "producto": "Hojas de sierra manuales rectas de acero rápido y de acero bimetal",
+   "pais": "Suecia",
+   "tipo": "antidumping",
+   "medida": "Derecho específico USD 0,28 por unidad",
+   "desde": "2023-03-03",
+   "hasta": null,
+   "norma": "RESOL-2023-242-APN-MEC - B.O. Nº 35122 (03.03.2023); medida original desde 14.02.2008"
+  },
+  {
+   "ncm": "4011.50",
+   "producto": "Neumáticos nuevos de caucho del tipo utilizado en bicicletas",
+   "pais": "Tailandia",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 6,07 por kg",
+   "desde": "2021-05-31",
+   "hasta": null,
+   "norma": "B.O. Nº 34667 (31.05.2021); medida original desde 21.03.2003"
+  },
+  {
+   "ncm": "8415.10",
+   "producto": "Equipos acondicionadores de aire de hasta 6.500 frigorías/hora",
+   "pais": "Tailandia",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 85%",
+   "desde": "2021-09-07",
+   "hasta": null,
+   "norma": "B.O. Nº 34742 (07.09.2021); medida original desde 09.07.2009"
+  },
+  {
+   "ncm": "9506.61.00",
+   "producto": "Pelotas de tenis",
+   "pais": "Tailandia",
+   "tipo": "antidumping",
+   "medida": "Derecho específico USD 0,21 por unidad",
+   "desde": "2021-07-15",
+   "hasta": null,
+   "norma": "B.O. Nº 34702 (15.07.2021); medida original desde 23.01.2015"
+  },
+  {
+   "ncm": "7016.10",
+   "producto": "Plaquitas de vidrio, incluso con soporte, para mosaicos o decoraciones similares",
+   "pais": "Tailandia",
+   "tipo": "antidumping",
+   "medida": "Derecho específico USD 14,57 por m2",
+   "desde": "2021-12-20",
+   "hasta": null,
+   "norma": "B.O. Nº 34817 (20.12.2021)"
+  },
+  {
+   "ncm": "8712.00",
+   "producto": "Bicicletas",
+   "pais": "Taipei Chino",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo (el informe no detalla el valor)",
+   "desde": "2021-05-10",
+   "hasta": null,
+   "norma": "B.O. Nº 34652 (10.05.2021); medida original desde 23.11.1995"
+  },
+  {
+   "ncm": "8414.90",
+   "producto": "Rejillas metálicas de protección",
+   "pais": "Taipei Chino",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 31%",
+   "desde": "2022-07-04",
+   "hasta": null,
+   "norma": "RESOL-2022-533-APN-MDP - B.O. Nº 34953 (04.07.2022)"
+  },
+  {
+   "ncm": "9019.20",
+   "producto": "Nebulizadores",
+   "pais": "Taipei Chino",
+   "tipo": "antidumping",
+   "medida": "FOB mínimo USD 24,97 por unidad",
+   "desde": "2022-09-30",
+   "hasta": null,
+   "norma": "RESOL-2022-658-APN-MEC - B.O. Nº 35016 (30.09.2022)"
+  },
+  {
+   "ncm": "7016.10",
+   "producto": "Plaquitas de vidrio, incluso con soporte, para mosaicos o decoraciones similares",
+   "pais": "Turquía",
+   "tipo": "antidumping",
+   "medida": "Derecho específico USD 12,48 por m2",
+   "desde": "2021-12-20",
+   "hasta": null,
+   "norma": "B.O. Nº 34817 (20.12.2021)"
+  },
+  {
+   "ncm": "3916.20",
+   "producto": "Perfiles de polímeros de cloruro de vinilo",
+   "pais": "Turquía",
+   "tipo": "antidumping",
+   "medida": "Derecho específico USD 1,33 por kg. Compromiso de precio ASAŞ ALÜMINYUM SANAYI VE TICARET A.Ş.: USD 3,49 por kg",
+   "desde": "2022-03-11",
+   "hasta": null,
+   "norma": "RESOL-2022-175-APN-MDP - B.O. Nº 34877 (11.03.2022)"
+  },
+  {
+   "ncm": "6907.21",
+   "producto": "Placas y baldosas (cerámicas)",
+   "pais": "Vietnam",
+   "tipo": "antidumping",
+   "medida": "Derecho ad valorem 31,15%",
+   "desde": "2024-08-07",
+   "hasta": null,
+   "norma": "RESOL-2024-691-APN-MEC - B.O. Nº 35477 (07.08.2024); medida original desde 16.02.2018"
+  }
+ ],
+ "investigaciones": [
+  {
+   "ncm": "8708.70",
+   "producto": "Ruedas de acero",
+   "pais": "China",
+   "estado": "Examen por extinción iniciado el 12.11.2024; según el informe, la medida (ad valorem 41,78%, Res. 1444/2019) no se mantiene vigente mientras dure el examen. El anexo del informe la sigue listando en vigor.",
+   "desde": "2024-11-12"
+  },
+  {
+   "ncm": "8708.90",
+   "producto": "Ruedas de acero",
+   "pais": "China",
+   "estado": "Examen por extinción iniciado el 12.11.2024; según el informe, la medida (ad valorem 41,78%, Res. 1444/2019) no se mantiene vigente mientras dure el examen. El anexo del informe la sigue listando en vigor.",
+   "desde": "2024-11-12"
+  },
+  {
+   "ncm": "7606.91",
+   "producto": "Chapas de aluminio",
+   "pais": "China",
+   "estado": "Exámenes por extinción y por cambio de circunstancias iniciados el 18.02.2025; según el informe, la medida (ad valorem 80,14%, Res. 74/2020) no se mantiene vigente mientras dure el examen. El anexo la sigue listando en vigor.",
+   "desde": "2025-02-18"
+  },
+  {
+   "ncm": "7606.92",
+   "producto": "Chapas de aluminio",
+   "pais": "China",
+   "estado": "Exámenes por extinción y por cambio de circunstancias iniciados el 18.02.2025; según el informe, la medida (ad valorem 80,14%, Res. 74/2020) no se mantiene vigente mientras dure el examen. El anexo la sigue listando en vigor.",
+   "desde": "2025-02-18"
+  },
+  {
+   "ncm": "7607.11",
+   "producto": "Ciertas hojas de aluminio",
+   "pais": "China",
+   "estado": "Exámenes por extinción y por cambio de circunstancias iniciados el 21.02.2025; según el informe, la medida (ad valorem 28%, Res. 88/2020) no se mantiene vigente mientras dure el examen. El anexo la sigue listando en vigor.",
+   "desde": "2025-02-21"
+  },
+  {
+   "ncm": "8501.10",
+   "producto": "Ciertos motores para lavarropas",
+   "pais": "China",
+   "estado": "Exámenes por extinción y por cambio de circunstancias iniciados el 22.10.2025 (RESOL-2025-1622-APN-MEC); según el informe, la medida (ad valorem 46% motores de CA monofásicos y 30% motores universales, Res. 561/2020) no se mantiene vigente mientras dure el examen. El anexo la sigue listando en vigor.",
+   "desde": "2025-10-22"
+  },
+  {
+   "ncm": "8501.20",
+   "producto": "Ciertos motores para lavarropas",
+   "pais": "China",
+   "estado": "Exámenes por extinción y por cambio de circunstancias iniciados el 22.10.2025 (RESOL-2025-1622-APN-MEC); según el informe, la medida (ad valorem 46% motores de CA monofásicos y 30% motores universales, Res. 561/2020) no se mantiene vigente mientras dure el examen. El anexo la sigue listando en vigor.",
+   "desde": "2025-10-22"
+  },
+  {
+   "ncm": "8501.40",
+   "producto": "Ciertos motores para lavarropas",
+   "pais": "China",
+   "estado": "Exámenes por extinción y por cambio de circunstancias iniciados el 22.10.2025 (RESOL-2025-1622-APN-MEC); según el informe, la medida (ad valorem 46% motores de CA monofásicos y 30% motores universales, Res. 561/2020) no se mantiene vigente mientras dure el examen. El anexo la sigue listando en vigor.",
+   "desde": "2025-10-22"
+  },
+  {
+   "ncm": "7608.10",
+   "producto": "Tubos de aluminio",
+   "pais": "China",
+   "estado": "Exámenes por extinción y por cambio de circunstancias iniciados el 06.11.2025 (RESOL-2025-1753-APN-MEC); según el informe, la medida (ad valorem 75,52%, Res. 596/2020) no se mantiene vigente mientras dure el examen. El anexo la sigue listando en vigor.",
+   "desde": "2025-11-06"
+  },
+  {
+   "ncm": "7608.20",
+   "producto": "Tubos de aluminio",
+   "pais": "China",
+   "estado": "Exámenes por extinción y por cambio de circunstancias iniciados el 06.11.2025 (RESOL-2025-1753-APN-MEC); según el informe, la medida (ad valorem 75,52%, Res. 596/2020) no se mantiene vigente mientras dure el examen. El anexo la sigue listando en vigor.",
+   "desde": "2025-11-06"
+  },
+  {
+   "ncm": "8516.60",
+   "producto": "Hornos eléctricos",
+   "pais": "China",
+   "estado": "Exámenes por extinción y por cambio de circunstancias iniciados el 05.12.2025 (RESOL-2025-1944-APN-MEC); según el informe, la medida (USD 10,37/u hornos de 18 a 36 l y USD 11,64/u de 37 a 60 l, Res. 706/2020) no se mantiene vigente mientras dure el examen. El anexo la sigue listando en vigor.",
+   "desde": "2025-12-05"
+  },
+  {
+   "ncm": "6401.10",
+   "producto": "Calzados",
+   "pais": "China",
+   "estado": "Examen por cambio de circunstancias iniciado el 21.08.2025 (RESOL-2025-1206-APN-MEC), no atinente al dumping; la medida antidumping sigue vigente (ver medidas).",
+   "desde": "2025-08-21"
+  },
+  {
+   "ncm": "6401.92",
+   "producto": "Calzados",
+   "pais": "China",
+   "estado": "Examen por cambio de circunstancias iniciado el 21.08.2025 (RESOL-2025-1206-APN-MEC), no atinente al dumping; la medida antidumping sigue vigente (ver medidas).",
+   "desde": "2025-08-21"
+  },
+  {
+   "ncm": "6401.99",
+   "producto": "Calzados",
+   "pais": "China",
+   "estado": "Examen por cambio de circunstancias iniciado el 21.08.2025 (RESOL-2025-1206-APN-MEC), no atinente al dumping; la medida antidumping sigue vigente (ver medidas).",
+   "desde": "2025-08-21"
+  },
+  {
+   "ncm": "6402.19",
+   "producto": "Calzados",
+   "pais": "China",
+   "estado": "Examen por cambio de circunstancias iniciado el 21.08.2025 (RESOL-2025-1206-APN-MEC), no atinente al dumping; la medida antidumping sigue vigente (ver medidas).",
+   "desde": "2025-08-21"
+  },
+  {
+   "ncm": "6402.20",
+   "producto": "Calzados",
+   "pais": "China",
+   "estado": "Examen por cambio de circunstancias iniciado el 21.08.2025 (RESOL-2025-1206-APN-MEC), no atinente al dumping; la medida antidumping sigue vigente (ver medidas).",
+   "desde": "2025-08-21"
+  },
+  {
+   "ncm": "6402.91",
+   "producto": "Calzados",
+   "pais": "China",
+   "estado": "Examen por cambio de circunstancias iniciado el 21.08.2025 (RESOL-2025-1206-APN-MEC), no atinente al dumping; la medida antidumping sigue vigente (ver medidas).",
+   "desde": "2025-08-21"
+  },
+  {
+   "ncm": "6402.99",
+   "producto": "Calzados",
+   "pais": "China",
+   "estado": "Examen por cambio de circunstancias iniciado el 21.08.2025 (RESOL-2025-1206-APN-MEC), no atinente al dumping; la medida antidumping sigue vigente (ver medidas).",
+   "desde": "2025-08-21"
+  },
+  {
+   "ncm": "6403.19",
+   "producto": "Calzados",
+   "pais": "China",
+   "estado": "Examen por cambio de circunstancias iniciado el 21.08.2025 (RESOL-2025-1206-APN-MEC), no atinente al dumping; la medida antidumping sigue vigente (ver medidas).",
+   "desde": "2025-08-21"
+  },
+  {
+   "ncm": "6403.20",
+   "producto": "Calzados",
+   "pais": "China",
+   "estado": "Examen por cambio de circunstancias iniciado el 21.08.2025 (RESOL-2025-1206-APN-MEC), no atinente al dumping; la medida antidumping sigue vigente (ver medidas).",
+   "desde": "2025-08-21"
+  },
+  {
+   "ncm": "6403.40",
+   "producto": "Calzados",
+   "pais": "China",
+   "estado": "Examen por cambio de circunstancias iniciado el 21.08.2025 (RESOL-2025-1206-APN-MEC), no atinente al dumping; la medida antidumping sigue vigente (ver medidas).",
+   "desde": "2025-08-21"
+  },
+  {
+   "ncm": "6403.51",
+   "producto": "Calzados",
+   "pais": "China",
+   "estado": "Examen por cambio de circunstancias iniciado el 21.08.2025 (RESOL-2025-1206-APN-MEC), no atinente al dumping; la medida antidumping sigue vigente (ver medidas).",
+   "desde": "2025-08-21"
+  },
+  {
+   "ncm": "6403.59",
+   "producto": "Calzados",
+   "pais": "China",
+   "estado": "Examen por cambio de circunstancias iniciado el 21.08.2025 (RESOL-2025-1206-APN-MEC), no atinente al dumping; la medida antidumping sigue vigente (ver medidas).",
+   "desde": "2025-08-21"
+  },
+  {
+   "ncm": "6403.91",
+   "producto": "Calzados",
+   "pais": "China",
+   "estado": "Examen por cambio de circunstancias iniciado el 21.08.2025 (RESOL-2025-1206-APN-MEC), no atinente al dumping; la medida antidumping sigue vigente (ver medidas).",
+   "desde": "2025-08-21"
+  },
+  {
+   "ncm": "6403.99",
+   "producto": "Calzados",
+   "pais": "China",
+   "estado": "Examen por cambio de circunstancias iniciado el 21.08.2025 (RESOL-2025-1206-APN-MEC), no atinente al dumping; la medida antidumping sigue vigente (ver medidas).",
+   "desde": "2025-08-21"
+  },
+  {
+   "ncm": "6404.11",
+   "producto": "Calzados",
+   "pais": "China",
+   "estado": "Examen por cambio de circunstancias iniciado el 21.08.2025 (RESOL-2025-1206-APN-MEC), no atinente al dumping; la medida antidumping sigue vigente (ver medidas).",
+   "desde": "2025-08-21"
+  },
+  {
+   "ncm": "6404.19",
+   "producto": "Calzados",
+   "pais": "China",
+   "estado": "Examen por cambio de circunstancias iniciado el 21.08.2025 (RESOL-2025-1206-APN-MEC), no atinente al dumping; la medida antidumping sigue vigente (ver medidas).",
+   "desde": "2025-08-21"
+  },
+  {
+   "ncm": "6404.20",
+   "producto": "Calzados",
+   "pais": "China",
+   "estado": "Examen por cambio de circunstancias iniciado el 21.08.2025 (RESOL-2025-1206-APN-MEC), no atinente al dumping; la medida antidumping sigue vigente (ver medidas).",
+   "desde": "2025-08-21"
+  },
+  {
+   "ncm": "6405.10",
+   "producto": "Calzados",
+   "pais": "China",
+   "estado": "Examen por cambio de circunstancias iniciado el 21.08.2025 (RESOL-2025-1206-APN-MEC), no atinente al dumping; la medida antidumping sigue vigente (ver medidas).",
+   "desde": "2025-08-21"
+  },
+  {
+   "ncm": "6405.20",
+   "producto": "Calzados",
+   "pais": "China",
+   "estado": "Examen por cambio de circunstancias iniciado el 21.08.2025 (RESOL-2025-1206-APN-MEC), no atinente al dumping; la medida antidumping sigue vigente (ver medidas).",
+   "desde": "2025-08-21"
+  },
+  {
+   "ncm": "6405.90",
+   "producto": "Calzados",
+   "pais": "China",
+   "estado": "Examen por cambio de circunstancias iniciado el 21.08.2025 (RESOL-2025-1206-APN-MEC), no atinente al dumping; la medida antidumping sigue vigente (ver medidas).",
+   "desde": "2025-08-21"
+  }
+ ],
+ "corte": "2025-12-31"
+}

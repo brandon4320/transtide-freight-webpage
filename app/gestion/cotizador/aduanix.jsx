@@ -20,7 +20,7 @@ const TXTBTN = { background: 'none', border: 'none', padding: 0, cursor: 'pointe
 const MINP = { width: '100%', padding: '0.5rem 0.65rem', border: '1px solid #e5e7eb', borderRadius: 6, fontSize: '0.82rem', color: '#111827', background: '#fff', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' };
 const pct = (v) => (v === null || v === undefined ? '—' : String(v).replace('.', ',') + ' %');
 
-export function Aduanix({ descripcion = '', onAplicar, onGuardarNcm }) {
+export function Aduanix({ descripcion = '', onAplicar, onGuardarNcm, antes = null }) {
   const [abierto, setAbierto] = useState(false);
   const [texto, setTexto] = useState('');
   const [leido, setLeido] = useState(null);
@@ -59,6 +59,7 @@ export function Aduanix({ descripcion = '', onAplicar, onGuardarNcm }) {
   return (
     <>
       <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginTop: '0.35rem' }}>
+        {antes}
         <button onClick={abrirAduanix} style={TXTBTN} title="Abre el clasificador de Aduanix con la descripción copiada">
           Clasificar en Aduanix
         </button>
