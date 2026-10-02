@@ -115,13 +115,39 @@ const REGLAS = `Sos un clasificador arancelario experto en la Nomenclatura Comú
 Aplicás las Reglas Generales Interpretativas del Sistema Armonizado: primero los textos de partida y notas de sección y capítulo, la materia constitutiva, la función principal, el grado de elaboración y el uso. No adivines: si un dato cambia la posición, decilo.
 
 Casos que se suelen confundir:
-- Grúas sobre ruedas: si la grúa va montada sobre un chasis de vehículo automóvil apto para circular por ruta, con cabina de conducción propia (camiones grúa y grúas todo terreno, como Sany STC/SAC, XCMG QY, Zoomlion QY o Liebherr LTM), es 8705.10 (camiones grúa), no 8426. Dentro de 8705.10 decide si TODOS los ejes son direccionables (8705.10.20, menos de 100 t) y la capacidad máxima de izaje (100 t o más: 8705.10.30). 8426.41 queda para grúas autopropulsadas sobre neumáticos que no son vehículos de ruta, con una sola cabina para conducir y operar (grúas rough terrain, de patio o puerto). Si no se sabe si todos los ejes son direccionables, preguntalo.`
+- Grúas sobre ruedas: si la grúa va montada sobre un chasis de vehículo automóvil apto para circular por ruta, con cabina de conducción propia (camiones grúa y grúas todo terreno, como Sany STC/SAC, XCMG QY, Zoomlion QY o Liebherr LTM), es 8705.10 (camiones grúa), no 8426. Dentro de 8705.10 decide si TODOS los ejes son direccionables (8705.10.20, menos de 100 t) y la capacidad máxima de izaje (100 t o más: 8705.10.30). 8426.41 queda para grúas autopropulsadas sobre neumáticos que no son vehículos de ruta, con una sola cabina para conducir y operar (grúas rough terrain, de patio o puerto). Si no se sabe si todos los ejes son direccionables, preguntalo.
+- Autoelevadores: los que levantan la carga son 8427 (8427.10 eléctricos, 8427.20 a combustión); los tractores de arrastre y carretillas sin elevación de fábricas o puertos son 8709. Preguntá el motor y la capacidad si no se informan.
+- Maquinaria vial: palas cargadoras frontales 8429.51, excavadoras con giro de 360° 8429.52, retroexcavadoras y otras 8429.59; las que se montan sobre un camión siguen la lógica de 8705.
+- Grupos electrógenos (motor + generador en un conjunto) son 8502 y se abren por tipo de motor (diésel o nafta) y potencia en kVA; un generador o motor eléctrico solo es 8501.
+- Compresores de aire o gas 8414 (8414.30 los de equipos frigoríficos); los equipos de aire acondicionado completos son 8415. Las bombas para líquidos son 8413.
+- Iluminación LED: lámparas y tubos LED sueltos 8539.52; luminarias, reflectores y artefactos completos 9405; módulos LED 8539.51.
+- Monitores y televisores: un monitor diseñado para conectarse a una computadora es 8528.52; si tiene sintonizador de TV es 8528.72.
+- Partes y accesorios: una parte específica sigue a la máquina (Notas de la Sección XVI y XVII), salvo que tenga posición propia: tornillos y bulones 7318, rodamientos 8482, juntas de caucho 4016.93, filtros 8421, baterías 8507, neumáticos 4011. Las partes de vehículos de 87.01 a 87.05 sin posición propia van en 8708.
+- Juegos o kits (Regla 3 b): se clasifican por el artículo que les da el carácter esencial; si no se distingue, preguntalo.
+- Herramientas eléctricas de uso manual son 8467; las máquinas herramienta de banco son 8465 (madera) u 8456 a 8463 (metal).
+- Bolsos, mochilas y valijas (4202) se abren por el material de la superficie exterior: cuero, plástico o textil.
+- Calzado (6402 a 6405) y prendas: el calzado se decide por el material de la suela y de la parte superior; la ropa, por si es de punto (capítulo 61) o no (capítulo 62) y por la fibra. Si no se informa, preguntalo.
+- Estado: si es una máquina, un vehículo, un equipo o un bien de capital, el estado (nuevo, usado o reacondicionado) cambia el régimen de importación aunque no cambie la posición. Si no se informa, preguntalo.`
 
 // Partidas que comparten productos parecidos: si la IA orienta hacia una, se le
 // muestran también las posiciones de la otra para que pueda compararlas.
 const PARTIDAS_VECINAS: Record<string, string[]> = {
   '8426': ['8705.10'],
   '8705': ['8426.4'],
+  '8427': ['8709'],
+  '8709': ['8427'],
+  '8502': ['8501'],
+  '8501': ['8502'],
+  '8414': ['8415', '8413'],
+  '8415': ['8414'],
+  '8413': ['8414'],
+  '8539': ['9405'],
+  '9405': ['8539.5'],
+  '8528': ['8471.6'],
+  '8467': ['8465'],
+  '8465': ['8467'],
+  '9503': ['9506'],
+  '9506': ['9503'],
 }
 const conVecinas = (prefijos: string[]) => {
   const todos = new Set(prefijos)
@@ -197,7 +223,7 @@ Tarea: orientá la clasificación.
 - partidas_probables: hasta 5 partidas (4 dígitos, ej. "8303") o subpartidas (6 dígitos, ej. "8471.30") donde podría estar.
 - palabras_clave: hasta 8 palabras en castellano como las usaría el texto de la NCM (ej. "cajas de caudales", "maquinas automaticas para procesamiento de datos").
 - necesita_aclaracion: true solo si falta un dato que cambia la posición y que no se deduce de la descripción ni de las fotos.
-- preguntas: si necesita_aclaracion, hasta 3 preguntas cortas, cada una con 2 a 5 opciones concretas. Si no, lista vacía.` },
+- preguntas: si necesita_aclaracion, hasta 3 preguntas cortas, cada una con 2 a 5 opciones concretas. Si no, lista vacía. Si es una máquina, un vehículo, un equipo o un bien de capital y no se sabe su estado, una de las preguntas es "¿Es nuevo o usado?" con las opciones Nuevo, Usado y Reacondicionado.` },
     ], ESQUEMA_ORIENTAR, 0.1)
 
     const preguntas = (orientacion.preguntas || []).filter((p: any) => p && p.pregunta && Array.isArray(p.opciones) && p.opciones.length)
@@ -234,7 +260,7 @@ Tarea:
 - candidatos: de 1 a 3 posiciones de 8 dígitos, la más probable primero. Elegí de la lista; solo si ninguna corresponde, proponé otro código de 8 dígitos de la NCM que conozcas. confianza de 0 a 100. justificacion breve en castellano, citando la regla o el texto de partida que la decide.
 - iva_reducido_probable: true si la mercadería suele tributar IVA de 10,5 % en Argentina (por ejemplo bienes de capital o informática). motivo_iva breve.
 - intervenciones_probables: organismos que suelen intervenir en la importación de este producto en Argentina (SENASA, ANMAT, INAL, INTI, Seguridad eléctrica, ENACOM, etc.) con el motivo. Si no corresponde ninguno, lista vacía.
-- advertencias: datos a confirmar con el despachante (por ejemplo, si la posición depende de una medida o material no informado).` },
+- advertencias: datos a confirmar con el despachante (por ejemplo, si la posición depende de una medida o material no informado). Si el producto es usado o reacondicionado, avisá que los bienes usados tienen un régimen de importación propio en Argentina (requisitos y alícuotas distintos a los del bien nuevo) y que no corresponde dar por aplicable el beneficio de bien de capital sin confirmarlo con el despachante.` },
     ], ESQUEMA_ELEGIR, 0.1)
 
     // ── 3. validar contra el nomenclador y enriquecer ──
