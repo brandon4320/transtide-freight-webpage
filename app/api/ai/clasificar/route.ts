@@ -112,7 +112,26 @@ const ESQUEMA_ELEGIR: any = {
 }
 
 const REGLAS = `Sos un clasificador arancelario experto en la Nomenclatura Común del MERCOSUR (NCM) aplicada en Argentina.
-Aplicás las Reglas Generales Interpretativas del Sistema Armonizado: primero los textos de partida y notas de sección y capítulo, la materia constitutiva, la función principal, el grado de elaboración y el uso. No adivines: si un dato cambia la posición, decilo.`
+Aplicás las Reglas Generales Interpretativas del Sistema Armonizado: primero los textos de partida y notas de sección y capítulo, la materia constitutiva, la función principal, el grado de elaboración y el uso. No adivines: si un dato cambia la posición, decilo.
+
+Casos que se suelen confundir:
+- Grúas sobre ruedas: si la grúa va montada sobre un chasis de vehículo automóvil apto para circular por ruta, con cabina de conducción propia (camiones grúa y grúas todo terreno, como Sany STC/SAC, XCMG QY, Zoomlion QY o Liebherr LTM), es 8705.10 (camiones grúa), no 8426. Dentro de 8705.10 decide si TODOS los ejes son direccionables (8705.10.20, menos de 100 t) y la capacidad máxima de izaje (100 t o más: 8705.10.30). 8426.41 queda para grúas autopropulsadas sobre neumáticos que no son vehículos de ruta, con una sola cabina para conducir y operar (grúas rough terrain, de patio o puerto). Si no se sabe si todos los ejes son direccionables, preguntalo.`
+
+// Partidas que comparten productos parecidos: si la IA orienta hacia una, se le
+// muestran también las posiciones de la otra para que pueda compararlas.
+const PARTIDAS_VECINAS: Record<string, string[]> = {
+  '8426': ['8705.10'],
+  '8705': ['8426.4'],
+}
+const conVecinas = (prefijos: string[]) => {
+  const todos = new Set(prefijos)
+  for (const pref of prefijos) {
+    for (const [base, vecinas] of Object.entries(PARTIDAS_VECINAS)) {
+      if (soloDigitos(pref).startsWith(base)) vecinas.forEach((v) => todos.add(v))
+    }
+  }
+  return Array.from(todos)
+}
 
 // ── alícuotas sugeridas ─────────────────────────────────────────────────────────
 type Fuente = 'biblioteca' | 'aec' | 'regla'
@@ -188,7 +207,7 @@ Tarea: orientá la clasificación.
 
     // ── 2. posiciones reales entre las que elegir ──
     const vistos = new Map<string, Posicion>()
-    for (const pref of (orientacion.partidas_probables || []).slice(0, 5)) {
+    for (const pref of conVecinas((orientacion.partidas_probables || []).slice(0, 5))) {
       for (const p of await hijos(pref, 60)) vistos.set(soloDigitos(p.c), p)
     }
     const textoBusqueda = [descripcion, orientacion.producto_normalizado, ...(orientacion.palabras_clave || [])].join(' ')
