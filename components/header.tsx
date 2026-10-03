@@ -41,18 +41,23 @@ export default function Header() {
 
   return (
     <>
-      <header className="fixed inset-x-0 top-0 z-50">
-        <div className="container mx-auto px-4 pt-2 md:px-6 md:pt-2.5">
-          <div
-            className={`rounded-[30px] border border-[rgba(24,38,84,0.10)] bg-[rgba(29,45,95,0.20)] transition-all duration-300 ${
-              scrolled
-                ? "shadow-[0_16px_34px_rgba(15,23,42,0.10)] backdrop-blur-xl"
-                : "shadow-[0_10px_24px_rgba(15,23,42,0.07)] backdrop-blur-lg"
-            }`}
-          >
-            <div className="flex h-[58px] items-center justify-between px-4 md:px-5 lg:px-6">
-              <a href="#inicio" className="flex items-center" aria-label="Ir al inicio">
-                <div className="relative h-7 w-[215px] sm:h-8 sm:w-[245px] lg:w-[270px]">
+      {/* Arriba de todo la barra ocupa todo el ancho y es transparente; al bajar se
+          angosta y flota como una píldora de vidrio. */}
+      <header className="fixed inset-x-0 top-0 z-50 px-3 md:px-4">
+        <div
+          data-scrolled={scrolled}
+          className={`mx-auto flex w-full items-center justify-between rounded-full border transition-[max-width,height,transform,padding,background-color,border-color,box-shadow] duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none ${
+            scrolled
+              ? "h-[56px] max-w-[min(1100px,100%)] translate-y-3 border-[rgba(15,26,61,0.10)] bg-white/70 pl-4 pr-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_1px_1px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.08)] backdrop-blur-[24px] backdrop-saturate-[1.25] md:pl-5"
+              : "h-[72px] max-w-[1320px] translate-y-0 border-transparent bg-transparent px-2 shadow-none md:px-4"
+          }`}
+        >
+              <a href="#inicio" className="flex shrink-0 items-center" aria-label="Ir al inicio">
+                <div
+                  className={`relative h-7 transition-[width] duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] sm:h-8 ${
+                    scrolled ? "w-[190px] sm:w-[215px] lg:w-[190px] xl:w-[215px]" : "w-[215px] sm:w-[245px] lg:w-[225px] xl:w-[270px]"
+                  }`}
+                >
                   <Image
                     src="/images/transtide-logo-full.png"
                     alt="Transtide Freight"
@@ -64,13 +69,13 @@ export default function Header() {
                 </div>
               </a>
 
-              <div className="hidden items-center gap-2 lg:flex">
+              <div className="hidden items-center gap-2 whitespace-nowrap lg:flex">
                 <nav className="flex items-center gap-0.5 xl:gap-1">
                   {navItems.map((item) => (
                     <a
                       key={item.href}
                       href={item.href}
-                      className="inline-flex h-[36px] items-center rounded-full px-3 py-0 text-[14px] font-medium text-[#0f1a3d] transition-colors hover:bg-white/16 hover:text-[#08112f]"
+                      className="inline-flex h-[36px] items-center whitespace-nowrap rounded-full px-2.5 py-0 xl:px-3 text-[14px] font-medium text-[#0f1a3d] transition-colors hover:bg-[rgba(15,26,61,0.06)] hover:text-[#08112f]"
                     >
                       {item.name}
                     </a>
@@ -79,15 +84,16 @@ export default function Header() {
 
                 <Link
                   href="/gestion"
-                  className="inline-flex h-[36px] items-center gap-1.5 rounded-full border border-[rgba(234,88,12,0.25)] bg-white/60 px-4 text-[13px] font-semibold text-[#ea580c] backdrop-blur transition-colors hover:bg-[#fff4ee] hover:border-[rgba(234,88,12,0.5)]"
+                  aria-label="Portal de gestión"
+                  className="inline-flex h-[36px] items-center gap-1.5 rounded-full border border-[rgba(234,88,12,0.25)] bg-white/60 px-3 text-[13px] xl:px-4 font-semibold text-[#ea580c] backdrop-blur transition-colors hover:bg-[#fff4ee] hover:border-[rgba(234,88,12,0.5)]"
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
                     <rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>
                   </svg>
-                  Portal
+                  <span className="hidden xl:inline">Portal</span>
                 </Link>
-                <Button asChild className="ml-1 inline-flex h-[36px] items-center rounded-full bg-accent px-5 py-0 text-[15px] font-medium text-white shadow-[0_8px_18px_rgba(249,115,22,0.18)] hover:bg-accent-700">
+                <Button asChild className="ml-1 inline-flex h-[36px] items-center rounded-full bg-accent px-4 py-0 xl:px-5 text-[15px] font-medium text-white shadow-[0_8px_18px_rgba(249,115,22,0.18)] hover:bg-accent-700">
                   <a href="#contact">Cotizar operación</a>
                 </Button>
               </div>
@@ -95,14 +101,12 @@ export default function Header() {
               <button
                 type="button"
                 onClick={() => setIsMenuOpen((prev) => !prev)}
-                className="inline-flex min-h-[38px] min-w-[38px] items-center justify-center rounded-2xl border border-[rgba(24,38,84,0.10)] bg-white/18 text-[#0f1a3d] backdrop-blur lg:hidden"
+                className="inline-flex min-h-[38px] min-w-[38px] items-center justify-center rounded-full border border-[rgba(24,38,84,0.10)] bg-white/40 text-[#0f1a3d] backdrop-blur lg:hidden"
                 aria-label={isMenuOpen ? "Cerrar menú" : "Abrir menú"}
                 aria-expanded={isMenuOpen}
               >
                 {isMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
               </button>
-            </div>
-          </div>
         </div>
       </header>
 
@@ -144,7 +148,7 @@ export default function Header() {
         </div>
       )}
 
-      <div className="h-[72px] md:h-[76px]" />
+      <div className="h-[72px]" />
     </>
   )
 }
