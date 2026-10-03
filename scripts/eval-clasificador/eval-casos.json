@@ -1,0 +1,1030 @@
+{
+  "version": 1,
+  "nomenclador": "NCM 2022 (data/nomenclador.json)",
+  "notas": "ncm_esperado y alternativas_aceptables son posiciones de 8 dígitos que deben existir y estar vigentes en el nomenclador. 'confusion' son códigos tentadores pero incorrectos para el caso. confianza: alta = posición clara con los atributos dados; media = criterio habitual pero discutible (por eso se aceptan alternativas). Los casos dudosos se excluyeron.",
+  "casos": [
+    {
+      "id": "grua-sany-stc250",
+      "descripcion": "grua sany stc250 25 ton",
+      "origen": "China",
+      "atributos": {
+        "tipo": "camión grúa sobre chasis de camión apto para ruta, con cabina de conducción separada de la cabina de la grúa",
+        "capacidad": "25 t de izaje máximo",
+        "ejes": "4 ejes, solo los dos delanteros direccionables, no todos los ejes son direccionables",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8705.10.90",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8705.10.20",
+        "8426.41.90"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "grua-sany-sac1300",
+      "descripcion": "grua todo terreno sany SAC1300 130t",
+      "origen": "China",
+      "atributos": {
+        "tipo": "grúa todo terreno (all terrain) sobre chasis automotor apto para ruta, con cabina de conducción propia",
+        "capacidad": "130 t de izaje máximo",
+        "ejes": "todos los ejes direccionables",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8705.10.30",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8705.10.20",
+        "8426.41.10"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "grua-xcmg-xca60",
+      "descripcion": "grua all terrain xcmg xca60",
+      "origen": "China",
+      "atributos": {
+        "tipo": "grúa todo terreno sobre chasis automotor apto para ruta, con cabina de conducción propia",
+        "capacidad": "60 t de izaje máximo (menos de 100 t)",
+        "ejes": "4 ejes, todos los ejes direccionables",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8705.10.20",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8705.10.90",
+        "8426.41.10"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "grua-sany-src550",
+      "descripcion": "grua rough terrain sany SRC550 55 ton",
+      "origen": "China",
+      "atributos": {
+        "tipo": "grúa autopropulsada sobre neumáticos para obra (rough terrain), no es vehículo de ruta, una sola cabina para conducir y operar",
+        "capacidad": "55 t de izaje máximo (menos de 60 t)",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8426.41.90",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8705.10.20",
+        "8426.41.10"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "grua-oruga-xgc100",
+      "descripcion": "grua sobre orugas XCMG XGC100",
+      "origen": "China",
+      "atributos": {
+        "tipo": "grúa autopropulsada sobre orugas (crawler crane)",
+        "capacidad": "100 t de izaje máximo (70 t o más)",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8426.49.10",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8426.49.90",
+        "8426.41.90"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "autoelevador-electrico-25t",
+      "descripcion": "autoelevador electrico 2.5 tn bateria litio heli",
+      "origen": "China",
+      "atributos": {
+        "tipo": "carretilla apiladora autopropulsada (autoelevador contrabalanceado) con mástil de elevación",
+        "motor": "eléctrico, batería de litio",
+        "capacidad": "2,5 t de carga (no supera 6,5 t)",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8427.10.19",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8427.20.90",
+        "8709.11.00",
+        "8427.10.11"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "autoelevador-diesel-3t",
+      "descripcion": "autoelevador gasolero 3 toneladas hangcha mastil triplex",
+      "origen": "China",
+      "atributos": {
+        "tipo": "carretilla apiladora autopropulsada con mástil de elevación",
+        "motor": "a combustión, diésel",
+        "capacidad": "3 t de carga (no supera 6,5 t)",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8427.20.90",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8427.20.10",
+        "8427.10.19"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "autoelevador-diesel-10t",
+      "descripcion": "autoelevador diesel 10 tn para contenedores",
+      "origen": "China",
+      "atributos": {
+        "tipo": "carretilla apiladora autopropulsada con mástil de elevación",
+        "motor": "a combustión, diésel",
+        "capacidad": "10 t de carga (más de 6,5 t)",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8427.20.10",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8427.20.90",
+        "8427.10.11"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "excavadora-sany-sy215",
+      "descripcion": "excavadora sany sy215c",
+      "origen": "China",
+      "atributos": {
+        "tipo": "excavadora hidráulica sobre orugas, superestructura con giro de 360°",
+        "peso operativo": "21,5 t",
+        "potencia": "118 kW en el volante (entre 40,3 y 484,7 kW)",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8429.52.19",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8429.59.00",
+        "8429.52.90",
+        "8429.52.11"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "miniexcavadora",
+      "descripcion": "mini excavadora 1.8 tn motor kubota",
+      "origen": "China",
+      "atributos": {
+        "tipo": "miniexcavadora sobre orugas, giro de 360°",
+        "potencia": "15 kW en el volante (menos de 40,3 kW)",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8429.52.12",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8429.52.19",
+        "8429.59.00"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "retroexcavadora",
+      "descripcion": "retro pala xcmg xc870",
+      "origen": "China",
+      "atributos": {
+        "tipo": "retroexcavadora cargadora (pala frontal adelante y brazo retro atrás), superestructura sin giro de 360°",
+        "potencia": "70 kW",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8429.59.00",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8429.52.19",
+        "8429.51.99"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "pala-cargadora",
+      "descripcion": "pala cargadora frontal LW500 5 ton",
+      "origen": "China",
+      "atributos": {
+        "tipo": "cargadora de carga frontal sobre neumáticos, para superficie (no para minas subterráneas)",
+        "potencia": "162 kW en el volante (entre 43,99 y 297,5 kW)",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8429.51.99",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8429.51.19",
+        "8429.59.00"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "rodillo-compactador",
+      "descripcion": "rodillo vibrocompactador 12 tn",
+      "origen": "China",
+      "atributos": {
+        "tipo": "compactadora vibratoria autopropulsada de un rodillo liso (aplanadora)",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8429.40.00",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8430.69.90",
+        "8479.10.90"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "mixer-camion",
+      "descripcion": "camion mixer hormigonero 10m3",
+      "origen": "China",
+      "atributos": {
+        "tipo": "camión hormigonera: tambor mezclador montado sobre chasis de camión de ruta, vendido como vehículo completo",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8705.40.00",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8474.31.00",
+        "8704.23.90"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "grupo-electrogeno-100kva",
+      "descripcion": "grupo electrogeno 100kva cummins insonorizado",
+      "origen": "China",
+      "atributos": {
+        "tipo": "grupo electrógeno completo (motor + alternador en un conjunto)",
+        "motor": "diésel",
+        "potencia": "100 kVA (entre 75 y 375 kVA)",
+        "corriente": "alterna, trifásico",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8502.12.10",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8501.62.00",
+        "8502.11.10"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "grupo-electrogeno-20kva",
+      "descripcion": "generador diesel 20 kva cabinado",
+      "origen": "China",
+      "atributos": {
+        "tipo": "grupo electrógeno completo (motor + alternador)",
+        "motor": "diésel",
+        "potencia": "20 kVA (hasta 75 kVA)",
+        "corriente": "alterna",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8502.11.10",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8501.61.00",
+        "8502.20.11"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "generador-nafta-portatil",
+      "descripcion": "generador naftero 3500w portatil",
+      "origen": "China",
+      "atributos": {
+        "tipo": "grupo electrógeno portátil (motor + generador)",
+        "motor": "nafta, encendido por chispa",
+        "potencia": "3,5 kVA (hasta 210 kVA)",
+        "corriente": "alterna",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8502.20.11",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8502.11.10",
+        "8501.61.00"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "alternador-solo",
+      "descripcion": "alternador 50 kva sin motor stamford",
+      "origen": "China",
+      "atributos": {
+        "tipo": "generador de corriente alterna (alternador) solo, sin motor",
+        "potencia": "50 kVA (hasta 75 kVA)",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8501.61.00",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8502.11.10",
+        "8501.62.00"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "motor-trifasico-75kw",
+      "descripcion": "motor electrico trifasico 10hp",
+      "origen": "China",
+      "atributos": {
+        "tipo": "motor eléctrico de corriente alterna trifásico, rotor jaula de ardilla",
+        "potencia": "7,5 kW (entre 750 W y 75 kW)",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8501.52.10",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8501.40.19",
+        "8501.53.10"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "compresor-tornillo",
+      "descripcion": "compresor a tornillo 37kw 50hp",
+      "origen": "China",
+      "atributos": {
+        "tipo": "compresor de aire de tornillo estacionario (no montado en chasis remolcable)",
+        "potencia": "37 kW",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8414.80.12",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8414.40.20",
+        "8414.30.99"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "compresor-portatil-trailer",
+      "descripcion": "motocompresor diesel portatil 185 cfm con ruedas para obra",
+      "origen": "China",
+      "atributos": {
+        "tipo": "compresor de aire de tornillo montado en chasis remolcable con ruedas, accionado por motor diésel",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8414.40.20",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8414.80.12"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "panel-solar-550w",
+      "descripcion": "paneles solares 550w monocristalino",
+      "origen": "China",
+      "atributos": {
+        "tipo": "módulo fotovoltaico: células fotovoltaicas ensambladas en panel, sin inversor ni otros componentes",
+        "potencia": "550 W",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8541.43.00",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8501.72.10",
+        "8541.42.20"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "inversor-solar-hibrido",
+      "descripcion": "inversor hibrido 5kw para paneles solares",
+      "origen": "China",
+      "atributos": {
+        "tipo": "convertidor estático de corriente continua a corriente alterna (inversor) para sistemas fotovoltaicos, con cargador de baterías incorporado",
+        "potencia": "5 kW",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8504.40.90",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8504.40.30",
+        "8504.40.40",
+        "8504.40.10"
+      ],
+      "confianza": "media"
+    },
+    {
+      "id": "bateria-litio-48v",
+      "descripcion": "bateria litio 48v 100ah lifepo4 para solar",
+      "origen": "China",
+      "atributos": {
+        "tipo": "acumulador eléctrico de iones de litio (LiFePO4)",
+        "uso": "almacenamiento de energía solar",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8507.60.00",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8507.80.00",
+        "8506.50.10"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "bateria-auto-plomo",
+      "descripcion": "bateria 12v 75ah para auto",
+      "origen": "China",
+      "atributos": {
+        "tipo": "acumulador de plomo-ácido para arranque de motores",
+        "capacidad": "75 Ah, 12 V (más de 20 Ah)",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8507.10.90",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8507.10.10",
+        "8507.20.90"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "lampara-led-e27",
+      "descripcion": "lamparitas led 9w e27 luz fria",
+      "origen": "China",
+      "atributos": {
+        "tipo": "lámpara LED con rosca E27 (fuente luminosa, no luminaria)",
+        "potencia": "9 W",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8539.52.00",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8539.51.00",
+        "9405.11.90"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "panel-led-60x60",
+      "descripcion": "panel led 60x60 48w para cielorraso",
+      "origen": "China",
+      "atributos": {
+        "tipo": "luminaria LED completa para embutir en el techo (cielorraso), solo funciona con LED",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "9405.11.90",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8539.52.00",
+        "8539.51.00",
+        "9405.42.00"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "reflector-led-100w",
+      "descripcion": "reflector led 100w exterior ip65",
+      "origen": "China",
+      "atributos": {
+        "tipo": "proyector (reflector) LED completo para exterior, diseñado solo para LED",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "9405.42.00",
+      "alternativas_aceptables": [
+        "9405.11.90"
+      ],
+      "confusion": [
+        "8539.52.00",
+        "8539.51.00"
+      ],
+      "confianza": "media"
+    },
+    {
+      "id": "farola-solar",
+      "descripcion": "luminaria solar alumbrado publico todo en uno 200w",
+      "origen": "China",
+      "atributos": {
+        "tipo": "luminaria LED fotovoltaica con panel solar y batería integrados, para alumbrado de calles",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "9405.41.00",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8541.43.00",
+        "9405.42.00"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "monitor-27",
+      "descripcion": "monitor 27 pulgadas samsung para pc",
+      "origen": "China",
+      "atributos": {
+        "tipo": "monitor LCD/LED diseñado para conectarse a una computadora (HDMI y DisplayPort)",
+        "sintonizador de TV": "no tiene sintonizador de televisión",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8528.52.00",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8528.59.00",
+        "8528.72.00"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "smart-tv-55",
+      "descripcion": "smart tv 55 4k",
+      "origen": "China",
+      "atributos": {
+        "tipo": "televisor color con sintonizador de TV incorporado y pantalla",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8528.72.00",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8528.52.00",
+        "8528.59.00"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "celular",
+      "descripcion": "celulares xiaomi redmi note",
+      "origen": "China",
+      "atributos": {
+        "tipo": "teléfono inteligente (smartphone) para redes celulares",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8517.13.00",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8517.14.31",
+        "8517.62.62"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "notebook-13",
+      "descripcion": "notebook 13.3 pulgadas 1.3kg",
+      "origen": "China",
+      "atributos": {
+        "tipo": "computadora portátil con batería (funciona sin fuente externa)",
+        "peso": "1,3 kg (menos de 3,5 kg)",
+        "pantalla": "13,3 pulgadas 16:9, área aprox. 488 cm2 (entre 140 y 560 cm2)",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8471.30.12",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8471.30.19",
+        "8471.30.11"
+      ],
+      "confianza": "media"
+    },
+    {
+      "id": "router-wifi",
+      "descripcion": "router wifi tp-link doble banda",
+      "origen": "China",
+      "atributos": {
+        "tipo": "ruteador digital con conexión inalámbrica (WiFi)",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8517.62.41",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8517.62.49",
+        "8517.62.55"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "taladro-inalambrico",
+      "descripcion": "taladro atornillador inalambrico 20v dewalt",
+      "origen": "Estados Unidos",
+      "atributos": {
+        "tipo": "taladro percutor/atornillador de uso manual con motor eléctrico incorporado a batería",
+        "función principal": "taladrar",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8467.21.00",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8467.29.92",
+        "8467.89.00"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "amoladora",
+      "descripcion": "amoladora angular 115mm 850w",
+      "origen": "China",
+      "atributos": {
+        "tipo": "amoladora angular de uso manual con motor eléctrico incorporado",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8467.29.99",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8460.29.00",
+        "8467.22.00"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "sierra-circular",
+      "descripcion": "sierra circular de mano 7 1/4 1800w",
+      "origen": "China",
+      "atributos": {
+        "tipo": "sierra circular portátil de uso manual con motor eléctrico incorporado (no de banco)",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8467.22.00",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8465.91.10",
+        "8467.29.99"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "martillo-demoledor",
+      "descripcion": "martillo demoledor electrico 15kg",
+      "origen": "China",
+      "atributos": {
+        "tipo": "martillo demoledor de uso manual con motor eléctrico incorporado, solo percusión (sin rotación, no taladra)",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8467.29.93",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8467.21.00",
+        "8467.19.00"
+      ],
+      "confianza": "media"
+    },
+    {
+      "id": "rodamiento-6205",
+      "descripcion": "rulemanes 6205 2rs",
+      "origen": "China",
+      "atributos": {
+        "tipo": "rodamiento rígido de bolas, radial, sellado",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8482.10.10",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8482.10.90",
+        "8483.30.90"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "filtro-aceite-motor",
+      "descripcion": "filtros de aceite para motor de excavadora",
+      "origen": "China",
+      "atributos": {
+        "tipo": "filtro de aceite lubricante para motor diésel (encendido por compresión)",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8421.23.00",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8431.49.29",
+        "8409.99.99",
+        "8421.29.90"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "filtro-hidraulico",
+      "descripcion": "filtro hidraulico retorno para excavadora",
+      "origen": "China",
+      "atributos": {
+        "tipo": "filtro de aceite hidráulico del sistema hidráulico de la máquina (no del motor)",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8421.29.90",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8421.23.00",
+        "8431.49.29"
+      ],
+      "confianza": "media"
+    },
+    {
+      "id": "juntas-caucho",
+      "descripcion": "kit de o-rings y juntas de goma para cilindros hidraulicos",
+      "origen": "China",
+      "atributos": {
+        "tipo": "juntas u o-rings de caucho vulcanizado sin endurecer",
+        "material": "caucho (NBR), sin partes metálicas",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "4016.93.00",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8484.10.00",
+        "8484.20.00"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "balde-excavadora",
+      "descripcion": "balde para excavadora 20 tn 1.2m3",
+      "origen": "China",
+      "atributos": {
+        "tipo": "cuchara (balde) para excavadora de la partida 84.29",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8431.41.00",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8431.49.29",
+        "7326.90.90"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "bulones-acero",
+      "descripcion": "bulones hexagonales M16 con tuerca acero 8.8",
+      "origen": "China",
+      "atributos": {
+        "tipo": "pernos (bulones) roscados de acero con sus tuercas",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "7318.15.00",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "7318.16.00",
+        "7318.14.00"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "cubierta-camion",
+      "descripcion": "cubiertas 295/80 r22.5 para camion",
+      "origen": "China",
+      "atributos": {
+        "tipo": "neumático nuevo de caucho para camiones",
+        "medida": "295/80 R22.5 (no 11,00-24)",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "4011.20.90",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "4011.20.10",
+        "8708.70.90"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "aire-split",
+      "descripcion": "aire acondicionado split 3000 frigorias inverter frio calor",
+      "origen": "China",
+      "atributos": {
+        "tipo": "acondicionador de aire de pared, sistema de elementos separados (split)",
+        "capacidad": "3.000 frigorías/h (hasta 30.000)",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8415.10.11",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8415.81.90",
+        "8418.61.00"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "heladera-no-frost",
+      "descripcion": "heladera con freezer no frost 2 puertas",
+      "origen": "China",
+      "atributos": {
+        "tipo": "combinación de refrigerador y congelador con puertas exteriores separadas, doméstica",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8418.10.00",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8418.21.00",
+        "8418.40.00"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "freidora-aire",
+      "descripcion": "freidora de aire 5L air fryer",
+      "origen": "China",
+      "atributos": {
+        "tipo": "aparato electrotérmico doméstico que cocina por circulación de aire caliente (sin baño de aceite)",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8516.60.00",
+      "alternativas_aceptables": [
+        "8516.79.20"
+      ],
+      "confusion": [
+        "8516.79.90",
+        "8509.40.90"
+      ],
+      "confianza": "media"
+    },
+    {
+      "id": "aspiradora",
+      "descripcion": "aspiradora 1200w 15 litros polvo y agua",
+      "origen": "China",
+      "atributos": {
+        "tipo": "aspiradora con motor eléctrico incorporado",
+        "potencia": "1.200 W (hasta 1.500 W)",
+        "depósito": "15 litros (hasta 20 l)",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8508.11.00",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "8508.19.00",
+        "8509.80.90"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "silla-oficina",
+      "descripcion": "sillas de oficina giratorias malla con ruedas",
+      "origen": "China",
+      "atributos": {
+        "tipo": "asiento giratorio de altura ajustable",
+        "material": "estructura de metal y plástico, respaldo de malla (no de madera)",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "9401.39.00",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "9401.71.00",
+        "9401.79.00"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "escritorio-oficina",
+      "descripcion": "escritorios de oficina melamina 1.40",
+      "origen": "China",
+      "atributos": {
+        "tipo": "mueble de oficina (escritorio) de madera aglomerada/MDF con melamina",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "9403.30.00",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "9403.60.00",
+        "9403.10.00"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "remera-algodon",
+      "descripcion": "remeras lisas algodon hombre",
+      "origen": "China",
+      "atributos": {
+        "tipo": "T-shirt (remera) de tejido de punto",
+        "fibra": "100 % algodón",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "6109.10.00",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "6109.90.00",
+        "6205.20.00"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "jean-hombre",
+      "descripcion": "jeans hombre denim",
+      "origen": "China",
+      "atributos": {
+        "tipo": "pantalón largo para hombre de tejido plano (no de punto), denim",
+        "fibra": "algodón (98 %)",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "6203.42.00",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "6204.62.00",
+        "6103.42.00"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "zapatillas-running",
+      "descripcion": "zapatillas running",
+      "origen": "China",
+      "atributos": {
+        "tipo": "calzado de deporte (running)",
+        "parte superior": "materia textil (malla)",
+        "suela": "caucho/plástico",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "6404.11.00",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "6402.19.00",
+        "6404.19.00"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "botines-seguridad",
+      "descripcion": "botines de seguridad puntera de acero",
+      "origen": "China",
+      "atributos": {
+        "tipo": "calzado de trabajo con puntera metálica de protección",
+        "parte superior": "cuero natural",
+        "suela": "caucho/poliuretano",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "6403.40.00",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "6403.91.90",
+        "6402.91.10"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "mochila",
+      "descripcion": "mochilas escolares",
+      "origen": "China",
+      "atributos": {
+        "tipo": "mochila",
+        "material exterior": "tela de poliéster (materia textil)",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "4202.92.00",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "4202.12.20",
+        "4202.22.20"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "valija-rigida",
+      "descripcion": "valijas rigidas abs 24 pulgadas con ruedas",
+      "origen": "China",
+      "atributos": {
+        "tipo": "maleta (valija) de viaje",
+        "material exterior": "plástico ABS",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "4202.12.10",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "4202.12.20",
+        "4202.92.00"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "peluche",
+      "descripcion": "peluches osito 30cm",
+      "origen": "China",
+      "atributos": {
+        "tipo": "juguete relleno (peluche) que representa un animal",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "9503.00.31",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "9503.00.39",
+        "9503.00.22"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "auto-electrico-nene",
+      "descripcion": "auto a bateria para chicos 12v con control remoto",
+      "origen": "China",
+      "atributos": {
+        "tipo": "vehículo de juguete con ruedas para que el niño se suba y lo conduzca (con motor eléctrico a batería)",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "9503.00.10",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "9503.00.97",
+        "8703.80.00"
+      ],
+      "confianza": "alta"
+    },
+    {
+      "id": "monopatin-electrico",
+      "descripcion": "monopatin electrico adulto 350w",
+      "origen": "China",
+      "atributos": {
+        "tipo": "monopatín (scooter) eléctrico para adultos, para transporte personal, no juguete",
+        "motor": "eléctrico 350 W",
+        "estado": "Nuevo"
+      },
+      "ncm_esperado": "8711.60.00",
+      "alternativas_aceptables": [],
+      "confusion": [
+        "9503.00.10",
+        "8712.00.90"
+      ],
+      "confianza": "alta"
+    }
+  ]
+}

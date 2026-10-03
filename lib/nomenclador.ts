@@ -41,14 +41,23 @@ const VACIAS = new Set(('de del la las el los y o en con para por sin a al un un
   'otros otras demas los demas las demas incluso excepto partes accesorios articulos productos materias ' +
   'tipo uso clase cualquier mismo misma etc').split(' '))
 
-// Raíz muy simple: saca plurales y algunos sufijos para que "cajas" encuentre "caja".
-function raiz(p: string): string {
-  if (p.length > 5 && p.endsWith('es')) return p.slice(0, -2)
-  if (p.length > 4 && p.endsWith('s')) return p.slice(0, -1)
-  return p
+// Raíz muy simple para que singular y plural coincidan: "cables"/"cable" → "cabl",
+// "luces"/"luz" → "luc", "redes"/"red" → "red", "motores"/"motor" → "motor".
+export function raiz(p: string): string {
+  let r = p
+  if (r.length > 3 && r.endsWith('s')) r = r.slice(0, -1)
+  if (r.length > 3 && r.endsWith('e')) r = r.slice(0, -1)
+  if (r.length > 3 && r.endsWith('s')) r = r.slice(0, -1)   // "envases" → "envas" → "enva", igual que "envase"
+  if (r.endsWith('z')) r = r.slice(0, -1) + 'c'             // "luz" → "luc", como "luces" → "luc"
+  return r
 }
+// Las vacías se comparan antes y después de sacar la raíz ("otras" → "otra").
+const VACIAS_RAIZ = new Set(Array.from(VACIAS).map(raiz))
 export function palabras(t: string): string[] {
-  return normalizar(t).split(' ').filter((p) => p.length > 2 && !VACIAS.has(p)).map(raiz)
+  return normalizar(t).split(' ')
+    .filter((p) => p.length > 2 && !VACIAS.has(p))
+    .map(raiz)
+    .filter((p) => !VACIAS_RAIZ.has(p))
 }
 
 async function cargar() {
@@ -106,37 +115,54 @@ export async function hijos(prefijo: string, limite = 80): Promise<Posicion[]> {
   return items.filter((p) => soloDigitos(p.c).startsWith(pref)).slice(0, limite)
 }
 
-// Busca ítems por palabras. Cuenta coincidencias en la descripción del ítem y, con
-// menos peso, en las de su partida y capítulo (la NCM describe mucho por herencia:
-// "Los demás" solo tiene sentido con lo de arriba).
-export async function buscarPorTexto(texto: string, limite = 40): Promise<Array<Posicion & { puntaje: number }>> {
-  const { items, normal } = await cargar()
+// Puntaje de un ítem contra las palabras buscadas. Cuenta coincidencias en la
+// descripción del ítem y, con menos peso, en las de su partida y subpartidas (la
+// NCM describe mucho por herencia: "Los demás" solo tiene sentido con lo de arriba).
+export async function puntuador(texto: string): Promise<(p: Posicion) => number> {
+  const { normal } = await cargar()
   const buscadas = Array.from(new Set(palabras(texto)))
-  if (!buscadas.length) return []
-  const res: Array<Posicion & { puntaje: number }> = []
-  for (const it of items) {
+  return (it: Posicion) => {
+    if (!buscadas.length) return 0
     const d = soloDigitos(it.c)
     const propio = ' ' + (normal.get(d) || '') + ' '
-    const partida = ' ' + (normal.get(d.slice(0, 4)) || '') + ' ' + (normal.get(d.slice(0, 6)) || '') + ' '
+    const partida = ' ' + [4, 5, 6, 7].map((n) => normal.get(d.slice(0, n)) || '').join(' ') + ' '
     let puntaje = 0
     for (const p of buscadas) {
       // Palabra entera (ya vienen sin plural): "acero" no tiene que encontrar "acerola".
       if (propio.includes(' ' + p + ' ')) puntaje += 3
       else if (partida.includes(' ' + p + ' ')) puntaje += 1
     }
-    if (puntaje > 0) res.push({ ...it, puntaje })
+    return puntaje
+  }
+}
+
+// Busca ítems por palabras, de mayor a menor puntaje.
+export async function buscarPorTexto(texto: string, limite = 40): Promise<Array<Posicion & { puntaje: number }>> {
+  const { items } = await cargar()
+  const puntaje = await puntuador(texto)
+  const res: Array<Posicion & { puntaje: number }> = []
+  for (const it of items) {
+    const p = puntaje(it)
+    if (p > 0) res.push({ ...it, puntaje: p })
   }
   return res.sort((a, b) => b.puntaje - a.puntaje).slice(0, limite)
 }
 
-// Si la IA propone un código que no existe, el más parecido que sí existe dentro de
-// la misma subpartida o partida (para no descartar una buena pista por un dígito).
+// "Los demás" / "Las demás": el ítem residual de una subpartida.
+export const esResidual = (p: Posicion) => /^l[oa]s dem[aá]s\b/i.test(String(p.d || '').trim())
+
+// Si la IA propone un código que no existe, el que sí existe dentro de la misma
+// subpartida (7 o 6 dígitos): el único ítem que tenga, o su residual "Los demás".
+// Nunca se cae a la partida entera: eso sería cambiar de producto, no corregir un dígito.
 export async function codigoMasCercano(codigo: string): Promise<Posicion | null> {
   const d = soloDigitos(codigo).slice(0, 8)
   if (await existe(d)) return buscarPosicion(d)
-  for (const largo of [6, 4]) {
+  for (const largo of [7, 6]) {
+    if (d.length < largo) continue
     const candidatos = await hijos(d.slice(0, largo), 200)
-    if (candidatos.length) return candidatos.find((p) => /los dem/i.test(p.d)) || candidatos[0]
+    if (!candidatos.length) continue
+    if (candidatos.length === 1) return candidatos[0]
+    return candidatos.find(esResidual) || null
   }
   return null
 }
